@@ -9,83 +9,125 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen pb-12">
+<body class="bg-gray-900 text-gray-100 min-h-screen pb-16">
 
-  <!-- Header & Language Switcher -->
-  <header class="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-40 flex justify-between items-center">
+  <!-- Header & Navigation Bar -->
+  <header class="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-40 flex justify-between items-center shadow-lg">
     <div class="flex items-center gap-2">
       <span class="text-2xl font-bold text-yellow-500">⚡ PiAuction</span>
-      <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded border border-yellow-500/30">Bridge</span>
+      <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded border border-yellow-500/30 font-mono">Bridge</span>
     </div>
-    <button onclick="toggleLanguage()" id="langBtn" class="bg-gray-700 hover:bg-gray-600 text-xs px-3 py-1.5 rounded-lg border border-gray-600 transition">
-      🌐 EN
-    </button>
+    <div class="flex items-center gap-2">
+      <button onclick="openCreateModal()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow">
+        <span>➕</span> <span data-i18n="btnCreate">Tawarkan Aset</span>
+      </button>
+      <button onclick="toggleLanguage()" id="langBtn" class="bg-gray-700 hover:bg-gray-600 text-xs px-2.5 py-1.5 rounded-lg border border-gray-600 transition">
+        🌐 EN
+      </button>
+    </div>
   </header>
 
-  <main class="max-w-md mx-auto p-4 space-y-6">
+  <main class="max-w-md mx-auto p-4 space-y-5">
 
-    <!-- Disclaimer Security Warning -->
-    <div class="bg-amber-950/40 border border-amber-600/40 rounded-xl p-3 text-xs text-amber-200/90 space-y-1">
-      <p class="font-semibold flex items-center gap-1">
-        <span>⚠️</span> <span data-i18n="warnTitle">Peringatan Keamanan</span>
-      </p>
-      <p data-i18n="warnDesc">
-        Cocokkan Gambar & ID Aset di sini dengan <b>PIBOX NFT EVENT ZONE</b> sebelum menawar. Transaksi akhir dilakukan di PiBox.
+    <!-- Banner Peringatan Keamanan Utama -->
+    <div class="bg-amber-950/50 border border-amber-500/40 rounded-2xl p-3.5 text-xs text-amber-200/90 space-y-1.5 shadow-md">
+      <div class="font-bold flex items-center gap-1.5 text-amber-400 text-sm">
+        <span>⚠️</span> <span data-i18n="warnTitle">Cocokkan Identitas Aset</span>
+      </div>
+      <p class="leading-relaxed" data-i18n="warnDesc">
+        Aplikasi ini memuat **Screenshot Aset**. Sebelum menawar, **wajib bandingkan** Gambar, Judul (spasi & karakter), dan Nama Kreator di SS ini dengan data asli di <b>PIBOX NFT EVENT ZONE</b> pada aplikasi PiBox!
       </p>
     </div>
 
-    <!-- Active Auction Card -->
-    <div class="bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-xl">
-      <!-- Image & Tag -->
-      <div class="relative aspect-square bg-gray-950">
-        <img id="nftImage" src="https://via.placeholder.com/400x400?text=NFT+Preview" alt="NFT" class="w-full h-full object-cover">
-        <div class="absolute top-3 right-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full text-xs font-mono text-yellow-400 border border-yellow-500/30 flex items-center gap-1">
+    <!-- Active Auction Display Card -->
+    <div class="bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl space-y-0">
+      
+      <!-- Container Display Gambar SS -->
+      <div class="relative w-full bg-gray-950 min-h-[300px] flex items-center justify-center overflow-hidden border-b border-gray-700">
+        <!-- Placeholder / Image Preview -->
+        <img id="nftImage" src="https://via.placeholder.com/500x600?text=Unggah+SS+Aset+NFT" alt="SS NFT" class="w-full h-auto object-contain max-h-[480px]">
+        
+        <!-- Floating Timer Badge -->
+        <div class="absolute top-3 right-3 bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-mono text-yellow-400 border border-yellow-500/40 shadow-lg flex items-center gap-1">
           <span>⏳</span> <span id="timerDisplay">23:59:59</span>
         </div>
       </div>
 
-      <!-- Detail Info -->
+      <!-- Detail Info & Status Penawaran -->
       <div class="p-4 space-y-4">
-        <div>
-          <h2 id="nftTitle" class="text-lg font-bold">Garuda Nusantara #001</h2>
-          <p class="text-xs text-gray-400 font-mono">ID: <span id="nftId">NFT-99218</span></p>
+        
+        <div class="bg-gray-900/80 border border-gray-700/60 p-3 rounded-xl space-y-1">
+          <p class="text-[11px] text-gray-400 uppercase tracking-wider font-semibold" data-i18n="sellerInfoTitle">Petunjuk Pembeli</p>
+          <p class="text-xs text-gray-300 leading-snug" data-i18n="sellerInfoDetail">
+            Lihat detail identitas aset pada gambar SS di atas. Pastikan kecocokannya di platform PiBox.
+          </p>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 bg-gray-900/60 p-3 rounded-xl text-xs">
+        <div class="grid grid-cols-2 gap-2 bg-gray-900/90 p-3 rounded-xl border border-gray-700/80">
           <div>
-            <span class="text-gray-400 block" data-i18n="reservePrice">Harga Terendah</span>
-            <span id="reservePriceDisplay" class="font-bold text-gray-200">10 Pi</span>
+            <span class="text-[11px] text-gray-400 block" data-i18n="reservePrice">Harga Terendah</span>
+            <span id="reservePriceDisplay" class="font-bold text-gray-200 text-sm">10 Pi</span>
           </div>
           <div>
-            <span class="text-gray-400 block" data-i18n="highestBid">Tawaran Tertinggi</span>
-            <span id="highestBidDisplay" class="font-bold text-yellow-400 text-sm">12.5 Pi</span>
+            <span class="text-[11px] text-gray-400 block" data-i18n="highestBid">Tawaran Tertinggi</span>
+            <span id="highestBidDisplay" class="font-bold text-yellow-400 text-base">12.5 Pi</span>
           </div>
         </div>
 
-        <!-- Action Form -->
-        <div id="biddingArea" class="space-y-2">
-          <label class="block text-xs text-gray-300" data-i18n="yourBid">Masukkan Penawaran (Pi):</label>
+        <!-- Action Form Penawaran Pembeli -->
+        <div id="biddingArea" class="space-y-2 pt-1">
+          <label class="block text-xs font-medium text-gray-300" data-i18n="yourBid">Masukkan Penawaran Anda (Pi):</label>
           <div class="flex gap-2">
-            <input type="number" id="bidInput" placeholder="Min. 12.6" step="0.1" class="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm w-full focus:outline-none focus:border-yellow-500">
-            <button onclick="placeBid()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-sm whitespace-nowrap transition">
+            <input type="number" id="bidInput" placeholder="Min. 12.6" step="0.1" class="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm w-full text-white focus:outline-none focus:border-yellow-500 transition">
+            <button onclick="placeBid()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-sm whitespace-nowrap transition shadow-lg">
               <span data-i18n="btnBid">Tawar</span> (0.2 Pi)
             </button>
           </div>
           <p class="text-[10px] text-gray-400" data-i18n="feeNotice">*Dikenakan biaya 0.2 Pi untuk server & anti-spam (Non-refundable).</p>
         </div>
+
       </div>
     </div>
 
   </main>
 
-  <!-- MODAL POPUP: LE LANG SELESAI (Khusus Penjual) -->
-  <div id="sellerModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <!-- MODAL 1: FORM PENJUAL (Sesuai Permintaan: Hanya Upload SS + Harga Terendah) -->
+  <div id="createModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+        <h3 class="text-base font-bold text-yellow-400" data-i18n="formTitle">Tawarkan Aset NFT Baru</h3>
+        <button onclick="closeCreateModal()" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <!-- Input 1: Upload SS Gambar Aset -->
+        <div>
+          <label class="block mb-1 font-semibold text-gray-200" data-i18n="lblUploadSS">Upload SS Aset NFT:</label>
+          <input type="file" id="ssFileInput" accept="image/*" class="w-full text-xs text-gray-300 bg-gray-900 border border-gray-700 rounded-xl p-2 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-yellow-500 file:text-gray-950 hover:file:bg-yellow-400">
+          <p class="text-[10px] text-gray-400 mt-1" data-i18n="uploadHint">*Upload Screenshot yang menampilkan Gambar, Judul, & Creator Aset dari PiBox.</p>
+        </div>
+
+        <!-- Input 2: Harga Terendah -->
+        <div>
+          <label class="block mb-1 font-semibold text-gray-200" data-i18n="lblReservePrice">Harga Terendah (Pi):</label>
+          <input type="number" id="reservePriceInput" placeholder="Contoh: 10" min="0.1" step="0.1" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-yellow-500">
+        </div>
+      </div>
+
+      <button onclick="submitNewListing()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-sm transition shadow-lg">
+        <span data-i18n="btnPublish">Rilis Lelang</span> (0.2 Pi)
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL 2: POPUP LELANG SELESAI (Peringatan Rilis di PiBox) -->
+  <div id="sellerModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-gray-800 border border-yellow-500/50 rounded-2xl p-5 max-w-sm w-full text-center space-y-4 shadow-2xl">
       <div class="text-4xl">🎉</div>
       <h3 class="text-lg font-bold text-yellow-400" data-i18n="modalTitle">Lelang Telah Selesai!</h3>
       <p class="text-xs text-gray-300 leading-relaxed" data-i18n="modalDesc">
         Harga tertinggi telah tercapai sebesar <b id="finalPriceText" class="text-yellow-400">12.5 Pi</b>. 
-        Segera rilis aset NFT Anda di platform <b>PiBox (PIBOX NFT EVENT ZONE)</b> dengan harga sesuai hasil lelang ini!
+        Segera rilis aset NFT Anda di platform <b>PIBOX NFT EVENT ZONE</b> dengan harga sesuai hasil lelang ini!
       </p>
       <div class="bg-gray-900 p-3 rounded-xl text-left border border-gray-700 text-xs font-mono space-y-1">
         <div class="text-gray-400" data-i18n="winnerWallet">Pemenang:</div>
@@ -97,48 +139,66 @@
     </div>
   </div>
 
-  <!-- JavaScript Logic -->
+  <!-- JavaScript App Logic -->
   <script>
-    // 1. Kamus Multi-Bahasa (ID & EN)
+    // Kamus Multi-Bahasa (Indonesia & English)
     const i18n = {
       id: {
-        warnTitle: "Peringatan Keamanan",
-        warnDesc: "Cocokkan Gambar & ID Aset di sini dengan PIBOX NFT EVENT ZONE sebelum menawar. Transaksi akhir dilakukan di PiBox.",
+        btnCreate: "Tawarkan Aset",
+        warnTitle: "Cocokkan Identitas Aset",
+        warnDesc: "Aplikasi ini memuat **Screenshot Aset**. Sebelum menawar, **wajib bandingkan** Gambar, Judul (spasi & karakter), dan Nama Kreator di SS ini dengan data asli di PIBOX NFT EVENT ZONE pada aplikasi PiBox!",
+        sellerInfoTitle: "Petunjuk Pembeli",
+        sellerInfoDetail: "Lihat detail identitas aset pada gambar SS di atas. Pastikan kecocokannya di platform PiBox.",
         reservePrice: "Harga Terendah",
         highestBid: "Tawaran Tertinggi",
-        yourBid: "Masukkan Penawaran (Pi):",
+        yourBid: "Masukkan Penawaran Anda (Pi):",
         btnBid: "Tawar",
         feeNotice: "*Dikenakan biaya 0.2 Pi untuk server & anti-spam (Non-refundable).",
+        formTitle: "Tawarkan Aset NFT Baru",
+        lblUploadSS: "Upload SS Aset NFT:",
+        uploadHint: "*Upload Screenshot yang menampilkan Gambar, Judul, & Creator Aset dari PiBox.",
+        lblReservePrice: "Harga Terendah (Pi):",
+        btnPublish: "Rilis Lelang",
         modalTitle: "Lelang Telah Selesai!",
         modalDesc: "Harga tertinggi telah tercapai. Segera rilis aset NFT Anda di platform PIBOX NFT EVENT ZONE dengan harga sesuai hasil lelang ini!",
         winnerWallet: "Alamat Pemenang:",
         understood: "Saya Mengerti & Rilis Sekarang",
         alertLowBid: "Penawaran harus lebih tinggi dari harga terendah dan penawaran saat ini!",
-        alertTimeAdded: "⚡ Anti-Sniping! Waktu lelang diperpanjang 5 menit."
+        alertTimeAdded: "⚡ Anti-Sniping! Waktu lelang diperpanjang 5 menit.",
+        alertEmptyForm: "Harap unggah screenshot aset dan tentukan harga terendah!"
       },
       en: {
-        warnTitle: "Security Warning",
-        warnDesc: "Match Image & Asset ID here with PIBOX NFT EVENT ZONE before bidding. Final transaction takes place on PiBox.",
+        btnCreate: "Offer Asset",
+        warnTitle: "Match Asset Identity",
+        warnDesc: "This app displays an **Asset Screenshot**. Before bidding, you **must compare** the Image, Title (spacing & characters), and Creator Name in this SS with the official record in PIBOX NFT EVENT ZONE on PiBox!",
+        sellerInfoTitle: "Buyer Instructions",
+        sellerInfoDetail: "Check asset details directly from the screenshot above. Verify accuracy on PiBox.",
         reservePrice: "Reserve Price",
         highestBid: "Highest Bid",
         yourBid: "Enter Your Bid (Pi):",
         btnBid: "Bid Now",
         feeNotice: "*Requires 0.2 Pi fee for server & anti-spam (Non-refundable).",
+        formTitle: "Offer New NFT Asset",
+        lblUploadSS: "Upload NFT Asset Screenshot:",
+        uploadHint: "*Upload a screenshot showing Image, Title, & Creator from PiBox.",
+        lblReservePrice: "Reserve Price (Pi):",
+        btnPublish: "Publish Auction",
         modalTitle: "Auction Completed!",
         modalDesc: "The highest bid has been reached. Please immediately release your NFT asset on PIBOX NFT EVENT ZONE at the winning auction price!",
         winnerWallet: "Winner Wallet:",
         understood: "I Understand & Release Now",
         alertLowBid: "Bid must be higher than reserve price and current highest bid!",
-        alertTimeAdded: "⚡ Anti-Sniping! Auction extended by 5 minutes."
+        alertTimeAdded: "⚡ Anti-Sniping! Auction extended by 5 minutes.",
+        alertEmptyForm: "Please upload an asset screenshot and set the reserve price!"
       }
     };
 
     let currentLang = 'id';
-    let timeLeft = 120; // Contoh timer singkat 2 menit untuk demo
-    let highestBid = 12.5;
+    let timeLeft = 86400; // Timer default 24 jam (86400 detik)
+    let highestBid = 0.0;
     let reservePrice = 10.0;
 
-    // Toggle Bahasa
+    // Toggle Switcher Bahasa
     function toggleLanguage() {
       currentLang = currentLang === 'id' ? 'en' : 'id';
       document.getElementById('langBtn').innerText = currentLang === 'id' ? '🌐 EN' : '🌐 ID';
@@ -151,7 +211,7 @@
       });
     }
 
-    // Timer Countdown & Anti-Sniping Logic
+    // Timer Countdown & Logika Anti-Sniping
     const timerElement = document.getElementById('timerDisplay');
     const timerInterval = setInterval(() => {
       if (timeLeft <= 0) {
@@ -167,7 +227,35 @@
       }
     }, 1000);
 
-    // Fungsi Penawaran (Bid) + Anti-Sniping Check
+    // Fungsi Penjual Membuat Lelang Baru (Upload SS + Reserve Price)
+    function submitNewListing() {
+      const fileInput = document.getElementById('ssFileInput');
+      const reserveInput = parseFloat(document.getElementById('reservePriceInput').value);
+
+      if (!fileInput.files[0] || isNaN(reserveInput) || reserveInput <= 0) {
+        alert(i18n[currentLang].alertEmptyForm);
+        return;
+      }
+
+      // Tampilkan SS di Layar Utama via FileReader
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('nftImage').src = e.target.result;
+      };
+      reader.readAsDataURL(fileInput.files[0]);
+
+      // Set Harga Terendah & Reset Status Bid
+      reservePrice = reserveInput;
+      highestBid = 0.0;
+      timeLeft = 86400; // Reset waktu lelang ke 24 jam penuh
+
+      document.getElementById('reservePriceDisplay').innerText = reservePrice + " Pi";
+      document.getElementById('highestBidDisplay').innerText = "Belum Ada";
+
+      closeCreateModal();
+    }
+
+    // Fungsi Pembeli Menawar (Bid)
     function placeBid() {
       const bidInput = parseFloat(document.getElementById('bidInput').value);
       
@@ -176,32 +264,32 @@
         return;
       }
 
-      // 💥 Fitur Anti-Sniping: Jika ditawar saat sisa waktu < 2 menit (120 detik), tambah 5 menit (300 detik)
+      // Fitur Anti-Sniping: Tambah 5 menit jika bid pada 2 menit terakhir
       if (timeLeft < 120) {
         timeLeft += 300;
         alert(i18n[currentLang].alertTimeAdded);
       }
 
-      // Update nilai bid
       highestBid = bidInput;
       document.getElementById('highestBidDisplay').innerText = highestBid + " Pi";
       document.getElementById('bidInput').value = '';
     }
 
-    // Fungsi Ketika Lelang Selesai
+    // Penutupan Lelang
     function endAuction() {
       document.getElementById('biddingArea').innerHTML = `
-        <div class="bg-gray-900/80 p-3 rounded-xl text-center border border-gray-700">
-          <p class="text-xs text-yellow-400 font-bold">Lelang Telah Ditutup / Auction Closed</p>
+        <div class="bg-gray-900 p-3 rounded-xl text-center border border-gray-700">
+          <p class="text-xs text-yellow-400 font-bold">Lelang Selesai / Closed</p>
         </div>
       `;
-      // Buka Modal khusus Penjual
+      document.getElementById('finalPriceText').innerText = highestBid > 0 ? highestBid + " Pi" : reservePrice + " Pi";
       document.getElementById('sellerModal').classList.remove('hidden');
     }
 
-    function closeModal() {
-      document.getElementById('sellerModal').classList.add('hidden');
-    }
+    // Kontrol Modal
+    function openCreateModal() { document.getElementById('createModal').classList.remove('hidden'); }
+    function closeCreateModal() { document.getElementById('createModal').classList.add('hidden'); }
+    function closeModal() { document.getElementById('sellerModal').classList.add('hidden'); }
   </script>
 </body>
 </html>
