@@ -157,7 +157,6 @@
     // -------------------------------------------------------------
     // 1. SUPABASE CONFIGURATION
     // -------------------------------------------------------------
-    // Ganti nilai dua variabel di bawah ini dengan Kunci Supabase milik Anda
     const SUPABASE_URL = "https://XYZ.supabase.co"; 
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -336,10 +335,10 @@
       const file = fileInput.files[0];
       const fileName = `ss_${Date.now()}_${file.name}`;
 
-      // Step A: Upload File Gambar ke Supabase Storage (Bucket: nft-screenshots)
+      // Step A: Upload File Gambar ke Supabase Storage (Bucket: images)
       const { data: storageData, error: storageErr } = await supabaseClient
         .storage
-        .from('nft-screenshots')
+        .from('images')
         .upload(fileName, file);
 
       if (storageErr) {
@@ -349,14 +348,14 @@
         return;
       }
 
-      // Step B: Dapatkan Public URL Gambar
+      // Step B: Dapatkan Public URL Gambar (Bucket: images)
       const { data: publicUrlData } = supabaseClient
         .storage
-        .from('nft-screenshots')
+        .from('images')
         .getPublicUrl(fileName);
 
       const publicImageUrl = publicUrlData.publicUrl;
-      const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 jam dari sekarang
+      const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const sellerName = piUser ? piUser.username : "Seller_Master";
 
       // Step C: Simpan Data Lelang Baru ke Tabel 'auctions' Supabase
