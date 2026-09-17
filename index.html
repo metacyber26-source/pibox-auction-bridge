@@ -3,73 +3,97 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PiAuction Bridge - Realtime NFT Lelang</title>
-  <!-- Tailwind CSS -->
+  <title>PiBox Auction Bridge</title>
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Pi Network SDK -->
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen pb-16 font-sans">
 
-  <!-- Header -->
+  <!-- Header & Navigation Bar -->
   <header class="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-40 flex justify-between items-center shadow-lg">
     <div class="flex items-center gap-2">
       <span class="text-2xl font-bold text-yellow-500">⚡ PiAuction</span>
       <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded border border-yellow-500/30 font-mono">Bridge</span>
     </div>
     <div class="flex items-center gap-2">
-      <button onclick="openModal()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1 shadow">
-        <span>➕</span> <span>Tawarkan Aset</span>
+      <div id="connectionStatus" class="w-2.5 h-2.5 rounded-full bg-red-500" title="Koneksi Realtime"></div>
+      <button onclick="openCreateModal()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow">
+        <span>➕</span> <span data-i18n="btnCreate">Tawarkan Aset</span>
+      </button>
+      <button onclick="toggleLanguage()" id="langBtn" class="bg-gray-700 hover:bg-gray-600 text-xs px-2.5 py-1.5 rounded-lg border border-gray-600 transition">
+        🌐 EN
       </button>
     </div>
   </header>
 
   <main class="max-w-md mx-auto p-4 space-y-5">
 
-    <!-- Peringatan Keamanan -->
+    <!-- Banner Peringatan Keamanan Utama -->
     <div class="bg-amber-950/50 border border-amber-500/40 rounded-2xl p-3.5 text-xs text-amber-200/90 space-y-1.5 shadow-md">
       <div class="font-bold flex items-center gap-1.5 text-amber-400 text-sm">
-        <span>⚠️</span> <span>Cocokkan Identitas Aset</span>
+        <span>⚠️</span> <span data-i18n="warnTitle">Cocokkan Identitas Aset</span>
       </div>
-      <p class="leading-relaxed">
-        Aplikasi ini memuat <b>Screenshot Aset</b>. Sebelum menawar, <b>wajib bandingkan</b> Gambar, Judul, dan Nama Kreator di SS ini dengan data asli di <b>PIBOX NFT EVENT ZONE</b> pada aplikasi PiBox!
+      <p class="leading-relaxed" data-i18n="warnDesc">
+        Aplikasi ini memuat <b>Screenshot Aset</b>. Sebelum menawar, <b>wajib bandingkan</b> Gambar, Judul (spasi & karakter), dan Nama Kreator di SS ini dengan data asli di <b>PIBOX NFT EVENT ZONE</b> pada aplikasi PiBox!
       </p>
     </div>
 
     <!-- Active Auction Display Card -->
-    <div class="bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl">
+    <div class="bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl space-y-0">
       
-      <!-- Container Gambar SS -->
-      <div class="relative w-full bg-gray-950 min-h-[280px] flex items-center justify-center border-b border-gray-700 p-2">
-        <img id="nftImage" src="https://via.placeholder.com/500x600?text=Memuat+Lelang..." alt="SS NFT" class="w-full h-auto object-contain max-h-[450px] rounded-lg">
-        <div id="statusBadge" class="absolute top-4 right-4 bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-mono text-yellow-400 border border-yellow-500/40 shadow-lg">
-          ⚡ Real-time
+      <!-- Container Display Gambar SS -->
+      <div class="relative w-full bg-gray-950 min-h-[300px] flex items-center justify-center overflow-hidden border-b border-gray-700">
+        <img id="nftImage" src="https://via.placeholder.com/500x600?text=Memuat+Lelang+Aktif..." alt="SS NFT" class="w-full h-auto object-contain max-h-[480px]">
+        
+        <!-- Floating Timer Badge -->
+        <div class="absolute top-3 right-3 bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-mono text-yellow-400 border border-yellow-500/40 shadow-lg flex items-center gap-1">
+          <span>⏳</span> <span id="timerDisplay">--:--:--</span>
         </div>
       </div>
 
+      <!-- Detail Info & Status Penawaran -->
       <div class="p-4 space-y-4">
-        <!-- Informasi Harga -->
-        <div class="grid grid-cols-2 gap-2 bg-gray-900 p-3 rounded-xl border border-gray-700/80">
+        
+        <div class="bg-gray-900/80 border border-gray-700/60 p-3 rounded-xl space-y-1">
+          <p class="text-[11px] text-gray-400 uppercase tracking-wider font-semibold" data-i18n="sellerInfoTitle">Petunjuk Pembeli</p>
+          <p class="text-xs text-gray-300 leading-snug" data-i18n="sellerInfoDetail">
+            Lihat detail identitas aset pada gambar SS di atas. Pastikan kecocokannya di platform PiBox.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 bg-gray-900/90 p-3 rounded-xl border border-gray-700/80">
           <div>
-            <span class="text-[11px] text-gray-400 block">Harga Terendah</span>
+            <span class="text-[11px] text-gray-400 block" data-i18n="reservePrice">Harga Terendah</span>
             <span id="reservePriceDisplay" class="font-bold text-gray-200 text-sm">0 Pi</span>
           </div>
           <div>
-            <span class="text-[11px] text-gray-400 block">Tawaran Tertinggi</span>
-            <span id="highestBidDisplay" class="font-bold text-yellow-400 text-base">0 Pi</span>
+            <span class="text-[11px] text-gray-400 block" data-i18n="highestBid">Tawaran Tertinggi</span>
+            <span id="highestBidDisplay" class="font-bold text-yellow-400 text-base">Belum Ada</span>
           </div>
         </div>
 
-        <!-- Form Bidding -->
-        <div class="space-y-2 pt-1">
-          <label class="block text-xs font-medium text-gray-300">Masukkan Penawaran Anda (Pi):</label>
+        <!-- Action Form Penawaran Pembeli -->
+        <div id="biddingArea" class="space-y-2 pt-1">
+          <label class="block text-xs font-medium text-gray-300" data-i18n="yourBid">Masukkan Penawaran Anda (Pi):</label>
           <div class="flex gap-2">
             <input type="number" id="bidInput" placeholder="Nilai Bid" step="0.1" class="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm w-full text-white focus:outline-none focus:border-yellow-500 transition">
             <button onclick="placeBid()" id="btnBid" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-sm whitespace-nowrap transition shadow-lg">
-              Tawar
+              <span data-i18n="btnBid">Tawar</span> (0.2 Pi)
             </button>
           </div>
-          <p class="text-[10px] text-gray-400">*Penawaran bersifat mengikat dan ter-update otomatis di HP pembeli lain.</p>
+          <p class="text-[10px] text-gray-400" data-i18n="feeNotice">*Dikenakan biaya 0.2 Pi untuk server & anti-spam (Non-refundable).</p>
+        </div>
+
+        <!-- Fitur Baru: Riwayat Penawaran (Bid History) -->
+        <div class="bg-gray-900/60 rounded-xl p-3 border border-gray-700/50 space-y-2">
+          <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wider">Riwayat Penawaran Terakhir</p>
+          <div id="bidHistoryList" class="space-y-1 text-xs">
+            <p class="text-gray-500 italic text-[11px]">Belum ada penawaran.</p>
+          </div>
         </div>
 
       </div>
@@ -77,48 +101,148 @@
 
   </main>
 
-  <!-- MODAL FORM UPLOAD PENJUAL -->
-  <div id="uploadModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <!-- MODAL 1: FORM PENJUAL -->
+  <div id="createModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-gray-700 pb-3">
-        <h3 class="text-base font-bold text-yellow-400">Tawarkan Aset NFT Baru</h3>
-        <button onclick="closeModal()" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
+        <h3 class="text-base font-bold text-yellow-400" data-i18n="formTitle">Tawarkan Aset NFT Baru</h3>
+        <button onclick="closeCreateModal()" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
       </div>
 
       <div class="space-y-3 text-xs">
         <div>
-          <label class="block mb-1 font-semibold text-gray-200">Upload SS Aset NFT:</label>
-          <input type="file" id="fileInput" accept="image/*" class="w-full text-xs text-gray-300 bg-gray-900 border border-gray-700 rounded-xl p-2 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-yellow-500 file:text-gray-950 hover:file:bg-yellow-400">
+          <label class="block mb-1 font-semibold text-gray-200" data-i18n="lblUploadSS">Upload SS Aset NFT:</label>
+          <input type="file" id="ssFileInput" accept="image/*" class="w-full text-xs text-gray-300 bg-gray-900 border border-gray-700 rounded-xl p-2 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-yellow-500 file:text-gray-950 hover:file:bg-yellow-400">
+          <p class="text-[10px] text-gray-400 mt-1" data-i18n="uploadHint">*Upload Screenshot yang menampilkan Gambar, Judul, & Creator Aset dari PiBox.</p>
         </div>
+
         <div>
-          <label class="block mb-1 font-semibold text-gray-200">Harga Terendah (Pi):</label>
-          <input type="number" id="reserveInput" placeholder="Contoh: 10" min="0.1" step="0.1" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-yellow-500">
+          <label class="block mb-1 font-semibold text-gray-200" data-i18n="lblReservePrice">Harga Terendah (Pi):</label>
+          <input type="number" id="reservePriceInput" placeholder="Contoh: 10" min="0.1" step="0.1" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-yellow-500">
         </div>
       </div>
 
-      <div class="flex gap-2 pt-2">
-        <button onclick="closeModal()" class="w-1/2 bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl text-xs font-bold transition">Batal</button>
-        <button id="btnSubmit" onclick="uploadLelang()" class="w-1/2 bg-yellow-500 hover:bg-yellow-400 text-gray-950 py-2.5 rounded-xl text-xs font-bold transition shadow-lg">Rilis Lelang</button>
-      </div>
+      <button id="btnPublish" onclick="submitNewListing()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-sm transition shadow-lg">
+        <span data-i18n="btnPublish">Rilis Lelang</span> (0.2 Pi)
+      </button>
     </div>
   </div>
 
-  <!-- SCRIPT UTAMA -->
-  <script>
-    // 1. MEMBACA ENVIRONMENT VARIABLES DARI VERCEL
-    // Vercel menyuntikkan variabel ini saat deployment (bila menggunakan framework/bundler)
-    // Atau bisa membaca variabel global jika di-inject via Serverless Edge.
-    const SUPABASE_URL = window.process?.env?.NEXT_PUBLIC_SUPABASE_URL || "https://PASTE_PROJECT_ID_JIKA_STATIS.supabase.co";
-    const SUPABASE_ANON_KEY = window.process?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || "PASTE_PUBLISHABLE_KEY_JIKA_STATIS";
+  <!-- MODAL 2: POPUP LELANG SELESAI -->
+  <div id="sellerModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-gray-800 border border-yellow-500/50 rounded-2xl p-5 max-w-sm w-full text-center space-y-4 shadow-2xl">
+      <div class="text-4xl">🎉</div>
+      <h3 class="text-lg font-bold text-yellow-400" data-i18n="modalTitle">Lelang Telah Selesai!</h3>
+      <p class="text-xs text-gray-300 leading-relaxed" data-i18n="modalDesc">
+        Harga tertinggi telah tercapai sebesar <b id="finalPriceText" class="text-yellow-400">0 Pi</b>. 
+        Segera rilis aset NFT Anda di platform <b>PIBOX NFT EVENT ZONE</b> dengan harga sesuai hasil lelang ini!
+      </p>
+      <div class="bg-gray-900 p-3 rounded-xl text-left border border-gray-700 text-xs font-mono space-y-1">
+        <div class="text-gray-400" data-i18n="winnerWallet">Pemenang:</div>
+        <div id="winnerWalletAddress" class="text-yellow-300 truncate">Belum Ada Pemenang</div>
+      </div>
+      <button onclick="closeModal()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-sm transition">
+        <span data-i18n="understood">Saya Mengerti & Rilis Sekarang</span>
+      </button>
+    </div>
+  </div>
 
+  <!-- JavaScript App Logic -->
+  <script>
+    // 1. INISIALISASI SUPABASE (Membaca Environment Vercel / Fallback)
+    const SUPABASE_URL = window.process?.env?.NEXT_PUBLIC_SUPABASE_URL || "https://PASTE_SUPABASE_URL_JIKA_STATIS.supabase.co";
+    const SUPABASE_ANON_KEY = window.process?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || "PASTE_PUBLISHABLE_KEY_JIKA_STATIS";
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    let activeAuctionId = null;
-    let currentHighestBid = 0;
-    let currentReservePrice = 0;
+    // 2. INISIALISASI PI NETWORK SDK
+    let piUser = null;
+    try {
+      if (window.Pi) {
+        Pi.init({ version: "2.0", sandbox: false });
+        Pi.authenticate(['username', 'wallet_address'], onIncompletePaymentFound)
+          .then(auth => { piUser = auth.user; })
+          .catch(err => console.log("Pi Auth Pending:", err));
+      }
+    } catch(e) { console.error("Pi SDK error:", e); }
 
-    // 2. MEMUAT DATA LELANG TERAKHIR
-    async function loadLatestAuction() {
+    function onIncompletePaymentFound(payment) {
+      console.log("Incomplete payment:", payment);
+    }
+
+    // 3. KAMUS MULTI-BAHASA
+    const i18n = {
+      id: {
+        btnCreate: "Tawarkan Aset",
+        warnTitle: "Cocokkan Identitas Aset",
+        warnDesc: "Aplikasi ini memuat <b>Screenshot Aset</b>. Sebelum menawar, <b>wajib bandingkan</b> Gambar, Judul (spasi & karakter), dan Nama Kreator di SS ini dengan data asli di <b>PIBOX NFT EVENT ZONE</b> pada aplikasi PiBox!",
+        sellerInfoTitle: "Petunjuk Pembeli",
+        sellerInfoDetail: "Lihat detail identitas aset pada gambar SS di atas. Pastikan kecocokannya di platform PiBox.",
+        reservePrice: "Harga Terendah",
+        highestBid: "Tawaran Tertinggi",
+        yourBid: "Masukkan Penawaran Anda (Pi):",
+        btnBid: "Tawar",
+        feeNotice: "*Dikenakan biaya 0.2 Pi untuk server & anti-spam (Non-refundable).",
+        formTitle: "Tawarkan Aset NFT Baru",
+        lblUploadSS: "Upload SS Aset NFT:",
+        uploadHint: "*Upload Screenshot yang menampilkan Gambar, Judul, & Creator Aset dari PiBox.",
+        lblReservePrice: "Harga Terendah (Pi):",
+        btnPublish: "Rilis Lelang",
+        modalTitle: "Lelang Telah Selesai!",
+        modalDesc: "Harga tertinggi telah tercapai. Segera rilis aset NFT Anda di platform PIBOX NFT EVENT ZONE dengan harga sesuai hasil lelang ini!",
+        winnerWallet: "Alamat Pemenang:",
+        understood: "Saya Mengerti & Rilis Sekarang",
+        alertLowBid: "Penawaran harus lebih tinggi dari harga terendah dan penawaran saat ini!",
+        alertTimeAdded: "⚡ Anti-Sniping! Waktu lelang diperpanjang 5 menit.",
+        alertEmptyForm: "Harap unggah screenshot aset dan tentukan harga terendah!"
+      },
+      en: {
+        btnCreate: "Offer Asset",
+        warnTitle: "Match Asset Identity",
+        warnDesc: "This app displays an <b>Asset Screenshot</b>. Before bidding, you <b>must compare</b> the Image, Title (spacing & characters), and Creator Name in this SS with the official record in <b>PIBOX NFT EVENT ZONE</b> on PiBox!",
+        sellerInfoTitle: "Buyer Instructions",
+        sellerInfoDetail: "Check asset details directly from the screenshot above. Verify accuracy on PiBox.",
+        reservePrice: "Reserve Price",
+        highestBid: "Highest Bid",
+        yourBid: "Enter Your Bid (Pi):",
+        btnBid: "Bid Now",
+        feeNotice: "*Requires 0.2 Pi fee for server & anti-spam (Non-refundable).",
+        formTitle: "Offer New NFT Asset",
+        lblUploadSS: "Upload NFT Asset Screenshot:",
+        uploadHint: "*Upload a screenshot showing Image, Title, & Creator from PiBox.",
+        lblReservePrice: "Reserve Price (Pi):",
+        btnPublish: "Publish Auction",
+        modalTitle: "Auction Completed!",
+        modalDesc: "The highest bid has been reached. Please immediately release your NFT asset on PIBOX NFT EVENT ZONE at the winning auction price!",
+        winnerWallet: "Winner Wallet:",
+        understood: "I Understand & Release Now",
+        alertLowBid: "Bid must be higher than reserve price and current highest bid!",
+        alertTimeAdded: "⚡ Anti-Sniping! Auction extended by 5 minutes.",
+        alertEmptyForm: "Please upload an asset screenshot and set the reserve price!"
+      }
+    };
+
+    let currentLang = 'id';
+    let activeAuctionId = null;
+    let timeLeft = 0;
+    let highestBid = 0.0;
+    let reservePrice = 0.0;
+    let highestBidderWallet = "Belum Ada";
+    let timerInterval = null;
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'id' ? 'en' : 'id';
+      document.getElementById('langBtn').innerText = currentLang === 'id' ? '🌐 EN' : '🌐 ID';
+      
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[currentLang][key]) {
+          el.innerHTML = i18n[currentLang][key];
+        }
+      });
+    }
+
+    // 4. MEMUAT LELANG AKTIF DARI DATABASE
+    async function loadActiveAuction() {
       try {
         const { data, error } = await supabase
           .from('auctions')
@@ -129,54 +253,114 @@
         if (error) throw error;
 
         if (data && data.length > 0) {
-          renderData(data[0]);
+          updateAuctionUI(data[0]);
+          loadBidHistory(data[0].id);
         } else {
           document.getElementById('nftImage').src = "https://via.placeholder.com/500x600?text=Belum+Ada+Lelang+Aktif";
         }
       } catch (err) {
-        console.error("Gagal memuat data:", err.message);
+        console.error("Gagal membaca lelang:", err.message);
       }
     }
 
-    function renderData(auction) {
+    function updateAuctionUI(auction) {
       activeAuctionId = auction.id;
-      currentHighestBid = auction.highest_bid || 0;
-      currentReservePrice = auction.reserve_price || 0;
+      reservePrice = auction.reserve_price || 0;
+      highestBid = auction.highest_bid || 0;
+      highestBidderWallet = auction.highest_bidder || "Belum Ada";
 
       document.getElementById('nftImage').src = auction.image_url;
-      document.getElementById('reservePriceDisplay').innerText = auction.reserve_price + " Pi";
-      document.getElementById('highestBidDisplay').innerText = auction.highest_bid > 0 ? auction.highest_bid + " Pi" : "Belum Ada";
+      document.getElementById('reservePriceDisplay').innerText = reservePrice + " Pi";
+      document.getElementById('highestBidDisplay').innerText = highestBid > 0 ? highestBid + " Pi" : "Belum Ada";
+
+      // Sinkronkan sisa waktu
+      if (auction.expires_at) {
+        const diffSecs = Math.floor((new Date(auction.expires_at) - new Date()) / 1000);
+        timeLeft = diffSecs > 0 ? diffSecs : 0;
+        startTimer();
+      }
     }
 
-    // 3. LISTEN PERUBAHAN REAL-TIME (FIRESTORE / SUPABASE REALTIME)
+    // 5. SUBSCRIPTION SUPABASE REALTIME
     supabase
-      .channel('schema-db-changes')
+      .channel('public:auctions')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, (payload) => {
         if (payload.new) {
-          renderData(payload.new);
+          document.getElementById('connectionStatus').classList.replace('bg-red-500', 'bg-emerald-500');
+          updateAuctionUI(payload.new);
+          loadBidHistory(payload.new.id);
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          document.getElementById('connectionStatus').classList.replace('bg-red-500', 'bg-emerald-500');
+        }
+      });
 
-    // 4. FUNGSI UPLOAD ASET OLEH PENJUAL
-    async function uploadLelang() {
-      const fileInput = document.getElementById('fileInput');
-      const reserveInput = parseFloat(document.getElementById('reserveInput').value);
-      const btn = document.getElementById('btnSubmit');
+    // 6. TIMER & ANTI-SNIPING LOGIC
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+
+      timerInterval = setInterval(() => {
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          document.getElementById('timerDisplay').innerText = "ENDED";
+          endAuction();
+        } else {
+          timeLeft--;
+          let hrs = Math.floor(timeLeft / 3600);
+          let mins = Math.floor((timeLeft % 3600) / 60);
+          let secs = timeLeft % 60;
+          document.getElementById('timerDisplay').innerText = 
+            `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+        }
+      }, 1000);
+    }
+
+    // 7. MEMO BIAYA TRANSAKSI PI NETWORK (0.2 PI)
+    async function payTransactionFee(memoText) {
+      return new Promise((resolve, reject) => {
+        if (!window.Pi) {
+          // Fallback jika dibuka di luar Pi Browser (Hanya untuk pengujian/dev)
+          return resolve({ status: "success", txid: "dev_tx_" + Date.now() });
+        }
+
+        Pi.createPayment({
+          amount: 0.2,
+          memo: memoText,
+          metadata: { type: "auction_fee" }
+        }, {
+          onReadyForServerApproval: (paymentId) => resolve({ status: "success", paymentId }),
+          onReadyForServerCompletion: (paymentId, txid) => resolve({ status: "success", txid }),
+          onCancel: () => reject(new Error("Pembayaran dibatalkan")),
+          onError: (error) => reject(error)
+        });
+      });
+    }
+
+    // 8. RILIS LELANG BARU (PENJUAL)
+    async function submitNewListing() {
+      const fileInput = document.getElementById('ssFileInput');
+      const reserveInput = parseFloat(document.getElementById('reservePriceInput').value);
+      const btn = document.getElementById('btnPublish');
 
       if (!fileInput.files[0] || isNaN(reserveInput) || reserveInput <= 0) {
-        alert("Pilih file SS dan tentukan harga terendah!");
+        alert(i18n[currentLang].alertEmptyForm);
         return;
       }
 
       try {
         btn.disabled = true;
-        btn.innerText = "Uploading...";
+        btn.innerText = "Memproses Pembayaran (0.2 Pi)...";
 
+        // Bayar Biaya 0.2 Pi via Pi SDK
+        await payTransactionFee("Biaya Rilis Lelang PiAuction");
+
+        btn.innerText = "Mengunggah Screenshot...";
         const file = fileInput.files[0];
         const fileName = Date.now() + '_' + file.name.replace(/\s+/g, '_');
 
-        // Upload ke Supabase Storage (Bucket: 'screenshots')
+        // Unggah Gambar ke Supabase Storage
         const { data: storageData, error: storageError } = await supabase
           .storage
           .from('screenshots')
@@ -184,69 +368,143 @@
 
         if (storageError) throw storageError;
 
-        // Ambil URL Publik Gambar
-        const { data: urlData } = supabase
-          .storage
-          .from('screenshots')
-          .getPublicUrl(fileName);
-
+        const { data: urlData } = supabase.storage.from('screenshots').getPublicUrl(fileName);
         const imageUrl = urlData.publicUrl;
 
-        // Simpan Data Ke Database Table 'auctions'
+        // Waktu kadaluarsa 24 jam dari sekarang
+        const expiresAt = new Date(Date.now() + 86400 * 1000).toISOString();
+
+        // Simpan Lelang Baru di Database
         const { error: dbError } = await supabase
           .from('auctions')
-          .insert([{ image_url: imageUrl, reserve_price: reserveInput, highest_bid: 0 }]);
+          .insert([{ 
+            image_url: imageUrl, 
+            reserve_price: reserveInput, 
+            highest_bid: 0,
+            highest_bidder: null,
+            expires_at: expiresAt 
+          }]);
 
         if (dbError) throw dbError;
 
         btn.disabled = false;
-        btn.innerText = "Rilis Lelang";
-        closeModal();
+        btn.innerText = i18n[currentLang].btnPublish;
+        closeCreateModal();
         alert("Lelang berhasil dirilis secara Real-Time!");
 
       } catch (err) {
-        alert("Gagal mengunggah: " + err.message);
+        alert("Gagal merilis lelang: " + err.message);
         btn.disabled = false;
-        btn.innerText = "Rilis Lelang";
+        btn.innerText = i18n[currentLang].btnPublish;
       }
     }
 
-    // 5. FUNGSI KIRIM PENAWARAN (Pผู้ BID)
+    // 9. PROSES BIDDING (PEMBELI)
     async function placeBid() {
-      const bidVal = parseFloat(document.getElementById('bidInput').value);
+      const bidInput = parseFloat(document.getElementById('bidInput').value);
+      const btn = document.getElementById('btnBid');
 
       if (!activeAuctionId) {
         alert("Belum ada lelang aktif saat ini!");
         return;
       }
 
-      if (isNaN(bidVal) || bidVal <= currentHighestBid || bidVal < currentReservePrice) {
-        alert("Penawaran harus lebih tinggi dari penawaran saat ini dan harga terendah!");
+      if (isNaN(bidInput) || bidInput <= highestBid || bidInput < reservePrice) {
+        alert(i18n[currentLang].alertLowBid);
         return;
       }
 
       try {
-        const { error } = await supabase
+        btn.disabled = true;
+        btn.innerText = "Membayar Fee...";
+
+        // Bayar Biaya Anti-Spam 0.2 Pi
+        await payTransactionFee(`Bid ${bidInput} Pi pada Lelang #${activeAuctionId}`);
+
+        let newExpiresAt = null;
+
+        // Logika Anti-Sniping (Tambah 5 menit jika bid pada 2 menit terakhir)
+        if (timeLeft < 120) {
+          timeLeft += 300;
+          newExpiresAt = new Date(Date.now() + timeLeft * 1000).toISOString();
+          alert(i18n[currentLang].alertTimeAdded);
+        }
+
+        const userWallet = piUser?.username ? `@${piUser.username}` : "GBX" + Math.random().toString(36).substring(2,7).toUpperCase() + "...99K2";
+
+        // Update Database
+        const updatePayload = { 
+          highest_bid: bidInput,
+          highest_bidder: userWallet
+        };
+        if (newExpiresAt) updatePayload.expires_at = newExpiresAt;
+
+        const { error: updateError } = await supabase
           .from('auctions')
-          .update({ highest_bid: bidVal })
+          .update(updatePayload)
           .eq('id', activeAuctionId);
 
-        if (error) throw error;
+        if (updateError) throw updateError;
+
+        // Catat ke Tabel Riwayat
+        await supabase.from('bids').insert([{
+          auction_id: activeAuctionId,
+          bidder: userWallet,
+          amount: bidInput
+        }]);
 
         document.getElementById('bidInput').value = '';
-        alert("Penawaran Anda berhasil dikirim!");
+        btn.disabled = false;
+        btn.innerText = i18n[currentLang].btnBid;
 
       } catch (err) {
-        alert("Gagal melakukan bidding: " + err.message);
+        alert("Gagal melakukan bid: " + err.message);
+        btn.disabled = false;
+        btn.innerText = i18n[currentLang].btnBid;
       }
     }
 
-    // UI Controls Modal
-    function openModal() { document.getElementById('uploadModal').classList.remove('hidden'); }
-    function closeModal() { document.getElementById('uploadModal').classList.add('hidden'); }
+    // 10. LOAD BID HISTORY
+    async function loadBidHistory(auctionId) {
+      const { data } = await supabase
+        .from('bids')
+        .select('*')
+        .eq('auction_id', auctionId)
+        .order('created_at', { ascending: false })
+        .limit(5);
 
-    // Inisialisasi saat aplikasi pertama kali dibuka
-    loadLatestAuction();
+      const historyContainer = document.getElementById('bidHistoryList');
+      if (data && data.length > 0) {
+        historyContainer.innerHTML = data.map(b => `
+          <div class="flex justify-between items-center text-gray-300">
+            <span class="font-mono text-yellow-400/90">${b.bidder}</span>
+            <span class="font-bold">${b.amount} Pi</span>
+          </div>
+        `).join('');
+      } else {
+        historyContainer.innerHTML = `<p class="text-gray-500 italic text-[11px]">Belum ada penawaran.</p>`;
+      }
+    }
+
+    // 11. END AUCTION
+    function endAuction() {
+      document.getElementById('biddingArea').innerHTML = `
+        <div class="bg-gray-900 p-3 rounded-xl text-center border border-gray-700">
+          <p class="text-xs text-yellow-400 font-bold">Lelang Selesai / Closed</p>
+        </div>
+      `;
+      document.getElementById('finalPriceText').innerText = highestBid > 0 ? highestBid + " Pi" : reservePrice + " Pi";
+      document.getElementById('winnerWalletAddress').innerText = highestBidderWallet;
+      document.getElementById('sellerModal').classList.remove('hidden');
+    }
+
+    // KONTROL MODAL
+    function openCreateModal() { document.getElementById('createModal').classList.remove('hidden'); }
+    function closeCreateModal() { document.getElementById('createModal').classList.add('hidden'); }
+    function closeModal() { document.getElementById('sellerModal').classList.add('hidden'); }
+
+    // Jalankan pertama kali
+    loadActiveAuction();
   </script>
 </body>
 </html>
