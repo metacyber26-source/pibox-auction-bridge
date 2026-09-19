@@ -55,7 +55,7 @@
     <!-- Peringatan Global Match PiBox -->
     <div class="bg-yellow-500/10 border-b border-yellow-500/20 p-2.5 text-center">
       <p class="text-[10px] text-yellow-400 font-medium leading-tight">
-        ⚠️ <strong>PERINGATAN WAJIB:</strong> Harap selalu mencocokkan gambar & identitas NFT di aplikasi ini dengan aset di <strong>PIBOX NFT EVENT ZONE</strong> sebelum menawar.
+        ⚠️ <strong>PERINGATAN WAJIB:</strong> Harap salin <strong>Hash NFT</strong> dan cocokkan keaslian aset di <strong>PIBOX NFT EVENT ZONE</strong> sebelum menawar.
       </p>
     </div>
 
@@ -102,7 +102,7 @@
         
         <!-- Peringatan Rilis -->
         <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-2.5 text-[10px] text-red-300 leading-snug">
-          📌 Pastikan NFT ini sudah terdaftar di <strong>PIBOX NFT EVENT ZONE</strong>. Gambar & deskripsi harus identik!
+          📌 Pastikan NFT ini terdaftar di <strong>PIBOX NFT EVENT ZONE</strong>. Masukkan Hash resmi untuk membuktikan keaslian aset!
         </div>
 
         <!-- Input Title/Identitas -->
@@ -110,6 +110,14 @@
           <label class="block font-semibold text-gray-300 mb-1">Identitas / Nama Aset NFT</label>
           <input type="text" id="assetTitleInput" placeholder="Contoh: The Quantum Oracle #2026" 
                  class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+        </div>
+
+        <!-- INPUT HASH NFT (FITUR BARU) -->
+        <div>
+          <label class="block font-semibold text-gray-300 mb-1">Hash Transaksi / Minting NFT PiBox</label>
+          <input type="text" id="assetHashInput" placeholder="Contoh: 0x8aef... atau TxHash PiBox" 
+                 class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
+          <p class="text-[9px] text-gray-500 mt-0.5">*Pembeli akan memverifikasi NFT event kamu melalui Hash ini.</p>
         </div>
 
         <!-- OPSI UPLOAD GAMBAR -->
@@ -122,12 +130,12 @@
             </div>
           </div>
 
-          <!-- Opsi 1: Upload File SS Langsung (ImgBB Cloud Integration) -->
+          <!-- Opsi 1: Upload File SS Langsung (Supabase Storage) -->
           <div id="uploadSection" class="space-y-1.5">
             <label class="block text-[10px] text-gray-400">Pilih SS / Gambar Aset NFT dari HP/Perangkat:</label>
             <input type="file" id="imageFileInput" accept="image/*" 
                    class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-yellow-500 file:text-gray-950 hover:file:bg-yellow-400 transition cursor-pointer">
-            <p class="text-[9px] text-gray-500">*Gambar akan otomatis diunggah ke cloud secara instan.</p>
+            <p class="text-[9px] text-gray-500">*Gambar diunggah aman langsung ke server Supabase Storage.</p>
           </div>
 
           <!-- Opsi 2: Direct URL Input -->
@@ -163,13 +171,10 @@
 
   <script>
     // ==========================================
-    // 1. KONFIGURASI SUPABASE, IMGBB & PI SDK
+    // 1. KONFIGURASI SUPABASE & PI SDK
     // ==========================================
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
-    
-    // API Key ImgBB Gratis untuk Upload Otomatis
-    const IMGBB_API_KEY = "3a0b368c344799fdddd23696ca04ce4e"; // Opsional: Dapatkan key gratis milikmu sendiri di https://api.imgbb.com/
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const Pi = window.Pi;
@@ -182,7 +187,7 @@
 
     // Inisialisasi Pi SDK
     try {
-      Pi.init({ version: "2.0", sandbox: true }); // Ubah ke sandbox: false saat Siap Live Mainnet
+      Pi.init({ version: "2.0", sandbox: true });
     } catch (e) {
       console.warn("Pi SDK belum siap/di luar Pi Browser");
     }
@@ -278,6 +283,16 @@
       }
     }
 
+    // Copy Hash Helper
+    function copyHashToClipboard(hashText) {
+      if (!hashText) return;
+      navigator.clipboard.writeText(hashText).then(() => {
+        alert("Hash NFT berhasil disalin ke clipboard!");
+      }).catch(err => {
+        console.error("Gagal menyalin hash:", err);
+      });
+    }
+
     // ==========================================
     // 2. AMBIL DATA LELANG & MANAGEMENT WAKTU
     // ==========================================
@@ -285,7 +300,6 @@
       authenticatePiUser();
       fetchActiveAuctions();
       
-      // Auto Update Timer setiap 1 detik
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(updateTimers, 1000);
     });
@@ -304,10 +318,7 @@
         if (error) throw error;
 
         activeAuctionsList = data || [];
-        
-        // Periksa & Perpanjang Waktu Otomatis jika Belum Ada Penawaran
         await handleAutoExtensions(activeAuctionsList);
-
         renderGalleryUI(activeAuctionsList);
       } catch (err) {
         console.error("Gagal mengambil galeri:", err);
@@ -318,7 +329,7 @@
       }
     }
 
-    // Logika Perpanjangan Waktu Otomatis (Maksimal 3x24 Jam jika Tanpa Bid)
+    // Auto Extension 3x24 Jam jika belum ada bid
     async function handleAutoExtensions(auctions) {
       const now = new Date();
 
@@ -423,6 +434,7 @@
       const modalContent = document.getElementById('modalDetailContent');
       const formattedImg = normalizeImageUrl(selectedAuction.image_url);
       const title = selectedAuction.title || "Aset NFT PiBox";
+      const hash = selectedAuction.hash || "Tidak dicantumkan";
 
       const currentUserName = authenticatedPiUser ? authenticatedPiUser.username : '';
       const isOwner = selectedAuction.seller === currentUserName;
@@ -439,14 +451,27 @@
                  onerror="this.onerror=null; this.src='https://via.placeholder.com/400x300/111827/9CA3AF?text=Gagal+Memuat+Gambar';">
           </div>
 
-          <!-- Identitas & Warning Match -->
+          <!-- Identitas & Hash Transaksi -->
           <div>
             <h3 class="text-sm font-bold text-gray-100">${title}</h3>
             <p class="text-[10px] text-gray-400">Penjual: <span class="text-yellow-400 font-semibold">@${selectedAuction.seller}</span></p>
           </div>
 
+          <!-- KOTAK HASH COPY (FITUR BARU) -->
+          <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="text-[9px] text-gray-400 uppercase font-bold tracking-wider">NFT Mint / Tx Hash:</span>
+              <button onclick="copyHashToClipboard('${hash}')" class="text-[9px] bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 px-2 py-0.5 rounded font-medium transition">
+                📋 Salin Hash
+              </button>
+            </div>
+            <p class="text-[10px] font-mono text-gray-300 break-all select-all bg-gray-950 p-1.5 rounded border border-gray-800/80">
+              ${hash}
+            </p>
+          </div>
+
           <div class="bg-yellow-500/10 border border-yellow-500/20 p-2 rounded-xl text-[10px] text-yellow-300 leading-tight">
-            🚨 <strong>Pencegahan Penipuan:</strong> Cocokkan gambar dan judul di atas dengan aset yang ada di <strong>PIBOX NFT EVENT ZONE</strong> sebelum mengirim penawaran.
+            🚨 <strong>Pencegahan Penipuan:</strong> Cocokkan <strong>Hash Transaksi</strong> di atas dengan data di <strong>PIBOX NFT EVENT ZONE</strong> untuk memastikan aset ini asli dan terdaftar di event.
           </div>
 
           <!-- Info Harga & Waktu -->
@@ -495,7 +520,6 @@
       selectedAuction = null;
     }
 
-    // Update Timer Hitung Mundur
     function updateTimers() {
       const elements = document.querySelectorAll('.timer-element');
       const now = new Date().getTime();
@@ -518,13 +542,13 @@
     }
 
     // ==========================================
-    // 4. EKSEKUSI RILIS & PENAWARAN (WITH CHECKS)
+    // 4. EKSEKUSI RILIS & PENAWARAN
     // ==========================================
     async function handleOpenCreateModal() {
       const sellerName = authenticatedPiUser ? authenticatedPiUser.username : "Seller_Master";
 
-      // Hitung lelang aktif yang sudah dimiliki penjual ini
       try {
+        // Cek Kuota Lelang Aktif Penjual (Batas Maksimal 3)
         const { count, error } = await supabaseClient
           .from('auctions')
           .select('*', { count: 'exact', head: true })
@@ -557,20 +581,27 @@
     function closeCreateModal() {
       document.getElementById('createModal').classList.add('hidden');
       document.getElementById('assetTitleInput').value = '';
+      document.getElementById('assetHashInput').value = '';
       document.getElementById('imageUrlInput').value = '';
       document.getElementById('imageFileInput').value = '';
       document.getElementById('reservePriceInput').value = '';
     }
 
-    // RILIS ASET BARU (Otomatis Upload ImgBB + Bayar 0.2 Pi)
+    // RILIS ASET BARU (Otomatis Upload Supabase Storage + Hash + 0.2 Pi)
     async function submitNewListing() {
       const titleInput = document.getElementById('assetTitleInput').value.trim();
+      const hashInput = document.getElementById('assetHashInput').value.trim();
       const reserveInput = parseFloat(document.getElementById('reservePriceInput').value);
       const btnPublish = document.getElementById('btnPublish');
       let finalImageUrl = "";
 
       if (!titleInput) {
         alert("Harap masukkan Nama / Identitas Aset NFT!");
+        return;
+      }
+
+      if (!hashInput) {
+        alert("Harap masukkan Hash Transaksi / Minting NFT!");
         return;
       }
 
@@ -582,7 +613,7 @@
       btnPublish.disabled = true;
 
       try {
-        // A. PENANGANAN GAMBAR
+        // A. PENANGANAN UNGGAH GAMBAR (Supabase Storage Direct)
         if (activeImageTab === 'upload') {
           const fileInput = document.getElementById('imageFileInput');
           if (!fileInput.files || fileInput.files.length === 0) {
@@ -592,23 +623,27 @@
           }
 
           btnPublish.innerText = "Mengunggah Gambar...";
+          const file = fileInput.files[0];
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-          // Upload Otomatis ke Cloud ImgBB API
-          const formData = new FormData();
-          formData.append("image", fileInput.files[0]);
+          // Unggah langsung ke Supabase Storage Bucket 'nft-images'
+          const { data: uploadData, error: uploadError } = await supabaseClient
+            .storage
+            .from('nft-images')
+            .upload(fileName, file);
 
-          const imgbbRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-            method: "POST",
-            body: formData
-          });
-
-          const imgbbData = await imgbbRes.json();
-
-          if (!imgbbData.success) {
-            throw new Error("Gagal mengunggah gambar ke cloud ImgBB.");
+          if (uploadError) {
+            throw new Error("Gagal mengunggah gambar ke Storage: " + uploadError.message);
           }
 
-          finalImageUrl = imgbbData.data.url;
+          // Dapatkan URL Publik Gambar
+          const { data: urlData } = supabaseClient
+            .storage
+            .from('nft-images')
+            .getPublicUrl(fileName);
+
+          finalImageUrl = urlData.publicUrl;
         } else {
           const rawUrl = document.getElementById('imageUrlInput').value.trim();
           if (!rawUrl) {
@@ -632,6 +667,7 @@
           .from('auctions')
           .insert([{
             title: titleInput,
+            hash: hashInput,
             seller: sellerName,
             image_url: finalImageUrl,
             reserve_price: reserveInput,
