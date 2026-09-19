@@ -46,7 +46,7 @@
           <p class="text-[9px] text-yellow-500">PiBox Bridge Protocol</p>
         </div>
       </div>
-      <button onclick="openCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-2 rounded-xl transition duration-200 shadow-lg flex items-center gap-1">
+      <button onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-2 rounded-xl transition duration-200 shadow-lg flex items-center gap-1">
         <span>+ Rilis Aset</span>
         <span class="text-[10px] opacity-80">(0.2 Pi)</span>
       </button>
@@ -61,7 +61,6 @@
 
     <!-- Content Area: Gallery atau Detail View -->
     <div id="mainContent" class="p-4 flex-1 flex flex-col custom-scrollbar overflow-y-auto">
-      <!-- Dynamic Content Loaded Here -->
       <div class="text-center py-10 text-gray-500 text-xs animate-pulse">Memuat Galeri Aset...</div>
     </div>
 
@@ -76,7 +75,6 @@
   <!-- MODAL: Detail & Penawaran Aset -->
   <div id="detailModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
     <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
-      
       <div class="flex justify-between items-center border-b border-gray-800 pb-2">
         <h2 class="text-xs font-bold text-gray-200 uppercase tracking-wider">Detail Lelang Aset</h2>
         <button onclick="closeDetailModal()" class="text-gray-400 hover:text-white font-bold text-xl">&times;</button>
@@ -85,16 +83,18 @@
       <div id="modalDetailContent">
         <!-- Content injected dynamically -->
       </div>
-
     </div>
   </div>
 
   <!-- MODAL: Buat / Rilis Lelang Baru -->
   <div id="createModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
-    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
       
       <div class="flex justify-between items-center border-b border-gray-800 pb-3">
-        <h2 class="text-sm font-bold text-gray-100">Rilis Lelang NFT Baru</h2>
+        <div>
+          <h2 class="text-sm font-bold text-gray-100">Rilis Lelang NFT Baru</h2>
+          <p id="quotaDisplay" class="text-[10px] text-yellow-400 font-medium">Sisa Kuota Lelang: Checking...</p>
+        </div>
         <button onclick="closeCreateModal()" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
       </div>
 
@@ -105,27 +105,6 @@
           📌 Pastikan NFT ini sudah terdaftar di <strong>PIBOX NFT EVENT ZONE</strong>. Gambar & deskripsi harus identik!
         </div>
 
-        <!-- Step 1: Upload Cloud Gambar -->
-        <div class="bg-gray-900 border border-yellow-500/20 rounded-xl p-3 space-y-2">
-          <p class="text-yellow-400 font-semibold text-[11px]">Langkah 1: Unggah SS Aset ke Cloud</p>
-          <p class="text-gray-400 text-[10px]">Gunakan salah satu penyedia gratis berikut, lalu salin <strong>Tautan Langsung (Direct Link)</strong>:</p>
-          
-          <div class="grid grid-cols-3 gap-1.5 pt-1">
-            <a href="https://imgbb.com/upload" target="_blank" rel="noopener noreferrer" 
-               class="bg-gray-800 hover:bg-gray-700 text-yellow-400 border border-yellow-500/30 rounded-lg py-1.5 text-[10px] font-medium text-center transition">
-              ImgBB ↗
-            </a>
-            <a href="https://postimages.org/" target="_blank" rel="noopener noreferrer" 
-               class="bg-gray-800 hover:bg-gray-700 text-yellow-400 border border-yellow-500/30 rounded-lg py-1.5 text-[10px] font-medium text-center transition">
-              Postimages ↗
-            </a>
-            <a href="https://imgur.com/upload" target="_blank" rel="noopener noreferrer" 
-               class="bg-gray-800 hover:bg-gray-700 text-yellow-400 border border-yellow-500/30 rounded-lg py-1.5 text-[10px] font-medium text-center transition">
-              Imgur ↗
-            </a>
-          </div>
-        </div>
-
         <!-- Input Title/Identitas -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1">Identitas / Nama Aset NFT</label>
@@ -133,11 +112,30 @@
                  class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
         </div>
 
-        <!-- Input Direct URL Gambar -->
-        <div>
-          <label class="block font-semibold text-gray-300 mb-1">Langkah 2: Tempel Link Gambar (*Direct Link*)</label>
-          <input type="url" id="imageUrlInput" placeholder="https://i.ibb.co/xxx/image.png" 
-                 class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+        <!-- OPSI UPLOAD GAMBAR -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
+          <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+            <span class="font-semibold text-gray-200 text-[11px]">Metode Gambar NFT</span>
+            <div class="flex text-[10px] bg-gray-950 p-1 rounded-lg gap-1 border border-gray-800">
+              <button id="tabUploadBtn" onclick="switchImageTab('upload')" class="px-2 py-0.5 rounded bg-yellow-500 text-gray-950 font-bold transition">Upload File</button>
+              <button id="tabUrlBtn" onclick="switchImageTab('url')" class="px-2 py-0.5 rounded text-gray-400 hover:text-white transition">Direct Link</button>
+            </div>
+          </div>
+
+          <!-- Opsi 1: Upload File SS Langsung (ImgBB Cloud Integration) -->
+          <div id="uploadSection" class="space-y-1.5">
+            <label class="block text-[10px] text-gray-400">Pilih SS / Gambar Aset NFT dari HP/Perangkat:</label>
+            <input type="file" id="imageFileInput" accept="image/*" 
+                   class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-yellow-500 file:text-gray-950 hover:file:bg-yellow-400 transition cursor-pointer">
+            <p class="text-[9px] text-gray-500">*Gambar akan otomatis diunggah ke cloud secara instan.</p>
+          </div>
+
+          <!-- Opsi 2: Direct URL Input -->
+          <div id="urlSection" class="space-y-1.5 hidden">
+            <label class="block text-[10px] text-gray-400">Tempel Tautan Langsung Gambar (*Direct Link*):</label>
+            <input type="url" id="imageUrlInput" placeholder="https://i.ibb.co/xxx/image.png" 
+                   class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+          </div>
         </div>
 
         <!-- Input Harga Terendah -->
@@ -165,11 +163,14 @@
 
   <script>
     // ==========================================
-    // 1. KONFIGURASI SUPABASE & PI SDK
+    // 1. KONFIGURASI SUPABASE, IMGBB & PI SDK
     // ==========================================
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
     
+    // API Key ImgBB Gratis untuk Upload Otomatis
+    const IMGBB_API_KEY = "3a0b368c344799fdddd23696ca04ce4e"; // Opsional: Dapatkan key gratis milikmu sendiri di https://api.imgbb.com/
+
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const Pi = window.Pi;
 
@@ -177,6 +178,7 @@
     let selectedAuction = null;
     let authenticatedPiUser = null;
     let timerInterval = null;
+    let activeImageTab = 'upload';
 
     // Inisialisasi Pi SDK
     try {
@@ -217,7 +219,6 @@
         const paymentCallbacks = {
           onReadyForServerApproval: function(paymentId) {
             console.log("Payment Ready For Approval:", paymentId);
-            // Simulasi sukses untuk frontend / diteruskan ke edge function
             resolve(paymentId);
           },
           onReadyForServerCompletion: function(paymentId, txid) {
@@ -254,6 +255,27 @@
       }
 
       return cleanUrl;
+    }
+
+    // Switch Tab Upload Gambar
+    function switchImageTab(tab) {
+      activeImageTab = tab;
+      const tabUploadBtn = document.getElementById('tabUploadBtn');
+      const tabUrlBtn = document.getElementById('tabUrlBtn');
+      const uploadSection = document.getElementById('uploadSection');
+      const urlSection = document.getElementById('urlSection');
+
+      if (tab === 'upload') {
+        tabUploadBtn.className = "px-2 py-0.5 rounded bg-yellow-500 text-gray-950 font-bold transition";
+        tabUrlBtn.className = "px-2 py-0.5 rounded text-gray-400 hover:text-white transition";
+        uploadSection.classList.remove('hidden');
+        urlSection.classList.add('hidden');
+      } else {
+        tabUrlBtn.className = "px-2 py-0.5 rounded bg-yellow-500 text-gray-950 font-bold transition";
+        tabUploadBtn.className = "px-2 py-0.5 rounded text-gray-400 hover:text-white transition";
+        urlSection.classList.remove('hidden');
+        uploadSection.classList.add('hidden');
+      }
     }
 
     // ==========================================
@@ -305,7 +327,6 @@
         const extensionCount = item.extension_count || 0;
         const bidCount = item.bid_count || 0;
 
-        // Jika waktu habis DAN belum pernah ada bid DAN belum mencapai batas 3x perpanjangan
         if (now > endsAt && bidCount === 0 && extensionCount < 3) {
           const newEndsAt = new Date(endsAt.getTime() + 24 * 60 * 60 * 1000).toISOString();
           const newExtensionCount = extensionCount + 1;
@@ -321,7 +342,6 @@
           item.ends_at = newEndsAt;
           item.extension_count = newExtensionCount;
         } else if (now > endsAt && (bidCount > 0 || extensionCount >= 3)) {
-          // Jika sudah ada bid atau sudah 3x perpanjang dan waktu habis, tandai expired
           await supabaseClient
             .from('auctions')
             .update({ status: 'expired' })
@@ -343,7 +363,7 @@
               🖼️
             </div>
             <p class="text-gray-400 text-xs">Belum ada aset NFT yang ditawarkan.</p>
-            <button onclick="openCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl transition">
+            <button onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl transition">
               + Rilis Aset Pertama
             </button>
           </div>`;
@@ -404,8 +424,8 @@
       const formattedImg = normalizeImageUrl(selectedAuction.image_url);
       const title = selectedAuction.title || "Aset NFT PiBox";
 
-      // Cek apakah user sudah pernah menawar aset ini sebelumnya
       const currentUserName = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isOwner = selectedAuction.seller === currentUserName;
       const biddersList = selectedAuction.bidders_list || [];
       const hasPaidForThisAsset = biddersList.includes(currentUserName);
 
@@ -443,20 +463,26 @@
 
           <!-- Input Bidding -->
           <div class="space-y-2 pt-1">
-            <label class="block text-[10px] text-gray-400">Masukkan Nominal Penawaran Barumu (Pi):</label>
-            <div class="flex gap-2">
-              <input type="number" step="0.01" id="bidInput" placeholder="> ${selectedAuction.highest_bid}" 
-                     class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
-              <button id="btnSubmitBid" onclick="submitBid()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1">
-                <span>Tawar</span>
-                <span class="text-[9px] opacity-80">${hasPaidForThisAsset ? '(Gratis)' : '(0.2 Pi)'}</span>
-              </button>
-            </div>
-            <p class="text-[9px] text-gray-500">
-              ${hasPaidForThisAsset 
-                ? '✅ Kamu sudah membayar biaya penawaran pertama pada aset ini (Penawaran ulang gratis).' 
-                : 'ℹ️ Biaya 0.2 Pi dikenakan hanya pada penawaran pertama kamu di aset ini.'}
-            </p>
+            ${isOwner ? `
+              <div class="bg-gray-900 p-3 rounded-xl border border-yellow-500/30 text-center text-xs text-yellow-400 font-medium">
+                👑 Ini adalah lelang milik kamu. Penjual tidak dapat menawar lelangnya sendiri.
+              </div>
+            ` : `
+              <label class="block text-[10px] text-gray-400">Masukkan Nominal Penawaran Barumu (Pi):</label>
+              <div class="flex gap-2">
+                <input type="number" step="0.01" id="bidInput" placeholder="> ${selectedAuction.highest_bid}" 
+                       class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+                <button id="btnSubmitBid" onclick="submitBid()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1">
+                  <span>Tawar</span>
+                  <span class="text-[9px] opacity-80">${hasPaidForThisAsset ? '(Gratis)' : '(0.2 Pi)'}</span>
+                </button>
+              </div>
+              <p class="text-[9px] text-gray-500">
+                ${hasPaidForThisAsset 
+                  ? '✅ Kamu sudah membayar biaya penawaran pertama pada aset ini (Penawaran ulang gratis).' 
+                  : 'ℹ️ Biaya 0.2 Pi dikenakan hanya pada penawaran pertama kamu di aset ini.'}
+              </p>
+            `}
           </div>
         </div>
       `;
@@ -469,7 +495,7 @@
       selectedAuction = null;
     }
 
-    // Update Timer Hitung Mundur per Detik
+    // Update Timer Hitung Mundur
     function updateTimers() {
       const elements = document.querySelectorAll('.timer-element');
       const now = new Date().getTime();
@@ -492,8 +518,38 @@
     }
 
     // ==========================================
-    // 4. EKSKUSI LELANG & PENAWARAN (BIDDING)
+    // 4. EKSEKUSI RILIS & PENAWARAN (WITH CHECKS)
     // ==========================================
+    async function handleOpenCreateModal() {
+      const sellerName = authenticatedPiUser ? authenticatedPiUser.username : "Seller_Master";
+
+      // Hitung lelang aktif yang sudah dimiliki penjual ini
+      try {
+        const { count, error } = await supabaseClient
+          .from('auctions')
+          .select('*', { count: 'exact', head: true })
+          .eq('seller', sellerName)
+          .eq('status', 'active');
+
+        if (error) throw error;
+
+        const activeCount = count || 0;
+        const remainingQuota = 3 - activeCount;
+
+        document.getElementById('quotaDisplay').innerText = `Sisa Kuota Lelang: ${remainingQuota} dari 3`;
+
+        if (activeCount >= 3) {
+          alert(`Batas Maksimal Tercapai!\n\nKamu sudah memiliki 3 lelang aktif. Tunggu lelang yang ada selesai atau ditutup untuk membuat lelang baru.`);
+          return;
+        }
+
+        openCreateModal();
+      } catch (err) {
+        console.error("Gagal mengecek kuota:", err);
+        openCreateModal();
+      }
+    }
+
     function openCreateModal() {
       document.getElementById('createModal').classList.remove('hidden');
     }
@@ -502,23 +558,19 @@
       document.getElementById('createModal').classList.add('hidden');
       document.getElementById('assetTitleInput').value = '';
       document.getElementById('imageUrlInput').value = '';
+      document.getElementById('imageFileInput').value = '';
       document.getElementById('reservePriceInput').value = '';
     }
 
-    // RILIS ASET BARU (Wajib Bayar 0.2 Pi)
+    // RILIS ASET BARU (Otomatis Upload ImgBB + Bayar 0.2 Pi)
     async function submitNewListing() {
       const titleInput = document.getElementById('assetTitleInput').value.trim();
-      const rawImageUrl = document.getElementById('imageUrlInput').value.trim();
       const reserveInput = parseFloat(document.getElementById('reservePriceInput').value);
       const btnPublish = document.getElementById('btnPublish');
+      let finalImageUrl = "";
 
       if (!titleInput) {
         alert("Harap masukkan Nama / Identitas Aset NFT!");
-        return;
-      }
-
-      if (!rawImageUrl) {
-        alert("Harap tempelkan link gambar direct aset!");
         return;
       }
 
@@ -528,14 +580,51 @@
       }
 
       btnPublish.disabled = true;
-      btnPublish.innerText = "Bayar 0.2 Pi...";
 
       try {
-        // 1. Bayar 0.2 Pi
+        // A. PENANGANAN GAMBAR
+        if (activeImageTab === 'upload') {
+          const fileInput = document.getElementById('imageFileInput');
+          if (!fileInput.files || fileInput.files.length === 0) {
+            alert("Harap pilih file SS / Gambar aset NFT dari HP/Perangkat!");
+            btnPublish.disabled = false;
+            return;
+          }
+
+          btnPublish.innerText = "Mengunggah Gambar...";
+
+          // Upload Otomatis ke Cloud ImgBB API
+          const formData = new FormData();
+          formData.append("image", fileInput.files[0]);
+
+          const imgbbRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+            method: "POST",
+            body: formData
+          });
+
+          const imgbbData = await imgbbRes.json();
+
+          if (!imgbbData.success) {
+            throw new Error("Gagal mengunggah gambar ke cloud ImgBB.");
+          }
+
+          finalImageUrl = imgbbData.data.url;
+        } else {
+          const rawUrl = document.getElementById('imageUrlInput').value.trim();
+          if (!rawUrl) {
+            alert("Harap tempelkan link gambar direct aset!");
+            btnPublish.disabled = false;
+            return;
+          }
+          finalImageUrl = normalizeImageUrl(rawUrl);
+        }
+
+        // B. PROSES PEMBAYARAN 0.2 PI
+        btnPublish.innerText = "Bayar 0.2 Pi...";
         await payFeeWithPi(`Rilis Lelang NFT: ${titleInput} (0.2 Pi)`);
 
-        // 2. Simpan ke Database
-        const imageUrl = normalizeImageUrl(rawImageUrl);
+        // C. SIMPAN KE DATABASE SUPABASE
+        btnPublish.innerText = "Menyimpan Data...";
         const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         const sellerName = authenticatedPiUser ? authenticatedPiUser.username : "Seller_Master";
 
@@ -544,7 +633,7 @@
           .insert([{
             title: titleInput,
             seller: sellerName,
-            image_url: imageUrl,
+            image_url: finalImageUrl,
             reserve_price: reserveInput,
             highest_bid: reserveInput,
             ends_at: endsAt,
@@ -554,7 +643,12 @@
             extension_count: 0
           }]);
 
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes("policy")) {
+            throw new Error("Gagal: Kamu sudah mencapai batas maksimal 3 lelang aktif!");
+          }
+          throw error;
+        }
 
         closeCreateModal();
         alert("Lelang berhasil dirilis!");
@@ -568,7 +662,7 @@
       }
     }
 
-    // PENAWARAN ASET (0.2 Pi Pertama Kali per Aset, Gratis Selanjutnya)
+    // PENAWARAN ASET (Bidding)
     async function submitBid() {
       if (!selectedAuction) return;
 
@@ -587,7 +681,6 @@
       btnSubmitBid.disabled = true;
 
       try {
-        // Jika belum pernah bayar untuk aset ini, minta biaya 0.2 Pi
         if (!hasPaid) {
           btnSubmitBid.innerText = "Bayar 0.2 Pi...";
           await payFeeWithPi(`Penawaran Pertama Aset NFT #${selectedAuction.id} (0.2 Pi)`);
@@ -598,16 +691,14 @@
 
         const updatedBidCount = (selectedAuction.bid_count || 0) + 1;
 
-        const { data, error } = await supabaseClient
+        const { error } = await supabaseClient
           .from('auctions')
           .update({ 
             highest_bid: bidInput,
             bidders_list: biddersList,
             bid_count: updatedBidCount
           })
-          .eq('id', selectedAuction.id)
-          .select()
-          .single();
+          .eq('id', selectedAuction.id);
 
         if (error) throw error;
 
