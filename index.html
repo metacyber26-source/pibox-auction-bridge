@@ -53,22 +53,34 @@
 
       <div class="space-y-3">
         
-        <!-- Step 1: Link Upload Postimages -->
+        <!-- Step 1: Pilihan Link Upload Gambar -->
         <div class="bg-gray-900 border border-yellow-500/30 rounded-xl p-3 text-xs space-y-2">
-          <p class="text-yellow-400 font-semibold">Langkah 1: Upload SS Aset</p>
+          <p class="text-yellow-400 font-semibold">Langkah 1: Unggah SS Aset ke Cloud</p>
           <p class="text-gray-300 leading-relaxed">
-            Unggah SS NFT kamu ke Postimages, lalu salin (*copy*) link yang diberikan.
+            Pilih salah satu layanan gratis di bawah untuk mengunggah foto SS kamu[span_2](start_span)[span_2](end_span):
           </p>
-          <a href="https://postimages.org/" target="_blank" rel="noopener noreferrer" 
-             class="inline-flex items-center justify-center w-full bg-gray-800 hover:bg-gray-700 text-yellow-400 border border-yellow-500/40 rounded-lg py-2 font-medium transition duration-200 gap-1.5">
-            <span>Buka Postimages.org ↗</span>
-          </a>
+          
+          <!-- Pilihan Tombol Layanan -->
+          <div class="grid grid-cols-3 gap-1.5 pt-1">
+            <a href="https://imgbb.com/upload" target="_blank" rel="noopener noreferrer" 
+               class="bg-gray-800 hover:bg-gray-700 text-yellow-400 border border-yellow-500/30 rounded-lg py-2 text-[11px] font-medium text-center transition">
+              ImgBB ↗
+            </a>
+            <a href="https://postimages.org/" target="_blank" rel="noopener noreferrer" 
+               class="bg-gray-800 hover:bg-gray-700 text-yellow-400 border border-yellow-500/30 rounded-lg py-2 text-[11px] font-medium text-center transition">
+              Postimages ↗
+            </a>
+            <a href="https://imgur.com/upload" target="_blank" rel="noopener noreferrer" 
+               class="bg-gray-800 hover:bg-gray-700 text-yellow-400 border border-yellow-500/30 rounded-lg py-2 text-[11px] font-medium text-center transition">
+              Imgur ↗
+            </a>
+          </div>
         </div>
 
-        <!-- Step 2: Input URL Gambar dari Postimages -->
+        <!-- Step 2: Input URL Gambar Balasan -->
         <div>
           <label class="block text-xs font-semibold text-gray-300 mb-1">Langkah 2: Tempel Link Gambar (*Paste*)</label>
-          <input type="url" id="imageUrlInput" placeholder="Contoh: https://postimg.cc/xxx atau https://i.postimg.cc/xxx.png" 
+          <input type="url" id="imageUrlInput" placeholder="Contoh: https://i.ibb.co/xxx.png atau https://i.imgur.com/xxx.jpg" 
                  class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition">
         </div>
 
@@ -97,7 +109,7 @@
 
   <script>
     // ==========================================
-    // 1. KONFIGURASI SUPABASE (Sesuaikan Key Kamu)
+    // 1. KONFIGURASI SUPABASE (Isi Key Kamu)
     // ==========================================
     const SUPABASE_URL = "https://YOUR_SUPABASE_PROJECT_ID.supabase.co";
     const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
@@ -107,18 +119,20 @@
     let piUser = null;
 
     // ==========================================
-    // 2. HELPER: DUKUNGAN LINK POSTIMAGES
+    // 2. HELPER: NORMALISASI LINK GAMBAR
     // ==========================================
-    // Fungsi ini akan merapikan link jika pengguna menempelkan link halaman Postimages
-    function normalizePostimagesUrl(url) {
+    // Mengubah link halaman viewer ImgBB, Postimages, & Imgur agar langsung terbaca gambar
+    function normalizeImageUrl(url) {
       if (!url) return '';
       let cleanUrl = url.trim();
 
-      // Jika user meng-copy link halaman umum postimages (cth: https://postimg.cc/gallery/xyz atau https://postimg.cc/XXXXX)
-      if (cleanUrl.includes('postimg.cc') && !cleanUrl.includes('i.postimg.cc')) {
-        // Mengubah URL halaman menjadi direct image viewer untuk kompatibilitas img
-        return cleanUrl; 
+      // Normalisasi Imgur (jika user meng-copy link viewer: https://imgur.com/abc -> https://i.imgur.com/abc.jpg)
+      if (cleanUrl.includes('imgur.com') && !cleanUrl.includes('i.imgur.com')) {
+        const parts = cleanUrl.split('/');
+        const id = parts[parts.length - 1];
+        return `https://i.imgur.com/${id}.jpg`;
       }
+
       return cleanUrl;
     }
 
@@ -161,7 +175,7 @@
     // ==========================================
     function renderAuctionUI(auction) {
       const container = document.getElementById('auctionContent');
-      const formattedImageUrl = normalizePostimagesUrl(auction.image_url);
+      const formattedImageUrl = normalizeImageUrl(auction.image_url);
 
       container.innerHTML = `
         <div class="w-full space-y-4">
@@ -237,7 +251,7 @@
       const btnPublish = document.getElementById('btnPublish');
 
       if (!rawImageUrl) {
-        alert("Harap tempelkan link gambar dari Postimages!");
+        alert("Harap tempelkan link gambar balasan!");
         return;
       }
 
@@ -246,7 +260,7 @@
         return;
       }
 
-      const imageUrl = normalizePostimagesUrl(rawImageUrl);
+      const imageUrl = normalizeImageUrl(rawImageUrl);
       btnPublish.disabled = true;
       btnPublish.innerText = "Merilis...";
 
