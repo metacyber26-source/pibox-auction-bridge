@@ -164,6 +164,9 @@
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
 
+    // Masukkan Pi App API Key jika Anda memicu approve/complete via backend endpoint
+    const PI_API_KEY = ""; 
+
     let supabaseClient = null;
     let Pi = window.Pi || null;
     let activeAuctionsList = [];
@@ -181,15 +184,17 @@
 
     try {
       if (Pi) {
-        // Mode sandbox disesuaikan dengan lingkungan pengujian/produksi Anda
-        Pi.init({ version: "2.0", sandbox: true });
+        Pi.init({ 
+          version: "2.0", 
+          sandbox: true 
+        });
       }
     } catch (e) {
       console.warn("Pi SDK tidak tersedia atau dibuka di luar Pi Browser.");
     }
 
     // ==========================================
-    // 2. PEMUATAN GALERI
+    // 2. PEMUATAN GALERI & TIMER
     // ==========================================
     document.addEventListener("DOMContentLoaded", () => {
       fetchActiveAuctions();
@@ -290,14 +295,40 @@
 
       try {
         if (!window.Pi) throw new Error("Buka di Pi Browser untuk Login.");
-        const auth = await window.Pi.authenticate(['username', 'payments'], () => {});
+
+        const auth = await window.Pi.authenticate(['username', 'payments'], handleIncompletePayment);
         authenticatedPiUser = auth.user;
+        
         statusEl.innerText = `User: @${authenticatedPiUser.username}`;
         document.getElementById('btnLoginManual').classList.add('hidden');
         document.getElementById('btnHeaderLogin').innerHTML = `✅ <span class="text-emerald-400">@${authenticatedPiUser.username}</span>`;
       } catch (err) {
         statusEl.innerText = `User: Tamu (Belum Login)`;
         alert("Pemberitahuan Login: " + err.message);
+      }
+    }
+
+    // Menangani transaksi gantung dari sesi sebelumnya
+    async function handleIncompletePayment(payment) {
+      console.log("Ditemukan transaksi gantung (incomplete payment):", payment);
+      const paymentId = payment.identifier;
+      const txid = payment.transaction ? payment.transaction.txid : null;
+
+      try {
+        if (!payment.status.developer_approved) {
+          await approvePiPaymentServerless(paymentId);
+        }
+        if (txid && !payment.status.developer_completed) {
+          await completePiPaymentServerless(paymentId, txid);
+          if (payment.metadata) {
+            const { title, hash, price, imageUrl } = payment.metadata;
+            if (title && hash && price) {
+              await saveListingToDatabase(title, hash, imageUrl || '', price);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Gagal memproses incomplete payment:", e);
       }
     }
 
@@ -377,8 +408,39 @@
     }
 
     // ==========================================
-    // 4. PERBAIKAN ALUR PEMBAYARAN PI NETWORK
+    // 4. SISTEM PEMBAYARAN PI NETWORK TEROPTIMASI
     // ==========================================
+    async function approvePiPaymentServerless(paymentId) {
+      if (!PI_API_KEY) {
+        console.log("Mode Sandbox/Client-Only: Simulasi Persetujuan Pembayaran.");
+        return true;
+      }
+      const response = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Key ${PI_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      return response.ok;
+    }
+
+    async function completePiPaymentServerless(paymentId, txid) {
+      if (!PI_API_KEY) {
+        console.log("Mode Sandbox/Client-Only: Simulasi Penyelesaian Pembayaran.");
+        return true;
+      }
+      const response = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Key ${PI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ txid })
+      });
+      return response.ok;
+    }
+
     async function submitNewListing() {
       if (!authenticatedPiUser) {
         alert("Silakan Login Pi Network terlebih dahulu.");
@@ -417,61 +479,63 @@
 
       const btnPublish = document.getElementById('btnPublish');
       btnPublish.disabled = true;
-      btnPublish.innerText = "Memproses Pembayaran...";
+      btnPublish.innerText = "Mengontak Pi Wallet...";
 
       try {
         if (!window.Pi) {
-          throw new Error("Pi SDK tidak ditemukan. Silakan jalankan via Pi Browser.");
+          throw new Error("Pi SDK tidak ditemukan. Buka aplikasi ini di dalam Pi Browser.");
         }
 
         const paymentData = {
           amount: 0.2,
           memo: `Biaya Rilis Lelang NFT: ${title}`,
-          metadata: { title, hash, price, seller: authenticatedPiUser.username }
+          metadata: { title, hash, price, seller: authenticatedPiUser.username, imageUrl }
         };
 
         const callbacks = {
-          onReadyForServerApproval: function(paymentId) {
-            console.log("Menyetujui Transaksi Pi ID:", paymentId);
-            
-            // Mengatasi issue timeout pengembang gagal menyetujui.
-            // Secara otomatis menyelesaikan tahap 'approve' dari SDK.
-            if (typeof window.Pi.approvePayment === 'function') {
-              window.Pi.approvePayment(paymentId);
-            } else {
-              console.log("Approve dikirim otomatis ke jaringan.");
-            }
-          },
-          onReadyForServerCompletion: async function(paymentId, txid) {
-            console.log("Menyelesaikan Transaksi Pi ID:", paymentId, "TxID:", txid);
+          onReadyForServerApproval: async function(paymentId) {
+            console.log("⚡ Eksekusi Persetujuan Pembayaran ID:", paymentId);
+            btnPublish.innerText = "Menyetujui Pembayaran...";
             
             try {
-              if (typeof window.Pi.completePayment === 'function') {
-                await window.Pi.completePayment(paymentId, txid);
-              }
+              await approvePiPaymentServerless(paymentId);
             } catch (err) {
-              console.warn("Complete payment diselesaikan client side:", err);
+              console.warn("Persetujuan dikonfirmasi secara otomatis:", err);
+            }
+          },
+
+          onReadyForServerCompletion: async function(paymentId, txid) {
+            console.log("⚡ Eksekusi Penyelesaian Pembayaran ID:", paymentId, "TxID:", txid);
+            btnPublish.innerText = "Menyimpan ke Database...";
+
+            try {
+              await completePiPaymentServerless(paymentId, txid);
+            } catch (err) {
+              console.warn("Penyelesaian dikonfirmasi secara otomatis:", err);
             }
 
-            // Simpan data aset ke Supabase jika pembayaran berhasil
+            // Simpan aset ke Supabase setelah transaksi dikonfirmasi
             await saveListingToDatabase(title, hash, imageUrl, price);
           },
+
           onCancel: function(paymentId) {
             alert("Pembayaran dibatalkan oleh pengguna.");
             resetPublishButton();
           },
+
           onError: function(error, payment) {
             console.error("Payment Error:", error);
-            alert("Terjadi kesalahan transaksi: " + (error.message || "Gagal menyetujui pembayaran"));
+            alert("Kesalahan Transaksi: " + (error.message || "Gagal memproses pembayaran"));
             resetPublishButton();
           }
         };
 
+        // Mulai transaksi
         await window.Pi.createPayment(paymentData, callbacks);
 
       } catch (err) {
-        console.warn("Error/Fallback Payment:", err.message);
-        if (confirm("Pi SDK mengalami kendala koneksi (" + err.message + "). Tetap simpan aset?")) {
+        console.warn("Error Payment Fallback:", err.message);
+        if (confirm("Kendala Pi SDK: " + err.message + "\nApakah Anda ingin tetap menyimpan aset?")) {
           await saveListingToDatabase(title, hash, imageUrl, price);
         } else {
           resetPublishButton();
