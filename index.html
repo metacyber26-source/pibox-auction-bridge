@@ -46,10 +46,17 @@
           <p class="text-[9px] text-yellow-500">PiBox Bridge Protocol</p>
         </div>
       </div>
-      <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-2 rounded-xl transition duration-200 shadow-lg flex items-center gap-1">
-        <span>+ Rilis Aset</span>
-        <span class="text-[10px] opacity-80">(0.2 Pi)</span>
-      </button>
+      
+      <div class="flex items-center gap-2">
+        <!-- Tombol Login Header -->
+        <button id="btnHeaderLogin" onclick="authenticatePiUser()" class="text-xs bg-gray-800 hover:bg-gray-700 text-yellow-400 font-semibold px-2.5 py-2 rounded-xl border border-yellow-500/30 transition flex items-center gap-1">
+          🔑 <span>Login</span>
+        </button>
+        <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-2 rounded-xl transition duration-200 shadow-lg flex items-center gap-1">
+          <span>+ Rilis Aset</span>
+          <span class="text-[10px] opacity-80">(0.2 Pi)</span>
+        </button>
+      </div>
     </div>
 
     <!-- Peringatan Global Match PiBox & Pengumuman Pemenang -->
@@ -70,8 +77,8 @@
     <!-- Bottom Footer Navigation / Status -->
     <div class="bg-gray-950 p-3 border-t border-gray-800 text-center text-[10px] text-gray-500 flex justify-between items-center">
       <div class="flex items-center gap-2">
-        <span id="userStatusDisplay">User: Connecting Pi...</span>
-        <button id="btnLoginManual" onclick="authenticatePiUser()" class="hidden bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-[9px] px-2 py-0.5 rounded font-bold transition">
+        <span id="userStatusDisplay">User: Tamu (Belum Login)</span>
+        <button id="btnLoginManual" onclick="authenticatePiUser()" class="bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-[9px] px-2 py-0.5 rounded font-bold transition">
           🔑 Login Pi
         </button>
       </div>
@@ -222,18 +229,32 @@
     async function authenticatePiUser() {
       const statusEl = document.getElementById('userStatusDisplay');
       const loginBtn = document.getElementById('btnLoginManual');
+      const headerLoginBtn = document.getElementById('btnHeaderLogin');
       
       statusEl.innerText = "Connecting Pi...";
       
       try {
         if (!Pi) {
-          throw new Error("Pi SDK tidak terdeteksi.");
+          throw new Error("Pi SDK tidak terdeteksi. Buka di Pi Browser.");
         }
         const scopes = ['username', 'payments'];
         const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
         authenticatedPiUser = auth.user;
         statusEl.innerText = `User: @${authenticatedPiUser.username}`;
+        
+        // Sembunyikan/Ubah tombol login jika sudah terhubung
         loginBtn.classList.add('hidden');
+        if (headerLoginBtn) {
+          headerLoginBtn.innerHTML = `✅ <span class="text-emerald-400">@${authenticatedPiUser.username}</span>`;
+          headerLoginBtn.onclick = null;
+        }
+
+        // Refresh detail jika modal sedang terbuka
+        if (selectedAuction) {
+          openDetailModal(selectedAuction.id);
+        }
+
+        return authenticatedPiUser;
       } catch (err) {
         console.warn("Pi Auth Notice:", err);
         if (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('localhost')) {
@@ -242,17 +263,15 @@
           statusEl.innerText = `User: Belum Login Pi`;
         }
         loginBtn.classList.remove('hidden');
+        alert("Gagal terhubung ke Pi Network: " + (err.message || "Buka via Pi Browser."));
+        return null;
       }
     }
 
     // Helper: Eksekusi Pembayaran 0.2 Pi
     async function payFeeWithPi(memoText) {
       if (!authenticatedPiUser) {
-        try {
-          await authenticatePiUser();
-        } catch (e) {
-          console.warn("Autentikasi gagal otomatis", e);
-        }
+        await authenticatePiUser();
       }
 
       if (!authenticatedPiUser) {
@@ -385,7 +404,7 @@
     // 2. AMBIL DATA LELANG & MANAGEMENT WAKTU
     // ==========================================
     document.addEventListener("DOMContentLoaded", () => {
-      authenticatePiUser();
+      // Panggil galeri terlebih dahulu tanpa memblokir aplikasi
       fetchActiveAuctions();
       
       if (timerInterval) clearInterval(timerInterval);
@@ -529,9 +548,9 @@
       const hash = selectedAuction.hash || "Tidak dicantumkan";
 
       const currentUserName = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isOwner = selectedAuction.seller === currentUserName;
+      const isOwner = currentUserName && selectedAuction.seller === currentUserName;
       const biddersList = selectedAuction.bidders_list || [];
-      const hasPaidForThisAsset = biddersList.includes(currentUserName);
+      const hasPaidForThisAsset = currentUserName && biddersList.includes(currentUserName);
       const isFinished = selectedAuction.status === 'expired' || new Date(selectedAuction.ends_at) <= new Date();
 
       modalContent.innerHTML = `
@@ -656,7 +675,8 @@
     // ==========================================
     async function handleOpenCreateModal() {
       if (!authenticatedPiUser) {
-        await authenticatePiUser();
+        const user = await authenticatePiUser();
+        if (!user) return;
       }
 
       const sellerName = authenticatedPiUser ? authenticatedPiUser.username : "Seller_Master";
@@ -702,6 +722,11 @@
 
     // RILIS ASET BARU
     async function submitNewListing() {
+      if (!authenticatedPiUser) {
+        const user = await authenticatePiUser();
+        if (!user) return;
+      }
+
       const titleInput = document.getElementById('assetTitleInput').value.trim();
       const hashInput = document.getElementById('assetHashInput').value.trim();
       const reserveInput = parseFloat(document.getElementById('reservePriceInput').value);
@@ -813,6 +838,11 @@
     // PENAWARAN ASET (Bidding)
     async function submitBid() {
       if (!selectedAuction) return;
+
+      if (!authenticatedPiUser) {
+        const user = await authenticatePiUser();
+        if (!user) return;
+      }
 
       const bidInput = parseFloat(document.getElementById('bidInput').value);
       const btnSubmitBid = document.getElementById('btnSubmitBid');
