@@ -77,6 +77,16 @@
       </p>
     </div>
 
+    <!-- Fitur Pencarian & Filter (Peningkatan Fitur) -->
+    <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex gap-2">
+      <input type="text" id="searchInput" oninput="filterGallery()" placeholder="🔍 Cari nama NFT / Hash..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500 transition">
+      <select id="statusFilter" onchange="filterGallery()" class="bg-gray-900 border border-gray-800 text-gray-300 text-[10px] font-semibold px-2 py-1.5 rounded-xl focus:outline-none cursor-pointer">
+        <option value="all">Semua Status</option>
+        <option value="active">Aktif</option>
+        <option value="ended">Selesai</option>
+      </select>
+    </div>
+
     <!-- Galeri Content -->
     <div id="mainContent" class="p-4 flex-1 flex flex-col custom-scrollbar overflow-y-auto">
       <div class="text-center py-10 text-gray-500 text-xs animate-pulse" data-i18n="loadingGallery">Memuat Galeri Aset...</div>
@@ -175,6 +185,7 @@
     let supabaseClient = null;
     let Pi = window.Pi || null;
     let activeAuctionsList = [];
+    let filteredAuctionsList = [];
     let selectedAuction = null;
     let authenticatedPiUser = null;
     let activeImageTab = 'upload';
@@ -375,16 +386,33 @@
       document.getElementById('langSelector').value = currentLang;
       applyTranslations();
       fetchActiveAuctions();
+      setupRealtimeSubscription();
       setInterval(updateTimers, 1000);
       authenticatePiUser();
     });
+
+    /* ========================================================
+       SUPABASE REALTIME LISTENER (LIVE UPDATE SINKRON)
+       ======================================================== */
+    function setupRealtimeSubscription() {
+      if (!supabaseClient) return;
+      supabaseClient
+        .channel('public:auctions')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, (payload) => {
+          fetchActiveAuctions();
+          if (selectedAuction && payload.new && payload.new.id === selectedAuction.id) {
+            openDetailModal(selectedAuction.id);
+          }
+        })
+        .subscribe();
+    }
 
     function changeLanguage(lang) {
       currentLang = lang;
       localStorage.setItem('appLang', lang);
       applyTranslations();
-      if (activeAuctionsList.length > 0) {
-        renderGalleryUI(activeAuctionsList);
+      if (filteredAuctionsList.length > 0) {
+        renderGalleryUI(filteredAuctionsList);
       }
     }
 
@@ -412,38 +440,30 @@
       for (let item of auctions) {
         let endsAt = new Date(item.ends_at);
         let extensionCount = item.extension_count || 0;
-        let hasBids = item.highest_bidder && item.highest_bidder !== null && item.highest_bidder !== '';
+        let hasBids = item.highest_bidder && item.highest_bidder !== null && item.highest_bidder !== '' && item.highest_bidder !== '-';
 
-        // Jika masa lelang berakhir tapi TIDAK ADA penawar sama sekali
         if (endsAt <= now && !hasBids) {
           if (extensionCount < 5) {
-            // Perpanjang 24 jam lagi (Maksimal 5x)
             const newEndsAt = new Date(endsAt.getTime() + (24 * 60 * 60 * 1000)).toISOString();
             const newCount = extensionCount + 1;
 
             await supabaseClient
               .from('auctions')
-              .update({
-                ends_at: newEndsAt,
-                extension_count: newCount
-              })
+              .update({ ends_at: newEndsAt, extension_count: newCount })
               .eq('id', item.id);
 
             item.ends_at = newEndsAt;
             item.extension_count = newCount;
             updatedList.push(item);
           } else {
-            // Sudah diperpanjang 5x dan tetap tidak ada penawar -> Nonaktifkan / Expired
             await supabaseClient
               .from('auctions')
               .update({ status: 'expired' })
               .eq('id', item.id);
 
             item.status = 'expired';
-            // Aset yang expired disembunyikan (tidak dimasukkan ke updatedList galeri)
           }
         } else if (endsAt <= now && hasBids) {
-          // Jika lelang selesai DAN ada penawar, set status finished/expired tapi tetap tampil sebagai "Selesai"
           if (item.status !== 'expired') {
             await supabaseClient
               .from('auctions')
@@ -453,23 +473,19 @@
           }
           updatedList.push(item);
         } else {
-          // Masih aktif biasa
           updatedList.push(item);
         }
       }
 
-      // Filter aset: Sembunyikan aset yang tidak aktif/expired TANPA penawar
       return updatedList.filter(item => {
         const isEnded = new Date(item.ends_at) <= now;
-        const hasBids = item.highest_bidder && item.highest_bidder !== '';
-        // Hanya tampilkan jika lelang masih aktif ATAU lelang selesai yang memiliki penawar
+        const hasBids = item.highest_bidder && item.highest_bidder !== '' && item.highest_bidder !== '-';
         return !isEnded || (isEnded && hasBids);
       });
     }
 
     async function fetchActiveAuctions() {
       const container = document.getElementById('mainContent');
-      container.innerHTML = `<div class="text-center py-10 text-gray-500 text-xs animate-pulse">${t('loadingGallery')}</div>`;
 
       if (!supabaseClient) return;
 
@@ -477,15 +493,14 @@
         const { data, error } = await supabaseClient
           .from('auctions')
           .select('*')
-          .neq('status', 'expired_hidden') // Filter status tersembunyi
+          .neq('status', 'expired_hidden')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        // Proses logika perpanjangan lelang 24 jam x 5 dan pembersihan galeri
         const validAuctions = await processAuctionExtensions(data || []);
         activeAuctionsList = validAuctions;
-        renderGalleryUI(activeAuctionsList);
+        filterGallery();
       } catch (err) {
         console.error("Fetch Error:", err);
         container.innerHTML = `
@@ -494,6 +509,24 @@
             <button onclick="fetchActiveAuctions()" class="bg-gray-800 text-yellow-400 px-3 py-1.5 rounded-lg text-[10px] font-bold">🔄 Coba Lagi</button>
           </div>`;
       }
+    }
+
+    function filterGallery() {
+      const query = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+      const status = document.getElementById('statusFilter')?.value || 'all';
+
+      filteredAuctionsList = activeAuctionsList.filter(item => {
+        const isFinished = item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date());
+        const matchTitle = (item.title || '').toLowerCase().includes(query);
+        const matchHash = (item.hash || '').toLowerCase().includes(query);
+        const matchSearch = matchTitle || matchHash;
+
+        if (status === 'active') return matchSearch && !isFinished;
+        if (status === 'ended') return matchSearch && isFinished;
+        return matchSearch;
+      });
+
+      renderGalleryUI(filteredAuctionsList);
     }
 
     function renderGalleryUI(auctions) {
@@ -514,6 +547,7 @@
       auctions.forEach((item) => {
         const displayTitle = item.title || "Aset NFT";
         const isFinished = item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date());
+        const currentHighest = item.highest_bid && item.highest_bid > 0 ? item.highest_bid : (item.reserve_price || 0);
 
         html += `
           <div onclick="openDetailModal('${item.id}')" class="bg-gray-950 border border-gray-800 hover:border-yellow-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition duration-200 group">
@@ -531,7 +565,7 @@
               <div class="bg-gray-900/80 p-1.5 rounded-lg border border-gray-800/80 flex justify-between items-center">
                 <div>
                   <p class="text-[8px] text-gray-500 uppercase">${t('priceLabel')}</p>
-                  <p class="text-xs font-bold text-yellow-400">${item.highest_bid || item.reserve_price || 0} <span class="text-[9px] font-normal">Pi</span></p>
+                  <p class="text-xs font-bold text-yellow-400">${currentHighest} <span class="text-[9px] font-normal">Pi</span></p>
                 </div>
                 <div class="text-right">
                   <p class="text-[8px] text-gray-500 uppercase">${t('timeLabel')}</p>
@@ -614,11 +648,18 @@
 
       const displayTitle = selectedAuction.title || "Aset NFT";
       const isFinished = selectedAuction.status === 'expired' || (selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date());
-      const currentHighest = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
-      const highestBidder = selectedAuction.highest_bidder ? `@${selectedAuction.highest_bidder}` : '-';
+      
+      // PERBAIKAN LOGIKA HARGA TERTINGGI & PENAWAR
+      const currentHighest = (selectedAuction.highest_bid && selectedAuction.highest_bid > 0) 
+        ? selectedAuction.highest_bid 
+        : (selectedAuction.reserve_price || 0);
+
+      const highestBidder = (selectedAuction.highest_bidder && selectedAuction.highest_bidder !== '-') 
+        ? `@${selectedAuction.highest_bidder}` 
+        : 'Belum ada penawar';
+
       const isOwner = authenticatedPiUser && (authenticatedPiUser.username === selectedAuction.seller);
 
-      // Cek apakah pengguna pernah bayar penawaran 0.1 Pi untuk aset ini
       let hasPaidFee = false;
       if (authenticatedPiUser) {
         const { data } = await supabaseClient
@@ -628,6 +669,24 @@
           .eq('username', authenticatedPiUser.username)
           .maybeSingle();
         if (data) hasPaidFee = true;
+      }
+
+      // Ambil Riwayat Penawaran dari Supabase (Fitur Baru)
+      const { data: bidLogs } = await supabaseClient
+        .from('bids')
+        .select('*')
+        .eq('auction_id', id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      let bidHistoryHtml = `<p class="text-[10px] text-gray-500 italic">Belum ada riwayat penawaran.</p>`;
+      if (bidLogs && bidLogs.length > 0) {
+        bidHistoryHtml = bidLogs.map(b => `
+          <div class="flex justify-between items-center text-[10px] py-1 border-b border-gray-800/50">
+            <span class="text-gray-300">@${b.bidder}</span>
+            <span class="font-bold text-yellow-400">${b.amount} Pi</span>
+          </div>
+        `).join('');
       }
 
       const modalContent = document.getElementById('modalDetailContent');
@@ -657,7 +716,15 @@
             </div>
             <div>
               <p class="text-[9px] text-gray-500 uppercase">${t('highestBidderLabel')}</p>
-              <p class="text-xs font-semibold text-emerald-400 truncate">${highestBidder}</p>
+              <p class="text-xs font-semibold ${selectedAuction.highest_bidder ? 'text-emerald-400' : 'text-gray-500'} truncate">${highestBidder}</p>
+            </div>
+          </div>
+
+          <!-- Section Riwayat Penawaran (Terlengkap) -->
+          <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1.5">
+            <p class="text-[10px] font-bold text-gray-300 uppercase tracking-wider">📜 Riwayat Penawaran Terakhir</p>
+            <div class="max-h-24 overflow-y-auto custom-scrollbar">
+              ${bidHistoryHtml}
             </div>
           </div>
 
@@ -695,7 +762,7 @@
     }
 
     /* ========================================================
-       LOGIKA PENAWARAN (Bidding) + ATURAN BIAYA 0.1 PI
+       LOGIKA PENAWARAN (Bidding) DENGAN INTEGRASI REALTIME
        ======================================================== */
     async function submitBid(auctionId, hasPaidFee) {
       if (!authenticatedPiUser) {
@@ -711,7 +778,15 @@
 
       const bidInput = document.getElementById('bidAmountInput');
       const bidAmount = parseFloat(bidInput.value);
-      const currentHighest = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
+
+      // Cek ulang nilai tertinggi langsung dari database (Mencegah konflik bersamaan)
+      const { data: latestData } = await supabaseClient
+        .from('auctions')
+        .select('highest_bid, reserve_price')
+        .eq('id', auctionId)
+        .single();
+
+      const currentHighest = (latestData && latestData.highest_bid > 0) ? latestData.highest_bid : (latestData?.reserve_price || 0);
 
       if (isNaN(bidAmount) || bidAmount <= currentHighest) {
         alert(`${t('bidMustBeHigher')} (Minimum: > ${currentHighest} Pi)`);
@@ -721,12 +796,10 @@
       const btnSubmitBid = document.getElementById('btnSubmitBid');
       btnSubmitBid.disabled = true;
 
-      // JIKA SUDAH PERNAH BAYAR UNTUK ASET INI: PENAWARAN GRATIS (0 Pi)
       if (hasPaidFee) {
         btnSubmitBid.innerText = "Memproses...";
         await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
       } else {
-        // JIKA PENAWARAN PERTAMA PADA ASET INI: BAYAR BIAYA 0.1 Pi
         btnSubmitBid.innerText = t('contactingWallet');
 
         const paymentData = {
@@ -766,13 +839,11 @@
               console.warn("Completion warn:", err);
             }
 
-            // Catat biaya aset yang sudah dibayar oleh user
             await supabaseClient.from('user_bid_fees').insert([{
               auction_id: auctionId,
               username: authenticatedPiUser.username
             }]);
 
-            // Catat penawaran harga tertinggi baru ke database
             await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
           },
 
@@ -797,11 +868,12 @@
       }
     }
 
-    /* MENSIMPAN PENAWARAN KE DATABASE SUPABASE (PERBAIKAN SINKRONISASI HASIL LELANG) */
+    /* MENSIMPAN PENAWARAN KE DATABASE & TABEL RIWAYAT BIDS */
     async function recordBidToDatabase(auctionId, bidAmount, username) {
       const btnSubmitBid = document.getElementById('btnSubmitBid');
       try {
-        const { error } = await supabaseClient
+        // 1. Perbarui tabel auctions
+        const { error: updateError } = await supabaseClient
           .from('auctions')
           .update({
             highest_bid: bidAmount,
@@ -809,11 +881,18 @@
           })
           .eq('id', auctionId);
 
-        if (error) throw error;
+        if (updateError) throw updateError;
+
+        // 2. Simpan ke tabel bids (Riwayat)
+        await supabaseClient.from('bids').insert([{
+          auction_id: auctionId,
+          bidder: username,
+          amount: bidAmount
+        }]);
 
         alert(t('bidSuccessMsg'));
-        closeDetailModal();
         fetchActiveAuctions();
+        openDetailModal(auctionId); // Buka kembali modal detail dengan data terbaru
       } catch (err) {
         console.error("Gagal mengirim tawaran:", err);
         alert("Gagal memproses penawaran: " + err.message);
