@@ -115,7 +115,7 @@
 
         <div>
           <label class="block font-semibold text-gray-300 mb-1">Identitas / Nama Aset NFT</label>
-          <input type="text" id="assetTitleInput" placeholder="Contoh: Selling crow satay" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+          <input type="text" id="assetTitleInput" placeholder="Contoh: Behind the beauty of the full moon" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
         </div>
 
         <div>
@@ -158,9 +158,6 @@
   </div>
 
   <script>
-    // ==========================================
-    // 1. INITIALIZATION & CONFIG
-    // ==========================================
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
 
@@ -176,7 +173,7 @@
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       }
     } catch (e) {
-      console.error("Gagal Inisialisasi Supabase Client:", e);
+      console.error("Gagal Inisialisasi Supabase:", e);
     }
 
     try {
@@ -184,35 +181,25 @@
         Pi.init({ version: "2.0", sandbox: false });
       }
     } catch (e) {
-      console.warn("Pi SDK tidak tersedia atau dibuka di luar Pi Browser.");
+      console.warn("Pi SDK tidak tersedia.");
     }
 
-    // ==========================================
-    // 2. PEMUATAN GALERI & TIMER
-    // ==========================================
     document.addEventListener("DOMContentLoaded", () => {
       fetchActiveAuctions();
       setInterval(updateTimers, 1000);
+      authenticatePiUser();
     });
 
     async function fetchActiveAuctions() {
       const container = document.getElementById('mainContent');
       container.innerHTML = `<div class="text-center py-10 text-gray-500 text-xs animate-pulse">Memuat Galeri Aset...</div>`;
 
-      if (!supabaseClient) {
-        container.innerHTML = `
-          <div class="text-center py-10 text-red-400 text-xs space-y-2">
-            <p>⚠️ Kredensial Supabase Belum Valid.</p>
-            <button onclick="fetchActiveAuctions()" class="bg-gray-800 text-yellow-400 px-3 py-1 rounded text-[10px]">Coba Lagi</button>
-          </div>`;
-        return;
-      }
+      if (!supabaseClient) return;
 
       try {
         const { data, error } = await supabaseClient
           .from('auctions')
           .select('*')
-          .or('status.eq.active,status.eq.expired')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -220,11 +207,11 @@
         activeAuctionsList = data || [];
         renderGalleryUI(activeAuctionsList);
       } catch (err) {
-        console.error("Error Fetch Auctions:", err);
+        console.error("Fetch Error:", err);
         container.innerHTML = `
           <div class="text-center py-10 text-red-400 text-xs space-y-2">
-            <p>Gagal mengambil data dari database.</p>
-            <button onclick="fetchActiveAuctions()" class="bg-gray-800 text-yellow-400 px-3 py-1.5 rounded-lg text-[10px] font-bold">🔄 Muat Ulang Galeri</button>
+            <p>Gagal memuat galeri dari database.</p>
+            <button onclick="fetchActiveAuctions()" class="bg-gray-800 text-yellow-400 px-3 py-1.5 rounded-lg text-[10px] font-bold">🔄 Coba Lagi</button>
           </div>`;
       }
     }
@@ -246,14 +233,14 @@
 
       auctions.forEach((item) => {
         const displayTitle = item.title || item.name || "Aset NFT";
-        const isFinished = item.status === 'expired' || new Date(item.ends_at) <= new Date();
+        const isFinished = item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date());
 
         html += `
           <div onclick="openDetailModal('${item.id}')" class="bg-gray-950 border border-gray-800 hover:border-yellow-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition duration-200 group">
             <div class="relative w-full h-36 bg-gray-900 overflow-hidden">
               <img src="${item.image_url || 'https://via.placeholder.com/200'}" alt="${displayTitle}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='https://via.placeholder.com/200x200/111827/9CA3AF?text=NFT+Asset';">
               <span class="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-md px-1.5 py-0.5 rounded text-[8px] ${isFinished ? 'text-red-400' : 'text-yellow-400'} font-semibold border border-white/10">
-                ${isFinished ? 'Selesai' : '24 Jam'}
+                ${isFinished ? 'Selesai' : 'Aktif'}
               </span>
             </div>
             <div class="p-2.5 flex-1 flex flex-col justify-between space-y-1.5">
@@ -263,8 +250,8 @@
               </div>
               <div class="bg-gray-900/80 p-1.5 rounded-lg border border-gray-800/80 flex justify-between items-center">
                 <div>
-                  <p class="text-[8px] text-gray-500 uppercase">Tertinggi</p>
-                  <p class="text-xs font-bold text-yellow-400">${item.highest_bid} <span class="text-[9px] font-normal">Pi</span></p>
+                  <p class="text-[8px] text-gray-500 uppercase">Harga</p>
+                  <p class="text-xs font-bold text-yellow-400">${item.highest_bid || item.reserve_price || 0} <span class="text-[9px] font-normal">Pi</span></p>
                 </div>
                 <div class="text-right">
                   <p class="text-[8px] text-gray-500 uppercase">Waktu</p>
@@ -280,16 +267,11 @@
       updateTimers();
     }
 
-    // ==========================================
-    // 3. AUTHENTICATION & MODALS
-    // ==========================================
     async function authenticatePiUser() {
       const statusEl = document.getElementById('userStatusDisplay');
-      statusEl.innerText = "Connecting Pi...";
+      if (!window.Pi) return;
 
       try {
-        if (!window.Pi) throw new Error("Buka di Pi Browser untuk Login.");
-
         const auth = await window.Pi.authenticate(['username', 'payments'], handleIncompletePayment);
         authenticatedPiUser = auth.user;
         
@@ -297,13 +279,11 @@
         document.getElementById('btnLoginManual').classList.add('hidden');
         document.getElementById('btnHeaderLogin').innerHTML = `✅ <span class="text-emerald-400">@${authenticatedPiUser.username}</span>`;
       } catch (err) {
-        statusEl.innerText = `User: Tamu (Belum Login)`;
-        alert("Pemberitahuan Login: " + err.message);
+        console.warn("Auth Error:", err);
       }
     }
 
     async function handleIncompletePayment(payment) {
-      console.log("Transaksi tertunda ditemukan:", payment);
       const paymentId = payment.identifier;
       const txid = payment.transaction ? payment.transaction.txid : null;
 
@@ -323,13 +303,13 @@
           });
         }
         if (payment.metadata) {
-          const { title, hash, price, imageUrl } = payment.metadata;
-          if (title && hash && price) {
-            await saveListingToDatabase(title, hash, imageUrl || '', price);
+          const { title, hash, price, imageUrl, seller } = payment.metadata;
+          if (title && price) {
+            await saveListingToDatabase(title, hash || '', imageUrl || '', price, seller);
           }
         }
       } catch (e) {
-        console.error("Gagal menyelesaikan incomplete payment:", e);
+        console.error("Gagal sinkronisasi transaksi tertunda:", e);
       }
     }
 
@@ -358,7 +338,7 @@
           <h3 class="text-sm font-bold text-gray-100">${displayTitle}</h3>
           <p class="text-xs text-gray-400">Penjual: @${selectedAuction.seller}</p>
           <div class="bg-gray-900 p-2 rounded text-[10px] font-mono text-yellow-400 break-all">Hash: ${selectedAuction.hash || '-'}</div>
-          <p class="text-xs font-bold text-yellow-400">Harga Awal / Tertinggi: ${selectedAuction.highest_bid} Pi</p>
+          <p class="text-xs font-bold text-yellow-400">Harga Awal / Tertinggi: ${selectedAuction.highest_bid || selectedAuction.reserve_price} Pi</p>
         </div>`;
       
       document.getElementById('detailModal').classList.remove('hidden');
@@ -370,7 +350,10 @@
 
     function updateTimers() {
       document.querySelectorAll('.timer-element').forEach(el => {
-        const diff = new Date(el.getAttribute('data-ends')).getTime() - new Date().getTime();
+        const endsAttr = el.getAttribute('data-ends');
+        if (!endsAttr) return;
+        
+        const diff = new Date(endsAttr).getTime() - new Date().getTime();
         if (diff <= 0) {
           el.innerText = "Selesai";
           el.classList.add('text-red-400');
@@ -400,21 +383,14 @@
       }
     }
 
-    // ==========================================
-    // 4. PROSES UNGGAH LELANG & PEMBAYARAN PI
-    // ==========================================
     async function uploadImageToSupabase(file) {
-      if (!supabaseClient) throw new Error("Koneksi Supabase belum siap.");
-      
       const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
       const { data, error } = await supabaseClient
         .storage
         .from('images')
         .upload(fileName, file);
 
-      if (error) {
-        throw new Error("Gagal mengunggah gambar ke Storage: " + error.message);
-      }
+      if (error) throw new Error("Upload gambar gagal: " + error.message);
 
       const { data: publicUrlData } = supabaseClient
         .storage
@@ -435,7 +411,7 @@
       const price = parseFloat(document.getElementById('reservePriceInput').value);
 
       if (!title || !hash || isNaN(price) || price <= 0) {
-        alert("Mohon lengkapi semua bidang input dengan benar!");
+        alert("Lengkapi seluruh bidang input dengan benar.");
         return;
       }
 
@@ -448,7 +424,7 @@
         if (activeImageTab === 'upload') {
           const fileInput = document.getElementById('imageFileInput');
           if (!fileInput.files || fileInput.files.length === 0) {
-            alert("Pilih berkas gambar terlebih dahulu!");
+            alert("Pilih file gambar terlebih dahulu.");
             resetPublishButton();
             return;
           }
@@ -457,14 +433,10 @@
         } else {
           imageUrl = document.getElementById('imageUrlInput').value.trim();
           if (!imageUrl) {
-            alert("Masukkan URL Gambar Direct Link terlebih dahulu!");
+            alert("Masukkan URL Gambar terlebih dahulu.");
             resetPublishButton();
             return;
           }
-        }
-
-        if (!window.Pi) {
-          throw new Error("Pi SDK tidak ditemukan. Buka aplikasi ini di dalam Pi Browser.");
         }
 
         btnPublish.innerText = "Mengontak Pi Wallet...";
@@ -477,9 +449,7 @@
 
         const callbacks = {
           onReadyForServerApproval: async function(paymentId) {
-            console.log("Mengirim persetujuan ke server...", paymentId);
             btnPublish.innerText = "Menyetujui Pembayaran...";
-
             try {
               await fetch('/api/pi/approve', {
                 method: 'POST',
@@ -487,14 +457,12 @@
                 body: JSON.stringify({ paymentId })
               });
             } catch (err) {
-              console.warn("Approval warning:", err);
+              console.warn("Approval warn:", err);
             }
           },
 
           onReadyForServerCompletion: async function(paymentId, txid) {
-            console.log("Menyelesaikan transaksi...", paymentId, txid);
             btnPublish.innerText = "Menyelesaikan Transaksi...";
-
             try {
               await fetch('/api/pi/complete', {
                 method: 'POST',
@@ -502,26 +470,23 @@
                 body: JSON.stringify({ paymentId, txid })
               });
             } catch (err) {
-              console.warn("Completion API call error:", err);
+              console.warn("Completion warn:", err);
             }
 
-            // Langsung eksekusi simpan ke database karena pembayaran Pi Wallet terbukti sukses!
-            await saveListingToDatabase(title, hash, imageUrl, price);
+            await saveListingToDatabase(title, hash, imageUrl, price, authenticatedPiUser.username);
           },
 
           onIncompletePaymentFound: async function(payment) {
-            console.log("Ditemukan transaksi tertunda pada sesi pembayaran:", payment);
             await handleIncompletePayment(payment);
           },
 
           onCancel: function(paymentId) {
-            alert("Pembayaran dibatalkan oleh pengguna/sistem.");
+            alert("Pembayaran dibatalkan.");
             resetPublishButton();
           },
 
           onError: function(error, payment) {
-            console.error("Payment Error:", error);
-            alert("Terjadi kesalahan transaksi: " + (error.message || "Gagal memproses pembayaran"));
+            alert("Terjadi kesalahan: " + (error.message || "Gagal memproses pembayaran"));
             resetPublishButton();
           }
         };
@@ -529,39 +494,30 @@
         await window.Pi.createPayment(paymentData, callbacks);
 
       } catch (err) {
-        console.error("Proses Gagal:", err.message);
         alert("Proses Gagal: " + err.message);
         resetPublishButton();
       }
     }
 
-    async function saveListingToDatabase(title, hash, imageUrl, price) {
+    async function saveListingToDatabase(title, hash, imageUrl, price, sellerName) {
       try {
         const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-        // Menyimpan data dengan fallback kolom jika nama kolom di Supabase belum diperbarui
         const payload = {
           title: title,
+          name: title,
           hash: hash,
           image_url: imageUrl,
           highest_bid: price,
           reserve_price: price,
-          seller: authenticatedPiUser ? authenticatedPiUser.username : 'Anonim',
+          seller: sellerName || 'Anonim',
           status: 'active',
           ends_at: endsAt
         };
 
-        let { error } = await supabaseClient
+        const { error } = await supabaseClient
           .from('auctions')
           .insert([payload]);
-
-        // Jika terjadi error pada kolom 'title', gunakan fallback 'name'
-        if (error && error.message && error.message.includes("title")) {
-          delete payload.title;
-          payload.name = title;
-          const retry = await supabaseClient.from('auctions').insert([payload]);
-          error = retry.error;
-        }
 
         if (error) throw error;
 
@@ -569,7 +525,7 @@
         closeCreateModal();
         fetchActiveAuctions();
       } catch (err) {
-        console.error("Gagal menyimpan ke database:", err);
+        console.error("Gagal menyimpan data:", err);
         alert("Gagal merilis aset ke database: " + err.message);
       } finally {
         resetPublishButton();
