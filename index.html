@@ -445,7 +445,7 @@
       let html = `<div class="grid grid-cols-2 gap-3">`;
 
       auctions.forEach((item) => {
-        const displayTitle = item.title || item.name || "Aset NFT";
+        const displayTitle = item.title || "Aset NFT";
         const isFinished = item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date());
 
         html += `
@@ -543,7 +543,7 @@
       selectedAuction = activeAuctionsList.find(a => a.id === id);
       if (!selectedAuction) return;
 
-      const displayTitle = selectedAuction.title || selectedAuction.name || "Aset NFT";
+      const displayTitle = selectedAuction.title || "Aset NFT";
       const isFinished = selectedAuction.status === 'expired' || (selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date());
       const currentHighest = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
       const highestBidder = selectedAuction.highest_bidder ? `@${selectedAuction.highest_bidder}` : '-';
@@ -635,7 +635,6 @@
       btnSubmitBid.innerText = "Memproses...";
 
       try {
-        // Update lelang dengan penawaran tertinggi baru di Supabase
         const { error } = await supabaseClient
           .from('auctions')
           .update({
@@ -811,13 +810,13 @@
       }
     }
 
+    // Fungsi menyimpan ke database yang sudah diperbaiki (kolom 'name' dihapus)
     async function saveListingToDatabase(title, hash, imageUrl, price, sellerName) {
       try {
         const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
         const payload = {
           title: title,
-          name: title,
           hash: hash,
           image_url: imageUrl,
           highest_bid: price,
