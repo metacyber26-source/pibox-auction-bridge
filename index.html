@@ -62,7 +62,6 @@
         
         <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1.5 rounded-xl transition duration-200 shadow-lg flex items-center gap-1 cursor-pointer">
           <span data-i18n="releaseAssetBtn">+ Rilis Aset</span>
-          <span class="text-[10px] opacity-80">(0.2 Pi)</span>
         </button>
       </div>
     </div>
@@ -124,7 +123,7 @@
       <div class="flex justify-between items-center border-b border-gray-800 pb-3">
         <div>
           <h2 class="text-sm font-bold text-gray-100" data-i18n="modalCreateTitle">Rilis Lelang NFT Baru</h2>
-          <p id="quotaDisplay" class="text-[10px] text-yellow-400 font-medium" data-i18n="quotaActive">Sisa Kuota Lelang: Aktif</p>
+          <p id="quotaDisplay" class="text-[10px] text-yellow-400 font-medium">Sisa Kuota Lelang: Checking...</p>
         </div>
         <button onclick="closeCreateModal()" class="text-gray-400 hover:text-white font-bold text-lg cursor-pointer">&times;</button>
       </div>
@@ -164,7 +163,8 @@
 
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelReservePrice">Harga Awal / Terendah (Reserve Price in Pi)</label>
-          <input type="number" step="0.01" id="reservePriceInput" placeholder="Misal: 150" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+          <input type="number" step="0.01" id="reservePriceInput" oninput="calculateListingFeeUI()" placeholder="Misal: 150" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+          <p id="listingFeeInfo" class="text-[10px] text-yellow-400 mt-1 font-semibold">Biaya Listing: 0.2 Pi (&lt; 50 Pi)</p>
         </div>
       </div>
 
@@ -172,7 +172,7 @@
         <button type="button" onclick="closeCreateModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2.5 rounded-xl transition cursor-pointer" data-i18n="cancelBtn">Batal</button>
         <button id="btnPublish" type="button" onclick="submitNewListing()" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer">
           <span data-i18n="releaseAssetBtn">Rilis Aset</span>
-          <span class="text-[10px] opacity-80">(0.2 Pi)</span>
+          <span id="btnListingFeeDisplay" class="text-[10px] opacity-80">(0.2 Pi)</span>
         </button>
       </div>
     </div>
@@ -202,7 +202,7 @@
         refreshBtn: "Refresh Galeri",
         modalDetailTitle: "Detail Lelang Aset",
         modalCreateTitle: "Rilis Lelang NFT Baru",
-        quotaActive: "Sisa Kuota Lelang: Aktif",
+        quotaActive: "Sisa Kuota Lelang",
         piboxWarning: "📌 Pastikan NFT ini terdaftar di <strong>PIBOX NFT EVENT ZONE</strong>. Masukkan Hash resmi!",
         labelTitle: "Identitas / Nama Aset NFT",
         labelHash: "Hash Transaksi / Minting NFT PiBox",
@@ -236,7 +236,9 @@
         currentHighestLabel: "Harga Tertinggi Saat Ini",
         noBidsYet: "Belum Ada Penawar",
         bidPlaceholder: "Masukkan nominal tawaran (Pi)",
-        bidSuccessMsg: "🎉 Penawaran Anda berhasil dikirim!"
+        bidSuccessMsg: "🎉 Penawaran Anda berhasil dikirim!",
+        quotaExceededAlert: "🚫 Anda sudah mencapai batas maksimal 3 aset lelang aktif!",
+        cancelListingBtn: "🗑️ Batalkan Lelang"
       },
       en: {
         loginBtn: "Login",
@@ -248,7 +250,7 @@
         refreshBtn: "Refresh Gallery",
         modalDetailTitle: "Asset Auction Details",
         modalCreateTitle: "List New NFT Auction",
-        quotaActive: "Auction Quota: Active",
+        quotaActive: "Auction Quota Remaining",
         piboxWarning: "📌 Ensure this NFT is registered in <strong>PIBOX NFT EVENT ZONE</strong>. Enter official Hash!",
         labelTitle: "NFT Asset Name / Title",
         labelHash: "PiBox NFT Transaction / Mint Hash",
@@ -282,7 +284,9 @@
         currentHighestLabel: "Current Highest Bid",
         noBidsYet: "No Bids Yet",
         bidPlaceholder: "Enter bid amount (Pi)",
-        bidSuccessMsg: "🎉 Your bid was submitted successfully!"
+        bidSuccessMsg: "🎉 Your bid was submitted successfully!",
+        quotaExceededAlert: "🚫 You have reached the maximum limit of 3 active auctions!",
+        cancelListingBtn: "🗑️ Cancel Auction"
       },
       zh: {
         loginBtn: "登录",
@@ -294,7 +298,7 @@
         refreshBtn: "刷新画廊",
         modalDetailTitle: "资产拍卖详情",
         modalCreateTitle: "发布新 NFT 拍卖",
-        quotaActive: "拍卖配额：有效",
+        quotaActive: "剩余拍卖额度",
         piboxWarning: "📌 请确保此 NFT 已在 <strong>PIBOX NFT EVENT ZONE</strong> 注册。请输入官方 Hash！",
         labelTitle: "NFT 资产名称",
         labelHash: "PiBox NFT 交易 / 铸造 Hash",
@@ -328,7 +332,9 @@
         currentHighestLabel: "当前最高价",
         noBidsYet: "暂无出价",
         bidPlaceholder: "请输入出价金额 (Pi)",
-        bidSuccessMsg: "🎉 您的出价已成功提交！"
+        bidSuccessMsg: "🎉 您的出价已成功提交！",
+        quotaExceededAlert: "🚫 您已达到最多3个活跃拍卖 asset 限制！",
+        cancelListingBtn: "🗑️ 取消拍卖"
       },
       es: {
         loginBtn: "Iniciar Sesión",
@@ -340,7 +346,7 @@
         refreshBtn: "Actualizar Galería",
         modalDetailTitle: "Detalles de Subasta",
         modalCreateTitle: "Publicar Nueva Subasta NFT",
-        quotaActive: "Cuota de Subasta: Activa",
+        quotaActive: "Cuota de Subasta Restante",
         piboxWarning: "📌 Asegúrese de que este NFT esté registrado en <strong>PIBOX NFT EVENT ZONE</strong>. ¡Ingrese el Hash oficial!",
         labelTitle: "Nombre / Título del Activo NFT",
         labelHash: "Hash de Transacción / Acuñación en PiBox",
@@ -374,7 +380,9 @@
         currentHighestLabel: "Puja Más Alta Actual",
         noBidsYet: "Sin Pujas Aún",
         bidPlaceholder: "Ingrese el monto de la puja (Pi)",
-        bidSuccessMsg: "🎉 ¡Su puja ha sido enviada con éxito!"
+        bidSuccessMsg: "🎉 ¡Su puja ha sido enviada con éxito!",
+        quotaExceededAlert: "🚫 ¡Ha alcanzado el límite máximo de 3 subastas activas!",
+        cancelListingBtn: "🗑️ Cancelar Subasta"
       }
     };
 
@@ -402,6 +410,30 @@
       setInterval(updateTimers, 1000);
       authenticatePiUser();
     });
+
+    /* ========================================================
+       PERHITUNGAN BIAYA BERJENJANG (TIERED FEE CALCULATION)
+       ======================================================== */
+    function getListingFee(price) {
+      if (price < 50) return 0.2;
+      if (price <= 500) return 0.5;
+      return 1.0;
+    }
+
+    function getBiddingFee(initialPrice) {
+      if (initialPrice < 50) return 0.2;
+      if (initialPrice <= 500) return 0.5;
+      return 1.0;
+    }
+
+    function calculateListingFeeUI() {
+      const priceVal = parseFloat(document.getElementById('reservePriceInput').value) || 0;
+      const fee = getListingFee(priceVal);
+      let feeRangeText = priceVal < 50 ? "(< 50 Pi)" : (priceVal <= 500 ? "(50 - 500 Pi)" : "(> 500 Pi)");
+      
+      document.getElementById('listingFeeInfo').innerText = `Biaya Listing: ${fee} Pi ${feeRangeText}`;
+      document.getElementById('btnListingFeeDisplay').innerText = `(${fee} Pi)`;
+    }
 
     /* ========================================================
        SUPABASE REALTIME LISTENER (LIVE UPDATE SINKRON)
@@ -448,7 +480,7 @@
     }
 
     /* ========================================================
-       LOGIKA PERPANJANGAN LELANG & MANAJEMEN EXPIRED
+       LOGIKA PERPANJANGAN LELANG & MANAJEMEN EXPIRED (SAMPAI 30x 24 Jam)
        ======================================================== */
     async function processAuctionExtensions(auctions) {
       const now = new Date();
@@ -459,8 +491,9 @@
         let extensionCount = item.extension_count || 0;
         let hasBids = item.highest_bidder && item.highest_bidder !== null && item.highest_bidder !== '' && item.highest_bidder !== '-';
 
+        // Jika lelang habis durasi dan belum ada bidder sama sekali
         if (endsAt <= now && !hasBids) {
-          if (extensionCount < 5) {
+          if (extensionCount < 30) { // Diperpanjang 24 jam lagi, maksimal sampai 30x
             const newEndsAt = new Date(endsAt.getTime() + (24 * 60 * 60 * 1000)).toISOString();
             const newCount = extensionCount + 1;
 
@@ -472,7 +505,7 @@
             item.ends_at = newEndsAt;
             item.extension_count = newCount;
             updatedList.push(item);
-          } else {
+          } else { // Melewati 30x perpanjangan tanpa bidder -> Selesai / Expired
             await supabaseClient
               .from('auctions')
               .update({ status: 'expired' })
@@ -480,7 +513,7 @@
 
             item.status = 'expired';
           }
-        } else if (endsAt <= now && hasBids) {
+        } else if (endsAt <= now && hasBids) { // Ada penawaran dan waktu habis -> Lelang Selesai
           if (item.status !== 'expired') {
             await supabaseClient
               .from('auctions')
@@ -647,12 +680,40 @@
       }
     }
 
-    function handleOpenCreateModal() {
+    /* ========================================================
+       VALIDASI KUOTA LELANG AKTIF (MAKSIMAL 3 PER USERNAME)
+       ======================================================== */
+    async function getUserActiveCount(username) {
+      if (!supabaseClient || !username) return 0;
+      const now = new Date().toISOString();
+      const { count, error } = await supabaseClient
+        .from('auctions')
+        .select('id', { count: 'exact', head: true })
+        .eq('seller', username)
+        .eq('status', 'active')
+        .gt('ends_at', now);
+      return error ? 0 : count;
+    }
+
+    async function handleOpenCreateModal() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
+
+      const activeCount = await getUserActiveCount(authenticatedPiUser.username);
+      const remainingQuota = 3 - activeCount;
+
+      const quotaEl = document.getElementById('quotaDisplay');
+      quotaEl.innerText = `Sisa Kuota Lelang: ${remainingQuota} / 3 Aktif`;
+
+      if (remainingQuota <= 0) {
+        alert(t('quotaExceededAlert'));
+        return;
+      }
+
+      calculateListingFeeUI();
       document.getElementById('createModal').classList.remove('hidden');
     }
 
@@ -669,7 +730,6 @@
       });
     }
 
-    /* FITUR REKOMENDASI TAMBAHAN: Tombol Instan Tambah Nominal Penawaran */
     function setQuickBid(increment) {
       const bidInput = document.getElementById('bidAmountInput');
       if (!bidInput) return;
@@ -678,10 +738,9 @@
     }
 
     /* ========================================================
-       OPEN DETAIL MODAL (DENGAN SINKRONISASI AKURAT DARI DB)
+       OPEN DETAIL MODAL (DENGAN MANAJEMEN PENAWARAN & BATAL LISTING)
        ======================================================== */
     async function openDetailModal(id) {
-      // Fetch data paling mutakhir langsung dari Supabase
       const { data: latestAuction, error } = await supabaseClient
         .from('auctions')
         .select('*')
@@ -698,10 +757,11 @@
 
       const displayTitle = selectedAuction.title || "Aset NFT";
       const isFinished = selectedAuction.status === 'expired' || (selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date());
-      
       const reservePrice = selectedAuction.reserve_price || 0;
       
-      // Ambil Riwayat Penawaran dari Supabase
+      // Hitung Biaya Penawaran berdasarkan Tier Harga Awal Aset
+      const biddingFee = getBiddingFee(reservePrice);
+
       const { data: bidLogs } = await supabaseClient
         .from('bids')
         .select('*')
@@ -709,7 +769,6 @@
         .order('created_at', { ascending: false })
         .limit(10);
 
-      // Sinkronisasi Penawar & Harga Tertinggi berdasarkan data riwayat atau record auction
       let currentHighest = reservePrice;
       let highestBidderText = t('noBidsYet');
       let hasBids = false;
@@ -726,6 +785,7 @@
 
       const isOwner = authenticatedPiUser && (authenticatedPiUser.username === selectedAuction.seller);
 
+      // Cek apakah user pernah bayar biaya penawaran pertama di aset ini
       let hasPaidFee = false;
       if (authenticatedPiUser) {
         const { data } = await supabaseClient
@@ -807,19 +867,26 @@
               🔒 Lelang Ini Telah Berakhir.
             </div>
           ` : isOwner ? `
-            <div class="bg-yellow-500/10 border border-yellow-500/30 p-2.5 rounded-xl text-center text-xs text-yellow-300">
-              ⚠️ ${t('sellerCannotBidAlert')}
+            <div class="space-y-2">
+              <div class="bg-yellow-500/10 border border-yellow-500/30 p-2.5 rounded-xl text-center text-xs text-yellow-300">
+                ⚠️ ${t('sellerCannotBidAlert')}
+              </div>
+              ${!hasBids ? `
+                <button onclick="cancelListing('${selectedAuction.id}')" class="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 font-bold py-2 rounded-xl text-xs transition border border-red-500/30">
+                  ${t('cancelListingBtn')}
+                </button>
+              ` : ''}
             </div>
           ` : `
             <div class="pt-2 space-y-2 border-t border-gray-800">
               <div class="flex justify-between items-center">
-                <label class="block text-xs font-semibold text-gray-300">Ajukan Penawaran (> ${currentHighest} Pi)</label>
+                <label class="block text-xs font-semibold text-gray-300">Ajukan Penawaran (&gt; ${currentHighest} Pi)</label>
                 <span class="text-[10px] font-bold ${hasPaidFee ? 'text-green-400' : 'text-yellow-400'}">
-                  ${hasPaidFee ? '🆓 Bebas Biaya Penawaran' : '🏷️ Biaya Tawaran Pertama: 0.1 Pi'}
+                  ${hasPaidFee ? '🆓 Bebas Biaya Penawaran' : `🏷️ Biaya Tawaran Pertama: ${biddingFee} Pi`}
                 </span>
               </div>
               
-              <!-- Quick Bid Buttons (Fitur Rekomendasi Tambahan) -->
+              <!-- Quick Bid Buttons -->
               <div class="flex gap-1.5">
                 <button type="button" onclick="setQuickBid(5)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+5 Pi</button>
                 <button type="button" onclick="setQuickBid(10)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+10 Pi</button>
@@ -828,7 +895,7 @@
 
               <div class="flex gap-2">
                 <input type="number" step="0.01" min="${minNextBid}" value="${minNextBid}" id="bidAmountInput" placeholder="${t('bidPlaceholder')}" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
-                <button id="btnSubmitBid" onclick="submitBid('${selectedAuction.id}',${hasPaidFee})" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap">
+                <button id="btnSubmitBid" onclick="submitBid('${selectedAuction.id}', ${hasPaidFee},${biddingFee})" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap">
                   ${t('placeBidBtn')}
                 </button>
               </div>
@@ -843,10 +910,23 @@
       document.getElementById('detailModal').classList.add('hidden');
     }
 
-    /* ========================================================
-       LOGIKA PENAWARAN (Bidding) DENGAN INTEGRASI REALTIME
-       ======================================================== */
-    async function submitBid(auctionId, hasPaidFee) {
+    /* FITUR PEMBATALAN LISTING UNTUK PENJUAL */
+    async function cancelListing(auctionId) {
+      if (!confirm("Apakah Anda yakin ingin membatalkan listing aset ini? Membatalkan dan melisting kembali akan dikenakan biaya listing baru.")) return;
+      try {
+        await supabaseClient.from('auctions').update({ status: 'expired_hidden' }).eq('id', auctionId);
+        alert("Lelang berhasil dibatalkan.");
+        closeDetailModal();
+        fetchActiveAuctions();
+      } catch (e) {
+        alert("Gagal membatalkan lelang: " + e.message);
+      }
+    }
+
+    /* ==========================================================
+       LOGIKA PENAWARAN (Bidding) DENGAN STRUKTUR BIAYA BERJENJANG
+       ========================================================== */
+    async function submitBid(auctionId, hasPaidFee, biddingFee) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
@@ -861,7 +941,6 @@
       const bidInput = document.getElementById('bidAmountInput');
       const bidAmount = parseFloat(bidInput.value);
 
-      // Cek ulang nilai tertinggi langsung dari database (Mencegah konflik bersamaan)
       const { data: latestData } = await supabaseClient
         .from('auctions')
         .select('highest_bid, reserve_price, highest_bidder')
@@ -897,8 +976,8 @@
         btnSubmitBid.innerText = t('contactingWallet');
 
         const paymentData = {
-          amount: 0.1,
-          memo: `Biaya Penawaran Pertama Aset: ${selectedAuction.title}`,
+          amount: biddingFee,
+          memo: `Biaya Penawaran Pertama (${biddingFee} Pi): ${selectedAuction.title}`,
           metadata: { 
             type: 'bid',
             auctionId: auctionId, 
@@ -966,7 +1045,6 @@
     async function recordBidToDatabase(auctionId, bidAmount, username) {
       const btnSubmitBid = document.getElementById('btnSubmitBid');
       try {
-        // 1. Perbarui tabel auctions
         const { error: updateError } = await supabaseClient
           .from('auctions')
           .update({
@@ -977,7 +1055,6 @@
 
         if (updateError) throw updateError;
 
-        // 2. Simpan ke tabel bids (Riwayat)
         await supabaseClient.from('bids').insert([{
           auction_id: auctionId,
           bidder: username,
@@ -1051,9 +1128,19 @@
       return publicUrlData.publicUrl;
     }
 
+    /* ==========================================================
+       SUBMIT LISTING BARU DENGAN INTEGRASI KUOTA & BIAYA BERJENJANG
+       ========================================================== */
     async function submitNewListing() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
+        return;
+      }
+
+      // Validasi Kuota Maksimal 3 Aset Lelang Aktif
+      const activeCount = await getUserActiveCount(authenticatedPiUser.username);
+      if (activeCount >= 3) {
+        alert(t('quotaExceededAlert'));
         return;
       }
 
@@ -1066,6 +1153,8 @@
         return;
       }
 
+      const listingFee = getListingFee(price);
+
       const btnPublish = document.getElementById('btnPublish');
       btnPublish.disabled = true;
 
@@ -1076,7 +1165,7 @@
           const fileInput = document.getElementById('imageFileInput');
           if (!fileInput.files || fileInput.files.length === 0) {
             alert(t('selectImageAlert'));
-            resetPublishButton();
+            resetPublishButton(listingFee);
             return;
           }
           btnPublish.innerText = t('uploadingImg');
@@ -1085,7 +1174,7 @@
           imageUrl = document.getElementById('imageUrlInput').value.trim();
           if (!imageUrl) {
             alert(t('enterUrlAlert'));
-            resetPublishButton();
+            resetPublishButton(listingFee);
             return;
           }
         }
@@ -1093,8 +1182,8 @@
         btnPublish.innerText = t('contactingWallet');
 
         const paymentData = {
-          amount: 0.2,
-          memo: `Biaya Rilis Lelang NFT: ${title}`,
+          amount: listingFee,
+          memo: `Biaya Rilis Lelang NFT (${listingFee} Pi): ${title}`,
           metadata: { title, hash, price, seller: authenticatedPiUser.username, imageUrl }
         };
 
@@ -1133,12 +1222,12 @@
 
           onCancel: function(paymentId) {
             alert(t('payCancelled'));
-            resetPublishButton();
+            resetPublishButton(listingFee);
           },
 
           onError: function(error, payment) {
             alert("Terjadi kesalahan: " + (error.message || "Gagal memproses pembayaran"));
-            resetPublishButton();
+            resetPublishButton(listingFee);
           }
         };
 
@@ -1146,7 +1235,7 @@
 
       } catch (err) {
         alert("Proses Gagal: " + err.message);
-        resetPublishButton();
+        resetPublishButton(listingFee);
       }
     }
 
@@ -1179,15 +1268,16 @@
         console.error("Gagal menyimpan data:", err);
         alert("Gagal merilis aset ke database: " + err.message);
       } finally {
-        resetPublishButton();
+        const fee = getListingFee(price || 0);
+        resetPublishButton(fee);
       }
     }
 
-    function resetPublishButton() {
+    function resetPublishButton(fee = 0.2) {
       const btnPublish = document.getElementById('btnPublish');
       if (btnPublish) {
         btnPublish.disabled = false;
-        btnPublish.innerHTML = `<span data-i18n="releaseAssetBtn">${t('releaseAssetBtn')}</span> <span class="text-[10px] opacity-80">(0.2 Pi)</span>`;
+        btnPublish.innerHTML = `<span data-i18n="releaseAssetBtn">${t('releaseAssetBtn')}</span> <span id="btnListingFeeDisplay" class="text-[10px] opacity-80">(${fee} Pi)</span>`;
       }
     }
   </script>
