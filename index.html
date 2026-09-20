@@ -188,8 +188,9 @@
     // ==========================================
     // 1. KONFIGURASI SUPABASE & PI SDK
     // ==========================================
-    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
-    const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+    // SEGERA ISIKAN URL DAN ANON KEY SUPABASE MILIKMU DI SINI
+    const SUPABASE_URL = "https://YOUR_SUPABASE_PROJECT_URL.supabase.co"; 
+    const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const Pi = window.Pi;
@@ -200,16 +201,15 @@
     let timerInterval = null;
     let activeImageTab = 'upload';
 
-    // Inisialisasi Pi SDK
+    // Inisialisasi Pi SDK secara aman
     try {
       if (Pi) {
         Pi.init({ version: "2.0", sandbox: true });
       }
     } catch (e) {
-      console.warn("Pi SDK belum siap/di luar Pi Browser", e);
+      console.warn("Pi SDK tidak berjalan atau dibuka di luar Pi Browser:", e);
     }
 
-    // Callback saat pembayaran incomplete ditemukan
     function onIncompletePaymentFound(payment) {
       console.log("Incomplete payment found:", payment);
       if (payment.identifier) {
@@ -225,7 +225,7 @@
       }
     }
 
-    // Authenticate Pi User
+    // Authenticate Pi User (Pemuatan Manual / On-Demand)
     async function authenticatePiUser() {
       const statusEl = document.getElementById('userStatusDisplay');
       const loginBtn = document.getElementById('btnLoginManual');
@@ -235,33 +235,27 @@
       
       try {
         if (!Pi) {
-          throw new Error("Pi SDK tidak terdeteksi. Buka di Pi Browser.");
+          throw new Error("Pi SDK tidak terdeteksi. Silakan buka aplikasi dari Pi Browser.");
         }
         const scopes = ['username', 'payments'];
         const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
         authenticatedPiUser = auth.user;
         statusEl.innerText = `User: @${authenticatedPiUser.username}`;
         
-        // Sembunyikan/Ubah tombol login jika sudah terhubung
         loginBtn.classList.add('hidden');
         if (headerLoginBtn) {
           headerLoginBtn.innerHTML = `✅ <span class="text-emerald-400">@${authenticatedPiUser.username}</span>`;
           headerLoginBtn.onclick = null;
         }
 
-        // Refresh detail jika modal sedang terbuka
         if (selectedAuction) {
           openDetailModal(selectedAuction.id);
         }
 
         return authenticatedPiUser;
       } catch (err) {
-        console.warn("Pi Auth Notice:", err);
-        if (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('localhost')) {
-          statusEl.innerText = `User: Guest / Testnet Mode`;
-        } else {
-          statusEl.innerText = `User: Belum Login Pi`;
-        }
+        console.warn("Notice Otentikasi Pi:", err);
+        statusEl.innerText = `User: Tamu (Belum Login)`;
         loginBtn.classList.remove('hidden');
         alert("Gagal terhubung ke Pi Network: " + (err.message || "Buka via Pi Browser."));
         return null;
@@ -275,13 +269,7 @@
       }
 
       if (!authenticatedPiUser) {
-        const confirmDemo = confirm("Pengguna belum diautentikasi di Pi Network.\n\nApakah Anda ingin melanjutkan dengan mode simulasi pembayaran (Demo/Test)?");
-        if (confirmDemo) {
-          authenticatedPiUser = { username: "Pioneer_Demo" };
-          return "DEMO_TXID_" + Date.now();
-        } else {
-          throw new Error("Pengguna belum diautentikasi di Pi Network.");
-        }
+        throw new Error("Pengguna harus terhubung ke akun Pi Network terlebih dahulu.");
       }
 
       return new Promise((resolve, reject) => {
@@ -293,55 +281,27 @@
 
         const paymentCallbacks = {
           onReadyForServerApproval: function(paymentId) {
-            console.log("Payment Ready For Approval:", paymentId);
             fetch('/api/pi-payment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'approve',
-                paymentId: paymentId
-              })
-            })
-            .then(res => res.json())
-            .then(data => {
-              if (data.success) {
-                console.log("Server approved payment:", paymentId);
-              } else {
-                console.error("Server approval failed:", data.error);
-              }
-            })
-            .catch(err => console.error("Error approving payment:", err));
+              body: JSON.stringify({ action: 'approve', paymentId: paymentId })
+            }).catch(err => console.error("Error approve payment:", err));
           },
 
           onReadyForServerCompletion: function(paymentId, txid) {
-            console.log("Payment Completed on Client:", txid);
             fetch('/api/pi-payment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'complete',
-                paymentId: paymentId,
-                txid: txid
-              })
-            })
-            .then(res => res.json())
-            .then(data => {
-              console.log("Server complete response:", data);
-              resolve(txid);
-            })
-            .catch(err => {
-              console.error("Error completing payment:", err);
-              resolve(txid);
-            });
+              body: JSON.stringify({ action: 'complete', paymentId: paymentId, txid: txid })
+            }).then(() => resolve(txid)).catch(() => resolve(txid));
           },
 
           onCancel: function(paymentId) {
-            reject(new Error("Pembayaran 0.2 Pi dibatalkan oleh pengguna."));
+            reject(new Error("Pembayaran dibatalkan oleh pengguna."));
           },
 
           onError: function(error, payment) {
-            console.error("Pi Payment Error:", error, payment);
-            reject(new Error(error.message || "Terjadi kesalahan pembayaran Pi."));
+            reject(new Error(error.message || "Gagal memproses pembayaran."));
           }
         };
 
@@ -349,7 +309,6 @@
       });
     }
 
-    // Helper: Normalisasi Link Gambar
     function normalizeImageUrl(url) {
       if (!url) return '';
       let cleanUrl = url.trim();
@@ -362,14 +321,9 @@
         const id = parts[parts.length - 1];
         return `https://i.imgur.com/${id}.jpg`;
       }
-      if (cleanUrl.includes('postimg.cc/') && !cleanUrl.includes('i.postimg.cc')) {
-        cleanUrl = cleanUrl.replace('postimg.cc/', 'i.postimg.cc/') + '.png';
-      }
-
       return cleanUrl;
     }
 
-    // Switch Tab Upload Gambar
     function switchImageTab(tab) {
       activeImageTab = tab;
       const tabUploadBtn = document.getElementById('tabUploadBtn');
@@ -390,21 +344,20 @@
       }
     }
 
-    // Copy Hash Helper
     function copyHashToClipboard(hashText) {
       if (!hashText) return;
       navigator.clipboard.writeText(hashText).then(() => {
-        alert("Hash NFT berhasil disalin ke clipboard!");
+        alert("Hash NFT berhasil disalin!");
       }).catch(err => {
         console.error("Gagal menyalin hash:", err);
       });
     }
 
     // ==========================================
-    // 2. AMBIL DATA LELANG & MANAGEMENT WAKTU
+    // 2. PEMUATAN GALERI & MANAGEMENT WAKTU
     // ==========================================
     document.addEventListener("DOMContentLoaded", () => {
-      // Panggil galeri terlebih dahulu tanpa memblokir aplikasi
+      // Jalankan langsung tanpa menunggu otentikasi Pi
       fetchActiveAuctions();
       
       if (timerInterval) clearInterval(timerInterval);
@@ -431,12 +384,11 @@
         console.error("Gagal mengambil galeri:", err);
         container.innerHTML = `
           <div class="text-center py-10 text-red-400 text-xs">
-            Gagal terhubung ke database. Silahkan periksa koneksi atau refresh halaman.
+            Gagal memuat galeri aset. Pastikan URL & KEY Supabase terpasang dengan benar dan akses SELECT diizinkan.
           </div>`;
       }
     }
 
-    // Auto Extension 3x24 Jam jika belum ada bid
     async function handleAutoExtensions(auctions) {
       const now = new Date();
 
@@ -451,10 +403,7 @@
 
           await supabaseClient
             .from('auctions')
-            .update({ 
-              ends_at: newEndsAt, 
-              extension_count: newExtensionCount 
-            })
+            .update({ ends_at: newEndsAt, extension_count: newExtensionCount })
             .eq('id', item.id);
 
           item.ends_at = newEndsAt;
@@ -470,7 +419,7 @@
     }
 
     // ==========================================
-    // 3. RENDER GALERI & MODAL DETAIL
+    // 3. RENDER TAMPILAN
     // ==========================================
     function renderGalleryUI(auctions) {
       const container = document.getElementById('mainContent');
@@ -481,7 +430,7 @@
             <div class="w-12 h-12 bg-gray-950 border border-gray-800 rounded-full flex items-center justify-center mx-auto text-yellow-500 text-lg">
               🖼️
             </div>
-            <p class="text-gray-400 text-xs">Belum ada aset NFT yang ditawarkan.</p>
+            <p class="text-gray-400 text-xs">Belum ada aset NFT yang ditawarkan saat ini.</p>
             <button onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl transition">
               + Rilis Aset Pertama
             </button>
@@ -555,7 +504,6 @@
 
       modalContent.innerHTML = `
         <div class="space-y-3">
-          <!-- Gambar Utama -->
           <div class="relative w-full h-56 bg-gray-900 rounded-xl overflow-hidden border border-gray-800">
             <img src="${formattedImg}" 
                  alt="${title}" 
@@ -563,13 +511,11 @@
                  onerror="this.onerror=null; this.src='https://via.placeholder.com/400x300/111827/9CA3AF?text=Gagal+Memuat+Gambar';">
           </div>
 
-          <!-- Identitas & Hash Transaksi -->
           <div>
             <h3 class="text-sm font-bold text-gray-100">${title}</h3>
             <p class="text-[10px] text-gray-400">Penjual: <span class="text-yellow-400 font-semibold">@${selectedAuction.seller}</span></p>
           </div>
 
-          <!-- KOTAK HASH COPY -->
           <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1">
             <div class="flex justify-between items-center">
               <span class="text-[9px] text-gray-400 uppercase font-bold tracking-wider">NFT Mint / Tx Hash:</span>
@@ -582,11 +528,6 @@
             </p>
           </div>
 
-          <div class="bg-yellow-500/10 border border-yellow-500/20 p-2 rounded-xl text-[10px] text-yellow-300 leading-tight">
-            🚨 <strong>Pencegahan Penipuan:</strong> Cocokkan <strong>Hash Transaksi</strong> di atas dengan data di <strong>PIBOX NFT EVENT ZONE</strong> untuk memastikan aset ini asli dan terdaftar di event.
-          </div>
-
-          <!-- Info Harga & Waktu -->
           <div class="grid grid-cols-2 gap-2 bg-gray-900 p-2.5 rounded-xl border border-gray-800 text-xs">
             <div>
               <p class="text-[9px] text-gray-500 uppercase">Tawaran Tertinggi</p>
@@ -598,7 +539,6 @@
             </div>
           </div>
 
-          <!-- PEMBERITAHUAN EKSEKUSI PEMENANG LELANG -->
           ${isFinished ? `
             <div class="bg-emerald-950/80 border border-emerald-500/40 rounded-xl p-3 text-xs space-y-2">
               <div class="flex items-center gap-1.5 text-emerald-400 font-bold">
@@ -606,22 +546,17 @@
                 <span>LELANG SELESAI / PEMENANG TERCAPAI</span>
               </div>
               <p class="text-[10px] text-gray-300 leading-relaxed">
-                <strong>Penawar Tertinggi / Pemenang:</strong> <span class="text-yellow-400 font-bold">@${selectedAuction.highest_bidder \vert{}\vert{} 'Pemenang Lelang'}</span> dengan penawaran <span class="text-yellow-400 font-bold">${selectedAuction.highest_bid} Pi</span>.
+                <strong>Pemenang:</strong> <span class="text-yellow-400 font-bold">@${selectedAuction.highest_bidder \vert{}\vert{} 'Pemenang Lelang'}</span> dengan tawaran <span class="text-yellow-400 font-bold">${selectedAuction.highest_bid} Pi</span>.
               </p>
-              <div class="bg-black/40 p-2 rounded border border-emerald-500/20 text-[9px] text-emerald-200 space-y-1">
-                <p>📌 <strong>INSTRUKSI PENJUAL (@${selectedAuction.seller}):</strong> Segera rilis/listing aset NFT ini di <strong>Market PiBox</strong> sesuai harga kesepakatan yaitu <strong>${selectedAuction.highest_bid} Pi</strong>.</p>
-                <p>📌 <strong>INSTRUKSI PEMBELI / PEMENANG:</strong> Segera lakukan transaksi pembelian di <strong>Market PiBox</strong>. Pastikan memeriksa kembali Hash Aset (<span class="font-mono text-yellow-300">${hash.substring(0, 10)}...</span>) sebelum eksekusi!</p>
-              </div>
             </div>
           ` : `
-            <!-- Input Bidding -->
             <div class="space-y-2 pt-1">
               ${isOwner ? `
                 <div class="bg-gray-900 p-3 rounded-xl border border-yellow-500/30 text-center text-xs text-yellow-400 font-medium">
-                  👑 Ini adalah lelang milik kamu. Penjual tidak dapat menawar lelangnya sendiri.
+                  👑 Ini adalah aset lelang kamu. Penjual tidak dapat menawar lelang sendiri.
                 </div>
               ` : `
-                <label class="block text-[10px] text-gray-400">Masukkan Nominal Penawaran Barumu (Pi):</label>
+                <label class="block text-[10px] text-gray-400">Nominal Penawaran Baru (Pi):</label>
                 <div class="flex gap-2">
                   <input type="number" step="0.01" id="bidInput" placeholder="> ${selectedAuction.highest_bid}" 
                          class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
@@ -630,11 +565,6 @@
                     <span class="text-[9px] opacity-80">${hasPaidForThisAsset ? '(Gratis)' : '(0.2 Pi)'}</span>
                   </button>
                 </div>
-                <p class="text-[9px] text-gray-500">
-                  ${hasPaidForThisAsset 
-                    ? '✅ Kamu sudah membayar biaya penawaran pertama pada aset ini (Penawaran ulang gratis).' 
-                    : 'ℹ️ Biaya 0.2 Pi dikenakan hanya pada penawaran pertama kamu di aset ini.'}
-                </p>
               `}
             </div>
           `}
@@ -664,14 +594,13 @@
           const hours = Math.floor(diff / (1000 * 60 * 60));
           const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
           const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-          
           el.innerText = `${hours}j ${minutes}m ${seconds}d`;
         }
       });
     }
 
     // ==========================================
-    // 4. EKSEKUSI RILIS & PENAWARAN
+    // 4. AKSION BUAT LELANG & Bidding
     // ==========================================
     async function handleOpenCreateModal() {
       if (!authenticatedPiUser) {
@@ -679,7 +608,7 @@
         if (!user) return;
       }
 
-      const sellerName = authenticatedPiUser ? authenticatedPiUser.username : "Seller_Master";
+      const sellerName = authenticatedPiUser.username;
 
       try {
         const { count, error } = await supabaseClient
@@ -696,13 +625,12 @@
         document.getElementById('quotaDisplay').innerText = `Sisa Kuota Lelang: ${remainingQuota} dari 3`;
 
         if (activeCount >= 3) {
-          alert(`Batas Maksimal Tercapai!\n\nKamu sudah memiliki 3 lelang aktif. Tunggu lelang yang ada selesai atau ditutup untuk membuat lelang baru.`);
+          alert(`Batas Maksimal Tercapai!\nKamu sudah memiliki 3 lelang aktif.`);
           return;
         }
 
         openCreateModal();
       } catch (err) {
-        console.error("Gagal mengecek kuota:", err);
         openCreateModal();
       }
     }
@@ -720,7 +648,6 @@
       document.getElementById('reservePriceInput').value = '';
     }
 
-    // RILIS ASET BARU
     async function submitNewListing() {
       if (!authenticatedPiUser) {
         const user = await authenticatePiUser();
@@ -733,29 +660,18 @@
       const btnPublish = document.getElementById('btnPublish');
       let finalImageUrl = "";
 
-      if (!titleInput) {
-        alert("Harap masukkan Nama / Identitas Aset NFT!");
-        return;
-      }
-
-      if (!hashInput) {
-        alert("Harap masukkan Hash Transaksi / Minting NFT!");
-        return;
-      }
-
-      if (isNaN(reserveInput) || reserveInput <= 0) {
-        alert("Harap tentukan harga minimum lelang yang valid!");
+      if (!titleInput || !hashInput || isNaN(reserveInput) || reserveInput <= 0) {
+        alert("Harap isi semua bidang dengan benar!");
         return;
       }
 
       btnPublish.disabled = true;
 
       try {
-        // A. PENANGANAN UNGGAH GAMBAR
         if (activeImageTab === 'upload') {
           const fileInput = document.getElementById('imageFileInput');
           if (!fileInput.files || fileInput.files.length === 0) {
-            alert("Harap pilih file SS / Gambar aset NFT dari HP/Perangkat!");
+            alert("Harap pilih gambar terlebih dahulu!");
             btnPublish.disabled = false;
             return;
           }
@@ -770,9 +686,7 @@
             .from('nft-images')
             .upload(fileName, file);
 
-          if (uploadError) {
-            throw new Error("Gagal mengunggah gambar ke Storage: " + uploadError.message);
-          }
+          if (uploadError) throw uploadError;
 
           const { data: urlData } = supabaseClient
             .storage
@@ -782,22 +696,15 @@
           finalImageUrl = urlData.publicUrl;
         } else {
           const rawUrl = document.getElementById('imageUrlInput').value.trim();
-          if (!rawUrl) {
-            alert("Harap tempelkan link gambar direct aset!");
-            btnPublish.disabled = false;
-            return;
-          }
           finalImageUrl = normalizeImageUrl(rawUrl);
         }
 
-        // B. PROSES PEMBAYARAN 0.2 PI
         btnPublish.innerText = "Bayar 0.2 Pi...";
         await payFeeWithPi(`Rilis Lelang NFT: ${titleInput} (0.2 Pi)`);
 
-        // C. SIMPAN KE DATABASE SUPABASE
         btnPublish.innerText = "Menyimpan Data...";
         const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        const sellerName = authenticatedPiUser ? authenticatedPiUser.username : "Seller_Master";
+        const sellerName = authenticatedPiUser.username;
 
         const { error } = await supabaseClient
           .from('auctions')
@@ -816,12 +723,7 @@
             extension_count: 0
           }]);
 
-        if (error) {
-          if (error.message.includes("policy")) {
-            throw new Error("Gagal: Kamu sudah mencapai batas maksimal 3 lelang aktif!");
-          }
-          throw error;
-        }
+        if (error) throw error;
 
         closeCreateModal();
         alert("Lelang berhasil dirilis!");
@@ -835,7 +737,6 @@
       }
     }
 
-    // PENAWARAN ASET (Bidding)
     async function submitBid() {
       if (!selectedAuction) return;
 
@@ -848,11 +749,11 @@
       const btnSubmitBid = document.getElementById('btnSubmitBid');
 
       if (isNaN(bidInput) || bidInput <= selectedAuction.highest_bid) {
-        alert(`Penawaran harus lebih tinggi dari penawaran tertinggi saat ini (${selectedAuction.highest_bid} Pi)!`);
+        alert(`Penawaran harus lebih tinggi dari penawaran saat ini (${selectedAuction.highest_bid} Pi)!`);
         return;
       }
 
-      const currentUserName = authenticatedPiUser ? authenticatedPiUser.username : "Bidder_Anon";
+      const currentUserName = authenticatedPiUser.username;
       const biddersList = selectedAuction.bidders_list || [];
       const hasPaid = biddersList.includes(currentUserName);
 
@@ -881,7 +782,7 @@
 
         if (error) throw error;
 
-        alert("Penawaran kamu berhasil dimasukkan!");
+        alert("Penawaran kamu berhasil!");
         closeDetailModal();
         fetchActiveAuctions();
 
