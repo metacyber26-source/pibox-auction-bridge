@@ -409,10 +409,15 @@
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       supabaseClient
-        .channel('public:auctions')
+        .channel('public:auctions_and_bids')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, (payload) => {
           fetchActiveAuctions();
           if (selectedAuction && payload.new && payload.new.id === selectedAuction.id) {
+            openDetailModal(selectedAuction.id);
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, (payload) => {
+          if (selectedAuction && payload.new && payload.new.auction_id === selectedAuction.id) {
             openDetailModal(selectedAuction.id);
           }
         })
@@ -664,17 +669,60 @@
       });
     }
 
+    /* FITUR REKOMENDASI TAMBAHAN: Tombol Instan Tambah Nominal Penawaran */
+    function setQuickBid(increment) {
+      const bidInput = document.getElementById('bidAmountInput');
+      if (!bidInput) return;
+      const currentVal = parseFloat(bidInput.value) || parseFloat(bidInput.min) || 0;
+      bidInput.value = (currentVal + increment).toFixed(2);
+    }
+
+    /* ========================================================
+       OPEN DETAIL MODAL (DENGAN SINKRONISASI AKURAT DARI DB)
+       ======================================================== */
     async function openDetailModal(id) {
-      selectedAuction = activeAuctionsList.find(a => a.id === id);
+      // Fetch data paling mutakhir langsung dari Supabase
+      const { data: latestAuction, error } = await supabaseClient
+        .from('auctions')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error || !latestAuction) {
+        selectedAuction = activeAuctionsList.find(a => a.id === id);
+      } else {
+        selectedAuction = latestAuction;
+      }
+
       if (!selectedAuction) return;
 
       const displayTitle = selectedAuction.title || "Aset NFT";
       const isFinished = selectedAuction.status === 'expired' || (selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date());
       
-      const reservePrice = selectedAuction.reserve_price || selectedAuction.highest_bid || 0;
-      const hasBids = selectedAuction.highest_bidder && selectedAuction.highest_bidder !== '-' && selectedAuction.highest_bidder !== '';
-      const currentHighest = hasBids ? selectedAuction.highest_bid : reservePrice;
-      const highestBidderText = hasBids ? `@${selectedAuction.highest_bidder}` : t('noBidsYet');
+      const reservePrice = selectedAuction.reserve_price || 0;
+      
+      // Ambil Riwayat Penawaran dari Supabase
+      const { data: bidLogs } = await supabaseClient
+        .from('bids')
+        .select('*')
+        .eq('auction_id', id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      // Sinkronisasi Penawar & Harga Tertinggi berdasarkan data riwayat atau record auction
+      let currentHighest = reservePrice;
+      let highestBidderText = t('noBidsYet');
+      let hasBids = false;
+
+      if (bidLogs && bidLogs.length > 0) {
+        hasBids = true;
+        currentHighest = bidLogs[0].amount;
+        highestBidderText = `@${bidLogs[0].bidder}`;
+      } else if (selectedAuction.highest_bidder && selectedAuction.highest_bidder !== '-' && selectedAuction.highest_bidder !== '') {
+        hasBids = true;
+        currentHighest = selectedAuction.highest_bid || reservePrice;
+        highestBidderText = `@${selectedAuction.highest_bidder}`;
+      }
 
       const isOwner = authenticatedPiUser && (authenticatedPiUser.username === selectedAuction.seller);
 
@@ -689,26 +737,20 @@
         if (data) hasPaidFee = true;
       }
 
-      // Ambil Riwayat Penawaran dari Supabase
-      const { data: bidLogs } = await supabaseClient
-        .from('bids')
-        .select('*')
-        .eq('auction_id', id)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      let bidHistoryHtml = `<p class="text-[10px] text-gray-500 italic">Belum ada riwayat penawaran.</p>`;
+      let bidHistoryHtml = `<p class="text-[10px] text-gray-500 italic text-center py-2">Belum ada riwayat penawaran.</p>`;
       if (bidLogs && bidLogs.length > 0) {
         bidHistoryHtml = bidLogs.map(b => {
           const formattedTime = b.created_at ? new Date(b.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
           return `
-            <div class="flex justify-between items-center text-[10px] py-1 border-b border-gray-800/50">
+            <div class="flex justify-between items-center text-[10px] py-1 border-b border-gray-800/50 hover:bg-gray-900/50 px-1 rounded transition">
               <span class="text-gray-300 font-medium">@${b.bidder} <span class="text-[8px] text-gray-500">(${formattedTime})</span></span>
               <span class="font-bold text-yellow-400">${b.amount} Pi</span>
             </div>
           `;
         }).join('');
       }
+
+      const minNextBid = hasBids ? (currentHighest + 0.1).toFixed(2) : reservePrice;
 
       const modalContent = document.getElementById('modalDetailContent');
       modalContent.innerHTML = `
@@ -771,13 +813,21 @@
           ` : `
             <div class="pt-2 space-y-2 border-t border-gray-800">
               <div class="flex justify-between items-center">
-                <label class="block text-xs font-semibold text-gray-300">Ajukan Penawaran Baru (> ${currentHighest} Pi)</label>
+                <label class="block text-xs font-semibold text-gray-300">Ajukan Penawaran (> ${currentHighest} Pi)</label>
                 <span class="text-[10px] font-bold ${hasPaidFee ? 'text-green-400' : 'text-yellow-400'}">
                   ${hasPaidFee ? '🆓 Bebas Biaya Penawaran' : '🏷️ Biaya Tawaran Pertama: 0.1 Pi'}
                 </span>
               </div>
+              
+              <!-- Quick Bid Buttons (Fitur Rekomendasi Tambahan) -->
+              <div class="flex gap-1.5">
+                <button type="button" onclick="setQuickBid(5)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+5 Pi</button>
+                <button type="button" onclick="setQuickBid(10)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+10 Pi</button>
+                <button type="button" onclick="setQuickBid(50)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+50 Pi</button>
+              </div>
+
               <div class="flex gap-2">
-                <input type="number" step="0.01" id="bidAmountInput" placeholder="${t('bidPlaceholder')}" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+                <input type="number" step="0.01" min="${minNextBid}" value="${minNextBid}" id="bidAmountInput" placeholder="${t('bidPlaceholder')}" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
                 <button id="btnSubmitBid" onclick="submitBid('${selectedAuction.id}',${hasPaidFee})" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap">
                   ${t('placeBidBtn')}
                 </button>
@@ -818,8 +868,19 @@
         .eq('id', auctionId)
         .single();
 
-      const hasBids = latestData && latestData.highest_bidder && latestData.highest_bidder !== '-' && latestData.highest_bidder !== '';
-      const currentHighest = hasBids ? latestData.highest_bid : (latestData?.reserve_price || 0);
+      const { data: bidLogs } = await supabaseClient
+        .from('bids')
+        .select('amount')
+        .eq('auction_id', auctionId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      let currentHighest = latestData?.reserve_price || 0;
+      if (bidLogs && bidLogs.length > 0) {
+        currentHighest = bidLogs[0].amount;
+      } else if (latestData && latestData.highest_bidder && latestData.highest_bidder !== '-' && latestData.highest_bidder !== '') {
+        currentHighest = latestData.highest_bid;
+      }
 
       if (isNaN(bidAmount) || bidAmount <= currentHighest) {
         alert(`${t('bidMustBeHigher')} (Minimum: > ${currentHighest} Pi)`);
@@ -924,7 +985,7 @@
         }]);
 
         alert(t('bidSuccessMsg'));
-        fetchActiveAuctions();
+        await fetchActiveAuctions();
         openDetailModal(auctionId);
       } catch (err) {
         console.error("Gagal mengirim tawaran:", err);
