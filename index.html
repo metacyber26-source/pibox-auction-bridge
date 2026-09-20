@@ -97,7 +97,7 @@
 
   </div>
 
-  <!-- MODAL: Detail -->
+  <!-- MODAL: Detail & Penawaran -->
   <div id="detailModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
     <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
       <div class="flex justify-between items-center border-b border-gray-800 pb-2">
@@ -217,7 +217,13 @@
         approvingPay: "Menyetujui Pembayaran...",
         completingTx: "Menyelesaikan Transaksi...",
         successRelease: "🎉 Aset NFT Berhasil Dirilis ke Galeri!",
-        payCancelled: "Pembayaran dibatalkan."
+        payCancelled: "Pembayaran dibatalkan.",
+        placeBidBtn: "🔨 Kirim Tawaran",
+        sellerCannotBidAlert: "🚫 Penjual dilarang menawar asetnya sendiri!",
+        bidMustBeHigher: "Nilai tawaran harus lebih tinggi dari penawaran tertinggi saat ini!",
+        highestBidderLabel: "Penawar Tertinggi Saat Ini",
+        bidPlaceholder: "Masukkan nominal tawaran (Pi)",
+        bidSuccessMsg: "🎉 Penawaran Anda berhasil dikirim!"
       },
       en: {
         loginBtn: "Login",
@@ -254,7 +260,13 @@
         approvingPay: "Approving Payment...",
         completingTx: "Completing Transaction...",
         successRelease: "🎉 NFT Asset Successfully Listed in Gallery!",
-        payCancelled: "Payment was cancelled."
+        payCancelled: "Payment was cancelled.",
+        placeBidBtn: "🔨 Place Bid",
+        sellerCannotBidAlert: "🚫 Sellers are not allowed to bid on their own assets!",
+        bidMustBeHigher: "Your bid must be higher than the current highest bid!",
+        highestBidderLabel: "Current Highest Bidder",
+        bidPlaceholder: "Enter bid amount (Pi)",
+        bidSuccessMsg: "🎉 Your bid was submitted successfully!"
       },
       zh: {
         loginBtn: "登录",
@@ -291,7 +303,13 @@
         approvingPay: "正在批准付款...",
         completingTx: "正在完成交易...",
         successRelease: "🎉 NFT 资产成功发布至画廊！",
-        payCancelled: "付款已取消。"
+        payCancelled: "付款已取消。",
+        placeBidBtn: "🔨 提交出价",
+        sellerCannotBidAlert: "🚫 卖家不得竞拍自己的资产！",
+        bidMustBeHigher: "出价必须高于当前最高出价！",
+        highestBidderLabel: "当前最高出价者",
+        bidPlaceholder: "请输入出价金额 (Pi)",
+        bidSuccessMsg: "🎉 您的出价已成功提交！"
       },
       es: {
         loginBtn: "Iniciar Sesión",
@@ -328,7 +346,13 @@
         approvingPay: "Aprobando pago...",
         completingTx: "Completando transacción...",
         successRelease: "🎉 ¡Activo NFT publicado con éxito en la galería!",
-        payCancelled: "Pago cancelado."
+        payCancelled: "Pago cancelado.",
+        placeBidBtn: "🔨 Realizar Puja",
+        sellerCannotBidAlert: "🚫 ¡Los vendedores no pueden pujar por sus propios activos!",
+        bidMustBeHigher: "¡Su puja debe ser mayor que la puja más alta actual!",
+        highestBidderLabel: "Pujador Más Alto Actual",
+        bidPlaceholder: "Ingrese el monto de la puja (Pi)",
+        bidSuccessMsg: "🎉 ¡Su puja ha sido enviada con éxito!"
       }
     };
 
@@ -520,14 +544,62 @@
       if (!selectedAuction) return;
 
       const displayTitle = selectedAuction.title || selectedAuction.name || "Aset NFT";
+      const isFinished = selectedAuction.status === 'expired' || (selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date());
+      const currentHighest = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
+      const highestBidder = selectedAuction.highest_bidder ? `@${selectedAuction.highest_bidder}` : '-';
+
+      const isOwner = authenticatedPiUser && (authenticatedPiUser.username === selectedAuction.seller);
+
       const modalContent = document.getElementById('modalDetailContent');
       modalContent.innerHTML = `
         <div class="space-y-3">
-          <img src="${selectedAuction.image_url}" class="w-full h-48 object-contain rounded-xl bg-gray-900 border border-gray-800">
-          <h3 class="text-sm font-bold text-gray-100">${displayTitle}</h3>
-          <p class="text-xs text-gray-400">${t('sellerLabel')}: @${selectedAuction.seller}</p>
-          <div class="bg-gray-900 p-2 rounded text-[10px] font-mono text-yellow-400 break-all">Hash: ${selectedAuction.hash || '-'}</div>
-          <p class="text-xs font-bold text-yellow-400">${t('priceLabel')}: ${selectedAuction.highest_bid || selectedAuction.reserve_price} Pi</p>
+          <div class="relative rounded-xl overflow-hidden bg-gray-900 border border-gray-800">
+            <img src="${selectedAuction.image_url}" class="w-full h-48 object-contain">
+            <span class="absolute top-2 left-2 bg-black/80 px-2 py-0.5 rounded text-[9px] font-bold ${isFinished ? 'text-red-400' : 'text-yellow-400'} border border-white/10">
+              ${isFinished ? t('finishedStatus') : t('activeStatus')}
+            </span>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-bold text-gray-100">${displayTitle}</h3>
+            <p class="text-xs text-gray-400">${t('sellerLabel')}: <span class="text-yellow-400 font-semibold">@${selectedAuction.seller}</span></p>
+          </div>
+
+          <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800/80 space-y-1">
+            <p class="text-[10px] text-gray-400">Hash Transaksi PiBox:</p>
+            <p class="text-[10px] font-mono text-yellow-400 break-all bg-gray-950 p-1.5 rounded border border-gray-800">${selectedAuction.hash || '-'}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 bg-gray-900 p-2.5 rounded-xl border border-gray-800">
+            <div>
+              <p class="text-[9px] text-gray-500 uppercase">${t('priceLabel')} Tertinggi</p>
+              <p class="text-sm font-bold text-yellow-400">${currentHighest} Pi</p>
+            </div>
+            <div>
+              <p class="text-[9px] text-gray-500 uppercase">${t('highestBidderLabel')}</p>
+              <p class="text-xs font-semibold text-emerald-400 truncate">${highestBidder}</p>
+            </div>
+          </div>
+
+          ${isFinished ? `
+            <div class="bg-red-500/10 border border-red-500/30 p-2.5 rounded-xl text-center text-xs text-red-400 font-semibold">
+              🔒 Lelang Ini Telah Berakhir.
+            </div>
+          ` : isOwner ? `
+            <div class="bg-yellow-500/10 border border-yellow-500/30 p-2.5 rounded-xl text-center text-xs text-yellow-300">
+              ⚠️ ${t('sellerCannotBidAlert')}
+            </div>
+          ` : `
+            <div class="pt-2 space-y-2 border-t border-gray-800">
+              <label class="block text-xs font-semibold text-gray-300">Ajukan Penawaran Baru (> ${currentHighest} Pi)</label>
+              <div class="flex gap-2">
+                <input type="number" step="0.01" id="bidAmountInput" placeholder="${t('bidPlaceholder')}" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+                <button id="btnSubmitBid" onclick="submitBid('${selectedAuction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap">
+                  ${t('placeBidBtn')}
+                </button>
+              </div>
+            </div>
+          `}
         </div>`;
       
       document.getElementById('detailModal').classList.remove('hidden');
@@ -535,6 +607,57 @@
 
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
+    }
+
+    async function submitBid(auctionId) {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      if (selectedAuction && selectedAuction.seller === authenticatedPiUser.username) {
+        alert(t('sellerCannotBidAlert'));
+        return;
+      }
+
+      const bidInput = document.getElementById('bidAmountInput');
+      const bidAmount = parseFloat(bidInput.value);
+      const currentHighest = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
+
+      if (isNaN(bidAmount) || bidAmount <= currentHighest) {
+        alert(`${t('bidMustBeHigher')} (Minimum: > ${currentHighest} Pi)`);
+        return;
+      }
+
+      const btnSubmitBid = document.getElementById('btnSubmitBid');
+      btnSubmitBid.disabled = true;
+      btnSubmitBid.innerText = "Memproses...";
+
+      try {
+        // Update lelang dengan penawaran tertinggi baru di Supabase
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({
+            highest_bid: bidAmount,
+            highest_bidder: authenticatedPiUser.username
+          })
+          .eq('id', auctionId);
+
+        if (error) throw error;
+
+        alert(t('bidSuccessMsg'));
+        closeDetailModal();
+        fetchActiveAuctions();
+      } catch (err) {
+        console.error("Gagal mengirim tawaran:", err);
+        alert("Gagal memproses penawaran: " + err.message);
+      } finally {
+        if (btnSubmitBid) {
+          btnSubmitBid.disabled = false;
+          btnSubmitBid.innerText = t('placeBidBtn');
+        }
+      }
     }
 
     function updateTimers() {
