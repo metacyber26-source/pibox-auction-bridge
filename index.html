@@ -408,7 +408,7 @@
       const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
       const { data, error } = await supabaseClient
         .storage
-        .from('nft-images')
+        .from('images')
         .upload(fileName, file);
 
       if (error) {
@@ -417,7 +417,7 @@
 
       const { data: publicUrlData } = supabaseClient
         .storage
-        .from('nft-images')
+        .from('images')
         .getPublicUrl(fileName);
 
       return publicUrlData.publicUrl;
@@ -474,6 +474,7 @@
           metadata: { title, hash, price, seller: authenticatedPiUser.username, imageUrl }
         };
 
+        // 4 Callback Wajib Pi SDK v2
         const callbacks = {
           onReadyForServerApproval: async function(paymentId) {
             console.log("Mengirim persetujuan ke server...", paymentId);
@@ -508,7 +509,12 @@
             }
           },
 
-          onCancelled: function(paymentId) {
+          onIncompletePaymentFound: async function(payment) {
+            console.log("Ditemukan transaksi tertunda pada sesi pembayaran:", payment);
+            await handleIncompletePayment(payment);
+          },
+
+          onCancel: function(paymentId) {
             alert("Pembayaran dibatalkan oleh pengguna/sistem.");
             resetPublishButton();
           },
