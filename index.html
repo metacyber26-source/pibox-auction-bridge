@@ -76,6 +76,19 @@
       </p>
     </div>
 
+    <!-- Indikator Pengguna Real -->
+    <div class="bg-gray-950/80 border-b border-gray-800 p-2 flex justify-around items-center text-center">
+      <div class="flex flex-col items-center">
+        <span class="text-[9px] text-gray-400 font-medium">📦 Penjual Aset Aktif</span>
+        <span id="activeSellersCount" class="text-xs font-bold text-yellow-400">0 User</span>
+      </div>
+      <div class="h-6 w-[1px] bg-gray-800"></div>
+      <div class="flex flex-col items-center">
+        <span class="text-[9px] text-gray-400 font-medium">🔨 Penawar Aktif</span>
+        <span id="activeBiddersCount" class="text-xs font-bold text-emerald-400">0 User</span>
+      </div>
+    </div>
+
     <!-- Fitur Pencarian & Filter -->
     <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex gap-2">
       <input type="text" id="searchInput" oninput="filterGallery()" placeholder="🔍 Cari nama NFT / Hash..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500 transition">
@@ -183,7 +196,6 @@
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
 
-    // Ganti/tambahkan username developer Anda untuk pengujian penuh
     const ADMIN_USERNAMES = ["MohamadSyaifulRohim", "admin", "developer"];
 
     let supabaseClient = null;
@@ -427,9 +439,6 @@
       authenticatePiUser();
     });
 
-    /* ========================================================
-       FUNGSI BIAYA BERJENJANG (SAMA UNTUK LISTING & BID)
-       ======================================================== */
     function calculateTieredFee(price) {
       const p = parseFloat(price) || 0;
       if (p < 50) return 0.2;
@@ -453,9 +462,6 @@
       if (feeDisplayEl) feeDisplayEl.innerText = `(${fee} Pi)`;
     }
 
-    /* ========================================================
-       SUPABASE REALTIME LISTENER (LIVE UPDATE SINKRON)
-       ======================================================== */
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       supabaseClient
@@ -497,9 +503,6 @@
       return (translations[currentLang] && translations[currentLang][key]) ? translations[currentLang][key] : translations.id[key];
     }
 
-    /* ========================================================
-       LOGIKA PERPANJANGAN LELANG & HAPUS ASET TIDAK AKTIF
-       ======================================================== */
     async function processAuctionExtensions(auctions) {
       const now = new Date();
       const updatedList = [];
@@ -509,13 +512,11 @@
         let extensionCount = item.extension_count || 0;
         let hasBids = item.highest_bidder && item.highest_bidder !== null && item.highest_bidder !== '' && item.highest_bidder !== '-';
 
-        // Jika status sudah dibatalkan, lewati perpanjangan
         if (item.status === 'cancelled') {
           updatedList.push(item);
           continue;
         }
 
-        // Jika waktu berakhir dan tidak ada penawaran
         if (endsAt <= now && !hasBids) {
           if (extensionCount < 30) {
             const newEndsAt = new Date(endsAt.getTime() + (24 * 60 * 60 * 1000)).toISOString();
@@ -570,6 +571,8 @@
 
         const validAuctions = await processAuctionExtensions(data || []);
         activeAuctionsList = validAuctions;
+        
+        await calculateRealUserMetrics(validAuctions);
         filterGallery();
       } catch (err) {
         console.error("Fetch Error:", err);
@@ -581,13 +584,56 @@
       }
     }
 
+    /* KUNCI FITUR BARU: Menghitung pengguna real (aset aktif & tawaran aktif) */
+    async function calculateRealUserMetrics(auctions) {
+      try {
+        const now = new Date();
+        const activeSellersSet = new Set();
+        const activeAuctionIds = [];
+
+        auctions.forEach(item => {
+          const isFinished = item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= now);
+          const isCancelled = item.status === 'cancelled';
+          if (!isFinished && !isCancelled && item.status === 'active') {
+            if (item.seller) activeSellersSet.add(item.seller);
+            activeAuctionIds.push(item.id);
+          }
+        });
+
+        document.getElementById('activeSellersCount').innerText = `${activeSellersSet.size} User`;
+
+        if (activeAuctionIds.length === 0) {
+          document.getElementById('activeBiddersCount').innerText = `0 User`;
+          return;
+        }
+
+        const { data: bidsData } = await supabaseClient
+          .from('bids')
+          .select('bidder')
+          .in('auction_id', activeAuctionIds);
+
+        const activeBiddersSet = new Set();
+        if (bidsData) {
+          bidsData.forEach(b => {
+            if (b.bidder) activeBiddersSet.add(b.bidder);
+          });
+        }
+
+        document.getElementById('activeBiddersCount').innerText = `${activeBiddersSet.size} User`;
+
+      } catch (err) {
+        console.error("Gagal menghitung statistik pengguna real:", err);
+      }
+    }
+
     function filterGallery() {
       const query = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
       const status = document.getElementById('statusFilter')?.value || 'all';
 
       filteredAuctionsList = activeAuctionsList.filter(item => {
-        const isFinished = item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date());
         const isCancelled = item.status === 'cancelled';
+        const isFinished = !isCancelled && (item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date()));
+        
         const matchTitle = (item.title || '').toLowerCase().includes(query);
         const matchHash = (item.hash || '').toLowerCase().includes(query);
         const matchSearch = matchTitle || matchHash;
@@ -619,7 +665,7 @@
       auctions.forEach((item) => {
         const displayTitle = item.title || "Aset NFT";
         const isCancelled = item.status === 'cancelled';
-        const isFinished = item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date());
+        const isFinished = !isCancelled && (item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date()));
         const hasBids = item.highest_bidder && item.highest_bidder !== '-' && item.highest_bidder !== '';
         const currentPrice = hasBids ? item.highest_bid : (item.reserve_price || 0);
 
@@ -654,7 +700,7 @@
                 </div>
                 <div class="text-right">
                   <p class="text-[8px] text-gray-500 uppercase">${t('timeLabel')}</p>
-                  <p class="text-[9px] font-semibold ${isCancelled ? 'text-gray-400' : isFinished ? 'text-red-400' : 'text-gray-300'} timer-element" data-ends="${item.ends_at}">
+                  <p class="text-[9px] font-semibold ${isCancelled ? 'text-gray-400' : isFinished ? 'text-red-400' : 'text-gray-300'} timer-element" data-ends="${item.ends_at}" data-cancelled="${isCancelled}">
                     ${isCancelled ? t('cancelledStatus') : isFinished ? t('finishedStatus') : '--:--'}
                   </p>
                 </div>
@@ -716,7 +762,6 @@
       }
     }
 
-    /* BATAS MAKSIMAL 3 ASET LELANG AKTIF PER USERNAME */
     async function handleOpenCreateModal() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -759,9 +804,6 @@
       bidInput.value = (currentVal + increment).toFixed(2);
     }
 
-    /* ========================================================
-       OPEN DETAIL MODAL
-       ======================================================== */
     async function openDetailModal(id) {
       const { data: latestAuction, error } = await supabaseClient
         .from('auctions')
@@ -779,7 +821,7 @@
 
       const displayTitle = selectedAuction.title || "Aset NFT";
       const isCancelled = selectedAuction.status === 'cancelled';
-      const isFinished = selectedAuction.status === 'expired' || (selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date());
+      const isFinished = !isCancelled && (selectedAuction.status === 'expired' || (selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date()));
       const reservePrice = selectedAuction.reserve_price || 0;
       
       const { data: bidLogs } = await supabaseClient
@@ -806,7 +848,6 @@
       const isOwner = authenticatedPiUser && (authenticatedPiUser.username === selectedAuction.seller);
       const isAdminUser = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
 
-      // Pengecekan pembayaran biaya bid pertama oleh pembeli
       let hasPaidFee = false;
       if (authenticatedPiUser) {
         const { data } = await supabaseClient
@@ -835,7 +876,6 @@
 
       const minNextBid = hasBids ? (currentHighest + 0.1).toFixed(2) : reservePrice;
 
-      // Logika Aktivasi Tombol Batal Lelang
       const canCancelAuction = (isOwner || isAdminUser) && (!hasBids || isAdminUser) && !isCancelled && !isFinished;
 
       const modalContent = document.getElementById('modalDetailContent');
@@ -853,7 +893,6 @@
             <p class="text-xs text-gray-400">${t('sellerLabel')}: <span class="text-yellow-400 font-semibold">@${selectedAuction.seller}</span></p>
           </div>
 
-          <!-- Hash Transaksi & Tombol Copy -->
           <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800/80 space-y-1">
             <div class="flex justify-between items-center">
               <p class="text-[10px] text-gray-400">Hash Transaksi PiBox:</p>
@@ -864,7 +903,6 @@
             <p class="text-[10px] font-mono text-yellow-400 break-all bg-gray-950 p-1.5 rounded border border-gray-800">${selectedAuction.hash || '-'}</p>
           </div>
 
-          <!-- GRID HARGA: Harga Awal + Harga Tertinggi + Penawar -->
           <div class="grid grid-cols-3 gap-1.5 bg-gray-900 p-2.5 rounded-xl border border-gray-800 text-center">
             <div class="border-r border-gray-800/80 pr-1">
               <p class="text-[8px] text-gray-500 uppercase">${t('initialPriceLabel')}</p>
@@ -880,7 +918,6 @@
             </div>
           </div>
 
-          <!-- Section Riwayat Penawaran -->
           <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1.5">
             <p class="text-[10px] font-bold text-gray-300 uppercase tracking-wider">📜 Riwayat Penawaran Terakhir</p>
             <div class="max-h-24 overflow-y-auto custom-scrollbar">
@@ -888,7 +925,6 @@
             </div>
           </div>
 
-          <!-- KONTROL / AKSI LELANG -->
           ${isCancelled ? `
             <div class="bg-gray-800 border border-gray-700 p-2.5 rounded-xl text-center text-xs text-gray-400 font-semibold">
               🚫 Lelang Ini telah Dibatalkan oleh Penjual.
@@ -919,7 +955,6 @@
                 </span>
               </div>
               
-              <!-- Quick Bid Buttons -->
               <div class="flex gap-1.5">
                 <button type="button" onclick="setQuickBid(5)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+5 Pi</button>
                 <button type="button" onclick="setQuickBid(10)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+10 Pi</button>
@@ -943,9 +978,7 @@
       document.getElementById('detailModal').classList.add('hidden');
     }
 
-    /* ========================================================
-       FUNGSI MEMBATALKAN LELANG
-       ======================================================== */
+    /* KUNCI PERBAIKAN: Membatalkan lelang dan langsung memperbarui status lokal & database */
     async function cancelAuction(auctionId) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -963,18 +996,28 @@
 
         if (error) throw error;
 
+        // Update status lokal secara langsung
+        if (selectedAuction && selectedAuction.id === auctionId) {
+          selectedAuction.status = 'cancelled';
+        }
+        
+        const itemInList = activeAuctionsList.find(a => a.id === auctionId);
+        if (itemInList) {
+          itemInList.status = 'cancelled';
+        }
+
         alert("🚫 Lelang berhasil dibatalkan.");
-        closeDetailModal();
-        fetchActiveAuctions();
+        
+        // Refresh UI & modal
+        await fetchActiveAuctions();
+        openDetailModal(auctionId);
+
       } catch (err) {
         console.error("Gagal membatalkan lelang:", err);
         alert("Gagal membatalkan lelang: " + err.message);
       }
     }
 
-    /* ========================================================
-       LOGIKA PENAWARAN (Bidding BERJENJANG & BIAYA TAWARAN PERTAMA)
-       ======================================================== */
     async function submitBid(auctionId, hasPaidFee) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -999,6 +1042,7 @@
       if (latestData && latestData.status === 'cancelled') {
         alert("🚫 Lelang ini sudah dibatalkan dan tidak bisa ditawar lagi.");
         closeDetailModal();
+        fetchActiveAuctions();
         return;
       }
 
@@ -1133,6 +1177,12 @@
 
     function updateTimers() {
       document.querySelectorAll('.timer-element').forEach(el => {
+        const isCancelled = el.getAttribute('data-cancelled') === 'true';
+        if (isCancelled) {
+          el.innerText = t('cancelledStatus');
+          return;
+        }
+
         const endsAttr = el.getAttribute('data-ends');
         if (!endsAttr) return;
         
@@ -1184,7 +1234,6 @@
       return publicUrlData.publicUrl;
     }
 
-    /* RILIS LELANG BARU / RELISTING DENGAN BIAYA BERJENJANG */
     async function submitNewListing() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
