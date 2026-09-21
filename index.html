@@ -37,13 +37,24 @@
   <!-- Main Container -->
   <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[90vh]">
     
+    <!-- Banner Indicator TESTNET / MAINNET -->
+    <div id="networkBanner" class="bg-amber-500/20 border-b border-amber-500/40 px-3 py-1 text-center flex justify-between items-center text-[10px] font-bold text-amber-300">
+      <span class="flex items-center gap-1">
+        <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+        🧪 TESTNET MODE (Koin Uji Coba)
+      </span>
+      <span id="sessionCountdownDisplay" class="font-mono text-white bg-black/40 px-2 py-0.5 rounded border border-amber-500/30">
+        Hitung Mundur Sesi...
+      </span>
+    </div>
+
     <!-- Top Header Bar -->
     <div class="bg-gray-950 p-3 sm:p-4 border-b border-gray-800 flex justify-between items-center sticky top-0 z-30">
       <div class="flex items-center space-x-2">
         <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
         <div>
           <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">NUSANTARA NFT AUCTION</h1>
-          <p class="text-[9px] text-yellow-500">PiBox Bridge Protocol v2.5</p>
+          <p class="text-[9px] text-yellow-500">PiBox Bridge Protocol v3.0</p>
         </div>
       </div>
       
@@ -66,8 +77,12 @@
       </div>
     </div>
 
-    <!-- Banner Informasi -->
-    <div class="bg-yellow-500/10 border-b border-yellow-500/20 p-2.5 text-center space-y-1">
+    <!-- Banner Informasi & Status Sesi Lelang -->
+    <div class="bg-yellow-500/10 border-b border-yellow-500/20 p-2.5 text-center space-y-1.5">
+      <!-- Pengumuman Status Sesi Lelang -->
+      <div id="sessionStatusBanner" class="bg-gray-950/80 border border-yellow-500/30 rounded-lg p-1.5 text-[10px] text-yellow-300 font-semibold">
+        ⏳ Status Sesi: Memuat Informasi Sesi...
+      </div>
       <p class="text-[10px] text-yellow-400 font-medium leading-tight">
         ⚠️ <span data-i18n="warningHeader"><strong>PERINGATAN WAJIB:</strong> Harap salin <strong>Hash NFT</strong> dan cocokkan keaslian aset di <strong>PIBOX NFT EVENT ZONE</strong> sebelum menawar.</span>
       </p>
@@ -195,6 +210,15 @@
   </div>
 
   <script>
+    // --- KONFIGURASI JARINGAN TESTNET / MAINNET ---
+    const IS_TESTNET = true; // Ubah ke false jika berpindah ke Pi Mainnet (Pi Asli)
+
+    // --- KONFIGURASI SESI LELANG BERSAMA (SESI TIME WINDOW) ---
+    // Atur tanggal & jam buka sesi lelang mendatang (Format: YYYY-MM-DDTHH:mm:ss)
+    // Contoh: Sesi Buka tanggal 25 September 2026 jam 19:00 WIB
+    const SESSION_START_TIME = "2026-09-25T19:00:00+07:00"; 
+    const SESSION_DURATION_HOURS = 24; // Lelang berjalan 24 Jam setelah dibuka
+
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
 
@@ -441,20 +465,79 @@
 
     try {
       if (Pi) {
-        Pi.init({ version: "2.0", sandbox: false });
+        Pi.init({ version: "2.0", sandbox: IS_TESTNET });
       }
     } catch (e) {
       console.warn("Pi SDK tidak tersedia.");
     }
 
     document.addEventListener("DOMContentLoaded", () => {
+      setupNetworkBanner();
       document.getElementById('langSelector').value = currentLang;
       applyTranslations();
       fetchActiveAuctions();
       setupRealtimeSubscription();
       setInterval(updateTimers, 1000);
+      setInterval(updateSessionTimer, 1000);
       authenticatePiUser();
     });
+
+    function setupNetworkBanner() {
+      const banner = document.getElementById('networkBanner');
+      if (IS_TESTNET) {
+        banner.className = "bg-amber-500/20 border-b border-amber-500/40 px-3 py-1 text-center flex justify-between items-center text-[10px] font-bold text-amber-300";
+        banner.querySelector('span').innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> 🧪 TESTNET MODE (Koin Uji Coba)`;
+      } else {
+        banner.className = "bg-emerald-500/20 border-b border-emerald-500/40 px-3 py-1 text-center flex justify-between items-center text-[10px] font-bold text-emerald-300";
+        banner.querySelector('span').innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 🚀 MAINNET MODE (Pi Asli)`;
+      }
+    }
+
+    // Fungsi Pengelola Status & Countdown Sesi Lelang Otomatis
+    function getSessionInfo() {
+      const now = new Date().getTime();
+      const startTime = new Date(SESSION_START_TIME).getTime();
+      const endTime = startTime + (SESSION_DURATION_HOURS * 60 * 60 * 1000);
+
+      let status = 'UPCOMING'; // UPCOMING, ACTIVE, ENDED
+      let diff = 0;
+
+      if (now < startTime) {
+        status = 'UPCOMING';
+        diff = startTime - now;
+      } else if (now >= startTime && now <= endTime) {
+        status = 'ACTIVE';
+        diff = endTime - now;
+      } else {
+        status = 'ENDED';
+        diff = 0;
+      }
+
+      return { status, diff, startTime, endTime };
+    }
+
+    function updateSessionTimer() {
+      const info = getSessionInfo();
+      const countdownEl = document.getElementById('sessionCountdownDisplay');
+      const statusBanner = document.getElementById('sessionStatusBanner');
+
+      const h = Math.floor(info.diff / (1000 * 60 * 60));
+      const m = Math.floor((info.diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((info.diff % (1000 * 60)) / 1000);
+
+      const formattedTime = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+      if (info.status === 'UPCOMING') {
+        countdownEl.innerText = `Buka: ${formattedTime}`;
+        statusBanner.innerHTML = `⏳ <strong>SESI TUTUP:</strong> Penawaran Buka Otomatis dalam <span class="text-yellow-400 font-mono">${formattedTime}</span>. Anda tetap dapat merilis aset.`;
+      } else if (info.status === 'ACTIVE') {
+        countdownEl.innerText = `Sisa Sesi: ${formattedTime}`;
+        statusBanner.innerHTML = `🟢 <strong>SESI LELANG AKTIF!</strong> Sesi berakhir dalam <span class="text-emerald-400 font-mono">${formattedTime}</span>. Silakan kirim penawaran!`;
+      } else {
+        countdownEl.innerText = `Sesi Selesai`;
+        statusBanner.innerHTML = `🔴 <strong>SESI BERSAMA SELESAI:</strong> Menunggu pendaftaran jadwal sesi lelang berikutnya.`;
+      }
+    }
 
     function calculateTieredFee(price) {
       const p = parseFloat(price) || 0;
@@ -698,6 +781,8 @@
         return;
       }
 
+      const sessionInfo = getSessionInfo();
+
       let html = `<div class="grid grid-cols-2 gap-3">`;
 
       auctions.forEach((item) => {
@@ -717,6 +802,9 @@
         } else if (isFinished) {
           badgeStatusText = t('finishedStatus');
           badgeColorClass = 'text-red-400';
+        } else if (sessionInfo.status === 'UPCOMING') {
+          badgeStatusText = '⏳ Pending Sesi';
+          badgeColorClass = 'text-amber-300';
         }
 
         html += `
@@ -837,14 +925,12 @@
       });
     }
 
-    // Fitur Canggih: Buka Verifikasi Hash Langsung ke Explorer/PiBox
     function openExplorerForHash(hash) {
       if (!hash) return;
-      const explorerUrl = `https://minepi.com/blockexplorer/tx/${hash}`;
+      const explorerUrl = IS_TESTNET ? `https://minepi.com/blockexplorer/tx/${hash}` : `https://minepi.com/blockexplorer/tx/${hash}`;
       window.open(explorerUrl, '_blank');
     }
 
-    // Fitur Canggih: Lapor Aset Mencurigakan
     function reportSuspiciousAsset(auctionId, assetTitle) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -878,6 +964,7 @@
 
       if (!selectedAuction) return;
 
+      const sessionInfo = getSessionInfo();
       const displayTitle = sanitizeInput(selectedAuction.title) || "Aset NFT";
       const sellerName = sanitizeInput(selectedAuction.seller) || "Anonim";
       const cleanHash = sanitizeInput(selectedAuction.hash) || "-";
@@ -957,7 +1044,7 @@
             <p class="text-xs text-gray-400">${t('sellerLabel')}: <span class="text-yellow-400 font-semibold">@${sellerName}</span></p>
           </div>
 
-          <!-- Hash Transaksi & Tombol Verifikasi Canggih -->
+          <!-- Hash Transaksi & Tombol Verifikasi -->
           <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800/80 space-y-1.5">
             <div class="flex justify-between items-center">
               <p class="text-[10px] text-gray-400">Hash Transaksi PiBox:</p>
@@ -1002,6 +1089,11 @@
           ` : isFinished ? `
             <div class="bg-red-500/10 border border-red-500/30 p-2.5 rounded-xl text-center text-xs text-red-400 font-semibold">
               🔒 Lelang Ini Telah Berakhir.
+            </div>
+          ` : sessionInfo.status === 'UPCOMING' ? `
+            <div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center space-y-1">
+              <p class="text-xs font-bold text-amber-300">⏳ Sesi Penawaran Belum Dibuka</p>
+              <p class="text-[10px] text-gray-400">Sesi penawaran akan dibuka secara otomatis sesuai hitung mundur di atas.</p>
             </div>
           ` : isOwner || isAdminUser ? `
             <div class="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
@@ -1089,6 +1181,12 @@
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
+        return;
+      }
+
+      const sessionInfo = getSessionInfo();
+      if (sessionInfo.status === 'UPCOMING') {
+        alert("⏳ Sesi lelang belum dibuka! Anda baru dapat mengirim penawaran setelah waktu hitung mundur selesai.");
         return;
       }
 
