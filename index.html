@@ -91,7 +91,7 @@
         <p class="text-[9px] font-bold text-yellow-400">⚙️ CONTROL PANEL ADMIN: ATUR JADWAL LELANG (WIB)</p>
         <div class="flex gap-1.5 justify-center items-center">
           <input type="datetime-local" id="adminSessionStartTime" class="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-[10px] text-white focus:outline-none focus:border-yellow-500">
-          <button onclick="saveAdminSessionSchedule()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[9px] px-2.5 py-1 rounded transition">
+          <button onclick="saveAdminSessionSchedule()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[9px] px-2.5 py-1 rounded transition cursor-pointer">
             💾 Simpan Jadwal
           </button>
         </div>
@@ -233,7 +233,7 @@
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
 
-    const ADMIN_USERNAMES = ["Ful21", "admin", "developer"];
+    const ADMIN_USERNAMES = ["Ful21", "admin", "developer", "Ful21"];
 
     let supabaseClient = null;
     let Pi = window.Pi || null;
@@ -248,7 +248,7 @@
     // Manajemen Jadwal Sesi Lelang Terjadwal
     let sessionSchedule = {
       startTime: localStorage.getItem('auction_session_start') || null,
-      isOpen: false
+      isOpen: true
     };
 
     const translations = {
@@ -281,7 +281,7 @@
         cancelledStatus: "Dibatalkan",
         cancelAuctionBtn: "🚫 Batalkan Lelang Ini",
         cancelNoticeNoBid: "Lelang dapat dibatalkan karena belum ada penawaran.",
-        cancelNoticeHasBid: "Lelang terkunci dan tidak bisa dibatalkan karena penawaran sudah masuk.",
+        cancelNoticeHasBid: "Lelang terkunci dan tidak bisa dibatalkan oleh penjual karena penawaran sudah masuk.",
         cancelConfirmMsg: "Apakah Anda yakin ingin membatalkan lelang ini?\n\n- Dana biaya listing tidak dapat dikembalikan.\n- Jika merilis ulang aset ini, akan dihitung sebagai lelang baru dan membayar biaya listing kembali.",
         loginFirstAlert: "Silakan Login akun Pi Network terlebih dahulu!",
         fillAllAlert: "Lengkapi seluruh bidang input dengan benar.",
@@ -517,10 +517,10 @@
       if (!badge || !text) return;
 
       if (!sessionSchedule.startTime) {
-        badge.innerText = "TUTUP (BELUM DISET)";
-        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700";
-        text.innerText = "Jadwal sesi lelang belum ditentukan oleh Admin.";
-        sessionSchedule.isOpen = false;
+        badge.innerText = "🟢 BUKA (MODE REGULER)";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+        text.innerText = "Sesi lelang terbuka. Penawaran aktif 24 jam.";
+        sessionSchedule.isOpen = true;
         return;
       }
 
@@ -534,7 +534,7 @@
         const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-        badge.innerText = "TUTUP (MENUNGGU SESI BUKA)";
+        badge.innerText = "TUTUP (PERSIAPAN SESI)";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 animate-pulse";
         text.innerText = `Lelang Buka Dalam: ${h}j ${m}m ${s}d (Berselancar & Rilis Aset Diperbolehkan)`;
         sessionSchedule.isOpen = false;
@@ -544,14 +544,14 @@
         const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-        badge.innerText = "🟢 BUKA (SESI DIBUKA 24 JAM)";
+        badge.innerText = "🟢 BUKA (SESI 24 JAM)";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
         text.innerText = `Sesi Berakhir Dalam: ${h}j ${m}m ${s}d (Penawaran Dibuka!)`;
         sessionSchedule.isOpen = true;
       } else {
         badge.innerText = "TUTUP (SESI BERAKHIR)";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
-        text.innerText = "Sesi lelang telah selesai. Menunggu jadwal berikutnya.";
+        text.innerText = "Sesi lelang telah selesai. Menunggu jadwal berikutnya dari Admin.";
         sessionSchedule.isOpen = false;
       }
     }
@@ -709,7 +709,7 @@
         container.innerHTML = `
           <div class="text-center py-10 text-red-400 text-xs space-y-2">
             <p>Gagal memuat galeri dari database.</p>
-            <button onclick="fetchActiveAuctions()" class="bg-gray-800 text-yellow-400 px-3 py-1.5 rounded-lg text-[10px] font-bold">🔄 Coba Lagi</button>
+            <button onclick="fetchActiveAuctions()" class="bg-gray-800 text-yellow-400 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer">🔄 Coba Lagi</button>
           </div>`;
       }
     }
@@ -805,7 +805,7 @@
           <div class="text-center py-12 space-y-3 my-auto">
             <div class="w-12 h-12 bg-gray-950 border border-gray-800 rounded-full flex items-center justify-center mx-auto text-yellow-500 text-lg">🖼️</div>
             <p class="text-gray-400 text-xs">${t('emptyGallery')}</p>
-            <button onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl transition">${t('firstReleaseBtn')}</button>
+            <button onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl transition cursor-pointer">${t('firstReleaseBtn')}</button>
           </div>`;
         return;
       }
@@ -1064,7 +1064,7 @@
             <span class="absolute top-2 left-2 bg-black/80 px-2 py-0.5 rounded text-[9px] font-bold ${isCancelled ? 'text-gray-400' : isFinished ? 'text-red-400' : 'text-yellow-400'} border border-white/10">
               ${isCancelled ? t('cancelledStatus') : isFinished ? t('finishedStatus') : t('activeStatus')}
             </span>
-            <button onclick="reportSuspiciousAsset('${selectedAuction.id}', '${displayTitle}')" class="absolute top-2 right-2 bg-red-950/80 hover:bg-red-900 text-red-300 p-1 rounded-md text-[9px] border border-red-500/30 font-semibold flex items-center gap-1 transition">
+            <button onclick="reportSuspiciousAsset('${selectedAuction.id}', '${displayTitle}')" class="absolute top-2 right-2 bg-red-950/80 hover:bg-red-900 text-red-300 p-1 rounded-md text-[9px] border border-red-500/30 font-semibold flex items-center gap-1 transition cursor-pointer">
               🚩 Lapor
             </button>
           </div>
@@ -1078,10 +1078,10 @@
             <div class="flex justify-between items-center">
               <p class="text-[10px] text-gray-400">Hash Transaksi PiBox:</p>
               <div class="flex gap-2">
-                <button onclick="copyHashToClipboard('${cleanHash}')" class="text-[9px] text-yellow-400 hover:underline flex items-center gap-0.5 font-semibold">
+                <button onclick="copyHashToClipboard('${cleanHash}')" class="text-[9px] text-yellow-400 hover:underline flex items-center gap-0.5 font-semibold cursor-pointer">
                   📋 Salin
                 </button>
-                <button onclick="openExplorerForHash('${cleanHash}')" class="text-[9px] text-emerald-400 hover:underline flex items-center gap-0.5 font-semibold">
+                <button onclick="openExplorerForHash('${cleanHash}')" class="text-[9px] text-emerald-400 hover:underline flex items-center gap-0.5 font-semibold cursor-pointer">
                   🔍 Cek Explorer ↗
                 </button>
               </div>
@@ -1119,7 +1119,7 @@
             <div class="bg-red-500/10 border border-red-500/30 p-2.5 rounded-xl text-center text-xs text-red-400 font-semibold">
               🔒 Lelang Ini Telah Berakhir.
             </div>
-          ` : isOwner || isAdminUser ? `
+          ` : isOwner ? `
             <div class="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
               <p class="text-[10px] text-gray-400 leading-tight">
                 ${hasBids ? t('cancelNoticeHasBid') : t('cancelNoticeNoBid')}
@@ -1147,9 +1147,9 @@
                 </div>
                 
                 <div class="flex gap-1.5">
-                  <button type="button" onclick="setQuickBid(5)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+5 Pi</button>
-                  <button type="button" onclick="setQuickBid(10)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+10 Pi</button>
-                  <button type="button" onclick="setQuickBid(50)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+50 Pi</button>
+                  <button type="button" onclick="setQuickBid(5)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition cursor-pointer">+5 Pi</button>
+                  <button type="button" onclick="setQuickBid(10)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition cursor-pointer">+10 Pi</button>
+                  <button type="button" onclick="setQuickBid(50)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition cursor-pointer">+50 Pi</button>
                 </div>
 
                 <div class="flex gap-2">
@@ -1159,6 +1159,16 @@
                   </button>
                 </div>
               `}
+
+              ${isAdminUser ? `
+                <div class="pt-2 border-t border-gray-800/80">
+                  <button 
+                    onclick="cancelAuction('${selectedAuction.id}')"
+                    class="w-full text-[10px] font-bold py-1.5 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-500/30 transition cursor-pointer">
+                    🛡️ Admin: Batalkan Lelang Ini
+                  </button>
+                </div>
+              ` : ''}
             </div>
           `}
         </div>`;
