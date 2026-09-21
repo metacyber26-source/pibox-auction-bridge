@@ -37,15 +37,10 @@
   <!-- Main Container -->
   <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[90vh]">
     
-    <!-- Banner Indicator TESTNET / MAINNET -->
-    <div id="networkBanner" class="bg-amber-500/20 border-b border-amber-500/40 px-3 py-1 text-center flex justify-between items-center text-[10px] font-bold text-amber-300">
-      <span class="flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-        🧪 TESTNET MODE (Koin Uji Coba)
-      </span>
-      <span id="sessionCountdownDisplay" class="font-mono text-white bg-black/40 px-2 py-0.5 rounded border border-amber-500/30">
-        Hitung Mundur Sesi...
-      </span>
+    <!-- Banner Mode Jaringan TESTNET / MAINNET -->
+    <div id="networkModeBanner" class="bg-amber-600/90 text-gray-950 font-black text-[10px] tracking-widest text-center py-1 uppercase shadow-md flex items-center justify-center gap-1.5">
+      <span>⚡ MODE NETWORK:</span>
+      <span id="networkModeBadge" class="bg-black text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-400/40">TESTNET (KOIN UJI COBA)</span>
     </div>
 
     <!-- Top Header Bar -->
@@ -77,12 +72,34 @@
       </div>
     </div>
 
-    <!-- Banner Informasi & Status Sesi Lelang -->
-    <div class="bg-yellow-500/10 border-b border-yellow-500/20 p-2.5 text-center space-y-1.5">
-      <!-- Pengumuman Status Sesi Lelang -->
-      <div id="sessionStatusBanner" class="bg-gray-950/80 border border-yellow-500/30 rounded-lg p-1.5 text-[10px] text-yellow-300 font-semibold">
-        ⏳ Status Sesi: Memuat Informasi Sesi...
+    <!-- Banner Sesi Lelang Terjadwal & Timer Hitung Mundur -->
+    <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2.5 text-center space-y-1">
+      <div class="flex justify-between items-center px-1">
+        <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1">
+          ⏳ STATUS SESI LELANG:
+        </span>
+        <span id="sessionStateBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
+          TUTUP (PERSIAPAN)
+        </span>
       </div>
+      <p id="sessionCountdownText" class="text-xs font-mono font-bold text-yellow-300 tracking-wide">
+        Menunggu Jadwal Sesi...
+      </p>
+      
+      <!-- Panel Pengaturan Sesi Khusus Admin -->
+      <div id="adminSessionControl" class="hidden border-t border-purple-500/30 pt-2 mt-2 space-y-1.5">
+        <p class="text-[9px] font-bold text-yellow-400">⚙️ CONTROL PANEL ADMIN: ATUR JADWAL LELANG (WIB)</p>
+        <div class="flex gap-1.5 justify-center items-center">
+          <input type="datetime-local" id="adminSessionStartTime" class="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-[10px] text-white focus:outline-none focus:border-yellow-500">
+          <button onclick="saveAdminSessionSchedule()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[9px] px-2.5 py-1 rounded transition">
+            💾 Simpan Jadwal
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Banner Informasi Prosedur -->
+    <div class="bg-yellow-500/10 border-b border-yellow-500/20 p-2.5 text-center space-y-1">
       <p class="text-[10px] text-yellow-400 font-medium leading-tight">
         ⚠️ <span data-i18n="warningHeader"><strong>PERINGATAN WAJIB:</strong> Harap salin <strong>Hash NFT</strong> dan cocokkan keaslian aset di <strong>PIBOX NFT EVENT ZONE</strong> sebelum menawar.</span>
       </p>
@@ -210,14 +227,8 @@
   </div>
 
   <script>
-    // --- KONFIGURASI JARINGAN TESTNET / MAINNET ---
-    const IS_TESTNET = true; // Ubah ke false jika berpindah ke Pi Mainnet (Pi Asli)
-
-    // --- KONFIGURASI SESI LELANG BERSAMA (SESI TIME WINDOW) ---
-    // Atur tanggal & jam buka sesi lelang mendatang (Format: YYYY-MM-DDTHH:mm:ss)
-    // Contoh: Sesi Buka tanggal 25 September 2026 jam 19:00 WIB
-    const SESSION_START_TIME = "2026-09-25T19:00:00+07:00"; 
-    const SESSION_DURATION_HOURS = 24; // Lelang berjalan 24 Jam setelah dibuka
+    // Config Mode Jaringan (Ubah IS_TESTNET = false jika sudah beralih ke Pi Mainnet Asli)
+    const IS_TESTNET = true; 
 
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
@@ -233,6 +244,12 @@
     let authenticatedPiUser = null;
     let activeImageTab = 'upload';
     let currentLang = localStorage.getItem('appLang') || 'id';
+
+    // Manajemen Jadwal Sesi Lelang Terjadwal
+    let sessionSchedule = {
+      startTime: localStorage.getItem('auction_session_start') || null,
+      isOpen: false
+    };
 
     const translations = {
       id: {
@@ -441,7 +458,6 @@
       }
     };
 
-    // Helper Sanitasi String untuk Keamanan Anti-XSS
     function sanitizeInput(str) {
       if (!str) return '';
       return str.toString().replace(/[&<>"']/g, function(m) {
@@ -472,71 +488,84 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-      setupNetworkBanner();
+      updateNetworkBannerUI();
       document.getElementById('langSelector').value = currentLang;
       applyTranslations();
       fetchActiveAuctions();
       setupRealtimeSubscription();
       setInterval(updateTimers, 1000);
-      setInterval(updateSessionTimer, 1000);
+      setInterval(checkSessionScheduleTimer, 1000);
       authenticatePiUser();
     });
 
-    function setupNetworkBanner() {
-      const banner = document.getElementById('networkBanner');
+    function updateNetworkBannerUI() {
+      const badge = document.getElementById('networkModeBadge');
+      if (!badge) return;
       if (IS_TESTNET) {
-        banner.className = "bg-amber-500/20 border-b border-amber-500/40 px-3 py-1 text-center flex justify-between items-center text-[10px] font-bold text-amber-300";
-        banner.querySelector('span').innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> 🧪 TESTNET MODE (Koin Uji Coba)`;
+        badge.innerText = "TESTNET (KOIN UJI COBA)";
+        badge.className = "bg-black text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-400/40";
       } else {
-        banner.className = "bg-emerald-500/20 border-b border-emerald-500/40 px-3 py-1 text-center flex justify-between items-center text-[10px] font-bold text-emerald-300";
-        banner.querySelector('span').innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 🚀 MAINNET MODE (Pi Asli)`;
+        badge.innerText = "MAINNET (KOIN ASLI)";
+        badge.className = "bg-emerald-600 text-white px-1.5 py-0.5 rounded border border-emerald-300 font-bold";
       }
     }
 
-    // Fungsi Pengelola Status & Countdown Sesi Lelang Otomatis
-    function getSessionInfo() {
-      const now = new Date().getTime();
-      const startTime = new Date(SESSION_START_TIME).getTime();
-      const endTime = startTime + (SESSION_DURATION_HOURS * 60 * 60 * 1000);
+    // Manajemen Penghitung Mundur Sesi Terjadwal
+    function checkSessionScheduleTimer() {
+      const badge = document.getElementById('sessionStateBadge');
+      const text = document.getElementById('sessionCountdownText');
+      if (!badge || !text) return;
 
-      let status = 'UPCOMING'; // UPCOMING, ACTIVE, ENDED
-      let diff = 0;
+      if (!sessionSchedule.startTime) {
+        badge.innerText = "TUTUP (BELUM DISET)";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700";
+        text.innerText = "Jadwal sesi lelang belum ditentukan oleh Admin.";
+        sessionSchedule.isOpen = false;
+        return;
+      }
+
+      const now = new Date().getTime();
+      const startTime = new Date(sessionSchedule.startTime).getTime();
+      const endTime = startTime + (24 * 60 * 60 * 1000); // Durasi 24 Jam
 
       if (now < startTime) {
-        status = 'UPCOMING';
-        diff = startTime - now;
-      } else if (now >= startTime && now <= endTime) {
-        status = 'ACTIVE';
-        diff = endTime - now;
-      } else {
-        status = 'ENDED';
-        diff = 0;
-      }
+        const diff = startTime - now;
+        const h = Math.floor(diff / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-      return { status, diff, startTime, endTime };
+        badge.innerText = "TUTUP (MENUNGGU SESI BUKA)";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 animate-pulse";
+        text.innerText = `Lelang Buka Dalam: ${h}j ${m}m ${s}d (Berselancar & Rilis Aset Diperbolehkan)`;
+        sessionSchedule.isOpen = false;
+      } else if (now >= startTime && now <= endTime) {
+        const diff = endTime - now;
+        const h = Math.floor(diff / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+        badge.innerText = "🟢 BUKA (SESI DIBUKA 24 JAM)";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+        text.innerText = `Sesi Berakhir Dalam: ${h}j ${m}m ${s}d (Penawaran Dibuka!)`;
+        sessionSchedule.isOpen = true;
+      } else {
+        badge.innerText = "TUTUP (SESI BERAKHIR)";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+        text.innerText = "Sesi lelang telah selesai. Menunggu jadwal berikutnya.";
+        sessionSchedule.isOpen = false;
+      }
     }
 
-    function updateSessionTimer() {
-      const info = getSessionInfo();
-      const countdownEl = document.getElementById('sessionCountdownDisplay');
-      const statusBanner = document.getElementById('sessionStatusBanner');
-
-      const h = Math.floor(info.diff / (1000 * 60 * 60));
-      const m = Math.floor((info.diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((info.diff % (1000 * 60)) / 1000);
-
-      const formattedTime = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-
-      if (info.status === 'UPCOMING') {
-        countdownEl.innerText = `Buka: ${formattedTime}`;
-        statusBanner.innerHTML = `⏳ <strong>SESI TUTUP:</strong> Penawaran Buka Otomatis dalam <span class="text-yellow-400 font-mono">${formattedTime}</span>. Anda tetap dapat merilis aset.`;
-      } else if (info.status === 'ACTIVE') {
-        countdownEl.innerText = `Sisa Sesi: ${formattedTime}`;
-        statusBanner.innerHTML = `🟢 <strong>SESI LELANG AKTIF!</strong> Sesi berakhir dalam <span class="text-emerald-400 font-mono">${formattedTime}</span>. Silakan kirim penawaran!`;
-      } else {
-        countdownEl.innerText = `Sesi Selesai`;
-        statusBanner.innerHTML = `🔴 <strong>SESI BERSAMA SELESAI:</strong> Menunggu pendaftaran jadwal sesi lelang berikutnya.`;
+    function saveAdminSessionSchedule() {
+      const inputVal = document.getElementById('adminSessionStartTime').value;
+      if (!inputVal) {
+        alert("Pilih tanggal dan jam terlebih dahulu!");
+        return;
       }
+      sessionSchedule.startTime = new Date(inputVal).toISOString();
+      localStorage.setItem('auction_session_start', sessionSchedule.startTime);
+      alert("✅ Jadwal Buka Sesi Lelang Berhasil Disimpan!");
+      checkSessionScheduleTimer();
     }
 
     function calculateTieredFee(price) {
@@ -781,8 +810,6 @@
         return;
       }
 
-      const sessionInfo = getSessionInfo();
-
       let html = `<div class="grid grid-cols-2 gap-3">`;
 
       auctions.forEach((item) => {
@@ -802,9 +829,6 @@
         } else if (isFinished) {
           badgeStatusText = t('finishedStatus');
           badgeColorClass = 'text-red-400';
-        } else if (sessionInfo.status === 'UPCOMING') {
-          badgeStatusText = '⏳ Pending Sesi';
-          badgeColorClass = 'text-amber-300';
         }
 
         html += `
@@ -852,6 +876,13 @@
         statusEl.innerText = `User: @${sanitizeInput(authenticatedPiUser.username)}`;
         document.getElementById('btnLoginManual').classList.add('hidden');
         document.getElementById('btnHeaderLogin').innerHTML = `✅ <span class="text-emerald-400">@${sanitizeInput(authenticatedPiUser.username)}</span>`;
+        
+        // Tampilkan kontrol admin jika login sebagai Admin
+        if (ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+          const adminPanel = document.getElementById('adminSessionControl');
+          if (adminPanel) adminPanel.classList.remove('hidden');
+        }
+
         await fetchUserBidsHistory();
       } catch (err) {
         console.warn("Auth Error:", err);
@@ -927,7 +958,7 @@
 
     function openExplorerForHash(hash) {
       if (!hash) return;
-      const explorerUrl = IS_TESTNET ? `https://minepi.com/blockexplorer/tx/${hash}` : `https://minepi.com/blockexplorer/tx/${hash}`;
+      const explorerUrl = `https://minepi.com/blockexplorer/tx/${hash}`;
       window.open(explorerUrl, '_blank');
     }
 
@@ -964,7 +995,6 @@
 
       if (!selectedAuction) return;
 
-      const sessionInfo = getSessionInfo();
       const displayTitle = sanitizeInput(selectedAuction.title) || "Aset NFT";
       const sellerName = sanitizeInput(selectedAuction.seller) || "Anonim";
       const cleanHash = sanitizeInput(selectedAuction.hash) || "-";
@@ -1044,7 +1074,6 @@
             <p class="text-xs text-gray-400">${t('sellerLabel')}: <span class="text-yellow-400 font-semibold">@${sellerName}</span></p>
           </div>
 
-          <!-- Hash Transaksi & Tombol Verifikasi -->
           <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800/80 space-y-1.5">
             <div class="flex justify-between items-center">
               <p class="text-[10px] text-gray-400">Hash Transaksi PiBox:</p>
@@ -1090,11 +1119,6 @@
             <div class="bg-red-500/10 border border-red-500/30 p-2.5 rounded-xl text-center text-xs text-red-400 font-semibold">
               🔒 Lelang Ini Telah Berakhir.
             </div>
-          ` : sessionInfo.status === 'UPCOMING' ? `
-            <div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center space-y-1">
-              <p class="text-xs font-bold text-amber-300">⏳ Sesi Penawaran Belum Dibuka</p>
-              <p class="text-[10px] text-gray-400">Sesi penawaran akan dibuka secara otomatis sesuai hitung mundur di atas.</p>
-            </div>
           ` : isOwner || isAdminUser ? `
             <div class="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
               <p class="text-[10px] text-gray-400 leading-tight">
@@ -1110,25 +1134,31 @@
             </div>
           ` : `
             <div class="pt-2 space-y-2 border-t border-gray-800">
-              <div class="flex justify-between items-center">
-                <label class="block text-xs font-semibold text-gray-300">Ajukan Penawaran (&gt; ${currentHighest} Pi)</label>
-                <span class="text-[10px] font-bold ${hasPaidFee ? 'text-green-400' : 'text-yellow-400'}">
-                  ${hasPaidFee ? '🆓 Bebas Biaya Penawaran Ulang' : `🏷️ Biaya Tawaran Pertama: ${requiredBidFee} Pi`}
-                </span>
-              </div>
-              
-              <div class="flex gap-1.5">
-                <button type="button" onclick="setQuickBid(5)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+5 Pi</button>
-                <button type="button" onclick="setQuickBid(10)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+10 Pi</button>
-                <button type="button" onclick="setQuickBid(50)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+50 Pi</button>
-              </div>
+              ${!sessionSchedule.isOpen ? `
+                <div class="bg-yellow-500/10 border border-yellow-500/30 p-2.5 rounded-xl text-center text-xs text-yellow-400 font-medium">
+                  🔒 Sesi Lelang Saat Ini Masih TUTUP. Penawaran dibuka saat Sesi Buka dimulai.
+                </div>
+              ` : `
+                <div class="flex justify-between items-center">
+                  <label class="block text-xs font-semibold text-gray-300">Ajukan Penawaran (&gt; ${currentHighest} Pi)</label>
+                  <span class="text-[10px] font-bold ${hasPaidFee ? 'text-green-400' : 'text-yellow-400'}">
+                    ${hasPaidFee ? '🆓 Bebas Biaya Penawaran Ulang' : `🏷️ Biaya Tawaran Pertama: ${requiredBidFee} Pi`}
+                  </span>
+                </div>
+                
+                <div class="flex gap-1.5">
+                  <button type="button" onclick="setQuickBid(5)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+5 Pi</button>
+                  <button type="button" onclick="setQuickBid(10)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+10 Pi</button>
+                  <button type="button" onclick="setQuickBid(50)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition">+50 Pi</button>
+                </div>
 
-              <div class="flex gap-2">
-                <input type="number" step="0.01" min="${minNextBid}" value="${minNextBid}" id="bidAmountInput" placeholder="${t('bidPlaceholder')}" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
-                <button id="btnSubmitBid" onclick="submitBid('${selectedAuction.id}',${hasPaidFee})" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap">
-                  ${t('placeBidBtn')}
-                </button>
-              </div>
+                <div class="flex gap-2">
+                  <input type="number" step="0.01" min="${minNextBid}" value="${minNextBid}" id="bidAmountInput" placeholder="${t('bidPlaceholder')}" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+                  <button id="btnSubmitBid" onclick="submitBid('${selectedAuction.id}',${hasPaidFee})" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap">
+                    ${t('placeBidBtn')}
+                  </button>
+                </div>
+              `}
             </div>
           `}
         </div>`;
@@ -1178,15 +1208,14 @@
     }
 
     async function submitBid(auctionId, hasPaidFee) {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
+      if (!sessionSchedule.isOpen) {
+        alert("🔒 Sesi Lelang saat ini masih TUTUP. Penawaran dibuka sesuai jadwal yang ditentukan.");
         return;
       }
 
-      const sessionInfo = getSessionInfo();
-      if (sessionInfo.status === 'UPCOMING') {
-        alert("⏳ Sesi lelang belum dibuka! Anda baru dapat mengirim penawaran setelah waktu hitung mundur selesai.");
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
         return;
       }
 
