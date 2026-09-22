@@ -54,7 +54,6 @@
       </div>
       
       <div class="flex items-center gap-1.5 sm:gap-2">
-        <!-- Language Selector Dropdown -->
         <select id="langSelector" onchange="changeLanguage(this.value)" class="bg-gray-900 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold py-1 px-1.5 rounded-lg focus:outline-none cursor-pointer">
           <option value="id">🇮🇩 ID</option>
           <option value="en">🇺🇸 EN</option>
@@ -72,7 +71,7 @@
       </div>
     </div>
 
-    <!-- Banner Sesi Lelang Terjadwal & Timer Hitung Mundur -->
+    <!-- Banner Sesi Lelang Terjadwal -->
     <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2.5 text-center space-y-1">
       <div class="flex justify-between items-center px-1">
         <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1">
@@ -86,7 +85,6 @@
         Menunggu Jadwal Sesi...
       </p>
       
-      <!-- Panel Pengaturan Sesi Khusus Admin -->
       <div id="adminSessionControl" class="hidden border-t border-purple-500/30 pt-2 mt-2 space-y-1.5">
         <p class="text-[9px] font-bold text-yellow-400">⚙️ CONTROL PANEL ADMIN: ATUR JADWAL LELANG (WIB)</p>
         <div class="flex gap-1.5 justify-center items-center">
@@ -227,13 +225,12 @@
   </div>
 
   <script>
-    // Config Mode Jaringan (Ubah IS_TESTNET = false jika sudah beralih ke Pi Mainnet Asli)
     const IS_TESTNET = true; 
 
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
 
-    const ADMIN_USERNAMES = ["MohamadSyaifulRohim", "admin", "developer", "Ful21"];
+    const ADMIN_USERNAMES = ["Ful21", "admin", "developer", "Ful21"];
 
     let supabaseClient = null;
     let Pi = window.Pi || null;
@@ -245,7 +242,6 @@
     let activeImageTab = 'upload';
     let currentLang = localStorage.getItem('appLang') || 'id';
 
-    // Manajemen Jadwal Sesi Lelang Terjadwal
     let sessionSchedule = {
       startTime: localStorage.getItem('auction_session_start') || null,
       isOpen: true
@@ -510,7 +506,6 @@
       }
     }
 
-    // Manajemen Penghitung Mundur Sesi Terjadwal
     function checkSessionScheduleTimer() {
       const badge = document.getElementById('sessionStateBadge');
       const text = document.getElementById('sessionCountdownText');
@@ -526,7 +521,7 @@
 
       const now = new Date().getTime();
       const startTime = new Date(sessionSchedule.startTime).getTime();
-      const endTime = startTime + (24 * 60 * 60 * 1000); // Durasi 24 Jam
+      const endTime = startTime + (24 * 60 * 60 * 1000);
 
       if (now < startTime) {
         const diff = startTime - now;
@@ -568,7 +563,6 @@
       checkSessionScheduleTimer();
     }
 
-    // Menggunakan Biaya Pembayaran Flat 0.2 Pi
     function getFlatFee() {
       return 0.2;
     }
@@ -788,7 +782,6 @@
       renderGalleryUI(filteredAuctionsList);
     }
 
-    // Mesin Analisis Nilai Lelang
     function calculateSmartInsight(item, bidLogsCount) {
       const baseVal = item.reserve_price || 0;
       const currentHighest = item.highest_bid || baseVal;
@@ -885,7 +878,6 @@
         document.getElementById('btnLoginManual').classList.add('hidden');
         document.getElementById('btnHeaderLogin').innerHTML = `✅ <span class="text-emerald-400">@${sanitizeInput(authenticatedPiUser.username)}</span>`;
         
-        // Tampilkan kontrol admin jika login sebagai Admin
         if (ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
           const adminPanel = document.getElementById('adminSessionControl');
           if (adminPanel) adminPanel.classList.remove('hidden');
@@ -988,6 +980,27 @@
       bidInput.value = (currentVal + increment).toFixed(2);
     }
 
+    // FUNGSI HAPUS ASET KHUSUS ADMIN
+    async function deleteAuction(auctionId) {
+      if (!confirm("⚠️ PERINGATAN ADMIN:\nApakah Anda yakin ingin menghapus aset ini secara PERMANEN dari database?")) return;
+
+      try {
+        const { error } = await supabaseClient
+          .from('auctions')
+          .delete()
+          .eq('id', auctionId);
+
+        if (error) throw error;
+
+        alert("🗑️ Aset lelang berhasil dihapus dari database!");
+        closeDetailModal();
+        fetchActiveAuctions();
+      } catch (err) {
+        console.error("Gagal menghapus aset:", err);
+        alert("Gagal menghapus aset: " + err.message);
+      }
+    }
+
     async function openDetailModal(id) {
       const { data: latestAuction, error } = await supabaseClient
         .from('auctions')
@@ -1045,7 +1058,7 @@
         if (data) hasPaidFee = true;
       }
 
-      const requiredBidFee = getFlatFee(); // Flat 0.2 Pi
+      const requiredBidFee = getFlatFee();
       const smartBadgeHtml = calculateSmartInsight(selectedAuction, bidLogs ? bidLogs.length : 0);
 
       let bidHistoryHtml = `<p class="text-[10px] text-gray-500 italic text-center py-2">Belum ada riwayat penawaran.</p>`;
@@ -1173,18 +1186,24 @@
                   </button>
                 </div>
               `}
-
-              ${isAdminUser ? `
-                <div class="pt-2 border-t border-gray-800/80">
-                  <button 
-                    onclick="cancelAuction('${selectedAuction.id}')"
-                    class="w-full text-[10px] font-bold py-1.5 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-500/30 transition cursor-pointer">
-                    🛡️ Admin: Batalkan Lelang Ini
-                  </button>
-                </div>
-              ` : ''}
             </div>
           `}
+
+          <!-- KONTROL ADMIN: TAMPILKAN TOMBOL BATALKAN & HAPUS PERMANEN -->
+          ${isAdminUser ? `
+            <div class="pt-2 border-t border-gray-800/80 flex gap-2">
+              <button 
+                onclick="cancelAuction('${selectedAuction.id}')"
+                class="flex-1 text-[10px] font-bold py-1.5 px-2 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-500/30 transition cursor-pointer">
+                🛡️ Admin: Batalkan
+              </button>
+              <button 
+                onclick="deleteAuction('${selectedAuction.id}')"
+                class="flex-1 text-[10px] font-bold py-1.5 px-2 rounded-lg bg-red-600 hover:bg-red-500 text-white transition cursor-pointer">
+                🗑️ Admin: Hapus Permanen
+              </button>
+            </div>
+          ` : ''}
         </div>`;
       
       document.getElementById('detailModal').classList.remove('hidden');
@@ -1292,7 +1311,7 @@
       } else {
         btnSubmitBid.innerText = t('contactingWallet');
 
-        const requiredBidFee = getFlatFee(); // Flat 0.2 Pi
+        const requiredBidFee = getFlatFee();
 
         const paymentData = {
           amount: requiredBidFee,
@@ -1504,7 +1523,7 @@
 
         btnPublish.innerText = t('contactingWallet');
 
-        const requiredListingFee = getFlatFee(); // Flat 0.2 Pi
+        const requiredListingFee = getFlatFee();
 
         const paymentData = {
           amount: requiredListingFee,
