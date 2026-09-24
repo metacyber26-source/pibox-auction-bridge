@@ -230,7 +230,7 @@
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
 
-    const ADMIN_USERNAMES = ["Ful21", "admin", "developer", "Ful21"];
+    const ADMIN_USERNAMES = ["Ful21", "admin", "developer"];
 
     let supabaseClient = null;
     let Pi = window.Pi || null;
@@ -980,7 +980,6 @@
       bidInput.value = (currentVal + increment).toFixed(2);
     }
 
-    // FUNGSI HAPUS ASET KHUSUS ADMIN
     async function deleteAuction(auctionId) {
       if (!confirm("⚠️ PERINGATAN ADMIN:\nApakah Anda yakin ingin menghapus aset ini secara PERMANEN dari database?")) return;
 
@@ -999,6 +998,174 @@
         console.error("Gagal menghapus aset:", err);
         alert("Gagal menghapus aset: " + err.message);
       }
+    }
+
+    /* =============================================================
+       GENERATE SERTIFIKAT DENGAN HTML5 CANVAS (PENJUAL & PEMENANG)
+       ============================================================= */
+    function generateCertificate(type, auction) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 850;
+      const ctx = canvas.getContext('2d');
+
+      // Latar Belakang Gradasi Mewah
+      const bgGradient = ctx.createLinearGradient(0, 0, 1200, 850);
+      bgGradient.addColorStop(0, '#090d16');
+      bgGradient.addColorStop(0.5, '#111827');
+      bgGradient.addColorStop(1, '#05070b');
+      ctx.fillStyle = bgGradient;
+      ctx.fillRect(0, 0, 1200, 850);
+
+      // Bingkai Emas Ganda
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 12;
+      ctx.strokeRect(20, 20, 1160, 810);
+
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(32, 32, 1136, 786);
+
+      // Watermark Latar Belakang
+      ctx.save();
+      ctx.font = 'bold 90px sans-serif';
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.03)';
+      ctx.textAlign = 'center';
+      ctx.translate(600, 425);
+      ctx.rotate(-Math.PI / 12);
+      ctx.fillText('NUSANTARA NFT AUCTION ENGINE', 0, 0);
+      ctx.restore();
+
+      // Judul Sertifikat Utama
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText('NUSANTARA NFT AUCTION BRIDGE PROTOCOL', 600, 90);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'black 36px serif';
+      const certTitle = type === 'seller' 
+        ? 'SERTIFIKAT RESMI PELEPASAN HAK & KEPEMILIKAN ASET' 
+        : 'SERTIFIKAT RESMI KEMENANGAN & PEMENANG LELANG';
+      ctx.fillText(certTitle, 600, 140);
+
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(350, 160);
+      ctx.lineTo(850, 160);
+      ctx.stroke();
+
+      // ID Dokumen / Smart Contract Timestamp
+      const certId = `CERT-PIBOX-${auction.id.substring(0, 8).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px monospace';
+      ctx.fillText(`Nomor Dokumen Verifikasi: ${certId}`, 600, 185);
+
+      // Pernyataan Teks
+      ctx.fillStyle = '#e5e7eb';
+      ctx.font = '16px sans-serif';
+      const introText = type === 'seller'
+        ? 'Dokumen resmi ini menyatakan bahwa Penjual berikut telah sukses merilis dan memverifikasi pelepasan hak atas aset NFT:'
+        : 'Dokumen resmi ini mengesahkan bahwa Pemenang berikut dinyatakan sebagai Pemilik Sah hasil lelang akhir:';
+      ctx.fillText(introText, 600, 230);
+
+      // Box Utama Rincian Aset
+      ctx.fillStyle = '#1f2937';
+      ctx.beginPath();
+      ctx.roundRect(100, 260, 1000, 420, 16);
+      ctx.fill();
+      ctx.strokeStyle = '#374151';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Detail Teks Rincian
+      ctx.textAlign = 'left';
+      
+      // Nama Aset
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('NAMA / IDENTITAS ASET NFT', 140, 300);
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText(auction.title || 'Aset NFT Nusantara', 140, 335);
+
+      // Hash NFT
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('HASH MINTING / TRANSAKSI PIBOX', 140, 380);
+      ctx.fillStyle = '#10b981';
+      ctx.font = '14px monospace';
+      ctx.fillText(auction.hash || '-', 140, 405);
+
+      // Penjual & Pemenang
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('PENJUAL ASET (SELLER):', 140, 455);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText(`@${auction.seller}`, 140, 485);
+
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('PEMENANG LELANG (WINNER):', 600, 455);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText(`@${auction.highest_bidder || '-'}`, 600, 485);
+
+      // Harga Akhir & Waktu
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('HARGA KEMENANGAN AKHIR:', 140, 535);
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText(`${auction.highest_bid || auction.reserve_price || 0} Pi`, 140, 565);
+
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('STATUS SMART CONTRACT:', 600, 535);
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('EXECUTED & VERIFIED ON-CHAIN', 600, 565);
+
+      // Prosedur Lanjutan Wajib
+      ctx.fillStyle = '#fef08a';
+      ctx.font = 'italic 12px sans-serif';
+      ctx.fillText('⚠️ Catatan Prosedur: Penjual wajib melakukan listing di Market PiBox & Pemenang melakukan eksekusi pembayaran.', 140, 640);
+
+      // Stempel Digital / Seal
+      ctx.save();
+      ctx.translate(980, 540);
+      ctx.beginPath();
+      ctx.arc(0, 0, 60, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(217, 119, 6, 0.15)';
+      ctx.fill();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText('SYSTEM VERIFIED', 0, -15);
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('PiBox Auction', 0, 5);
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText('OFFICIAL SEAL', 0, 25);
+      ctx.restore();
+
+      // Footer Informasi Dokumen
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('Dokumen elektronik ini diterbitkan secara otomatis oleh sistem Nusantara NFT Auction Engine yang terintegrasi dengan PiBox Protocol.', 600, 720);
+      ctx.fillText('Hak Cipta © 2026 Nusantara NFT Auction Engine. Transaksi Terverifikasi.', 600, 745);
+
+      // Trigger Download
+      const link = document.createElement('a');
+      link.download = `Sertifikat_${type.toUpperCase()}_${auction.title.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
     }
 
     async function openDetailModal(id) {
@@ -1033,18 +1200,22 @@
       let currentHighest = reservePrice;
       let highestBidderText = t('noBidsYet');
       let hasBids = false;
+      let rawWinnerUsername = "";
 
       if (bidLogs && bidLogs.length > 0) {
         hasBids = true;
         currentHighest = bidLogs[0].amount;
+        rawWinnerUsername = bidLogs[0].bidder;
         highestBidderText = `@${sanitizeInput(bidLogs[0].bidder)}`;
       } else if (selectedAuction.highest_bidder && selectedAuction.highest_bidder !== '-' && selectedAuction.highest_bidder !== '') {
         hasBids = true;
         currentHighest = selectedAuction.highest_bid || reservePrice;
+        rawWinnerUsername = selectedAuction.highest_bidder;
         highestBidderText = `@${sanitizeInput(selectedAuction.highest_bidder)}`;
       }
 
       const isOwner = authenticatedPiUser && (authenticatedPiUser.username === selectedAuction.seller);
+      const isWinner = authenticatedPiUser && (authenticatedPiUser.username === rawWinnerUsername);
       const isAdminUser = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
 
       let hasPaidFee = false;
@@ -1075,8 +1246,29 @@
       }
 
       const minNextBid = hasBids ? (currentHighest + 0.1).toFixed(2) : reservePrice;
-
       const canCancelAuction = (isOwner || isAdminUser) && (!hasBids || isAdminUser) && !isCancelled && !isFinished;
+
+      // TOMBOL DOWNLOAD SERTIFIKAT KHUSUS PENJUAL DAN PEMENANG (HANYA AKTIF JIKA LELANG SELESAI)
+      let certificateButtonHtml = '';
+      if (isFinished && !isCancelled) {
+        if (isOwner) {
+          certificateButtonHtml = `
+            <div class="bg-gradient-to-r from-yellow-950/60 via-amber-950/40 to-gray-900 p-3 rounded-xl border border-yellow-500/40 space-y-2 text-center">
+              <p class="text-[10px] text-yellow-300 font-medium">🎖️ Lelang Selesai! Sertifikat Kepemilikan & Pelepasan Aset Penjual Siap Diterbitkan.</p>
+              <button onclick='generateCertificate("seller", ${JSON.stringify(selectedAuction).replace(/'/g, "&apos;")})' class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
+                📜 Download Sertifikat Penjual (.PNG)
+              </button>
+            </div>`;
+        } else if (isWinner) {
+          certificateButtonHtml = `
+            <div class="bg-gradient-to-r from-emerald-950/60 via-teal-950/40 to-gray-900 p-3 rounded-xl border border-emerald-500/40 space-y-2 text-center">
+              <p class="text-[10px] text-emerald-300 font-medium">🎉 Selamat! Anda Pemenang Lelang Ini. Download Sertifikat Resmi Kemenangan Anda.</p>
+              <button onclick='generateCertificate("winner", ${JSON.stringify(selectedAuction).replace(/'/g, "&apos;")})' class="w-full bg-emerald-500 hover:bg-emerald-400 text-gray-950 text-xs font-bold py-2 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
+                🏆 Download Sertifikat Pemenang (.PNG)
+              </button>
+            </div>`;
+        }
+      }
 
       const modalContent = document.getElementById('modalDetailContent');
       modalContent.innerHTML = `
@@ -1130,6 +1322,9 @@
               <p class="text-[10px] font-semibold ${hasBids ? 'text-emerald-400' : 'text-gray-500'} truncate">${highestBidderText}</p>
             </div>
           </div>
+
+          <!-- DUA CONTAINER SERTIFIKAT KHUSUS -->
+          ${certificateButtonHtml}
 
           <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1.5">
             <p class="text-[10px] font-bold text-gray-300 uppercase tracking-wider">📜 Riwayat Penawaran Terakhir</p>
@@ -1189,7 +1384,7 @@
             </div>
           `}
 
-          <!-- KONTROL ADMIN: TAMPILKAN TOMBOL BATALKAN & HAPUS PERMANEN -->
+          <!-- KONTROL ADMIN -->
           ${isAdminUser ? `
             <div class="pt-2 border-t border-gray-800/80 flex gap-2">
               <button 
