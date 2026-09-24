@@ -163,7 +163,7 @@
     </div>
   </div>
 
-  <!-- MODAL: PRATINJAU & UNDUH SERTIFIKAT (PI BROWSER & GALERI HP COMPATIBLE) -->
+  <!-- MODAL: PRATINJAU & UNDUH SERTIFIKAT -->
   <div id="certPreviewModal" class="fixed inset-0 bg-black/90 backdrop-blur-md hidden flex items-center justify-center p-3 z-50">
     <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl text-center max-h-[90vh] overflow-y-auto custom-scrollbar">
       <div class="flex justify-between items-center border-b border-gray-800 pb-2">
@@ -603,6 +603,26 @@
       if (feeDisplayEl) feeDisplayEl.innerText = `(${fee} Pi)`;
     }
 
+    function switchImageTab(tab) {
+      activeImageTab = tab;
+      const uploadBtn = document.getElementById('tabUploadBtn');
+      const urlBtn = document.getElementById('tabUrlBtn');
+      const uploadSec = document.getElementById('uploadSection');
+      const urlSec = document.getElementById('urlSection');
+
+      if (tab === 'upload') {
+        uploadBtn.className = "px-2 py-0.5 rounded bg-yellow-500 text-gray-950 font-bold transition cursor-pointer";
+        urlBtn.className = "px-2 py-0.5 rounded text-gray-400 hover:text-white transition cursor-pointer";
+        uploadSec.classList.remove('hidden');
+        urlSec.classList.add('hidden');
+      } else {
+        urlBtn.className = "px-2 py-0.5 rounded bg-yellow-500 text-gray-950 font-bold transition cursor-pointer";
+        uploadBtn.className = "px-2 py-0.5 rounded text-gray-400 hover:text-white transition cursor-pointer";
+        urlSec.classList.remove('hidden');
+        uploadSec.classList.add('hidden');
+      }
+    }
+
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       supabaseClient
@@ -642,6 +662,35 @@
 
     function t(key) {
       return (translations[currentLang] && translations[currentLang][key]) ? translations[currentLang][key] : translations.id[key];
+    }
+
+    function updateTimers() {
+      const timerEls = document.querySelectorAll('.timer-element');
+      const now = new Date().getTime();
+
+      timerEls.forEach(el => {
+        const isCancelled = el.getAttribute('data-cancelled') === 'true';
+        if (isCancelled) {
+          el.innerText = t('cancelledStatus');
+          return;
+        }
+
+        const endsStr = el.getAttribute('data-ends');
+        if (!endsStr) return;
+
+        const endsAt = new Date(endsStr).getTime();
+        const diff = endsAt - now;
+
+        if (diff <= 0) {
+          el.innerText = t('finishedStatus');
+          el.classList.add('text-red-400');
+        } else {
+          const h = Math.floor(diff / (1000 * 60 * 60));
+          const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const s = Math.floor((diff % (1000 * 60)) / 1000);
+          el.innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+      });
     }
 
     async function processAuctionExtensions(auctions) {
@@ -974,6 +1023,11 @@
       document.getElementById('createModal').classList.add('hidden');
     }
 
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+      selectedAuction = null;
+    }
+
     function closeCertModal() {
       document.getElementById('certPreviewModal').classList.add('hidden');
     }
@@ -1009,6 +1063,280 @@
       if (!bidInput) return;
       const currentVal = parseFloat(bidInput.value) || parseFloat(bidInput.min) || 0;
       bidInput.value = (currentVal + increment).toFixed(2);
+    }
+
+    async function submitNewListing() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        return;
+      }
+
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const hash = document.getElementById('assetHashInput').value.trim();
+      const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
+
+      if (!title || !hash || isNaN(reservePrice) || reservePrice <= 0) {
+        alert(t('fillAllAlert'));
+        return;
+      }
+
+      let imageUrl = '';
+
+      if (activeImageTab === 'upload') {
+        const fileInput = document.getElementById('imageFileInput');
+        if (!fileInput.files || fileInput.files.length === 0) {
+          alert(t('selectImageAlert'));
+          return;
+        }
+
+        const file = fileInput.files[0];
+        const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+
+        try {
+          const { data, error } = await supabaseClient.storage
+            .from('nft_gallery')
+            .upload(fileName, file);
+
+          if (error) throw error;
+
+          const { data: publicUrlData } = supabaseClient.storage
+            .from('nft_gallery')
+            .getPublicUrl(fileName);
+
+          imageUrl = publicUrlData.publicUrl;
+        } catch (err) {
+          console.error("Upload error:", err);
+          alert("Gagal mengunggah gambar. Pastikan bucket storage Supabase sudah dikonfigurasi.");
+          return;
+        }
+      } else {
+        imageUrl = document.getElementById('imageUrlInput').value.trim();
+        if (!imageUrl) {
+          alert(t('enterUrlAlert'));
+          return;
+        }
+      }
+
+      const listingFee = getFlatFee();
+
+      if (!window.Pi) {
+        alert("SDK Pi Network tidak terdeteksi. Mencoba menyimpan dalam mode pengujian...");
+        await saveListingToDatabase(title, hash, imageUrl, reservePrice, authenticatedPiUser.username);
+        return;
+      }
+
+      try {
+        await window.Pi.createPayment({
+          amount: listingFee,
+          memo: `Listing Fee NFT: ${title}`,
+          metadata: {
+            type: 'listing',
+            title,
+            hash,
+            imageUrl,
+            price: reservePrice,
+            seller: authenticatedPiUser.username
+          }
+        }, {
+          onReadyForServerApproval: async (paymentId) => {
+            await fetch('/api/pi/approve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentId })
+            });
+          },
+          onReadyForServerCompletion: async (paymentId, txid) => {
+            await fetch('/api/pi/complete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentId, txid })
+            });
+            await saveListingToDatabase(title, hash, imageUrl, reservePrice, authenticatedPiUser.username);
+          },
+          onCancel: (paymentId) => {
+            alert(t('payCancelled'));
+          },
+          onError: (error, payment) => {
+            console.error("Payment Error:", error);
+            alert("Terjadi kesalahan pada pembayaran Pi.");
+          }
+        });
+      } catch (e) {
+        console.error("Payment Exception:", e);
+        alert("Gagal memproses pembayaran Pi.");
+      }
+    }
+
+    async function saveListingToDatabase(title, hash, imageUrl, reservePrice, seller) {
+      const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      try {
+        const { error } = await supabaseClient
+          .from('auctions')
+          .insert([{
+            title,
+            hash,
+            image_url: imageUrl,
+            reserve_price: reservePrice,
+            highest_bid: reservePrice,
+            highest_bidder: '-',
+            seller,
+            status: 'active',
+            ends_at: endsAt
+          }]);
+
+        if (error) throw error;
+
+        alert(t('successRelease'));
+        closeCreateModal();
+        fetchActiveAuctions();
+      } catch (err) {
+        console.error("Save Error:", err);
+        alert("Gagal menyimpan lelang ke database.");
+      }
+    }
+
+    async function placeBid(auctionId) {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      if (!sessionSchedule.isOpen) {
+        alert("🚫 Sesi lelang saat ini sedang TUTUP. Silakan tunggu jadwal sesi berikutnya!");
+        return;
+      }
+
+      const bidAmountInput = document.getElementById('bidAmountInput');
+      const bidAmount = parseFloat(bidAmountInput.value);
+
+      if (!selectedAuction || isNaN(bidAmount)) {
+        alert("Masukkan nominal penawaran yang valid.");
+        return;
+      }
+
+      if (authenticatedPiUser.username === selectedAuction.seller) {
+        alert(t('sellerCannotBidAlert'));
+        return;
+      }
+
+      const currentHighest = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
+      const hasBids = selectedAuction.highest_bidder && selectedAuction.highest_bidder !== '-' && selectedAuction.highest_bidder !== '';
+
+      if (hasBids && bidAmount <= currentHighest) {
+        alert(t('bidMustBeHigher'));
+        return;
+      } else if (!hasBids && bidAmount < currentHighest) {
+        alert("Penawaran pertama minimal harus sama dengan harga awal!");
+        return;
+      }
+
+      if (!window.Pi) {
+        await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
+        return;
+      }
+
+      try {
+        await window.Pi.createPayment({
+          amount: bidAmount,
+          memo: `Bid NFT (${selectedAuction.title}): ${bidAmount} Pi`,
+          metadata: {
+            type: 'bid',
+            auctionId,
+            bidAmount,
+            username: authenticatedPiUser.username
+          }
+        }, {
+          onReadyForServerApproval: async (paymentId) => {
+            await fetch('/api/pi/approve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentId })
+            });
+          },
+          onReadyForServerCompletion: async (paymentId, txid) => {
+            await fetch('/api/pi/complete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentId, txid })
+            });
+            await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
+          },
+          onCancel: (paymentId) => {
+            alert(t('payCancelled'));
+          },
+          onError: (error, payment) => {
+            console.error("Bid Payment Error:", error);
+            alert("Terjadi kesalahan pembayaran transaksi tawaran.");
+          }
+        });
+      } catch (e) {
+        console.error("Bid Exception:", e);
+        alert("Gagal mengeksekusi penawaran.");
+      }
+    }
+
+    async function recordBidToDatabase(auctionId, bidAmount, username) {
+      try {
+        const { error: bidErr } = await supabaseClient
+          .from('bids')
+          .insert([{
+            auction_id: auctionId,
+            bidder: username,
+            amount: bidAmount
+          }]);
+
+        if (bidErr) throw bidErr;
+
+        // Dynamic Extension System
+        let newEndsAt = selectedAuction.ends_at;
+        const now = new Date();
+        const endsAtDate = new Date(selectedAuction.ends_at);
+        const timeDiffMinutes = (endsAtDate - now) / (1000 * 60);
+
+        if (timeDiffMinutes <= 5 && timeDiffMinutes > 0) {
+          newEndsAt = new Date(now.getTime() + 2 * 60 * 1000).toISOString();
+        }
+
+        const { error: aucErr } = await supabaseClient
+          .from('auctions')
+          .update({
+            highest_bid: bidAmount,
+            highest_bidder: username,
+            ends_at: newEndsAt
+          })
+          .eq('id', auctionId);
+
+        if (aucErr) throw aucErr;
+
+        alert(t('bidSuccessMsg'));
+        openDetailModal(auctionId);
+        fetchActiveAuctions();
+      } catch (err) {
+        console.error("Record Bid Error:", err);
+        alert("Gagal mencatat penawaran ke database.");
+      }
+    }
+
+    async function cancelAuction(auctionId) {
+      if (!confirm(t('cancelConfirmMsg'))) return;
+
+      try {
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ status: 'cancelled' })
+          .eq('id', auctionId);
+
+        if (error) throw error;
+
+        alert("🚫 Lelang telah berhasil dibatalkan.");
+        openDetailModal(auctionId);
+        fetchActiveAuctions();
+      } catch (err) {
+        console.error("Gagal membatalkan lelang:", err);
+        alert("Gagal membatalkan lelang: " + err.message);
+      }
     }
 
     async function deleteAuction(auctionId) {
@@ -1139,7 +1467,7 @@
 
       ctx.fillStyle = '#334155';
       ctx.font = '18px sans-serif';
-      const dateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'Long', year: 'numeric' }) + ' - ' + new Date().toLocaleTimeString('id-ID') + ' WIB';
+      const dateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + ' - ' + new Date().toLocaleTimeString('id-ID') + ' WIB';
       ctx.fillText(dateStr, 400, 660);
 
       // 7. Kategori II: Identitas Penjual & Pembeli
@@ -1344,18 +1672,6 @@
       const isWinner = authenticatedPiUser && (authenticatedPiUser.username === rawWinnerUsername);
       const isAdminUser = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
 
-      let hasPaidFee = false;
-      if (authenticatedPiUser) {
-        const { data } = await supabaseClient
-          .from('user_bid_fees')
-          .select('id')
-          .eq('auction_id', id)
-          .eq('username', authenticatedPiUser.username)
-          .maybeSingle();
-        if (data) hasPaidFee = true;
-      }
-
-      const requiredBidFee = getFlatFee();
       const smartBadgeHtml = calculateSmartInsight(selectedAuction, bidLogs ? bidLogs.length : 0);
 
       let bidHistoryHtml = `<p class="text-[10px] text-gray-500 italic text-center py-2">Belum ada riwayat penawaran.</p>`;
@@ -1469,481 +1785,47 @@
             </div>
           ` : isOwner ? `
             <div class="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
-              <p class="text-[10px] text-gray-400 leading-tight">
+              <div class="text-[10px] text-gray-400 italic text-center">
                 ${hasBids ? t('cancelNoticeHasBid') : t('cancelNoticeNoBid')}
-              </p>
-              <button 
-                id="btnCancelAuction"
-                onclick="cancelAuction('${selectedAuction.id}')"
-                ${canCancelAuction ? '' : 'disabled'}
-                class="w-full text-xs font-bold py-2 px-3 rounded-xl transition ${canCancelAuction ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/40 cursor-pointer' : 'bg-gray-800 text-gray-600 border border-gray-700 cursor-not-allowed'}">
-                ${t('cancelAuctionBtn')}
-              </button>
+              </div>
+              ${canCancelAuction ? `
+                <button onclick="cancelAuction('${selectedAuction.id}')" class="w-full bg-red-950/80 hover:bg-red-900 text-red-300 font-bold text-xs py-2 rounded-xl transition border border-red-500/40 cursor-pointer">
+                  ${t('cancelAuctionBtn')}
+                </button>
+              ` : ''}
             </div>
           ` : `
-            <div class="pt-2 space-y-2 border-t border-gray-800">
-              ${!sessionSchedule.isOpen ? `
-                <div class="bg-yellow-500/10 border border-yellow-500/30 p-2.5 rounded-xl text-center text-xs text-yellow-400 font-medium">
-                  🔒 Sesi Lelang Saat Ini Masih TUTUP. Penawaran dibuka saat Sesi Buka dimulai.
-                </div>
-              ` : `
-                <div class="flex justify-between items-center">
-                  <label class="block text-xs font-semibold text-gray-300">Ajukan Penawaran (&gt; ${currentHighest} Pi)</label>
-                  <span class="text-[10px] font-bold ${hasPaidFee ? 'text-green-400' : 'text-yellow-400'}">
-                    ${hasPaidFee ? '🆓 Bebas Biaya Penawaran Ulang' : `🏷️ Biaya Tawaran Pertama: ${requiredBidFee} Pi`}
-                  </span>
-                </div>
-                
-                <div class="flex gap-1.5">
-                  <button type="button" onclick="setQuickBid(5)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition cursor-pointer">+5 Pi</button>
-                  <button type="button" onclick="setQuickBid(10)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition cursor-pointer">+10 Pi</button>
-                  <button type="button" onclick="setQuickBid(50)" class="flex-1 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-[10px] text-yellow-400 py-1 rounded-lg transition cursor-pointer">+50 Pi</button>
-                </div>
-
-                <div class="flex gap-2">
-                  <input type="number" step="0.01" min="${minNextBid}" value="${minNextBid}" id="bidAmountInput" placeholder="${t('bidPlaceholder')}" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
-                  <button id="btnSubmitBid" onclick="submitBid('${selectedAuction.id}',${hasPaidFee})" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap">
-                    ${t('placeBidBtn')}
-                  </button>
-                </div>
-              `}
+            <div class="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2.5">
+              <div class="flex justify-between items-center text-[10px] text-gray-300">
+                <span>Minimal Tawaran Berikutnya:</span>
+                <span class="font-bold text-yellow-400">${minNextBid} Pi</span>
+              </div>
+              <div class="flex gap-1.5">
+                <input type="number" step="0.01" id="bidAmountInput" min="${minNextBid}" value="${minNextBid}" class="flex-1 bg-gray-950 border border-gray-800 rounded-xl px-2.5 py-2 text-xs font-bold text-yellow-400 focus:outline-none focus:border-yellow-500 transition" placeholder="${t('bidPlaceholder')}">
+                <button onclick="placeBid('${selectedAuction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer">
+                  ${t('placeBidBtn')}
+                </button>
+              </div>
+              <div class="flex justify-end gap-1.5 pt-1">
+                <button onclick="setQuickBid(1)" class="bg-gray-950 hover:bg-gray-800 text-yellow-400 text-[9px] font-bold px-2 py-1 rounded-lg border border-gray-800 transition">+1 Pi</button>
+                <button onclick="setQuickBid(5)" class="bg-gray-950 hover:bg-gray-800 text-yellow-400 text-[9px] font-bold px-2 py-1 rounded-lg border border-gray-800 transition">+5 Pi</button>
+                <button onclick="setQuickBid(10)" class="bg-gray-950 hover:bg-gray-800 text-yellow-400 text-[9px] font-bold px-2 py-1 rounded-lg border border-gray-800 transition">+10 Pi</button>
+              </div>
             </div>
           `}
 
-          <!-- KONTROL ADMIN -->
           ${isAdminUser ? `
-            <div class="pt-2 border-t border-gray-800/80 flex gap-2">
-              <button 
-                onclick="cancelAuction('${selectedAuction.id}')"
-                class="flex-1 text-[10px] font-bold py-1.5 px-2 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-500/30 transition cursor-pointer">
-                🛡️ Admin: Batalkan
-              </button>
-              <button 
-                onclick="deleteAuction('${selectedAuction.id}')"
-                class="flex-1 text-[10px] font-bold py-1.5 px-2 rounded-lg bg-red-600 hover:bg-red-500 text-white transition cursor-pointer">
-                🗑️ Admin: Hapus Permanen
+            <div class="pt-2 border-t border-gray-800">
+              <button onclick="deleteAuction('${selectedAuction.id}')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs py-2 rounded-xl transition cursor-pointer">
+                🗑️ Admin Force Delete (Hapus Permanen)
               </button>
             </div>
           ` : ''}
-        </div>`;
-      
+
+        </div>
+      `;
+
       document.getElementById('detailModal').classList.remove('hidden');
-    }
-
-    function closeDetailModal() {
-      document.getElementById('detailModal').classList.add('hidden');
-    }
-
-    async function cancelAuction(auctionId) {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        return;
-      }
-
-      const confirmCancel = confirm(t('cancelConfirmMsg'));
-      if (!confirmCancel) return;
-
-      try {
-        const { error } = await supabaseClient
-          .from('auctions')
-          .update({ status: 'cancelled' })
-          .eq('id', auctionId);
-
-        if (error) throw error;
-
-        if (selectedAuction && selectedAuction.id === auctionId) {
-          selectedAuction.status = 'cancelled';
-        }
-        
-        const itemInList = activeAuctionsList.find(a => a.id === auctionId);
-        if (itemInList) {
-          itemInList.status = 'cancelled';
-        }
-
-        alert("🚫 Lelang berhasil dibatalkan.");
-        
-        await fetchActiveAuctions();
-        openDetailModal(auctionId);
-
-      } catch (err) {
-        console.error("Gagal membatalkan lelang:", err);
-        alert("Gagal membatalkan lelang: " + err.message);
-      }
-    }
-
-    async function submitBid(auctionId, hasPaidFee) {
-      if (!sessionSchedule.isOpen) {
-        alert("🔒 Sesi Lelang saat ini masih TUTUP. Penawaran dibuka sesuai jadwal yang ditentukan.");
-        return;
-      }
-
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      if (selectedAuction && selectedAuction.seller === authenticatedPiUser.username) {
-        alert(t('sellerCannotBidAlert'));
-        return;
-      }
-
-      const bidInput = document.getElementById('bidAmountInput');
-      const bidAmount = parseFloat(bidInput.value);
-
-      const { data: latestData } = await supabaseClient
-        .from('auctions')
-        .select('highest_bid, reserve_price, highest_bidder, status')
-        .eq('id', auctionId)
-        .single();
-
-      if (latestData && latestData.status === 'cancelled') {
-        alert("🚫 Lelang ini sudah dibatalkan dan tidak bisa ditawar lagi.");
-        closeDetailModal();
-        fetchActiveAuctions();
-        return;
-      }
-
-      const { data: bidLogs } = await supabaseClient
-        .from('bids')
-        .select('amount')
-        .eq('auction_id', auctionId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      let currentHighest = latestData?.reserve_price || 0;
-      if (bidLogs && bidLogs.length > 0) {
-        currentHighest = bidLogs[0].amount;
-      } else if (latestData && latestData.highest_bidder && latestData.highest_bidder !== '-' && latestData.highest_bidder !== '') {
-        currentHighest = latestData.highest_bid;
-      }
-
-      if (isNaN(bidAmount) || bidAmount <= currentHighest) {
-        alert(`${t('bidMustBeHigher')} (Minimum: > ${currentHighest} Pi)`);
-        return;
-      }
-
-      const btnSubmitBid = document.getElementById('btnSubmitBid');
-      btnSubmitBid.disabled = true;
-
-      if (hasPaidFee) {
-        btnSubmitBid.innerText = "Memproses...";
-        await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
-      } else {
-        btnSubmitBid.innerText = t('contactingWallet');
-
-        const requiredBidFee = getFlatFee();
-
-        const paymentData = {
-          amount: requiredBidFee,
-          memo: `Biaya Penawaran Pertama Aset: ${selectedAuction.title}`,
-          metadata: { 
-            type: 'bid',
-            auctionId: auctionId, 
-            bidAmount: bidAmount, 
-            username: authenticatedPiUser.username 
-          }
-        };
-
-        const callbacks = {
-          onReadyForServerApproval: async function(paymentId) {
-            btnSubmitBid.innerText = t('approvingPay');
-            try {
-              await fetch('/api/pi/approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paymentId })
-              });
-            } catch (err) {
-              console.warn("Approval warn:", err);
-            }
-          },
-
-          onReadyForServerCompletion: async function(paymentId, txid) {
-            btnSubmitBid.innerText = t('completingTx');
-            try {
-              await fetch('/api/pi/complete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paymentId, txid })
-              });
-            } catch (err) {
-              console.warn("Completion warn:", err);
-            }
-
-            await supabaseClient.from('user_bid_fees').insert([{
-              auction_id: auctionId,
-              username: authenticatedPiUser.username
-            }]);
-
-            await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
-          },
-
-          onIncompletePaymentFound: async function(payment) {
-            await handleIncompletePayment(payment);
-          },
-
-          onCancel: function(paymentId) {
-            alert(t('payCancelled'));
-            btnSubmitBid.disabled = false;
-            btnSubmitBid.innerText = t('placeBidBtn');
-          },
-
-          onError: function(error, payment) {
-            alert("Terjadi kesalahan: " + (error.message || "Gagal memproses pembayaran"));
-            btnSubmitBid.disabled = false;
-            btnSubmitBid.innerText = t('placeBidBtn');
-          }
-        };
-
-        await window.Pi.createPayment(paymentData, callbacks);
-      }
-    }
-
-    async function recordBidToDatabase(auctionId, bidAmount, username) {
-      const btnSubmitBid = document.getElementById('btnSubmitBid');
-      try {
-        const { error: updateError } = await supabaseClient
-          .from('auctions')
-          .update({
-            highest_bid: bidAmount,
-            highest_bidder: username
-          })
-          .eq('id', auctionId);
-
-        if (updateError) throw updateError;
-
-        await supabaseClient.from('bids').insert([{
-          auction_id: auctionId,
-          bidder: username,
-          amount: bidAmount
-        }]);
-
-        alert(t('bidSuccessMsg'));
-        await fetchActiveAuctions();
-        openDetailModal(auctionId);
-      } catch (err) {
-        console.error("Gagal mengirim tawaran:", err);
-        alert("Gagal memproses penawaran: " + err.message);
-      } finally {
-        if (btnSubmitBid) {
-          btnSubmitBid.disabled = false;
-          btnSubmitBid.innerText = t('placeBidBtn');
-        }
-      }
-    }
-
-    function updateTimers() {
-      document.querySelectorAll('.timer-element').forEach(el => {
-        const isCancelled = el.getAttribute('data-cancelled') === 'true';
-        if (isCancelled) {
-          el.innerText = t('cancelledStatus');
-          return;
-        }
-
-        const endsAttr = el.getAttribute('data-ends');
-        if (!endsAttr) return;
-        
-        const diff = new Date(endsAttr).getTime() - new Date().getTime();
-        if (diff <= 0) {
-          el.innerText = t('finishedStatus');
-          el.classList.add('text-red-400');
-        } else {
-          const m = Math.floor((diff % 3600000) / 60000);
-          const s = Math.floor((diff % 60000) / 1000);
-          const h = Math.floor(diff / 3600000);
-          el.innerText = h > 0 ? `${h}j ${m}m` : `${m}m ${s}d`;
-        }
-      });
-    }
-
-    function switchImageTab(tab) {
-      activeImageTab = tab;
-      const uploadBtn = document.getElementById('tabUploadBtn');
-      const urlBtn = document.getElementById('tabUrlBtn');
-
-      if (tab === 'upload') {
-        uploadBtn.className = "px-2 py-0.5 rounded bg-yellow-500 text-gray-950 font-bold transition cursor-pointer";
-        urlBtn.className = "px-2 py-0.5 rounded text-gray-400 hover:text-white transition cursor-pointer";
-        document.getElementById('uploadSection').classList.remove('hidden');
-        document.getElementById('urlSection').classList.add('hidden');
-      } else {
-        urlBtn.className = "px-2 py-0.5 rounded bg-yellow-500 text-gray-950 font-bold transition cursor-pointer";
-        uploadBtn.className = "px-2 py-0.5 rounded text-gray-400 hover:text-white transition cursor-pointer";
-        document.getElementById('urlSection').classList.remove('hidden');
-        document.getElementById('uploadSection').classList.add('hidden');
-      }
-    }
-
-    async function uploadImageToSupabase(file) {
-      const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-      const { data, error } = await supabaseClient
-        .storage
-        .from('images')
-        .upload(fileName, file);
-
-      if (error) throw new Error("Upload gambar gagal: " + error.message);
-
-      const { data: publicUrlData } = supabaseClient
-        .storage
-        .from('images')
-        .getPublicUrl(fileName);
-
-      return publicUrlData.publicUrl;
-    }
-
-    async function submitNewListing() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        return;
-      }
-
-      const { data: userActiveAuctions } = await supabaseClient
-        .from('auctions')
-        .select('id')
-        .eq('seller', authenticatedPiUser.username)
-        .eq('status', 'active');
-
-      if (userActiveAuctions && userActiveAuctions.length >= 3) {
-        alert("🚫 Batas Maksimal Tercapai! Maksimal 3 aset lelang aktif per username.");
-        return;
-      }
-
-      const title = document.getElementById('assetTitleInput').value.trim();
-      const hash = document.getElementById('assetHashInput').value.trim();
-      const price = parseFloat(document.getElementById('reservePriceInput').value);
-
-      if (!title || !hash || isNaN(price) || price <= 0) {
-        alert(t('fillAllAlert'));
-        return;
-      }
-
-      const btnPublish = document.getElementById('btnPublish');
-      btnPublish.disabled = true;
-
-      let imageUrl = "";
-
-      try {
-        if (activeImageTab === 'upload') {
-          const fileInput = document.getElementById('imageFileInput');
-          if (!fileInput.files || fileInput.files.length === 0) {
-            alert(t('selectImageAlert'));
-            resetPublishButton();
-            return;
-          }
-          btnPublish.innerText = t('uploadingImg');
-          imageUrl = await uploadImageToSupabase(fileInput.files[0]);
-        } else {
-          imageUrl = document.getElementById('imageUrlInput').value.trim();
-          if (!imageUrl) {
-            alert(t('enterUrlAlert'));
-            resetPublishButton();
-            return;
-          }
-        }
-
-        btnPublish.innerText = t('contactingWallet');
-
-        const requiredListingFee = getFlatFee();
-
-        const paymentData = {
-          amount: requiredListingFee,
-          memo: `Biaya Rilis Lelang NFT: ${title}`,
-          metadata: { title, hash, price, seller: authenticatedPiUser.username, imageUrl }
-        };
-
-        const callbacks = {
-          onReadyForServerApproval: async function(paymentId) {
-            btnPublish.innerText = t('approvingPay');
-            try {
-              await fetch('/api/pi/approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paymentId })
-              });
-            } catch (err) {
-              console.warn("Approval warn:", err);
-            }
-          },
-
-          onReadyForServerCompletion: async function(paymentId, txid) {
-            btnPublish.innerText = t('completingTx');
-            try {
-              await fetch('/api/pi/complete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paymentId, txid })
-              });
-            } catch (err) {
-              console.warn("Completion warn:", err);
-            }
-
-            await saveListingToDatabase(title, hash, imageUrl, price, authenticatedPiUser.username);
-          },
-
-          onIncompletePaymentFound: async function(payment) {
-            await handleIncompletePayment(payment);
-          },
-
-          onCancel: function(paymentId) {
-            alert(t('payCancelled'));
-            resetPublishButton();
-          },
-
-          onError: function(error, payment) {
-            alert("Terjadi kesalahan: " + (error.message || "Gagal memproses pembayaran"));
-            resetPublishButton();
-          }
-        };
-
-        await window.Pi.createPayment(paymentData, callbacks);
-
-      } catch (err) {
-        alert("Proses Gagal: " + err.message);
-        resetPublishButton();
-      }
-    }
-
-    async function saveListingToDatabase(title, hash, imageUrl, price, sellerName) {
-      try {
-        const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-        const payload = {
-          title: title,
-          hash: hash,
-          image_url: imageUrl,
-          highest_bid: price,
-          reserve_price: price,
-          seller: sellerName || 'Anonim',
-          status: 'active',
-          ends_at: endsAt,
-          extension_count: 0
-        };
-
-        const { error } = await supabaseClient
-          .from('auctions')
-          .insert([payload]);
-
-        if (error) throw error;
-
-        alert(t('successRelease'));
-        closeCreateModal();
-        fetchActiveAuctions();
-      } catch (err) {
-        console.error("Gagal menyimpan data:", err);
-        alert("Gagal merilis aset ke database: " + err.message);
-      } finally {
-        resetPublishButton();
-      }
-    }
-
-    function resetPublishButton() {
-      const btnPublish = document.getElementById('btnPublish');
-      if (btnPublish) {
-        btnPublish.disabled = false;
-        const fee = getFlatFee();
-        btnPublish.innerHTML = `<span data-i18n="releaseAssetBtn">${t('releaseAssetBtn')}</span> <span class="text-[10px] opacity-80">(${fee} Pi)</span>`;
-      }
     }
   </script>
 </body>
