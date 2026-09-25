@@ -1,10 +1,10 @@
 /**
- * Modul Generator Sertifikat Elektronik GCP2E (Landscape)
- * Menggunakan file stempel terbaru dari repository GitHub
+ * Modul Generator Sertifikat Elektronik GCP2E (Landscape / Desain Gelap Elegan)
+ * Data lelang terisi secara real-time dan menggunakan stempel transparan dari GitHub
  */
 const GCP2ECertificateModule = (function() {
     
-    // Path nama file stempel dan tanda tangan terbaru di GitHub
+    // Nama file stempel dan tanda tangan terbaru sesuai dengan yang ada di GitHub
     const SEAL_SIGN_URL = "1790326586371.jpg";
 
     function sanitize(str) {
@@ -25,11 +25,12 @@ const GCP2ECertificateModule = (function() {
         ctx.fillStyle = '#0f172a';
         ctx.fillRect(0, 0, 1200, 850);
 
-        // Bingkai Emas
+        // Bingkai Emas Luar
         ctx.strokeStyle = '#eab308';
         ctx.lineWidth = 6;
         ctx.strokeRect(35, 35, 1130, 780);
 
+        // Bingkai Emas Dalam
         ctx.strokeStyle = '#ca8a04';
         ctx.lineWidth = 1.5;
         ctx.strokeRect(48, 48, 1104, 754);
@@ -44,7 +45,7 @@ const GCP2ECertificateModule = (function() {
         ctx.font = '12px sans-serif';
         ctx.fillText('OFFICIAL ELECTRONIC AUCTION CERTIFICATE', 600, 125);
 
-        // Judul Utama
+        // Judul Utama Sertifikat
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 32px serif';
         ctx.fillText('CERTIFICATE OF OWNERSHIP & AUTHENTICITY', 600, 190);
@@ -53,12 +54,13 @@ const GCP2ECertificateModule = (function() {
         ctx.font = 'italic 14px sans-serif';
         ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 225);
 
-        // Pemenang
+        // Nama Pemenang (Real-time dari Data Lelang)
         const winnerName = auctionData.highest_bidder ? `@${sanitize(auctionData.highest_bidder)}` : 'VALUED WINNER';
         ctx.fillStyle = '#facc15';
         ctx.font = 'bold 26px sans-serif';
         ctx.fillText(winnerName.toUpperCase(), 600, 270);
 
+        // Garis Pembatas Nama Pemenang
         ctx.strokeStyle = '#ca8a04';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -70,7 +72,7 @@ const GCP2ECertificateModule = (function() {
         ctx.font = '13px sans-serif';
         ctx.fillText('For successfully winning the official PiBox NFT auction event with verified details below:', 600, 325);
 
-        // 3. Kotak Informasi Detail Lelang
+        // 3. Kotak Informasi Detail Lelang (Real-time)
         ctx.fillStyle = '#1e293b';
         ctx.strokeStyle = '#475569';
         ctx.lineWidth = 1.5;
@@ -103,7 +105,7 @@ const GCP2ECertificateModule = (function() {
             ctx.fillText(item.val, col2X, y);
         });
 
-        // 4. Tanggal Terbit & ID Sertifikat
+        // 4. Tanggal Terbit & ID Sertifikat (Real-time)
         ctx.textAlign = 'center';
         ctx.fillStyle = '#94a3b8';
         ctx.font = '12px sans-serif';
@@ -111,13 +113,14 @@ const GCP2ECertificateModule = (function() {
         const certId = auctionData.id ? `GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}` : 'GCP2E-NFT-8DBA6AED';
         ctx.fillText(`Issued Date: ${issuedDateStr} | Certificate ID: ${certId}`, 600, 580);
 
-        // 5. Render Gambar Stempel & Tanda Tangan ke Canvas
+        // 5. Render Gambar Stempel & Tanda Tangan dari GitHub ke Pojok Kanan Bawah
         const sealImg = new Image();
         sealImg.crossOrigin = "anonymous";
         sealImg.onload = function() {
+            // Menampilkan gambar stempel/tanda tangan secara transparan di posisi kanan bawah
             ctx.drawImage(sealImg, 800, 530, 260, 200);
 
-            // Teks Label di Bawah Stempel
+            // Teks Label di Bawah Stempel Kanan
             ctx.textAlign = 'center';
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 12px sans-serif';
