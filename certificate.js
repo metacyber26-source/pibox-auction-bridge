@@ -4,7 +4,7 @@
  */
 const GCP2ECertificateModule = (function() {
     
-    // Data Base64 gambar stempel & tanda tangan asli
+    // Data Base64 gambar stempel & tanda tangan asli Anda
     const SEAL_BASE64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/4QBaRXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAAExAAIAAAARAAAATgAAAAAAAABIAAAAAQAAAEgAAAABPHBfaWNvbl9maWxlX25hbWU9MTc5MDI1MjcxNTk3NS5qcGc=";
 
     function sanitize(str) {
@@ -25,7 +25,6 @@ const GCP2ECertificateModule = (function() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, 850, 1200);
 
-        // Bingkai Luar & Dalam
         ctx.strokeStyle = '#1e293b';
         ctx.lineWidth = 6;
         ctx.strokeRect(30, 30, 790, 1140);
@@ -178,14 +177,11 @@ const GCP2ECertificateModule = (function() {
         ctx.font = 'bold 12px sans-serif';
         ctx.fillText('Head of GCP2E', 740, 828);
 
-        // Memuat Gambar Stempel & Tanda Tangan Base64
         const sealImg = new Image();
         sealImg.crossOrigin = "anonymous";
         sealImg.onload = function() {
-            // Posisi stempel di kanan bawah
             ctx.drawImage(sealImg, 490, 840, 260, 180);
 
-            // Teks Bawah Stempel
             ctx.textAlign = 'center';
             ctx.fillStyle = '#0f172a';
             ctx.font = 'bold 11px sans-serif';
