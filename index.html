@@ -49,7 +49,7 @@
         <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
         <div>
           <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">NUSANTARA NFT AUCTION</h1>
-          <p class="text-[9px] text-yellow-500">PiBox Bridge v3.7 + GCP2E Cert</p>
+          <p class="text-[9px] text-yellow-500">PiBox Bridge v3.8 + GCP2E Cert Module</p>
         </div>
       </div>
       
@@ -181,7 +181,7 @@
 
       <div class="flex gap-2 pt-1">
         <button onclick="closeCertModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition cursor-pointer font-semibold">Close</button>
-        <button onclick="downloadCertificateImage()" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
+        <button onclick="GCP2ECertificateModule.download('certCanvas', selectedAuction)" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
           📥 Download Certificate (JPG)
         </button>
       </div>
@@ -249,6 +249,184 @@
     </div>
   </div>
 
+  <!-- MODUL TERPISAH: Sertifikat Elektronik GCP2E -->
+  <script>
+    const GCP2ECertificateModule = (function() {
+        function sanitize(str) {
+            if (!str) return '';
+            return str.toString().replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            });
+        }
+
+        function render(canvas, auctionData) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = 1200;
+            canvas.height = 850;
+
+            const bgGrad = ctx.createLinearGradient(0, 0, 1200, 850);
+            bgGrad.addColorStop(0, '#0f172a');
+            bgGrad.addColorStop(0.5, '#1e1b4b');
+            bgGrad.addColorStop(1, '#090d16');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, 1200, 850);
+
+            ctx.strokeStyle = '#eab308';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(35, 35, 1130, 780);
+
+            ctx.strokeStyle = 'rgba(234, 179, 8, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(48, 48, 1104, 754);
+
+            ctx.fillStyle = '#eab308';
+            ctx.fillRect(35, 35, 25, 25);
+            ctx.fillRect(1140, 35, 25, 25);
+            ctx.fillRect(35, 790, 25, 25);
+            ctx.fillRect(1140, 790, 25, 25);
+
+            ctx.fillStyle = '#facc15';
+            ctx.font = 'bold 28px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('GLOBAL COMMUNITY PLAY TO EARN (GCP2E)', 600, 105);
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '16px sans-serif';
+            ctx.fillText('OFFICIAL ELECTRONIC AUCTION CERTIFICATE', 600, 135);
+
+            ctx.strokeStyle = '#eab308';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(350, 155);
+            ctx.lineTo(850, 155);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 38px serif';
+            ctx.fillText('CERTIFICATE OF OWNERSHIP & AUTHENTICITY', 600, 215);
+
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = 'italic 18px sans-serif';
+            ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 255);
+
+            const winnerName = auctionData.highest_bidder ? `@${sanitize(auctionData.highest_bidder)}` : 'Valued Winner';
+            ctx.fillStyle = '#facc15';
+            ctx.font = 'bold 36px sans-serif';
+            ctx.fillText(winnerName.toUpperCase(), 600, 310);
+
+            ctx.strokeStyle = '#facc15';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(380, 325);
+            ctx.lineTo(820, 325);
+            ctx.stroke();
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '17px sans-serif';
+            ctx.fillText('For successfully winning the official PiBox NFT auction event with verified details below:', 600, 370);
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(150, 400, 900, 170, 12);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 15px sans-serif';
+            
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('• NFT Asset Name:', 180, 435);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(sanitize(auctionData.title) || 'Nusantara NFT Asset', 370, 435);
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('• Seller / Creator:', 180, 470);
+            ctx.fillStyle = '#facc15';
+            ctx.fillText(`@${sanitize(auctionData.seller)}`, 370, 470);
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('• Winning Bid Price:', 180, 505);
+            ctx.fillStyle = '#10b981';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.fillText(`${auctionData.highest_bid || auctionData.reserve_price} Pi`, 370, 505);
+
+            ctx.font = 'bold 15px sans-serif';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('• Mint / Tx Hash:', 180, 540);
+            ctx.fillStyle = '#facc15';
+            ctx.font = '13px monospace';
+            ctx.fillText(sanitize(auctionData.hash) || 'GCVJ2EXX...', 370, 540);
+
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '14px sans-serif';
+            const issueDate = new Date().toUTCString();
+            ctx.fillText(`Issued Date: ${issueDate} | Certificate ID: GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}`, 600, 605);
+
+            const stampImg = new Image();
+            stampImg.crossOrigin = "anonymous";
+            stampImg.src = "175259.jpg";
+
+            stampImg.onload = function() {
+                ctx.drawImage(stampImg, 800, 580, 300, 190);
+                drawChairmanLabel(ctx);
+            };
+
+            stampImg.onerror = function() {
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(950, 660, 65, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                ctx.fillStyle = '#3b82f6';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('★ GLOBAL COMMUNITY ★', 950, 635);
+                ctx.fillText('PLAY TO EARN', 950, 655);
+                ctx.font = 'bold 10px sans-serif';
+                ctx.fillText('OFFICIAL STAMP', 950, 680);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'italic 16px cursive';
+                ctx.fillText('Chairman GCP2E', 950, 730);
+
+                drawChairmanLabel(ctx);
+            };
+        }
+
+        function drawChairmanLabel(ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('CHAIRMAN OF GCP2E', 950, 785);
+        }
+
+        return {
+            generate: function(canvasId, auctionData, modalId) {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas || !auctionData) return;
+                render(canvas, auctionData);
+                if (modalId) {
+                    document.getElementById(modalId).classList.remove('hidden');
+                }
+            },
+            download: function(canvasId, auctionData) {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+
+                const link = document.createElement('a');
+                link.download = `GCP2E_Certificate_${auctionData ? auctionData.id.substring(0,6) : 'NFT'}.jpg`;
+                link.href = canvas.toDataURL('image/jpeg', 1.0);
+                link.click();
+            }
+        };
+    })();
+  </script>
+
+  <!-- SKRIP UTAMA APLIKASI LELANG -->
   <script>
     const IS_TESTNET = true; 
 
@@ -271,9 +449,6 @@
       startTime: localStorage.getItem('auction_session_start') || null,
       isOpen: true
     };
-
-    // Aset Stempel dan Tanda Tangan 100% Persis Presisi (Base64 dari gambar yang diunggah)
-    const GCP2E_STAMP_SIGN_DATA_URL = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/7QAsUGhvdG9zaG... (Di-load dinamis dari gambar asli pengguna)";
 
     const translations = {
       en: {
@@ -481,13 +656,7 @@
     function sanitizeInput(str) {
       if (!str) return '';
       return str.toString().replace(/[&<>"']/g, function(m) {
-        return {
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#039;'
-        }[m];
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
       });
     }
 
@@ -604,14 +773,11 @@
       if (!supabaseClient) return;
       supabaseClient
         .channel('public:auctions_and_bids')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, (payload) => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
           fetchActiveAuctions();
-          if (selectedAuction && payload.new && payload.new.id === selectedAuction.id) {
-            openDetailModal(selectedAuction.id);
-          }
         })
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, (payload) => {
-          if (selectedAuction && payload.new && payload.new.auction_id === selectedAuction.id) {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, () => {
+          if (selectedAuction) {
             openDetailModal(selectedAuction.id);
           }
         })
@@ -1206,12 +1372,12 @@
             </div>
           </div>
 
-          <!-- FITUR TOMBOL SERTIFIKAT ELEKTRONIK GCP2E -->
+          <!-- MENGGUNAKAN MODUL TERPISAH GCP2ECertificateModule -->
           ${isFinished && hasBids ? `
             <div class="bg-gradient-to-r from-yellow-500/20 via-purple-500/20 to-blue-500/20 border border-yellow-500/40 p-3 rounded-xl text-center space-y-2">
               <p class="text-[11px] font-bold text-yellow-300">🏆 GCP2E Official Electronic Certificate Available!</p>
               <p class="text-[9px] text-gray-300">Winner: <span class="font-bold text-emerald-400">${highestBidderText}</span></p>
-              <button onclick="generateGCP2ECertificate()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold text-xs py-2 px-3 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
+              <button onclick="GCP2ECertificateModule.generate('certCanvas', selectedAuction, 'certModal')" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold text-xs py-2 px-3 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
                 📜 View & Download GCP2E Certificate
               </button>
             </div>
@@ -1296,168 +1462,6 @@
 
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
-    }
-
-    // Generator Sertifikat Elektronik GCP2E Real-Time (Bahasa Inggris + Stempel Presisi 100%)
-    async function generateGCP2ECertificate() {
-      if (!selectedAuction) return;
-
-      const canvas = document.getElementById('certCanvas');
-      const ctx = canvas.getContext('2d');
-
-      // Mengatur resolusi tinggi kanvas sertifikat (Landscape 1200 x 850)
-      canvas.width = 1200;
-      canvas.height = 850;
-
-      // 1. Latar Belakang Elegan Sertifikat
-      const bgGrad = ctx.createLinearGradient(0, 0, 1200, 850);
-      bgGrad.addColorStop(0, '#0f172a');
-      bgGrad.addColorStop(0.5, '#1e1b4b');
-      bgGrad.addColorStop(1, '#090d16');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, 1200, 850);
-
-      // Bingkai Emas Mewah
-      ctx.strokeStyle = '#eab308';
-      ctx.lineWidth = 8;
-      ctx.strokeRect(35, 35, 1130, 780);
-
-      ctx.strokeStyle = 'rgba(234, 179, 8, 0.4)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(48, 48, 1104, 754);
-
-      // Ornamen Sudut
-      ctx.fillStyle = '#eab308';
-      ctx.fillRect(35, 35, 25, 25);
-      ctx.fillRect(1140, 35, 25, 25);
-      ctx.fillRect(35, 790, 25, 25);
-      ctx.fillRect(1140, 790, 25, 25);
-
-      // 2. Header Organisasi GCP2E
-      ctx.fillStyle = '#facc15';
-      ctx.font = 'bold 28px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('GLOBAL COMMUNITY PLAY TO EARN (GCP2E)', 600, 105);
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '16px sans-serif';
-      ctx.fillText('OFFICIAL ELECTRONIC AUCTION CERTIFICATE', 600, 135);
-
-      // Garis Pemisah Emas
-      ctx.strokeStyle = '#eab308';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(350, 155);
-      ctx.lineTo(850, 155);
-      ctx.stroke();
-
-      // Judul Sertifikat
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 38px serif';
-      ctx.fillText('CERTIFICATE OF OWNERSHIP & AUTHENTICITY', 600, 215);
-
-      ctx.fillStyle = '#cbd5e1';
-      ctx.font = 'italic 18px sans-serif';
-      ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 255);
-
-      // 3. Nama Pemenang Lelang Real-Time
-      const winnerName = selectedAuction.highest_bidder ? `@${sanitizeInput(selectedAuction.highest_bidder)}` : 'Valued Winner';
-      ctx.fillStyle = '#facc15';
-      ctx.font = 'bold 36px sans-serif';
-      ctx.fillText(winnerName.toUpperCase(), 600, 310);
-
-      // Garis Bawah Nama
-      ctx.strokeStyle = '#facc15';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(380, 325);
-      ctx.lineTo(820, 325);
-      ctx.stroke();
-
-      // 4. Deskripsi & Detail Aset Real-Time
-      ctx.fillStyle = '#e2e8f0';
-      ctx.font = '17px sans-serif';
-      ctx.fillText('For successfully winning the official PiBox NFT auction event with verified details below:', 600, 370);
-
-      // Kotak Panel Detail Aset
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(150, 400, 900, 170, 12);
-      ctx.fill();
-      ctx.stroke();
-
-      // Isi Detail dalam Kotak
-      ctx.textAlign = 'left';
-      ctx.font = 'bold 15px sans-serif';
-      
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText('• NFT Asset Name:', 180, 435);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(sanitizeInput(selectedAuction.title) || 'Nusantara NFT Asset', 370, 435);
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText('• Seller / Creator:', 180, 470);
-      ctx.fillStyle = '#facc15';
-      ctx.fillText(`@${sanitizeInput(selectedAuction.seller)}`, 370, 470);
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText('• Winning Bid Price:', 180, 505);
-      ctx.fillStyle = '#10b981';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText(`${selectedAuction.highest_bid || selectedAuction.reserve_price} Pi`, 370, 505);
-
-      ctx.font = 'bold 15px sans-serif';
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText('• Mint / Tx Hash:', 180, 540);
-      ctx.fillStyle = '#facc15';
-      ctx.font = '13px monospace';
-      ctx.fillText(sanitizeInput(selectedAuction.hash) || 'GCVJ2EXX...', 370, 540);
-
-      // 5. Tanggal & ID Sertifikat Unik
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '14px sans-serif';
-      const issueDate = new Date().toUTCString();
-      ctx.fillText(`Issued Date: ${issueDate} | Certificate ID: GCP2E-NFT-${selectedAuction.id.substring(0,8).toUpperCase()}`, 600, 605);
-
-      // 6. Stempel & Tanda Tangan Asli GCP2E (100% Persis Presisi dari Gambar Asli)
-      const stampImg = new Image();
-      // Menggunakan gambar stempel & tanda tangan asli yang diunggah
-      stampImg.crossOrigin = "anonymous";
-      stampImg.src = "174925.jpg"; // Path atau Base64 gambar asli stempel dan tanda tangan ketua GCP2E
-
-      stampImg.onload = function() {
-        // Render stempel dan tanda tangan secara presisi di sisi kanan bawah sertifikat
-        ctx.drawImage(stampImg, 800, 590, 320, 210);
-        
-        // Label Tanda Tangan Ketua
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('CHAIRMAN OF GCP2E', 960, 800);
-
-        // Tampilkan Modal Preview Sertifikat
-        document.getElementById('certModal').classList.remove('hidden');
-      };
-
-      stampImg.onerror = function() {
-        // Fallback jika gambar dimuat langsung tanpa error silang
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillText('CHAIRMAN OF GCP2E (Verified Official Seal)', 960, 720);
-        document.getElementById('certModal').classList.remove('hidden');
-      };
-    }
-
-    // Fungsi Mengunduh Sertifikat ke Galeri Perangkat
-    function downloadCertificateImage() {
-      const canvas = document.getElementById('certCanvas');
-      const link = document.createElement('a');
-      link.download = `GCP2E_Certificate_${selectedAuction ? selectedAuction.id.substring(0,6) : 'NFT'}.jpg`;
-      link.href = canvas.toDataURL('image/jpeg', 1.0);
-      link.click();
     }
 
     async function cancelAuction(auctionId) {
@@ -1592,12 +1596,12 @@
 
             await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
           },
-          onCancel: (paymentId) => {
+          onCancel: () => {
             alert(t('payCancelled'));
             btnSubmitBid.disabled = false;
             btnSubmitBid.innerText = t('placeBidBtn');
           },
-          onError: (error, payment) => {
+          onError: (error) => {
             console.error("Payment Error:", error);
             alert("Payment error: " + error.message);
             btnSubmitBid.disabled = false;
@@ -1681,7 +1685,7 @@
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
         try {
-          const { data: uploadData, error: uploadErr } = await supabaseClient
+          const { error: uploadErr } = await supabaseClient
             .storage
             .from('nft-images')
             .upload(fileName, file);
@@ -1746,12 +1750,12 @@
 
           await saveListingToDatabase(title, hash, imageUrl, reservePrice, authenticatedPiUser.username);
         },
-        onCancel: (paymentId) => {
+        onCancel: () => {
           alert(t('payCancelled'));
           btnPublish.disabled = false;
           btnPublish.innerText = t('releaseAssetBtn');
         },
-        onError: (error, payment) => {
+        onError: (error) => {
           console.error("Listing Payment Error:", error);
           alert("Listing payment error: " + error.message);
           btnPublish.disabled = false;
