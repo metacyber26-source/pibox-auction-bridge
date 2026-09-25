@@ -1,9 +1,10 @@
 /**
  * Modul Generator Sertifikat Elektronik GCP2E (Landscape)
- * Memperbaiki masalah gambar transparan agar stempel & tanda tangan terlihat jelas
+ * Kembali ke desain semula dengan stempel transparan langsung di background gelap
  */
 const GCP2ECertificateModule = (function() {
     
+    // PERHATIKAN: Ganti "1790326586371.jpg" di bawah ini jika nama file gambar Anda di GitHub berbeda persis
     const SEAL_SIGN_URL = "1790326586371.jpg";
 
     function sanitize(str) {
@@ -111,31 +112,18 @@ const GCP2ECertificateModule = (function() {
         const certId = auctionData.id ? `GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}` : 'GCP2E-NFT-8DBA6AED';
         ctx.fillText(`Issued Date: ${issuedDateStr} | Certificate ID: ${certId}`, 600, 580);
 
-        // 5. Render Gambar Stempel & Tanda Tangan dengan Latar Belakang Kotak Putih Tipis (Agar tidak transparan/hilang)
+        // 5. Render Gambar Stempel & Tanda Tangan
         const sealImg = new Image();
         sealImg.crossOrigin = "anonymous";
         sealImg.onload = function() {
-            const posX = 800;
-            const posY = 520;
-            const imgWidth = 260;
-            const imgHeight = 200;
+            // Posisi stempel di pojok kanan bawah
+            ctx.drawImage(sealImg, 820, 560, 220, 160);
 
-            // Membuat kotak latar belakang putih transparan tipis di bawah stempel agar tanda tangan hitam terlihat jelas
-            ctx.save();
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; // Putih bersih agak transparan
-            ctx.beginPath();
-            ctx.roundRect(posX, posY, imgWidth, imgHeight, 8);
-            ctx.fill();
-            ctx.restore();
-
-            // Gambar stempel dan tanda tangan di atasnya
-            ctx.drawImage(sealImg, posX, posY, imgWidth, imgHeight);
-
-            // Teks Label di Bawah Stempel
+            // Teks Label di Bawah Stempel Kanan
             ctx.textAlign = 'center';
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 12px sans-serif';
-            ctx.fillText('CHAIRMAN OF GCP2E', 930, 755);
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText('CHAIRMAN OF GCP2E', 930, 740);
         };
         sealImg.src = SEAL_SIGN_URL;
 
@@ -143,7 +131,7 @@ const GCP2ECertificateModule = (function() {
         ctx.textAlign = 'left';
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 11px sans-serif';
-        ctx.fillText('CHAIRMAN OF GCP2E', 140, 755);
+        ctx.fillText('CHAIRMAN OF GCP2E', 140, 740);
     }
 
     return {
