@@ -225,6 +225,7 @@
 
           <div id="uploadSection" class="space-y-1.5">
             <input type="file" id="imageFileInput" accept="image/*" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-yellow-500 file:text-gray-950 cursor-pointer">
+            <p class="text-[9px] text-gray-500">Max file size: 2MB (Supports JPG, PNG, WEBP)</p>
           </div>
 
           <div id="urlSection" class="space-y-1.5 hidden">
@@ -257,6 +258,25 @@
             return str.toString().replace(/[&<>"']/g, function(m) {
                 return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
             });
+        }
+
+        // Helper untuk kompatibilitas roundRect lintas browser
+        function drawRoundedRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(x, y, width, height, radius);
+            } else {
+                ctx.moveTo(x + radius, y);
+                ctx.lineTo(x + width - radius, y);
+                ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+                ctx.lineTo(x + width, y + height - radius);
+                ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                ctx.lineTo(x + radius, y + height);
+                ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+                ctx.lineTo(x, y + radius);
+                ctx.quadraticCurveTo(x, y, x + radius, y);
+            }
+            ctx.closePath();
         }
 
         function render(canvas, auctionData) {
@@ -328,8 +348,7 @@
             ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
             ctx.strokeStyle = '#334155';
             ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(150, 400, 900, 170, 12);
+            drawRoundedRect(ctx, 150, 400, 900, 170, 12);
             ctx.fill();
             ctx.stroke();
 
@@ -363,7 +382,8 @@
             ctx.fillStyle = '#94a3b8';
             ctx.font = '14px sans-serif';
             const issueDate = new Date().toUTCString();
-            ctx.fillText(`Issued Date: ${issueDate} | Certificate ID: GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}`, 600, 605);
+            const shortId = auctionData.id ? auctionData.id.substring(0,8).toUpperCase() : 'DEMO';
+            ctx.fillText(`Issued Date: ${issueDate} | Certificate ID: GCP2E-NFT-${shortId}`, 600, 605);
 
             const stampImg = new Image();
             stampImg.crossOrigin = "anonymous";
@@ -418,7 +438,8 @@
                 if (!canvas) return;
 
                 const link = document.createElement('a');
-                link.download = `GCP2E_Certificate_${auctionData ? auctionData.id.substring(0,6) : 'NFT'}.jpg`;
+                const fileId = auctionData && auctionData.id ? auctionData.id.substring(0,6) : 'NFT';
+                link.download = `GCP2E_Certificate_${fileId}.jpg`;
                 link.href = canvas.toDataURL('image/jpeg', 1.0);
                 link.click();
             }
@@ -636,7 +657,7 @@
         selectImageAlert: "Por favor seleccione un archivo de imagen primero.",
         enterUrlAlert: "Por favor ingrese la URL de la imagen primero.",
         uploadingImg: "Subiendo imagen...",
-        contactingWallet: "Contacting Billetera Pi...",
+        contactingWallet: "Contactando Billetera Pi...",
         approvingPay: "Aprobando pago...",
         completingTx: "Completando transacción...",
         successRelease: "🎉 ¡Activo NFT publicado con éxito en la galería!",
@@ -1678,9 +1699,17 @@
           return;
         }
 
+        const file = fileInput.files[0];
+        
+        // Validasi ukuran file maksimal 2MB
+        if (file.size > 2 * 1024 * 1024) {
+          alert("❌ Ukuran file terlalu besar! Maksimal 2MB.");
+          btnPublish.disabled = false;
+          return;
+        }
+
         btnPublish.innerText = t('uploadingImg');
 
-        const file = fileInput.files[0];
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
@@ -1700,7 +1729,7 @@
           imageUrl = urlData.publicUrl;
         } catch (e) {
           console.error("Image upload error:", e);
-          alert("Gagal mengunggah gambar.");
+          alert("Gagal mengunggah gambar ke storage.");
           btnPublish.disabled = false;
           btnPublish.innerText = t('releaseAssetBtn');
           return;
