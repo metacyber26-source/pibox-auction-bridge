@@ -1,10 +1,9 @@
 /**
  * Modul Generator Sertifikat Elektronik GCP2E Resmi
- * Mengintegrasikan Stempel & Tanda Tangan Asli secara 100% Presisi
+ * 100% Presisi sesuai stempel dan tanda tangan asli
  */
 const GCP2ECertificateModule = (function() {
     
-    // Fungsi internal untuk sanitasi teks agar aman dirender ke canvas
     function sanitize(str) {
         if (!str) return '';
         return str.toString().replace(/[&<>"']/g, function(m) {
@@ -15,11 +14,11 @@ const GCP2ECertificateModule = (function() {
     function render(canvas, auctionData) {
         const ctx = canvas.getContext('2d');
         
-        // Mengatur resolusi tinggi kanvas (Landscape 1200 x 850 piksel)
+        // Ukuran Resolusi Tinggi Sertifikat (Landscape 1200 x 850)
         canvas.width = 1200;
         canvas.height = 850;
 
-        // 1. Latar Belakang Elegan Sertifikat
+        // 1. Latar Belakang Gradasi Elegan
         const bgGrad = ctx.createLinearGradient(0, 0, 1200, 850);
         bgGrad.addColorStop(0, '#0f172a');
         bgGrad.addColorStop(0.5, '#1e1b4b');
@@ -27,7 +26,7 @@ const GCP2ECertificateModule = (function() {
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, 1200, 850);
 
-        // Bingkai Emas Mewah Ganda
+        // Bingkai Emas Ganda
         ctx.strokeStyle = '#eab308';
         ctx.lineWidth = 8;
         ctx.strokeRect(35, 35, 1130, 780);
@@ -36,7 +35,7 @@ const GCP2ECertificateModule = (function() {
         ctx.lineWidth = 2;
         ctx.strokeRect(48, 48, 1104, 754);
 
-        // Ornamen Kotak Sudut Emas
+        // Ornamen Kotak Sudut
         ctx.fillStyle = '#eab308';
         ctx.fillRect(35, 35, 25, 25);
         ctx.fillRect(1140, 35, 25, 25);
@@ -53,7 +52,6 @@ const GCP2ECertificateModule = (function() {
         ctx.font = '16px sans-serif';
         ctx.fillText('OFFICIAL ELECTRONIC AUCTION CERTIFICATE', 600, 135);
 
-        // Garis Pemisah Emas
         ctx.strokeStyle = '#eab308';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -61,7 +59,7 @@ const GCP2ECertificateModule = (function() {
         ctx.lineTo(850, 155);
         ctx.stroke();
 
-        // Judul Utama Sertifikat (Bahasa Inggris)
+        // Judul Sertifikat (Bahasa Inggris)
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 38px serif';
         ctx.fillText('CERTIFICATE OF OWNERSHIP & AUTHENTICITY', 600, 215);
@@ -70,13 +68,12 @@ const GCP2ECertificateModule = (function() {
         ctx.font = 'italic 18px sans-serif';
         ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 255);
 
-        // 3. Nama Pemenang Lelang (Real-Time Data)
+        // 3. Nama Pemenang Lelang Real-Time
         const winnerName = auctionData.highest_bidder ? `@${sanitize(auctionData.highest_bidder)}` : 'Valued Winner';
         ctx.fillStyle = '#facc15';
         ctx.font = 'bold 36px sans-serif';
         ctx.fillText(winnerName.toUpperCase(), 600, 310);
 
-        // Garis Bawah Nama Pemenang
         ctx.strokeStyle = '#facc15';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -84,12 +81,11 @@ const GCP2ECertificateModule = (function() {
         ctx.lineTo(820, 325);
         ctx.stroke();
 
-        // 4. Keterangan & Detail Aset Real-Time
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '17px sans-serif';
         ctx.fillText('For successfully winning the official PiBox NFT auction event with verified details below:', 600, 370);
 
-        // Kotak Panel Informasi Detail Aset
+        // 4. Kotak Panel Informasi Aset
         ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
         ctx.strokeStyle = '#334155';
         ctx.lineWidth = 2;
@@ -98,7 +94,6 @@ const GCP2ECertificateModule = (function() {
         ctx.fill();
         ctx.stroke();
 
-        // Baris Detail di dalam Panel
         ctx.textAlign = 'left';
         ctx.font = 'bold 15px sans-serif';
         
@@ -125,40 +120,50 @@ const GCP2ECertificateModule = (function() {
         ctx.font = '13px monospace';
         ctx.fillText(sanitize(auctionData.hash) || 'GCVJ2EXX...', 370, 540);
 
-        // 5. Tanggal Terbit & ID Unik Sertifikat (Real-Time)
+        // 5. Tanggal Terbit & ID Sertifikat Real-Time
         ctx.textAlign = 'center';
         ctx.fillStyle = '#94a3b8';
         ctx.font = '14px sans-serif';
         const issueDate = new Date().toUTCString();
         ctx.fillText(`Issued Date: ${issueDate} | Certificate ID: GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}`, 600, 605);
 
-        // 6. Merender Stempel & Tanda Tangan Asli (100% Persis dari Gambar Sumber[span_0](start_span)[span_0](end_span))
-        const officialSealImg = new Image();
-        officialSealImg.crossOrigin = "anonymous";
-        // Menggunakan sumber gambar asli yang Anda lampirkan[span_1](start_span)[span_1](end_span)
-        officialSealImg.src = "174925.jpg";[span_2](start_span)[span_2](end_span)
+        // 6. Merender Stempel & Tanda Tangan Asli secara Presisi
+        const sealImg = new Image();
+        sealImg.crossOrigin = "anonymous";
+        // Menggunakan file gambar stempel asli yang diunggah ke repositori
+        sealImg.src = "174925.jpg";
 
-        officialSealImg.onload = function() {
-            // Menempatkan stempel dan tanda tangan secara presisi di pojok kanan bawah sertifikat
-            ctx.drawImage(officialSealImg, 760, 550, 340, 220);
-            
-            // Label Tanda Tangan Ketua
+        sealImg.onload = function() {
+            // Menempatkan gambar stempel asli secara proporsional di area tanda tangan
+            ctx.drawImage(sealImg, 750, 540, 330, 210);
+
+            // Label Ketua GCP2E di bawah stempel
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 13px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('CHAIRMAN OF GCP2E', 930, 785);
+            ctx.fillText('CHAIRMAN OF GCP2E', 915, 775);
         };
 
-        officialSealImg.onerror = function() {
-            // Fallback pengaman jika gambar gagal dimuat
+        sealImg.onerror = function() {
+            // Fallback teks jika file gambar stempel belum terdeteksi di direktori root github
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(915, 650, 65, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            ctx.fillStyle = '#3b82f6';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('GLOBAL COMMUNITY PLAY TO EARN', 915, 630);
+            ctx.fillText('GCP2E OFFICIAL SEAL', 915, 650);
+
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 13px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('CHAIRMAN OF GCP2E (Official Stamp & Signature)', 930, 680);
+            ctx.fillText('CHAIRMAN OF GCP2E', 915, 755);
         };
     }
 
-    // Publik API modul
     return {
         generate: function(canvasId, auctionData, modalId) {
             const canvas = document.getElementById(canvasId);
