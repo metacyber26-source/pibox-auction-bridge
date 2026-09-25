@@ -1,10 +1,10 @@
 /**
- * Modul Generator Sertifikat Elektronik GCP2E (Landscape)
- * Kembali ke desain semula dengan stempel transparan langsung di background gelap
+ * Modul Generator Sertifikat Elektronik GCP2E (Tema Putih Formal & Elegan)
+ * Menjamin stempel dan tanda tangan tampil sangat jelas dan kontras.
  */
 const GCP2ECertificateModule = (function() {
     
-    // PERHATIKAN: Ganti "1790326586371.jpg" di bawah ini jika nama file gambar Anda di GitHub berbeda persis
+    // Nama file stempel dan tanda tangan di GitHub
     const SEAL_SIGN_URL = "1790326586371.jpg";
 
     function sanitize(str) {
@@ -21,80 +21,85 @@ const GCP2ECertificateModule = (function() {
         canvas.width = 1200;
         canvas.height = 850;
 
-        // 1. Background Gelap Elegan
-        ctx.fillStyle = '#0f172a';
+        // 1. Background Putih Bersih Formal (Sangat kontras untuk stempel & tanda tangan)
+        ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, 1200, 850);
 
-        // Bingkai Emas Luar
-        ctx.strokeStyle = '#eab308';
-        ctx.lineWidth = 6;
+        // Pattern / Watermark tipis di latar belakang agar tidak terlalu polos
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(25, 25, 1150, 800);
+
+        // Bingkai Klasik Luar (Warna Emas Tua / Navy Mewah)
+        ctx.strokeStyle = '#1e3a8a';
+        ctx.lineWidth = 8;
         ctx.strokeRect(35, 35, 1130, 780);
 
-        // Bingkai Emas Dalam
-        ctx.strokeStyle = '#ca8a04';
-        ctx.lineWidth = 1.5;
+        // Bingkai Dalam Tipis
+        ctx.strokeStyle = '#d97706';
+        ctx.lineWidth = 2;
         ctx.strokeRect(48, 48, 1104, 754);
 
         // 2. Header Organisasi
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#f8fafc';
+        ctx.fillStyle = '#1e3a8a';
         ctx.font = 'bold 24px sans-serif';
-        ctx.fillText('GLOBAL COMMUNITY PLAY TO EARN (GCP2E)', 600, 100);
+        ctx.fillText('GLOBAL COMMUNITY PLAY TO EARN (GCP2E)', 600, 105);
 
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '12px sans-serif';
-        ctx.fillText('OFFICIAL ELECTRONIC AUCTION CERTIFICATE', 600, 125);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('OFFICIAL ELECTRONIC AUCTION CERTIFICATE', 600, 130);
 
         // Judul Utama Sertifikat
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 32px serif';
-        ctx.fillText('CERTIFICATE OF OWNERSHIP & AUTHENTICITY', 600, 190);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 34px serif';
+        ctx.fillText('CERTIFICATE OF OWNERSHIP & AUTHENTICITY', 600, 195);
 
-        ctx.fillStyle = '#cbd5e1';
-        ctx.font = 'italic 14px sans-serif';
-        ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 225);
+        ctx.fillStyle = '#475569';
+        ctx.font = 'italic 15px sans-serif';
+        ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 235);
 
-        // Nama Pemenang
+        // Nama Pemenang (Real-time dari Data Lelang)
         const winnerName = auctionData.highest_bidder ? `@${sanitize(auctionData.highest_bidder)}` : 'VALUED WINNER';
-        ctx.fillStyle = '#facc15';
-        ctx.font = 'bold 26px sans-serif';
-        ctx.fillText(winnerName.toUpperCase(), 600, 270);
+        ctx.fillStyle = '#d97706';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.fillText(winnerName.toUpperCase(), 600, 280);
 
-        ctx.strokeStyle = '#ca8a04';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(350, 285);
-        ctx.lineTo(850, 285);
-        ctx.stroke();
-
-        ctx.fillStyle = '#cbd5e1';
-        ctx.font = '13px sans-serif';
-        ctx.fillText('For successfully winning the official PiBox NFT auction event with verified details below:', 600, 325);
-
-        // 3. Kotak Informasi Detail Lelang
-        ctx.fillStyle = '#1e293b';
-        ctx.strokeStyle = '#475569';
+        // Garis Pembatas Nama Pemenang
+        ctx.strokeStyle = '#d97706';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.roundRect(140, 355, 920, 195, 10);
+        ctx.moveTo(350, 295);
+        ctx.lineTo(850, 295);
+        ctx.stroke();
+
+        ctx.fillStyle = '#475569';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('For successfully winning the official PiBox NFT auction event with verified details below:', 600, 335);
+
+        // 3. Kotak Informasi Detail Lelang (Clean Card Light Theme)
+        ctx.fillStyle = '#f8fafc';
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(140, 365, 920, 195, 10);
         ctx.fill();
         ctx.stroke();
 
         const startX = 170;
-        const col2X = 350;
-        let startY = 395;
+        const col2X = 360;
+        let startY = 405;
         const spacing = 38;
 
         const details = [
-            { label: '• NFT Asset Name:', val: sanitize(auctionData.title) || 'Helloween', color: '#ffffff' },
-            { label: '• Seller / Creator:', val: `@${sanitize(auctionData.seller) || 'Muhammadefendi123'}`, color: '#facc15' },
-            { label: '• Winning Bid Price:', val: `${auctionData.highest_bid || auctionData.reserve_price || '250'} Pi`, color: '#4ade80' },
-            { label: '• Mint / Tx Hash:', val: sanitize(auctionData.hash) || 'GBM62XKYNSKG07JBIY5EMZCKZPOZZKH37XKRVENHYLSPP44LCY4HZQ5', color: '#facc15', font: '11px monospace' }
+            { label: '• NFT Asset Name:', val: sanitize(auctionData.title) || 'Helloween', color: '#0f172a' },
+            { label: '• Seller / Creator:', val: `@${sanitize(auctionData.seller) || 'Muhammadefendi123'}`, color: '#d97706' },
+            { label: '• Winning Bid Price:', val: `${auctionData.highest_bid || auctionData.reserve_price || '250'} Pi`, color: '#16a34a' },
+            { label: '• Mint / Tx Hash:', val: sanitize(auctionData.hash) || 'GBM62XKYNSKG07JBIY5EMZCKZPOZZKH37XKRVENHYLSPP44LCY4HZQ5', color: '#2563eb', font: '11px monospace' }
         ];
 
         details.forEach((item, index) => {
             const y = startY + (index * spacing);
-            ctx.fillStyle = '#94a3b8';
+            ctx.fillStyle = '#475569';
             ctx.font = 'bold 13px sans-serif';
             ctx.textAlign = 'left';
             ctx.fillText(item.label, startX, y);
@@ -106,32 +111,32 @@ const GCP2ECertificateModule = (function() {
 
         // 4. Tanggal Terbit & ID Sertifikat
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#94a3b8';
+        ctx.fillStyle = '#64748b';
         ctx.font = '12px sans-serif';
         const issuedDateStr = auctionData.closing_time ? new Date(auctionData.closing_time).toUTCString() : new Date().toUTCString();
         const certId = auctionData.id ? `GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}` : 'GCP2E-NFT-8DBA6AED';
-        ctx.fillText(`Issued Date: ${issuedDateStr} | Certificate ID: ${certId}`, 600, 580);
+        ctx.fillText(`Issued Date: ${issuedDateStr} | Certificate ID: ${certId}`, 600, 595);
 
-        // 5. Render Gambar Stempel & Tanda Tangan
+        // 5. Render Gambar Stempel & Tanda Tangan (Sangat Jelas di Latar Putih)
         const sealImg = new Image();
         sealImg.crossOrigin = "anonymous";
         sealImg.onload = function() {
-            // Posisi stempel di pojok kanan bawah
-            ctx.drawImage(sealImg, 820, 560, 220, 160);
+            // Menempatkan gambar stempel asli di pojok kanan bawah
+            ctx.drawImage(sealImg, 800, 545, 240, 180);
 
-            // Teks Label di Bawah Stempel Kanan
+            // Tanda Tangan / Label di Bawah Stempel Kanan
             ctx.textAlign = 'center';
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 11px sans-serif';
-            ctx.fillText('CHAIRMAN OF GCP2E', 930, 740);
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillText('CHAIRMAN OF GCP2E', 920, 745);
         };
         sealImg.src = SEAL_SIGN_URL;
 
         // Teks Kiri Bawah
         ctx.textAlign = 'left';
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 11px sans-serif';
-        ctx.fillText('CHAIRMAN OF GCP2E', 140, 740);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('CHAIRMAN OF GCP2E', 140, 745);
     }
 
     return {
