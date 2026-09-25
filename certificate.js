@@ -1,13 +1,21 @@
 /**
- * Modul Generator Sertifikat Elektronik GCP2E
+ * Modul Generator Sertifikat Elektronik GCP2E Resmi
+ * Mengintegrasikan Stempel & Tanda Tangan Asli secara 100% Presisi
  */
 const GCP2ECertificateModule = (function() {
     
-    // Fungsi internal untuk merender sertifikat ke elemen canvas
+    // Fungsi internal untuk sanitasi teks agar aman dirender ke canvas
+    function sanitize(str) {
+        if (!str) return '';
+        return str.toString().replace(/[&<>"']/g, function(m) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+        });
+    }
+
     function render(canvas, auctionData) {
         const ctx = canvas.getContext('2d');
-
-        // Resolusi tinggi kanvas (Landscape 1200 x 850)
+        
+        // Mengatur resolusi tinggi kanvas (Landscape 1200 x 850 piksel)
         canvas.width = 1200;
         canvas.height = 850;
 
@@ -19,7 +27,7 @@ const GCP2ECertificateModule = (function() {
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, 1200, 850);
 
-        // Bingkai Emas Mewah
+        // Bingkai Emas Mewah Ganda
         ctx.strokeStyle = '#eab308';
         ctx.lineWidth = 8;
         ctx.strokeRect(35, 35, 1130, 780);
@@ -28,7 +36,7 @@ const GCP2ECertificateModule = (function() {
         ctx.lineWidth = 2;
         ctx.strokeRect(48, 48, 1104, 754);
 
-        // Ornamen Sudut
+        // Ornamen Kotak Sudut Emas
         ctx.fillStyle = '#eab308';
         ctx.fillRect(35, 35, 25, 25);
         ctx.fillRect(1140, 35, 25, 25);
@@ -53,7 +61,7 @@ const GCP2ECertificateModule = (function() {
         ctx.lineTo(850, 155);
         ctx.stroke();
 
-        // Judul Sertifikat
+        // Judul Utama Sertifikat (Bahasa Inggris)
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 38px serif';
         ctx.fillText('CERTIFICATE OF OWNERSHIP & AUTHENTICITY', 600, 215);
@@ -62,13 +70,13 @@ const GCP2ECertificateModule = (function() {
         ctx.font = 'italic 18px sans-serif';
         ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 255);
 
-        // 3. Nama Pemenang Lelang Real-Time
-        const winnerName = auctionData.highest_bidder ? `@${sanitizeInput(auctionData.highest_bidder)}` : 'Valued Winner';
+        // 3. Nama Pemenang Lelang (Real-Time Data)
+        const winnerName = auctionData.highest_bidder ? `@${sanitize(auctionData.highest_bidder)}` : 'Valued Winner';
         ctx.fillStyle = '#facc15';
         ctx.font = 'bold 36px sans-serif';
         ctx.fillText(winnerName.toUpperCase(), 600, 310);
 
-        // Garis Bawah Nama
+        // Garis Bawah Nama Pemenang
         ctx.strokeStyle = '#facc15';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -76,12 +84,12 @@ const GCP2ECertificateModule = (function() {
         ctx.lineTo(820, 325);
         ctx.stroke();
 
-        // 4. Deskripsi & Detail Aset Real-Time
+        // 4. Keterangan & Detail Aset Real-Time
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '17px sans-serif';
         ctx.fillText('For successfully winning the official PiBox NFT auction event with verified details below:', 600, 370);
 
-        // Kotak Panel Detail Aset
+        // Kotak Panel Informasi Detail Aset
         ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
         ctx.strokeStyle = '#334155';
         ctx.lineWidth = 2;
@@ -90,19 +98,19 @@ const GCP2ECertificateModule = (function() {
         ctx.fill();
         ctx.stroke();
 
-        // Isi Detail dalam Kotak
+        // Baris Detail di dalam Panel
         ctx.textAlign = 'left';
         ctx.font = 'bold 15px sans-serif';
         
         ctx.fillStyle = '#94a3b8';
         ctx.fillText('• NFT Asset Name:', 180, 435);
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(sanitizeInput(auctionData.title) || 'Nusantara NFT Asset', 370, 435);
+        ctx.fillText(sanitize(auctionData.title) || 'Nusantara NFT Asset', 370, 435);
 
         ctx.fillStyle = '#94a3b8';
         ctx.fillText('• Seller / Creator:', 180, 470);
         ctx.fillStyle = '#facc15';
-        ctx.fillText(`@${sanitizeInput(auctionData.seller)}`, 370, 470);
+        ctx.fillText(`@${sanitize(auctionData.seller)}`, 370, 470);
 
         ctx.fillStyle = '#94a3b8';
         ctx.fillText('• Winning Bid Price:', 180, 505);
@@ -115,64 +123,47 @@ const GCP2ECertificateModule = (function() {
         ctx.fillText('• Mint / Tx Hash:', 180, 540);
         ctx.fillStyle = '#facc15';
         ctx.font = '13px monospace';
-        ctx.fillText(sanitizeInput(auctionData.hash) || 'GCVJ2EXX...', 370, 540);
+        ctx.fillText(sanitize(auctionData.hash) || 'GCVJ2EXX...', 370, 540);
 
-        // 5. Tanggal & ID Sertifikat Unik
+        // 5. Tanggal Terbit & ID Unik Sertifikat (Real-Time)
         ctx.textAlign = 'center';
         ctx.fillStyle = '#94a3b8';
         ctx.font = '14px sans-serif';
         const issueDate = new Date().toUTCString();
         ctx.fillText(`Issued Date: ${issueDate} | Certificate ID: GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}`, 600, 605);
 
-        // 6. Muat Stempel & Tanda Tangan
-        const stampImg = new Image();
-        stampImg.crossOrigin = "anonymous";
-        stampImg.src = "175259.jpg"; 
+        // 6. Merender Stempel & Tanda Tangan Asli (100% Persis dari Gambar Sumber[span_0](start_span)[span_0](end_span))
+        const officialSealImg = new Image();
+        officialSealImg.crossOrigin = "anonymous";
+        // Menggunakan sumber gambar asli yang Anda lampirkan[span_1](start_span)[span_1](end_span)
+        officialSealImg.src = "174925.jpg";[span_2](start_span)[span_2](end_span)
 
-        stampImg.onload = function() {
-            ctx.drawImage(stampImg, 800, 580, 300, 190);
-            drawChairmanLabel(ctx);
-        };
-
-        stampImg.onerror = function() {
-            // Render Stempel Cadangan jika gambar gagal dimuat
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(950, 660, 65, 0, 2 * Math.PI);
-            ctx.stroke();
-
-            ctx.fillStyle = '#3b82f6';
-            ctx.font = 'bold 11px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('★ GLOBAL COMMUNITY ★', 950, 635);
-            ctx.fillText('PLAY TO EARN', 950, 655);
-            ctx.font = 'bold 10px sans-serif';
-            ctx.fillText('OFFICIAL STAMP', 950, 680);
-
+        officialSealImg.onload = function() {
+            // Menempatkan stempel dan tanda tangan secara presisi di pojok kanan bawah sertifikat
+            ctx.drawImage(officialSealImg, 760, 550, 340, 220);
+            
+            // Label Tanda Tangan Ketua
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'italic 16px cursive';
-            ctx.fillText('Chairman GCP2E', 950, 730);
+            ctx.font = 'bold 13px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('CHAIRMAN OF GCP2E', 930, 785);
+        };
 
-            drawChairmanLabel(ctx);
+        officialSealImg.onerror = function() {
+            // Fallback pengaman jika gambar gagal dimuat
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('CHAIRMAN OF GCP2E (Official Stamp & Signature)', 930, 680);
         };
     }
 
-    function drawChairmanLabel(ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('CHAIRMAN OF GCP2E', 950, 785);
-    }
-
-    // Publik API untuk dipanggil dari luar modul
+    // Publik API modul
     return {
         generate: function(canvasId, auctionData, modalId) {
             const canvas = document.getElementById(canvasId);
             if (!canvas || !auctionData) return;
-            
             render(canvas, auctionData);
-            
             if (modalId) {
                 document.getElementById(modalId).classList.remove('hidden');
             }
