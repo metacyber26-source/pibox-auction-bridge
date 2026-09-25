@@ -49,7 +49,7 @@
         <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
         <div>
           <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">NUSANTARA NFT AUCTION</h1>
-          <p class="text-[9px] text-yellow-500">PiBox Bridge v3.8 + GCP2E Cert Module</p>
+          <p class="text-[9px] text-yellow-500">PiBox Bridge v3.9 + GCP2E & Event Zone</p>
         </div>
       </div>
       
@@ -188,7 +188,7 @@
     </div>
   </div>
 
-  <!-- MODAL: Buat Lelang -->
+  <!-- MODAL: Buat Lelang / Rilis Aset -->
   <div id="createModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
     <div class="bg-gray-950 border border-gray-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
       <div class="flex justify-between items-center border-b border-gray-800 pb-3">
@@ -200,8 +200,17 @@
       </div>
 
       <div class="space-y-3 text-xs">
+        <!-- PILIHAN TIPE EVENT -->
+        <div>
+          <label class="block font-semibold text-yellow-400 mb-1">🏷️ Tipe Kategori Rilis Aset</label>
+          <select id="assetCategorySelect" onchange="toggleEventFields()" class="w-full bg-gray-900 border border-yellow-500/40 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition font-bold">
+            <option value="NON_EVENT">NFT NON EVENT (Langsung Masuk Galeri)</option>
+            <option value="EVENT">NFT EVENT (Butuh Approval Admin via WhatsApp)</option>
+          </select>
+        </div>
+
         <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-2.5 text-[10px] text-red-300 leading-snug" data-i18n="piboxWarning">
-          📌 Ensure this NFT is registered in <strong>PIBOX NFT EVENT ZONE</strong>. Enter official Hash!
+          📌 Pastikan NFT ini terdaftar di <strong>PIBOX NFT EVENT ZONE</strong>. Masukkan Hash resmi!
         </div>
 
         <div>
@@ -212,6 +221,25 @@
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelHash">PiBox NFT Transaction / Mint Hash</label>
           <input type="text" id="assetHashInput" placeholder="Example: GCVJ2EXX..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
+        </div>
+
+        <!-- FORM KHUSUS JIKA PILIH NFT EVENT (Maksimal 3 Screenshot SS) -->
+        <div id="eventUploadSection" class="hidden bg-purple-950/40 border border-purple-500/40 rounded-xl p-3 space-y-2">
+          <p class="text-[11px] font-bold text-purple-300">📸 Unggah Screenshot (SS) Lengkap Event (Max 3 SS)</p>
+          <p class="text-[9px] text-gray-300 leading-snug">Screenshot harus mencakup: <strong>Gambar, Judul, Tanggal Minting, Hash, & Creator</strong>.</p>
+          
+          <div>
+            <label class="block text-[10px] text-gray-400 mb-1">SS Bukti 1:</label>
+            <input type="file" id="eventSs1Input" accept="image/*" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-gray-300 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-semibold file:bg-purple-600 file:text-white cursor-pointer">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-400 mb-1">SS Bukti 2 (Opsional):</label>
+            <input type="file" id="eventSs2Input" accept="image/*" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-gray-300 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-semibold file:bg-purple-600 file:text-white cursor-pointer">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-400 mb-1">SS Bukti 3 (Opsional):</label>
+            <input type="file" id="eventSs3Input" accept="image/*" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-gray-300 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-semibold file:bg-purple-600 file:text-white cursor-pointer">
+          </div>
         </div>
 
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
@@ -250,7 +278,7 @@
     </div>
   </div>
 
-  <!-- MODUL TERPISAH: Sertifikat Elektronik GCP2E -->
+  <!-- MODUL TERPISAH: Sertifikat Elektronik GCP2E (Tata Letak Posisi Kanan Bawah Sesuai Standar Resmi) -->
   <script>
     const GCP2ECertificateModule = (function() {
         function sanitize(str) {
@@ -260,7 +288,6 @@
             });
         }
 
-        // Helper untuk kompatibilitas roundRect lintas browser
         function drawRoundedRect(ctx, x, y, width, height, radius) {
             ctx.beginPath();
             if (ctx.roundRect) {
@@ -385,33 +412,34 @@
             const shortId = auctionData.id ? auctionData.id.substring(0,8).toUpperCase() : 'DEMO';
             ctx.fillText(`Issued Date: ${issueDate} | Certificate ID: GCP2E-NFT-${shortId}`, 600, 605);
 
+            // STEMPEL DAN TANDA TANGAN DI POJOK KANAN BAWAH SECARA PROPORSIONAL
             const stampImg = new Image();
             stampImg.crossOrigin = "anonymous";
             stampImg.src = "175259.jpg";
 
             stampImg.onload = function() {
-                ctx.drawImage(stampImg, 800, 580, 300, 190);
+                ctx.drawImage(stampImg, 780, 580, 310, 190);
                 drawChairmanLabel(ctx);
             };
 
             stampImg.onerror = function() {
-                ctx.strokeStyle = '#3b82f6';
+                ctx.strokeStyle = '#2563eb';
                 ctx.lineWidth = 3;
                 ctx.beginPath();
-                ctx.arc(950, 660, 65, 0, 2 * Math.PI);
+                ctx.arc(935, 665, 62, 0, 2 * Math.PI);
                 ctx.stroke();
 
-                ctx.fillStyle = '#3b82f6';
-                ctx.font = 'bold 11px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('★ GLOBAL COMMUNITY ★', 950, 635);
-                ctx.fillText('PLAY TO EARN', 950, 655);
+                ctx.fillStyle = '#2563eb';
                 ctx.font = 'bold 10px sans-serif';
-                ctx.fillText('OFFICIAL STAMP', 950, 680);
+                ctx.textAlign = 'center';
+                ctx.fillText('★ GLOBAL COMMUNITY ★', 935, 642);
+                ctx.fillText('PLAY TO EARN', 935, 660);
+                ctx.font = 'bold 9px sans-serif';
+                ctx.fillText('OFFICIAL SEAL - 2026', 935, 685);
 
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'italic 16px cursive';
-                ctx.fillText('Chairman GCP2E', 950, 730);
+                ctx.font = 'bold 15px cursive';
+                ctx.fillText('Chairman GCP2E', 935, 730);
 
                 drawChairmanLabel(ctx);
             };
@@ -421,7 +449,7 @@
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 13px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('CHAIRMAN OF GCP2E', 950, 785);
+            ctx.fillText('CHAIRMAN OF GCP2E', 935, 785);
         }
 
         return {
@@ -657,7 +685,7 @@
         selectImageAlert: "Por favor seleccione un archivo de imagen primero.",
         enterUrlAlert: "Por favor ingrese la URL de la imagen primero.",
         uploadingImg: "Subiendo imagen...",
-        contactingWallet: "Contactando Billetera Pi...",
+        contactingWallet: "Contacting Billetera Pi...",
         approvingPay: "Aprobando pago...",
         completingTx: "Completando transacción...",
         successRelease: "🎉 ¡Activo NFT publicado con éxito en la galería!",
@@ -1004,6 +1032,12 @@
         const isCancelled = item.status === 'cancelled';
         const isFinished = !isCancelled && (item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date()));
         
+        // Hanya tampilkan yang aktif (disetujui admin) atau milik sendiri jika pending
+        const isPending = item.status === 'pending_approval';
+        if (isPending && (!authenticatedPiUser || item.seller !== authenticatedPiUser.username)) {
+          return false;
+        }
+
         const matchTitle = (item.title || '').toLowerCase().includes(query);
         const matchHash = (item.hash || '').toLowerCase().includes(query);
         const matchSearch = matchTitle || matchHash;
@@ -1011,12 +1045,12 @@
         const isMyListing = authenticatedPiUser && item.seller === authenticatedPiUser.username;
         const isMyBid = authenticatedPiUser && userBiddedAuctionIds.has(item.id);
 
-        if (status === 'active') return matchSearch && !isFinished && !isCancelled;
+        if (status === 'active') return matchSearch && !isFinished && !isCancelled && !isPending;
         if (status === 'ended') return matchSearch && isFinished && !isCancelled;
         if (status === 'cancelled') return matchSearch && isCancelled;
         if (status === 'my_listings') return matchSearch && isMyListing;
         if (status === 'my_bids') return matchSearch && isMyBid;
-        return matchSearch;
+        return matchSearch && !isPending;
       });
 
       renderGalleryUI(filteredAuctionsList);
@@ -1057,14 +1091,18 @@
         const displayTitle = sanitizeInput(item.title) || "NFT Asset";
         const sellerName = sanitizeInput(item.seller) || 'Anonymous';
         const isCancelled = item.status === 'cancelled';
-        const isFinished = !isCancelled && (item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date()));
+        const isPending = item.status === 'pending_approval';
+        const isFinished = !isCancelled && !isPending && (item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date()));
         const hasBids = item.highest_bidder && item.highest_bidder !== '-' && item.highest_bidder !== '';
         const currentPrice = hasBids ? item.highest_bid : (item.reserve_price || 0);
 
         let badgeStatusText = t('activeStatus');
         let badgeColorClass = 'text-yellow-400';
 
-        if (isCancelled) {
+        if (isPending) {
+          badgeStatusText = '⏳ PENDING APPROVAL';
+          badgeColorClass = 'text-purple-400';
+        } else if (isCancelled) {
           badgeStatusText = t('cancelledStatus');
           badgeColorClass = 'text-gray-400';
         } else if (isFinished) {
@@ -1093,7 +1131,7 @@
                 <div class="text-right">
                   <p class="text-[8px] text-gray-500 uppercase">${t('timeLabel')}</p>
                   <p class="text-[9px] font-semibold ${isCancelled ? 'text-gray-400' : isFinished ? 'text-emerald-400' : 'text-gray-300'} timer-element" data-ends="${item.ends_at}" data-cancelled="${isCancelled}">
-                    ${isCancelled ? t('cancelledStatus') : isFinished ? t('finishedStatus') : '--:--'}
+                    ${isPending ? 'Menunggu Izin' : isCancelled ? t('cancelledStatus') : isFinished ? t('finishedStatus') : '--:--'}
                   </p>
                 </div>
               </div>
@@ -1149,11 +1187,11 @@
           });
         }
         if (payment.metadata) {
-          const { type, auctionId, bidAmount, username, title, hash, price, imageUrl, seller } = payment.metadata;
+          const { type, auctionId, bidAmount, username, title, hash, price, imageUrl, seller, category } = payment.metadata;
           if (type === 'bid' && auctionId && bidAmount) {
             await recordBidToDatabase(auctionId, bidAmount, username);
           } else if (title && price) {
-            await saveListingToDatabase(title, hash || '', imageUrl || '', price, seller);
+            await saveListingToDatabase(title, hash || '', imageUrl || '', price, seller, category || 'NON_EVENT');
           }
         }
       } catch (e) {
@@ -1172,15 +1210,26 @@
         .from('auctions')
         .select('id')
         .eq('seller', authenticatedPiUser.username)
-        .eq('status', 'active');
+        .in('status', ['active', 'pending_approval']);
 
       if (!error && userActiveAuctions && userActiveAuctions.length >= 3) {
-        alert("🚫 Limit Reached! Each username can only have up to 3 active auction listings simultaneously.");
+        alert("🚫 Limit Reached! Each username can only have up to 3 active or pending auction listings simultaneously.");
         return;
       }
 
       document.getElementById('createModal').classList.remove('hidden');
+      toggleEventFields();
       updateListingFeePreview();
+    }
+
+    function toggleEventFields() {
+      const category = document.getElementById('assetCategorySelect').value;
+      const eventSec = document.getElementById('eventUploadSection');
+      if (category === 'EVENT') {
+        eventSec.classList.remove('hidden');
+      } else {
+        eventSec.classList.add('hidden');
+      }
     }
 
     function switchImageTab(tab) {
@@ -1283,7 +1332,8 @@
       const sellerName = sanitizeInput(selectedAuction.seller) || "Anonymous";
       const cleanHash = sanitizeInput(selectedAuction.hash) || "-";
       const isCancelled = selectedAuction.status === 'cancelled';
-      const isFinished = !isCancelled && (selectedAuction.status === 'expired' || (selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date()));
+      const isPending = selectedAuction.status === 'pending_approval';
+      const isFinished = !isCancelled && !isPending && (selectedAuction.status === 'expired' || (selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date()));
       const reservePrice = selectedAuction.reserve_price || 0;
       
       const { data: bidLogs } = await supabaseClient
@@ -1340,13 +1390,37 @@
       const minNextBid = hasBids ? (currentHighest + 0.1).toFixed(2) : reservePrice;
       const canCancelAuction = (isOwner || isAdminUser) && (!hasBids || isAdminUser) && !isCancelled && !isFinished;
 
+      // TOMBOL APPROVAL ADMIN JIKA STATUS PENDING
+      let adminApprovalSection = '';
+      if (isPending && isAdminUser) {
+        adminApprovalSection = `
+          <div class="bg-purple-950/60 border border-purple-500/50 p-3 rounded-xl space-y-2 text-center">
+            <p class="text-[11px] font-bold text-purple-300">🛡️ Admin Panel: Aset NFT Event Menunggu Persetujuan</p>
+            <div class="flex gap-2">
+              <button onclick="approveEventAsset('${selectedAuction.id}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2 rounded-xl transition cursor-pointer">
+                ✅ Setujui & Rilis
+              </button>
+              <button onclick="rejectEventAsset('${selectedAuction.id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs py-2 rounded-xl transition cursor-pointer">
+                ❌ Tolak
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (isPending && isOwner) {
+        adminApprovalSection = `
+          <div class="bg-yellow-500/10 border border-yellow-500/30 p-3 rounded-xl text-center text-xs text-yellow-400 font-medium">
+            ⏳ Aset Anda berjenis <strong>NFT EVENT</strong> dan sedang menunggu izin verifikasi dari Admin.
+          </div>
+        `;
+      }
+
       const modalContent = document.getElementById('modalDetailContent');
       modalContent.innerHTML = `
         <div class="space-y-3">
           <div class="relative rounded-xl overflow-hidden bg-gray-900 border border-gray-800">
             <img src="${selectedAuction.image_url}" class="w-full h-48 object-contain">
-            <span class="absolute top-2 left-2 bg-black/80 px-2 py-0.5 rounded text-[9px] font-bold ${isCancelled ? 'text-gray-400' : isFinished ? 'text-emerald-400' : 'text-yellow-400'} border border-white/10">
-              ${isCancelled ? t('cancelledStatus') : isFinished ? t('finishedStatus') : t('activeStatus')}
+            <span class="absolute top-2 left-2 bg-black/80 px-2 py-0.5 rounded text-[9px] font-bold ${isPending ? 'text-purple-400' : isCancelled ? 'text-gray-400' : isFinished ? 'text-emerald-400' : 'text-yellow-400'} border border-white/10">
+              ${isPending ? 'PENDING APPROVAL' : isCancelled ? t('cancelledStatus') : isFinished ? t('finishedStatus') : t('activeStatus')}
             </span>
             <button onclick="reportSuspiciousAsset('${selectedAuction.id}', '${displayTitle}')" class="absolute top-2 right-2 bg-red-950/80 hover:bg-red-900 text-red-300 p-1 rounded-md text-[9px] border border-red-500/30 font-semibold flex items-center gap-1 transition cursor-pointer">
               🚩 Report
@@ -1393,6 +1467,8 @@
             </div>
           </div>
 
+          ${adminApprovalSection}
+
           <!-- MENGGUNAKAN MODUL TERPISAH GCP2ECertificateModule -->
           ${isFinished && hasBids ? `
             <div class="bg-gradient-to-r from-yellow-500/20 via-purple-500/20 to-blue-500/20 border border-yellow-500/40 p-3 rounded-xl text-center space-y-2">
@@ -1411,7 +1487,7 @@
             </div>
           </div>
 
-          ${isCancelled ? `
+          ${isPending ? '' : isCancelled ? `
             <div class="bg-gray-800 border border-gray-700 p-2.5 rounded-xl text-center text-xs text-gray-400 font-semibold">
               🚫 Lelang ini telah dibatalkan oleh Penjual.
             </div>
@@ -1483,6 +1559,38 @@
 
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
+    }
+
+    async function approveEventAsset(auctionId) {
+      try {
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ status: 'active' })
+          .eq('id', auctionId);
+
+        if (error) throw error;
+        alert("✅ Aset NFT Event berhasil disetujui dan kini aktif di galeri!");
+        closeDetailModal();
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal menyetujui aset: " + err.message);
+      }
+    }
+
+    async function rejectEventAsset(auctionId) {
+      try {
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ status: 'cancelled' })
+          .eq('id', auctionId);
+
+        if (error) throw error;
+        alert("❌ Aset NFT Event ditolak.");
+        closeDetailModal();
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal menolak aset: " + err.message);
+      }
     }
 
     async function cancelAuction(auctionId) {
@@ -1678,6 +1786,7 @@
         return;
       }
 
+      const category = document.getElementById('assetCategorySelect').value;
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
       const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
@@ -1691,6 +1800,23 @@
       const btnPublish = document.getElementById('btnPublish');
       btnPublish.disabled = true;
 
+      // Jika kategori EVENT, kumpulkan SS tambahan dan langsung kirim ke WhatsApp admin
+      if (category === 'EVENT') {
+        const ss1 = document.getElementById('eventSs1Input').files[0];
+        if (!ss1) {
+          alert("❌ Mohon minimal upload 1 Screenshot (SS) bukti event!");
+          btnPublish.disabled = false;
+          return;
+        }
+
+        // Format pesan WhatsApp otomatis ke nomor 6285708486588
+        const waMessage = `Halo Admin, saya ingin mengajukan persetujuan Rilis Aset NFT Event:\n\n*Judul Aset:* ${title}\n*Hash:* ${hash}\n*Creator:* @${authenticatedPiUser.username}\n*Harga Awal:* ${reservePrice} Pi\n\nMohon verifikasi screenshot dan hash di atas. Terima kasih!`;
+        const waUrl = `https://wa.me/6285708486588?text=${encodeURIComponent(waMessage)}`;
+        
+        // Buka WhatsApp di tab baru agar data langsung terkirim
+        window.open(waUrl, '_blank');
+      }
+
       if (activeImageTab === 'upload') {
         const fileInput = document.getElementById('imageFileInput');
         if (!fileInput.files || fileInput.files.length === 0) {
@@ -1700,8 +1826,6 @@
         }
 
         const file = fileInput.files[0];
-        
-        // Validasi ukuran file maksimal 2MB
         if (file.size > 2 * 1024 * 1024) {
           alert("❌ Ukuran file terlalu besar! Maksimal 2MB.");
           btnPublish.disabled = false;
@@ -1756,7 +1880,8 @@
           hash: hash, 
           price: reservePrice, 
           imageUrl: imageUrl, 
-          seller: authenticatedPiUser.username 
+          seller: authenticatedPiUser.username,
+          category: category
         }
       };
 
@@ -1777,7 +1902,7 @@
             body: JSON.stringify({ paymentId, txid })
           });
 
-          await saveListingToDatabase(title, hash, imageUrl, reservePrice, authenticatedPiUser.username);
+          await saveListingToDatabase(title, hash, imageUrl, reservePrice, authenticatedPiUser.username, category);
         },
         onCancel: () => {
           alert(t('payCancelled'));
@@ -1801,9 +1926,11 @@
       }
     }
 
-    async function saveListingToDatabase(title, hash, imageUrl, reservePrice, seller) {
+    async function saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, category) {
       try {
         const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        // Jika kategori EVENT, status awal 'pending_approval' (tidak langsung masuk galeri umum sebelum izin admin)
+        const assetStatus = (category === 'EVENT') ? 'pending_approval' : 'active';
 
         const { error } = await supabaseClient
           .from('auctions')
@@ -1816,13 +1943,18 @@
             highest_bidder: '-',
             seller: seller,
             ends_at: endsAt,
-            status: 'active',
+            status: assetStatus,
             extension_count: 0
           }]);
 
         if (error) throw error;
 
-        alert(t('successRelease'));
+        if (category === 'EVENT') {
+          alert("🎉 Aset NFT Event berhasil diajukan! Data & Screenshot telah diteruskan ke WhatsApp Admin untuk persetujuan.");
+        } else {
+          alert(t('successRelease'));
+        }
+
         closeCreateModal();
         fetchActiveAuctions();
 
