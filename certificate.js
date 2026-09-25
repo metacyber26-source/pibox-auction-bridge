@@ -1,10 +1,9 @@
 /**
- * Modul Generator Sertifikat Elektronik GCP2E (Landscape / Desain Gelap Elegan)
- * Data lelang terisi secara real-time dan menggunakan stempel transparan dari GitHub
+ * Modul Generator Sertifikat Elektronik GCP2E (Landscape)
+ * Memperbaiki masalah gambar transparan agar stempel & tanda tangan terlihat jelas
  */
 const GCP2ECertificateModule = (function() {
     
-    // Nama file stempel dan tanda tangan terbaru sesuai dengan yang ada di GitHub
     const SEAL_SIGN_URL = "1790326586371.jpg";
 
     function sanitize(str) {
@@ -54,13 +53,12 @@ const GCP2ECertificateModule = (function() {
         ctx.font = 'italic 14px sans-serif';
         ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 225);
 
-        // Nama Pemenang (Real-time dari Data Lelang)
+        // Nama Pemenang
         const winnerName = auctionData.highest_bidder ? `@${sanitize(auctionData.highest_bidder)}` : 'VALUED WINNER';
         ctx.fillStyle = '#facc15';
         ctx.font = 'bold 26px sans-serif';
         ctx.fillText(winnerName.toUpperCase(), 600, 270);
 
-        // Garis Pembatas Nama Pemenang
         ctx.strokeStyle = '#ca8a04';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -72,7 +70,7 @@ const GCP2ECertificateModule = (function() {
         ctx.font = '13px sans-serif';
         ctx.fillText('For successfully winning the official PiBox NFT auction event with verified details below:', 600, 325);
 
-        // 3. Kotak Informasi Detail Lelang (Real-time)
+        // 3. Kotak Informasi Detail Lelang
         ctx.fillStyle = '#1e293b';
         ctx.strokeStyle = '#475569';
         ctx.lineWidth = 1.5;
@@ -105,7 +103,7 @@ const GCP2ECertificateModule = (function() {
             ctx.fillText(item.val, col2X, y);
         });
 
-        // 4. Tanggal Terbit & ID Sertifikat (Real-time)
+        // 4. Tanggal Terbit & ID Sertifikat
         ctx.textAlign = 'center';
         ctx.fillStyle = '#94a3b8';
         ctx.font = '12px sans-serif';
@@ -113,14 +111,27 @@ const GCP2ECertificateModule = (function() {
         const certId = auctionData.id ? `GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}` : 'GCP2E-NFT-8DBA6AED';
         ctx.fillText(`Issued Date: ${issuedDateStr} | Certificate ID: ${certId}`, 600, 580);
 
-        // 5. Render Gambar Stempel & Tanda Tangan dari GitHub ke Pojok Kanan Bawah
+        // 5. Render Gambar Stempel & Tanda Tangan dengan Latar Belakang Kotak Putih Tipis (Agar tidak transparan/hilang)
         const sealImg = new Image();
         sealImg.crossOrigin = "anonymous";
         sealImg.onload = function() {
-            // Menampilkan gambar stempel/tanda tangan secara transparan di posisi kanan bawah
-            ctx.drawImage(sealImg, 800, 530, 260, 200);
+            const posX = 800;
+            const posY = 520;
+            const imgWidth = 260;
+            const imgHeight = 200;
 
-            // Teks Label di Bawah Stempel Kanan
+            // Membuat kotak latar belakang putih transparan tipis di bawah stempel agar tanda tangan hitam terlihat jelas
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; // Putih bersih agak transparan
+            ctx.beginPath();
+            ctx.roundRect(posX, posY, imgWidth, imgHeight, 8);
+            ctx.fill();
+            ctx.restore();
+
+            // Gambar stempel dan tanda tangan di atasnya
+            ctx.drawImage(sealImg, posX, posY, imgWidth, imgHeight);
+
+            // Teks Label di Bawah Stempel
             ctx.textAlign = 'center';
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 12px sans-serif';
