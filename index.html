@@ -1032,7 +1032,6 @@
         const isCancelled = item.status === 'cancelled';
         const isFinished = !isCancelled && (item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date()));
         
-        // Hanya tampilkan yang aktif (disetujui admin) atau milik sendiri jika pending
         const isPending = item.status === 'pending_approval';
         if (isPending && (!authenticatedPiUser || item.seller !== authenticatedPiUser.username)) {
           return false;
@@ -1390,7 +1389,6 @@
       const minNextBid = hasBids ? (currentHighest + 0.1).toFixed(2) : reservePrice;
       const canCancelAuction = (isOwner || isAdminUser) && (!hasBids || isAdminUser) && !isCancelled && !isFinished;
 
-      // TOMBOL APPROVAL ADMIN JIKA STATUS PENDING
       let adminApprovalSection = '';
       if (isPending && isAdminUser) {
         adminApprovalSection = `
@@ -1469,7 +1467,6 @@
 
           ${adminApprovalSection}
 
-          <!-- MENGGUNAKAN MODUL TERPISAH GCP2ECertificateModule -->
           ${isFinished && hasBids ? `
             <div class="bg-gradient-to-r from-yellow-500/20 via-purple-500/20 to-blue-500/20 border border-yellow-500/40 p-3 rounded-xl text-center space-y-2">
               <p class="text-[11px] font-bold text-yellow-300">🏆 GCP2E Official Electronic Certificate Available!</p>
@@ -1800,7 +1797,6 @@
       const btnPublish = document.getElementById('btnPublish');
       btnPublish.disabled = true;
 
-      // Jika kategori EVENT, kumpulkan SS tambahan dan langsung kirim ke WhatsApp admin
       if (category === 'EVENT') {
         const ss1 = document.getElementById('eventSs1Input').files[0];
         if (!ss1) {
@@ -1809,11 +1805,8 @@
           return;
         }
 
-        // Format pesan WhatsApp otomatis ke nomor 6285708486588
         const waMessage = `Halo Admin, saya ingin mengajukan persetujuan Rilis Aset NFT Event:\n\n*Judul Aset:* ${title}\n*Hash:* ${hash}\n*Creator:* @${authenticatedPiUser.username}\n*Harga Awal:* ${reservePrice} Pi\n\nMohon verifikasi screenshot dan hash di atas. Terima kasih!`;
         const waUrl = `https://wa.me/6285708486588?text=${encodeURIComponent(waMessage)}`;
-        
-        // Buka WhatsApp di tab baru agar data langsung terkirim
         window.open(waUrl, '_blank');
       }
 
@@ -1929,7 +1922,6 @@
     async function saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, category) {
       try {
         const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        // Jika kategori EVENT, status awal 'pending_approval' (tidak langsung masuk galeri umum sebelum izin admin)
         const assetStatus = (category === 'EVENT') ? 'pending_approval' : 'active';
 
         const { error } = await supabaseClient
