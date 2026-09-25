@@ -1,6 +1,6 @@
 /**
  * Modul Generator Sertifikat Elektronik GCP2E Resmi
- * 100% Presisi sesuai stempel dan tanda tangan asli
+ * Menggunakan gambar stempel dan tanda tangan asli: 1790252715975.jpg
  */
 const GCP2ECertificateModule = (function() {
     
@@ -127,15 +127,14 @@ const GCP2ECertificateModule = (function() {
         const issueDate = new Date().toUTCString();
         ctx.fillText(`Issued Date: ${issueDate} | Certificate ID: GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}`, 600, 605);
 
-        // 6. Merender Stempel & Tanda Tangan Asli secara Presisi
+        // 6. Memuat Gambar Stempel & Tanda Tangan Sesuai Nama File Asli
         const sealImg = new Image();
         sealImg.crossOrigin = "anonymous";
-        // Menggunakan file gambar stempel asli yang diunggah ke repositori
-        sealImg.src = "174925.jpg";
+        sealImg.src = "1790252715975.jpg"; // Memuat file gambar yang baru saja diunggah
 
         sealImg.onload = function() {
             // Menempatkan gambar stempel asli secara proporsional di area tanda tangan
-            ctx.drawImage(sealImg, 750, 540, 330, 210);
+            ctx.drawImage(sealImg, 750, 535, 330, 215);
 
             // Label Ketua GCP2E di bawah stempel
             ctx.fillStyle = '#ffffff';
@@ -145,7 +144,7 @@ const GCP2ECertificateModule = (function() {
         };
 
         sealImg.onerror = function() {
-            // Fallback teks jika file gambar stempel belum terdeteksi di direktori root github
+            // Fallback jika gambar gagal dimuat
             ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 3;
             ctx.beginPath();
