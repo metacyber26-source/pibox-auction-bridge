@@ -1,11 +1,11 @@
 /**
  * Modul Generator Sertifikat Elektronik GCP2E (Landscape)
- * Mengambil gambar stempel langsung dari file repository GitHub
+ * Menggunakan file stempel terbaru dari repository GitHub
  */
 const GCP2ECertificateModule = (function() {
     
-    // Path langsung ke file gambar stempel di repository GitHub Anda
-    const SEAL_SIGN_URL = "Label-Studio-Pro-HighRes-1790323624054.png";
+    // Path nama file stempel dan tanda tangan terbaru di GitHub
+    const SEAL_SIGN_URL = "1790326586371.jpg";
 
     function sanitize(str) {
         if (!str) return '';
@@ -111,33 +111,13 @@ const GCP2ECertificateModule = (function() {
         const certId = auctionData.id ? `GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}` : 'GCP2E-NFT-8DBA6AED';
         ctx.fillText(`Issued Date: ${issuedDateStr} | Certificate ID: ${certId}`, 600, 580);
 
-        // 5. Render Stempel & Tanda Tangan dari File GitHub dengan Background Transparan Otomatis
+        // 5. Render Gambar Stempel & Tanda Tangan ke Canvas
         const sealImg = new Image();
         sealImg.crossOrigin = "anonymous";
         sealImg.onload = function() {
-            const tempCanvas = document.createElement('canvas');
-            const tCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = sealImg.width;
-            tempCanvas.height = sealImg.height;
-            tCtx.drawImage(sealImg, 0, 0);
+            ctx.drawImage(sealImg, 800, 530, 260, 200);
 
-            let imgData = tCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-            let data = imgData.data;
-            
-            // Menghilangkan latar belakang putih pada gambar stempel
-            for (let i = 0; i < data.length; i += 4) {
-                let r = data[i], g = data[i+1], b = data[i+2];
-                if (r > 200 && g > 200 && b > 200) {
-                    data[i+3] = 0; // Transparan
-                }
-            }
-            tCtx.putImageData(imgData, 0, 0);
-
-            ctx.save();
-            ctx.globalCompositeOperation = 'screen';
-            ctx.drawImage(tempCanvas, 800, 530, 260, 200);
-            ctx.restore();
-
+            // Teks Label di Bawah Stempel
             ctx.textAlign = 'center';
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 12px sans-serif';
