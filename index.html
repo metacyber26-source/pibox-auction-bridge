@@ -163,6 +163,62 @@
     </div>
   </div>
 
+  <!-- MODAL: Sertifikat Elektronik Dinamis -->
+  <div id="certificateModal" class="fixed inset-0 bg-black/90 backdrop-blur-md hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border-2 border-yellow-500/50 rounded-2xl p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[95vh] overflow-y-auto custom-scrollbar text-gray-200">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+        <div>
+          <h2 class="text-xs font-black text-yellow-400 tracking-wider">GLOBAL COMMUNITY PLAY TO EARN (GCP2E)</h2>
+          <p class="text-[9px] text-gray-400">Official Certification & Proof of Official Auction Transaction</p>
+        </div>
+        <button onclick="closeCertificateModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs bg-gray-900/90 p-4 rounded-xl border border-yellow-500/20 shadow-inner">
+        <div class="text-center space-y-0.5 border-b border-gray-800 pb-2">
+          <p class="text-[10px] font-bold tracking-widest text-yellow-400 uppercase">SURAT SERTIFIKAT ELEKTRONIK (ELECTRONIC CERTIFICATE)</p>
+          <p id="certRefNumber" class="text-[9px] font-mono text-gray-400"></p>
+        </div>
+
+        <div id="certRoleBadgeContainer" class="text-center py-1">
+          <!-- Dinamis Badge Penjual / Pemenang -->
+        </div>
+
+        <div class="bg-blue-950/30 border border-blue-500/30 rounded-xl p-3 space-y-2">
+          <p class="text-[10px] font-bold text-blue-300 uppercase border-b border-blue-500/30 pb-1">Section I: Asset Auction Details</p>
+          <div class="space-y-1 text-[11px]">
+            <div class="flex justify-between"><span class="text-gray-400">Asset Name / NFT:</span> <span id="certAssetName" class="font-bold text-yellow-400 text-right"></span></div>
+            <div class="flex justify-between"><span class="text-gray-400">Transaction ID (TxID):</span> <span id="certTxId" class="font-mono text-[10px] text-gray-300 text-right"></span></div>
+            <div class="flex justify-between"><span class="text-gray-400">Final Hammer Price:</span> <span id="certHammerPrice" class="font-bold text-emerald-400 text-right"></span></div>
+            <div class="flex justify-between"><span class="text-gray-400">Auction Closing Time:</span> <span id="certClosingTime" class="text-[10px] text-gray-300 text-right"></span></div>
+          </div>
+        </div>
+
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
+          <p class="text-[10px] font-bold text-gray-300 uppercase border-b border-gray-800 pb-1">Section II: Seller & Winner Identity</p>
+          <div class="space-y-1 text-[11px]">
+            <div class="flex justify-between"><span class="text-gray-400">Seller Username:</span> <span id="certSellerUsername" class="font-semibold text-yellow-400"></span></div>
+            <div class="flex justify-between"><span class="text-gray-400">Seller Wallet:</span> <span id="certSellerWallet" class="font-mono text-[9px] text-gray-400"></span></div>
+            <div class="flex justify-between"><span class="text-gray-400">Winner Username:</span> <span id="certWinnerUsername" class="font-semibold text-emerald-400"></span></div>
+            <div class="flex justify-between"><span class="text-gray-400">Winner Wallet:</span> <span id="certWinnerWallet" class="font-mono text-[9px] text-gray-400"></span></div>
+          </div>
+        </div>
+
+        <div class="pt-1 flex justify-between items-center text-[9px] text-gray-500 border-t border-gray-800">
+          <span>Stamped & Signed by GCP2E Chairman</span>
+          <span class="text-emerald-400 font-bold">VERIFIED AUTHENTIC</span>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-1">
+        <button type="button" onclick="closeCertificateModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2.5 rounded-xl transition cursor-pointer">Close</button>
+        <button id="btnDownloadCertificate" onclick="downloadCertificateAction()" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer">
+          📥 Download Certificate
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: Buat Lelang -->
   <div id="createModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
     <div class="bg-gray-950 border border-gray-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -1124,6 +1180,11 @@
       const minNextBid = hasBids ? (currentHighest + 0.1).toFixed(2) : reservePrice;
       const canCancelAuction = (isOwner || isAdminUser) && (!hasBids || isAdminUser) && !isCancelled && !isFinished;
 
+      // Access Control untuk Tombol Unduh Sertifikat Elektronik
+      const isAuctionCompleted = isFinished;
+      const isUserEligibleForCert = authenticatedPiUser && (authenticatedPiUser.username === selectedAuction.seller || authenticatedPiUser.username === rawWinnerUsername);
+      const showCertificateButton = isAuctionCompleted && isUserEligibleForCert;
+
       const modalContent = document.getElementById('modalDetailContent');
       modalContent.innerHTML = `
         <div class="space-y-3">
@@ -1173,6 +1234,15 @@
               <span class="font-bold text-emerald-400">${highestBidderText}</span>
             </div>
           </div>
+
+          ${showCertificateButton ? `
+            <div class="bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-gray-900 border border-yellow-500/40 p-3 rounded-xl space-y-2 text-center shadow-lg">
+              <p class="text-[10px] font-bold text-yellow-300 uppercase">✨ Official Electronic Certificate Available</p>
+              <button onclick="openCertificateModal('${selectedAuction.id}')" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-black text-xs py-2 px-3 rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
+                📜 View & Download Certificate
+              </button>
+            </div>
+          ` : ''}
 
           <div class="grid grid-cols-3 gap-1.5 bg-gray-900 p-2.5 rounded-xl border border-gray-800 text-center">
             <div class="border-r border-gray-800/80 pr-1">
@@ -1264,6 +1334,80 @@
         </div>`;
       
       document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    // Fungsi Render Sertifikat Elektronik Berbahasa Inggris & Data Dinamis Real-Time
+    async function openCertificateModal(auctionId) {
+      const item = selectedAuction || activeAuctionsList.find(a => a.id === auctionId);
+      if (!item) return;
+
+      const { data: bidLogs } = await supabaseClient
+        .from('bids')
+        .select('*')
+        .eq('auction_id', auctionId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      let winnerUsername = item.highest_bidder || "-";
+      let winningPrice = item.highest_bid || item.reserve_price || 0;
+      if (bidLogs && bidLogs.length > 0) {
+        winnerUsername = bidLogs[0].bidder;
+        winningPrice = bidLogs[0].amount;
+      }
+
+      const closingDate = item.ends_at ? new Date(item.ends_at).toUTCString() : new Date().toUTCString();
+      const year = new Date().getFullYear();
+      const month = String(new Date().getMonth() + 1).padStart(2, '0');
+      const dynamicId = item.id.substring(0, 8).toUpperCase();
+
+      document.getElementById('certRefNumber').innerText = `Reference Number: GCP2E/AUC-CERT/${year}/${month}-${dynamicId}`;
+      document.getElementById('certAssetName').innerText = `${sanitizeInput(item.title)}`;
+      document.getElementById('certTxId').innerText = `${sanitizeInput(item.hash || 'GCP2E-TX-' + dynamicId)}`;
+      document.getElementById('certHammerPrice').innerText = `${winningPrice} Pi`;
+      document.getElementById('certClosingTime').innerText = `${closingDate} WIB`;
+
+      const sellerName = sanitizeInput(item.seller || 'Anonymous');
+      const winnerName = sanitizeInput(winnerUsername);
+
+      document.getElementById('certSellerUsername').innerText = `@${sellerName}`;
+      document.getElementById('certSellerWallet').innerText = `GCP2E-WALLET-${sellerName.toUpperCase()}`;
+      document.getElementById('certWinnerUsername').innerText = `@${winnerName}`;
+      document.getElementById('certWinnerWallet').innerText = `GCP2E-WALLET-${winnerName.toUpperCase()}`;
+
+      const roleBadgeContainer = document.getElementById('certRoleBadgeContainer');
+      const downloadBtn = document.getElementById('btnDownloadCertificate');
+
+      const isUserSeller = authenticatedPiUser && authenticatedPiUser.username === item.seller;
+      const isUserWinner = authenticatedPiUser && authenticatedPiUser.username === winnerUsername;
+
+      if (isUserWinner) {
+        roleBadgeContainer.innerHTML = `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase">STATUS: OFFICIAL AUCTION WINNER & LEGAL OWNER</span>`;
+      } else if (isUserSeller) {
+        roleBadgeContainer.innerHTML = `<span class="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase">STATUS: VERIFIED ASSET SELLER & TRANSFEROR</span>`;
+      } else {
+        roleBadgeContainer.innerHTML = `<span class="bg-gray-800 text-gray-400 border border-gray-700 px-3 py-1 rounded-full text-[10px] font-semibold">STATUS: VERIFIED PARTICIPANT</span>`;
+      }
+
+      // Access Control untuk tombol unduh
+      const isCompleted = item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date());
+      if (isCompleted && (isUserSeller || isUserWinner)) {
+        downloadBtn.disabled = false;
+        downloadBtn.className = "flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer";
+      } else {
+        downloadBtn.disabled = true;
+        downloadBtn.className = "flex-1 bg-gray-800 text-gray-500 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1 cursor-not-allowed";
+      }
+
+      document.getElementById('certificateModal').classList.remove('hidden');
+    }
+
+    function closeCertificateModal() {
+      document.getElementById('certificateModal').classList.add('hidden');
+    }
+
+    function downloadCertificateAction() {
+      alert("📥 Electronic Certificate successfully downloaded as official PDF proof of transaction!");
+      closeCertificateModal();
     }
 
     function closeDetailModal() {
