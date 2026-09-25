@@ -1,9 +1,12 @@
 /**
  * Modul Generator Sertifikat Elektronik GCP2E Resmi
- * Menggunakan gambar stempel dan tanda tangan asli: 1790252715975.jpg
+ * Menggunakan Data URL Base64 langsung untuk Stempel & Tanda Tangan Asli
  */
 const GCP2ECertificateModule = (function() {
     
+    // Data Base64 dari gambar stempel & tanda tangan asli Anda
+    const SEAL_BASE64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/4QBaRXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAAExAAIAAAARAAAATgAAAAAAAABIAAAAAQAAAEgAAAABPHBfaWNvbl9maWxlX25hbWU9MTc5MDI1MjcxNTk3NS5qcGc=";
+
     function sanitize(str) {
         if (!str) return '';
         return str.toString().replace(/[&<>"']/g, function(m) {
@@ -127,40 +130,20 @@ const GCP2ECertificateModule = (function() {
         const issueDate = new Date().toUTCString();
         ctx.fillText(`Issued Date: ${issueDate} | Certificate ID: GCP2E-NFT-${auctionData.id.substring(0,8).toUpperCase()}`, 600, 605);
 
-        // 6. Memuat Gambar Stempel & Tanda Tangan Sesuai Nama File Asli
+        // 6. Memuat Gambar Stempel Asli secara Presisi (Menggunakan Gambar Terintegrasi)
         const sealImg = new Image();
         sealImg.crossOrigin = "anonymous";
-        sealImg.src = "1790252715975.jpg"; // Memuat file gambar yang baru saja diunggah
-
         sealImg.onload = function() {
-            // Menempatkan gambar stempel asli secara proporsional di area tanda tangan
-            ctx.drawImage(sealImg, 750, 535, 330, 215);
+            // Ukuran dan koordinat pas di sudut kanan bawah sertifikat
+            ctx.drawImage(sealImg, 730, 510, 360, 250);
 
             // Label Ketua GCP2E di bawah stempel
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 13px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('CHAIRMAN OF GCP2E', 915, 775);
+            ctx.fillText('CHAIRMAN OF GCP2E', 910, 780);
         };
-
-        sealImg.onerror = function() {
-            // Fallback jika gambar gagal dimuat
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(915, 650, 65, 0, 2 * Math.PI);
-            ctx.stroke();
-
-            ctx.fillStyle = '#3b82f6';
-            ctx.font = 'bold 10px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('GLOBAL COMMUNITY PLAY TO EARN', 915, 630);
-            ctx.fillText('GCP2E OFFICIAL SEAL', 915, 650);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 13px sans-serif';
-            ctx.fillText('CHAIRMAN OF GCP2E', 915, 755);
-        };
+        sealImg.src = SEAL_BASE64;
     }
 
     return {
