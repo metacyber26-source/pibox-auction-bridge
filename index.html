@@ -684,7 +684,7 @@
         contactingWallet: "Contactando Billetera Pi...",
         approvingPay: "Aprobando pago...",
         completingTx: "Completando transacción...",
-        successRelease: "🎉 ¡Activo NFT publicado con éxito y datos enviados a WhatsApp!",
+        successRelease: "🎉 ¡Activo NFT publicado con éxito dan datos enviados a WhatsApp!",
         payCancelled: "Pago cancelado.",
         placeBidBtn: "🔨 Realizar Puja",
         sellerCannotBidAlert: "🚫 ¡Los vendedores no pueden pujar por sus propios activos!",
@@ -867,10 +867,10 @@
         reader.readAsDataURL(file);
       });
 
-      simulateSmartVisionAnalysis(extraSSFiles[0]);
+      simulateSmartVisionAnalysis();
     }
 
-    function simulateSmartVisionAnalysis(file) {
+    function simulateSmartVisionAnalysis() {
       setTimeout(() => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
@@ -886,8 +886,7 @@
         if (!document.getElementById('assetHashInput').value) {
           document.getElementById('assetHashInput').value = analyzedExtraData.hash;
         }
-        alert("✅ Analisa Visual Cerdas Berhasil! Data Judul, Hash, On-chain Time & Creator berhasil diekstrak dan siap diproses bersama pembayaran 0.2 Pi.");
-      }, 1000);
+      }, 500);
     }
 
     function sendDataToWhatsAppDirectly(data) {
@@ -1717,6 +1716,16 @@
           }
         };
 
+        let paymentFinished = false;
+        const paymentTimeout = setTimeout(() => {
+          if (!paymentFinished) {
+            console.warn("Payment preparation timed out after 55s.");
+            btnSubmitBid.disabled = false;
+            btnSubmitBid.innerText = t('placeBidBtn');
+            alert("⚠️ Koneksi dompet memakan waktu terlalu lama atau kedaluwarsa. Silakan coba klik tombol tawar lagi.");
+          }
+        }, 55000);
+
         const callbacks = {
           onReadyForServerApproval: async (paymentId) => {
             btnSubmitBid.innerText = t('approvingPay');
@@ -1727,6 +1736,8 @@
             });
           },
           onReadyForServerCompletion: async (paymentId, txid) => {
+            paymentFinished = true;
+            clearTimeout(paymentTimeout);
             btnSubmitBid.innerText = t('completingTx');
             await fetch('/api/pi/complete', {
               method: 'POST',
@@ -1741,11 +1752,15 @@
             await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
           },
           onCancel: () => {
+            paymentFinished = true;
+            clearTimeout(paymentTimeout);
             alert(t('payCancelled'));
             btnSubmitBid.disabled = false;
             btnSubmitBid.innerText = t('placeBidBtn');
           },
           onError: (error) => {
+            paymentFinished = true;
+            clearTimeout(paymentTimeout);
             console.error("Payment Error:", error);
             alert("Payment error: " + error.message);
             btnSubmitBid.disabled = false;
@@ -1754,8 +1769,16 @@
         };
 
         try {
-          await window.Pi.createPayment(paymentData, callbacks);
+          if (window.Pi) {
+            await window.Pi.createPayment(paymentData, callbacks);
+          } else {
+            paymentFinished = true;
+            clearTimeout(paymentTimeout);
+            await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
+          }
         } catch (e) {
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
           console.error("CreatePayment Exception:", e);
           btnSubmitBid.disabled = false;
           btnSubmitBid.innerText = t('placeBidBtn');
@@ -1865,6 +1888,16 @@
         }
       };
 
+      let paymentFinished = false;
+      const paymentTimeout = setTimeout(() => {
+        if (!paymentFinished) {
+          console.warn("Listing payment preparation timed out after 55s.");
+          btnPublish.disabled = false;
+          btnPublish.innerText = t('releaseAssetBtn');
+          alert("⚠️ Koneksi dompet kedaluwarsa atau gagal merespons dalam 60 detik. Pastikan Pi Browser dan saldo Testnet/Mainnet Anda aktif, lalu coba lagi.");
+        }
+      }, 55000);
+
       const callbacks = {
         onReadyForServerApproval: async (paymentId) => {
           btnPublish.innerText = t('approvingPay');
@@ -1875,6 +1908,8 @@
           });
         },
         onReadyForServerCompletion: async (paymentId, txid) => {
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
           btnPublish.innerText = t('completingTx');
           await fetch('/api/pi/complete', {
             method: 'POST',
@@ -1888,11 +1923,15 @@
           }
         },
         onCancel: () => {
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
           alert(t('payCancelled'));
           btnPublish.disabled = false;
           btnPublish.innerText = t('releaseAssetBtn');
         },
         onError: (error) => {
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
           console.error("Payment Error:", error);
           alert("Payment error: " + error.message);
           btnPublish.disabled = false;
@@ -1904,12 +1943,16 @@
         if (window.Pi) {
           await window.Pi.createPayment(paymentData, callbacks);
         } else {
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
           await saveListingToDatabase(title, hash, imageUrl, reservePrice, authenticatedPiUser.username);
           if (analyzedExtraData.title) {
             sendDataToWhatsAppDirectly(analyzedExtraData);
           }
         }
       } catch (e) {
+        paymentFinished = true;
+        clearTimeout(paymentTimeout);
         console.error("Payment Exception:", e);
         btnPublish.disabled = false;
         btnPublish.innerText = t('releaseAssetBtn');
