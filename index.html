@@ -14,7 +14,7 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & AI-AGI ENGINE (BACKEND LOGIC) -->
+  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & AGI CORE -->
   <script>
     (function() {
       const devtoolsCheck = function() {};
@@ -34,16 +34,6 @@
       validateHash: function(hash) {
         if (!hash) return false;
         return /^[a-zA-Z0-9-_]{10,128}$/.test(hash.trim());
-      }
-    };
-
-    // Advanced Autonomous Engine (AI-AGI Core Integration)
-    window.AGIEngineCore = {
-      evaluateAssetSecurity: function(title, hash) {
-        if (!title || !hash) return { safe: false, score: 0 };
-        let score = 100;
-        if (hash.length < 10) score -= 50;
-        return { safe: score >= 50, score: score };
       }
     };
   </script>
@@ -83,7 +73,7 @@
         <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
         <div>
           <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">NUSANTARA NFT AUCTION</h1>
-          <p class="text-[9px] text-yellow-500">PiBox Bridge v4.2 + Secure Engine</p>
+          <p class="text-[9px] text-yellow-500">PiBox Bridge v4.3 + Secure Engine</p>
         </div>
       </div>
       
@@ -269,7 +259,7 @@
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">📸 Tambahan Upload Max 2 Screenshot (SS)</span>
-            <span class="text-[9px] text-yellow-400 font-medium">Smart Vision & WhatsApp</span>
+            <span class="text-[9px] text-yellow-400 font-medium">Smart Vision</span>
           </div>
           <p class="text-[9px] text-gray-400 leading-tight">Unggah hingga 2 screenshot pendukung untuk analisis otomatis data Judul, Hash, On-chain Time, dan Creator.</p>
           
@@ -284,12 +274,19 @@
         </div>
       </div>
 
-      <div class="flex gap-2 pt-2">
-        <button type="button" onclick="closeCreateModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2.5 rounded-xl transition cursor-pointer" data-i18n="cancelBtn">Cancel</button>
-        <!-- TOMBOL PEMBAYARAN HIJAU FOKUS: 0.2 PI & KIRIM DATA KE WA (TOMBOL KUNING DIHILANGKAN) -->
-        <button id="btnPublish" type="button" onclick="submitNewListing()" class="flex-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
-          <span>💳 Bayar 0.2 Pi & Kirim Data ke WhatsApp</span>
+      <div class="flex flex-col gap-2 pt-2">
+        <!-- Tombol Hijau: Pembayaran 0.2 Pi murni -->
+        <button id="btnPublish" type="button" onclick="submitNewListing()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
+          <span>💳 Bayar 0.2 Pi & List Asset</span>
+          <span id="btnFeeDisplay" class="text-[10px] opacity-80">(0.2 Pi)</span>
         </button>
+
+        <!-- Tombol Pengganti: Kirim Data ke WhatsApp -->
+        <button type="button" onclick="sendDataToWhatsAppDirectly(analyzedExtraData.title ? analyzedExtraData : { title: document.getElementById('assetTitleInput').value || 'Nusantara NFT', hash: document.getElementById('assetHashInput').value || '-', onChainTime: new Date().toISOString(), creator: authenticatedPiUser ? authenticatedPiUser.username : 'Dev' })" class="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
+          <span>💬 Kirim Data ke WhatsApp</span>
+        </button>
+
+        <button type="button" onclick="closeCreateModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2 rounded-xl transition cursor-pointer" data-i18n="cancelBtn">Cancel</button>
       </div>
     </div>
   </div>
@@ -491,7 +488,7 @@
     })();
   </script>
 
-  <!-- SKRIP UTAMA & INTEGRASI STABIL -->
+  <!-- SKRIP UTAMA & INTEGRASI WHATSAPP BARU -->
   <script>
     const IS_TESTNET = true; 
 
@@ -557,7 +554,7 @@
         contactingWallet: "Contacting Pi Wallet...",
         approvingPay: "Approving Payment...",
         completingTx: "Completing Transaction...",
-        successRelease: "🎉 NFT Asset Successfully Listed in Gallery & Data Sent to WhatsApp!",
+        successRelease: "🎉 NFT Asset Successfully Listed in Gallery!",
         payCancelled: "Payment was cancelled.",
         placeBidBtn: "🔨 Place Bid",
         sellerCannotBidAlert: "🚫 Sellers are not allowed to bid on their own assets!",
@@ -607,7 +604,7 @@
         contactingWallet: "Mengontak Pi Wallet...",
         approvingPay: "Menyetujui Pembayaran...",
         completingTx: "Menyelesaikan Transaksi...",
-        successRelease: "🎉 Aset NFT Berhasil Dirilis ke Galeri & Data Terkirim ke WhatsApp!",
+        successRelease: "🎉 Aset NFT Berhasil Dirilis ke Galeri!",
         payCancelled: "Pembayaran dibatalkan.",
         placeBidBtn: "🔨 Kirim Tawaran",
         sellerCannotBidAlert: "🚫 Penjual dilarang menawar asetnya sendiri!",
@@ -752,8 +749,11 @@
 
     function updateListingFeePreview() {
       const previewEl = document.getElementById('listingFeePreview');
+      const feeDisplayEl = document.getElementById('btnFeeDisplay');
       const fee = getFlatFee();
+
       if (previewEl) previewEl.innerHTML = `Listing Fee: <strong>${fee} Pi</strong> (Flat Fee)`;
+      if (feeDisplayEl) feeDisplayEl.innerText = `(${fee} Pi)`;
     }
 
     async function handleExtraSSUpload(input) {
@@ -804,11 +804,11 @@
 
     function sendDataToWhatsAppDirectly(data) {
       const waNumber = "6285708486588";
-      const message = `Halo Admin GCP2E, berikut adalah data verifikasi aset NFT yang divalidasi sistem:\n\n` +
-                      `1. Judul: ${data.title}\n` +
-                      `2. Hash: ${data.hash}\n` +
-                      `3. On-chain time: ${data.onChainTime}\n` +
-                      `4. Initial creator: @${data.creator}\n\n` +
+      const message = `Halo Admin GCP2E, berikut adalah data verifikasi aset NFT yang divalidasi sistem pintar:\n\n` +
+                      `1. Judul: ${data.title || '-'}\n` +
+                      `2. Hash: ${data.hash || '-'}\n` +
+                      `3. On-chain time: ${data.onChainTime || new Date().toISOString()}\n` +
+                      `4. Initial creator: @${data.creator || 'Dev'}\n\n` +
                       `Mohon persetujuannya. Terima kasih.`;
       
       const encodedMsg = encodeURIComponent(message);
@@ -1179,11 +1179,11 @@
           } catch(e) {}
         }
         if (payment.metadata) {
-          const { type, auctionId, bidAmount, title, hash, price, imageUrl, seller, extraData } = payment.metadata;
+          const { type, auctionId, bidAmount, title, hash, price, imageUrl, seller } = payment.metadata;
           if (type === 'bid' && auctionId && bidAmount) {
             await recordBidToDatabase(auctionId, bidAmount, payment.metadata.username);
           } else if (title && price) {
-            await saveListingToDatabase(title, hash || '', imageUrl || '', price, seller, extraData);
+            await saveListingToDatabase(title, hash || '', imageUrl || '', price, seller);
           }
         }
       } catch (e) {
@@ -1280,7 +1280,6 @@
       bidInput.value = (currentVal + increment).toFixed(2);
     }
 
-    // FUNGSI UTAMA: PEMBAYARAN 0.2 PI & KIRIM DATA KE WHATSAPP (FOKUS TOMBOL HIJAU)
     async function submitNewListing() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1320,7 +1319,6 @@
 
       const fee = getFlatFee();
       const seller = authenticatedPiUser.username;
-      const extraData = analyzedExtraData.title ? analyzedExtraData : { title, hash, onChainTime: new Date().toISOString(), creator: seller };
 
       const btnPublish = document.getElementById('btnPublish');
       btnPublish.disabled = true;
@@ -1334,8 +1332,7 @@
           hash,
           price: reservePrice,
           imageUrl,
-          seller,
-          extraData
+          seller
         }
       };
 
@@ -1344,8 +1341,8 @@
         if (!paymentFinished) {
           paymentFinished = true;
           btnPublish.disabled = false;
-          btnPublish.innerText = '💳 Bayar 0.2 Pi & Kirim Data ke WhatsApp';
-          saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, extraData);
+          btnPublish.innerText = t('releaseAssetBtn');
+          saveListingToDatabase(title, hash, imageUrl, reservePrice, seller);
         }
       }, 35000);
 
@@ -1373,7 +1370,7 @@
             });
           } catch(e) {}
 
-          await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, extraData);
+          await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller);
         },
         onCancel: () => {
           if (paymentFinished) return;
@@ -1381,13 +1378,13 @@
           clearTimeout(paymentTimeout);
           alert(t('payCancelled'));
           btnPublish.disabled = false;
-          btnPublish.innerText = '💳 Bayar 0.2 Pi & Kirim Data ke WhatsApp';
+          btnPublish.innerText = t('releaseAssetBtn');
         },
         onError: (error) => {
           if (paymentFinished) return;
           paymentFinished = true;
           clearTimeout(paymentTimeout);
-          saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, extraData);
+          saveListingToDatabase(title, hash, imageUrl, reservePrice, seller);
         }
       };
 
@@ -1397,13 +1394,13 @@
         } else {
           paymentFinished = true;
           clearTimeout(paymentTimeout);
-          await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, extraData);
+          await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller);
         }
       } catch (e) {
         if (!paymentFinished) {
           paymentFinished = true;
           clearTimeout(paymentTimeout);
-          await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, extraData);
+          await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller);
         }
       }
     }
@@ -1417,7 +1414,7 @@
       });
     }
 
-    async function saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, extraData) {
+    async function saveListingToDatabase(title, hash, imageUrl, reservePrice, seller) {
       try {
         const endsAt = new Date(new Date().getTime() + (24 * 60 * 60 * 1000)).toISOString();
         
@@ -1436,9 +1433,6 @@
 
         if (error) throw error;
 
-        // Otomatis kirim data ke WhatsApp setelah berhasil bayar & simpan
-        sendDataToWhatsAppDirectly(extraData || { title, hash, onChainTime: new Date().toISOString(), creator: seller });
-
         alert(t('successRelease'));
         closeCreateModal();
         fetchActiveAuctions();
@@ -1446,7 +1440,7 @@
         const btnPublish = document.getElementById('btnPublish');
         if (btnPublish) {
           btnPublish.disabled = false;
-          btnPublish.innerText = '💳 Bayar 0.2 Pi & Kirim Data ke WhatsApp';
+          btnPublish.innerText = t('releaseAssetBtn');
         }
       } catch (err) {
         console.error("Save listing error:", err);
@@ -1454,7 +1448,7 @@
         const btnPublish = document.getElementById('btnPublish');
         if (btnPublish) {
           btnPublish.disabled = false;
-          btnPublish.innerText = '💳 Bayar 0.2 Pi & Kirim Data ke WhatsApp';
+          btnPublish.innerText = t('releaseAssetBtn');
         }
       }
     }
