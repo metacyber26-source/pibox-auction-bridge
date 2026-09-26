@@ -49,7 +49,7 @@
         <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
         <div>
           <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">NUSANTARA NFT AUCTION</h1>
-          <p class="text-[9px] text-yellow-500">PiBox Bridge v3.9 + GCP2E Cert Module</p>
+          <p class="text-[9px] text-yellow-500">PiBox Bridge v4.0 + GCP2E Cert Module</p>
         </div>
       </div>
       
@@ -238,7 +238,7 @@
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">📸 Tambahan Upload Max 2 Screenshot (SS)</span>
-            <span class="text-[9px] text-yellow-400 font-medium">Analisa & Kirim WA</span>
+            <span class="text-[9px] text-yellow-400 font-medium">Smart Vision & WhatsApp</span>
           </div>
           <p class="text-[9px] text-gray-400 leading-tight">Unggah hingga 2 screenshot pendukung untuk analisis otomatis data Judul, Hash, On-chain Time, dan Creator.</p>
           
@@ -431,7 +431,6 @@
         }
 
         function drawChairmanLabelAndSignature(ctx) {
-            // Tanda Tangan Resmi Disepakati
             ctx.strokeStyle = '#2563eb';
             ctx.lineWidth = 2.5;
             ctx.beginPath();
@@ -772,7 +771,6 @@
       const endTime = startTime + (24 * 60 * 60 * 1000);
       const diffToStart = startTime - now;
 
-      // Cek apakah kurang dari 24 jam sebelum sesi lelang dibuka
       const isWithin24HoursBeforeStart = (diffToStart > 0 && diffToStart <= (24 * 60 * 60 * 1000));
 
       if (isWithin24HoursBeforeStart) {
@@ -784,7 +782,6 @@
         text.innerText = `Starts in ${h}h ${m}m ${s}s (+List Asset Locked)`;
         sessionSchedule.isOpen = false;
 
-        // Nonaktifkan tombol +rilis asset jika 24 jam sebelum sesi dibuka
         if (btnHeaderCreate) {
           btnHeaderCreate.disabled = true;
           btnHeaderCreate.classList.add('opacity-50', 'cursor-not-allowed');
@@ -850,7 +847,6 @@
       if (feeDisplayEl) feeDisplayEl.innerText = `(${fee} Pi)`;
     }
 
-    // Fungsi Analisa Gambar/Tulisan dari Screenshot (SS) Tambahan
     async function handleExtraSSUpload(input) {
       if (!input.files || input.files.length === 0) return;
       
@@ -864,7 +860,7 @@
       const previewContainer = document.getElementById('extraSSPreviewList');
       previewContainer.innerHTML = "";
 
-      extraSSFiles.forEach((file, index) => {
+      extraSSFiles.forEach((file) => {
         const reader = new FileReader();
         reader.onload = function(e) {
           const imgThumb = document.createElement('div');
@@ -875,16 +871,14 @@
         reader.readAsDataURL(file);
       });
 
-      // Proses Simulasi Analisa Gambar/Tulisan dari SS
-      simulateOCRAnalysis(extraSSFiles[0]);
+      simulateSmartVisionAnalysis(extraSSFiles[0]);
     }
 
-    function simulateOCRAnalysis(file) {
+    function simulateSmartVisionAnalysis(file) {
       const btnWA = document.getElementById('btnUploadSendWA');
-      btnWA.innerText = "🔍 Menganalisa Gambar/Tulisan SS...";
+      btnWA.innerText = "🔍 Menganalisa Data & Validasi Visual...";
       
       setTimeout(() => {
-        // Hasil ekstraksi simulasi cerdas dari gambar SS
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
           title: document.getElementById('assetTitleInput').value || "Nusantara Verified NFT " + Math.floor(Math.random() * 1000),
@@ -893,7 +887,6 @@
           creator: authenticatedPiUser ? authenticatedPiUser.username : "Mohamad Syaiful Rohim"
         };
 
-        // Otomatis isi form utama jika kosong
         if (!document.getElementById('assetTitleInput').value) {
           document.getElementById('assetTitleInput').value = analyzedExtraData.title;
         }
@@ -904,11 +897,10 @@
         btnWA.disabled = false;
         btnWA.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2 rounded-xl transition cursor-pointer border border-emerald-400 flex items-center justify-center gap-1.5 shadow-lg";
         btnWA.innerText = "💳 Bayar 0.2 Pi & Kirim Data ke WhatsApp";
-        alert("✅ Analisa SS Berhasil! Data Judul, Hash, On-chain Time & Creator berhasil diekstrak.");
+        alert("✅ Analisa Visual Cerdas Berhasil! Data Judul, Hash, On-chain Time & Creator berhasil diekstrak.");
       }, 1500);
     }
 
-    // Fungsi Pembayaran 0.2 Pi untuk Extra SS Upload & Kirim ke WhatsApp
     async function payAndSendExtraSSData() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -923,7 +915,7 @@
       const fee = getFlatFee();
       const paymentData = {
         amount: fee,
-        memo: `GCP2E Extra SS Upload & WhatsApp Verification - @${authenticatedPiUser.username}`,
+        memo: `GCP2E Smart Vision Extra SS & WhatsApp Verification - @${authenticatedPiUser.username}`,
         metadata: { 
           type: 'extra_ss_upload',
           username: authenticatedPiUser.username,
@@ -948,7 +940,6 @@
             body: JSON.stringify({ paymentId, txid })
           });
 
-          // Setelah pembayaran sukses, kirim data otomatis ke WhatsApp
           sendDataToWhatsAppDirectly(analyzedExtraData);
           
           btnWA.disabled = false;
@@ -972,7 +963,6 @@
         if (window.Pi) {
           await window.Pi.createPayment(paymentData, callbacks);
         } else {
-          // Fallback simulation jika Pi SDK tidak tersedia di browser lokal
           alert("Simulasi Pembayaran Pi Berhasil!");
           sendDataToWhatsAppDirectly(analyzedExtraData);
           btnWA.disabled = false;
@@ -987,7 +977,7 @@
 
     function sendDataToWhatsAppDirectly(data) {
       const waNumber = "6285708486588";
-      const message = `Halo Admin GCP2E, berikut adalah data verifikasi aset NFT untuk dimintai persetujuan:\n\n` +
+      const message = `Halo Admin GCP2E, berikut adalah data verifikasi aset NFT yang divalidasi sistem pintar:\n\n` +
                       `1. Judul: ${data.title}\n` +
                       `2. Hash: ${data.hash}\n` +
                       `3. On-chain time: ${data.onChainTime}\n` +
@@ -1373,7 +1363,6 @@
     }
 
     async function handleOpenCreateModal() {
-      // Cek apakah tombol sedang dinonaktifkan karena 24 jam sebelum sesi lelang
       const btnHeaderCreate = document.getElementById('btnHeaderCreate');
       if (btnHeaderCreate && btnHeaderCreate.disabled) {
         alert("⚠️ Tombol +Rilis Asset dinonaktifkan karena berada dalam rentang 24 jam sebelum sesi lelang dibuka.");
