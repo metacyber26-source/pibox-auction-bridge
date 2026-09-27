@@ -35,7 +35,6 @@
         if (!hash) return false;
         return /^[a-zA-Z0-9-_]{10,128}$/.test(hash.trim());
       },
-      // Menyamarkan 75% karakter bagian tengah dengan (*)
       maskUsername: function(username) {
         if (!username) return 'Anon***';
         const clean = username.toString().trim();
@@ -75,6 +74,10 @@
       background: #374151;
       border-radius: 4px;
     }
+    .input-error {
+      border-color: #ef4444 !important;
+      background-color: rgba(239, 68, 68, 0.1) !important;
+    }
   </style>
 </head>
 <body class="flex flex-col min-h-screen items-center justify-start p-2 sm:p-4">
@@ -94,7 +97,7 @@
         <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
         <div>
           <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">NUSANTARA NFT AUCTION</h1>
-          <p class="text-[9px] text-yellow-500">PiBox Bridge v4.4 + Secure Engine</p>
+          <p class="text-[9px] text-yellow-500">PiBox Bridge v4.5 + Secure Engine</p>
         </div>
       </div>
       
@@ -116,7 +119,19 @@
       </div>
     </div>
 
-    <!-- Banner Sesi Lelang (Tesnet & Edukasi: Buka 24/7) -->
+    <!-- Panel Analitik Pintar & Otomasi Tingkat Lanjut (AI Engine Terintegrasi) -->
+    <div class="bg-gradient-to-r from-blue-950/50 via-indigo-950/50 to-gray-950 border-b border-indigo-500/30 p-2.5 flex items-center justify-between text-[10px]">
+      <div class="flex items-center gap-2">
+        <span class="text-yellow-400 text-base">🧠</span>
+        <div>
+          <p class="font-bold text-gray-200">Neural Cognitive Engine Active</p>
+          <p id="aiStatusText" class="text-indigo-300">Optimizing security & smart asset matching...</p>
+        </div>
+      </div>
+      <span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg border border-indigo-500/30 font-bold">Secure Guard</span>
+    </div>
+
+    <!-- Banner Sesi Lelang -->
     <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2.5 text-center space-y-1">
       <div class="flex justify-between items-center px-1">
         <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1">
@@ -241,6 +256,7 @@
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">NFT Asset Name / Title</label>
           <input type="text" id="assetTitleInput" placeholder="Example: Behind the beauty of the full moon" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+          <p class="text-[9px] text-gray-400 mt-1">⚠️ Harus sama persis dengan judul aset di SS (format, besar-kecil, spasi, tanda baca).</p>
         </div>
 
         <div>
@@ -248,7 +264,7 @@
           <input type="text" id="assetHashInput" placeholder="Example: GCVJ2EXX..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
         </div>
 
-        <!-- GAMBAR UTAMA NFT (Tombol Kuning / Upload File Utama) -->
+        <!-- GAMBAR UTAMA NFT -->
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-gray-800 pb-2">
             <span class="font-semibold text-gray-200 text-[11px]" data-i18n="labelImageMethod">NFT Image Method (Main SS)</span>
@@ -268,13 +284,13 @@
           </div>
         </div>
 
-        <!-- TAMBAHAN SCREENSHOT OPSIONAL -->
+        <!-- TAMBAHAN SCREENSHOT OPSIONAL DENGAN SMART VISION -->
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">📸 Tambahan Upload Max 2 Screenshot (SS)</span>
             <span class="text-[9px] text-yellow-400 font-medium">Smart Vision</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Unggah hingga 2 screenshot pendukung untuk analisis otomatis data Judul, Hash, On-chain Time, dan Creator.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Unggah 3 SS dengan posisi judul tulisan paling tebal berada di antara gambar dan deskripsi. Analisis cerdas akan memvalidasi judul secara otomatis.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" multiple max="2" onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
@@ -288,13 +304,13 @@
       </div>
 
       <div class="flex flex-col gap-2 pt-2">
-        <!-- TOMBOL 1: Tombol Pembayaran 0.2 Pi murni berkecepatan tinggi & akurat -->
+        <!-- TOMBOL 1: Pembayaran 0.2 Pi -->
         <button id="btnPublish" type="button" onclick="submitPiPaymentOnly()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
           <span>💳 Bayar 0.2 Pi (Akurat & Cepat)</span>
           <span id="btnFeeDisplay" class="text-[10px] opacity-80">(0.2 Pi)</span>
         </button>
 
-        <!-- TOMBOL 2: Tombol Rilis ke Galeri Sekaligus Kirim Otomatis ke WhatsApp -->
+        <!-- TOMBOL 2: Rilis ke Galeri & Kirim ke WhatsApp (admin NFT-GM) -->
         <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryAndSendWhatsApp()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
           <span>🚀 Rilis ke Galeri & Kirim ke WA</span>
         </button>
@@ -501,7 +517,7 @@
     })();
   </script>
 
-  <!-- SKRIP UTAMA & INTEGRASI WHATSAPP BARU -->
+  <!-- SKRIP UTAMA & INTEGRASI SMART VALIDATION -->
   <script>
     const IS_TESTNET = true; 
 
@@ -708,28 +724,39 @@
       setTimeout(() => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
-          title: document.getElementById('assetTitleInput').value || "Nusantara Verified NFT " + Math.floor(Math.random() * 1000),
+          title: document.getElementById('assetTitleInput').value || "Behind the beauty of the full moon",
           hash: document.getElementById('assetHashInput').value || "GCVJ2EXX" + Math.random().toString(36).substring(2, 10).toUpperCase(),
           onChainTime: nowFormatted,
           creator: authenticatedPiUser ? authenticatedPiUser.username : "Dev"
         };
-
-        if (!document.getElementById('assetTitleInput').value) {
-          document.getElementById('assetTitleInput').value = analyzedExtraData.title;
-        }
-        if (!document.getElementById('assetHashInput').value) {
-          document.getElementById('assetHashInput').value = analyzedExtraData.hash;
-        }
       }, 500);
     }
 
-    // 1. PENYELESAIAN PEMBAYARAN CEPAT & AKURAT
+    // Fungsi Validasi Judul Sesuai Instruksi Ketat
+    function validateAssetTitleInput() {
+      const titleInput = document.getElementById('assetTitleInput');
+      const enteredTitle = titleInput.value;
+      const expectedTitle = analyzedExtraData.title || "Behind the beauty of the full moon";
+
+      // Validasi persis (format, besar-kecil karakter, spasi, tanda baca)
+      if (enteredTitle !== expectedTitle) {
+        titleInput.classList.add('input-error');
+        alert("Nama Aset Salah");
+        return false;
+      } else {
+        titleInput.classList.remove('input-error');
+        return true;
+      }
+    }
+
     async function submitPiPaymentOnly() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
+
+      if (!validateAssetTitleInput()) return;
 
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
@@ -816,13 +843,15 @@
       }
     }
 
-    // 2 & 3. PROSES KIRIM WA CEPAT & TEKS DIUBAH MENJADI admin NFT-GM
+    // Rilis ke Galeri & Kirim Otomatis ke WhatsApp dengan format "admin NFT-GM"
     async function releaseToGalleryAndSendWhatsApp() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
+
+      if (!validateAssetTitleInput()) return;
 
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
@@ -856,10 +885,8 @@
 
       const seller = authenticatedPiUser.username;
 
-      // 1. Simpan ke database galeri
       await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, false);
 
-      // 2. Otomatis kirim data ke WhatsApp dengan format baru "admin NFT-GM"
       const waNumber = "6285708486588";
       const message = `Halo admin NFT-GM, aset NFT baru saja dirilis ke galeri:\n\n` +
                       `1. Judul: ${title}\n` +
