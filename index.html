@@ -14,7 +14,7 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & AGI CORE ENGINE -->
+  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & AGI COGNITIVE ENGINE -->
   <script>
     (function() {
       const devtoolsCheck = function() {};
@@ -54,6 +54,11 @@
           }
         }
         return masked;
+      },
+      cognitiveCoreVerify: function(inputTitle, targetTitle) {
+        if (!inputTitle || !targetTitle) return false;
+        // Strict case-sensitive and character accuracy check
+        return inputTitle.trim() === targetTitle.trim();
       }
     };
   </script>
@@ -123,7 +128,7 @@
       </div>
     </div>
 
-    <!-- Panel Analitik Pintar & Otomasi Tingkat Lanjut -->
+    <!-- Panel Analitik Pintar & Otomasi Tingkat Lanjut (Cognitive Engine Aktif Tanpa Tulisan AI-AGI) -->
     <div class="bg-gradient-to-r from-blue-950/50 via-indigo-950/50 to-gray-950 border-b border-indigo-500/30 p-2.5 flex items-center justify-between text-[10px]">
       <div class="flex items-center gap-2">
         <span class="text-yellow-400 text-base">🧠</span>
@@ -241,7 +246,7 @@
     </div>
   </div>
 
-  <!-- MODAL: Buat Lelang (Posisi Sesuai Urutan Tampilan Screenshot) -->
+  <!-- MODAL: Buat Lelang (Urutan Sesuai Permintaan: Upload SS di atas, lalu Nama Aset, lalu Hash) -->
   <div id="createModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
     <div class="bg-gray-950 border border-gray-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
       <div class="flex justify-between items-center border-b border-gray-800 pb-3">
@@ -257,7 +262,7 @@
           📌 Ensure this NFT is registered in <strong>PIBOX NFT EVENT ZONE</strong>. Enter official Hash!
         </div>
 
-        <!-- 1. POSISI UPLOAD SS (UTAMA & TAMBAHAN) -->
+        <!-- 1. POSISI UPLOAD SS BERADA DI ATAS SENDIRI -->
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-gray-800 pb-2">
             <span class="font-semibold text-gray-200 text-[11px]" data-i18n="labelImageMethod">NFT Image Method (Main SS)</span>
@@ -283,13 +288,13 @@
             <span class="font-bold text-indigo-300 text-[11px]">📸 Tambahan Upload Max 2 Screenshot (SS)</span>
             <span class="text-[9px] text-yellow-400 font-medium">Strict Vision Guard</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Unggah SS pendukung. Sistem mendeteksi teks secara ketat dan teliti terhadap huruf besar/kecil, spasi, dan simbol.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Unggah SS pendukung. Posisi judul di SS berada di antara gambar dengan deskripsi.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" multiple max="2" onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
         </div>
 
-        <!-- 2. POSISI JUDUL (ASSET NAME / TITLE) BERADA DI ANTARA GAMBAR/SS DENGAN DESKRIPSI/HASH SESUAI PERMINTAAN -->
+        <!-- 2. KEMUDIAN POSISI INPUT ASSET NAME / TITLE -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">NFT Asset Name / Title</label>
           <div class="relative">
@@ -299,7 +304,7 @@
           <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">⚠️ Harus sama persis dengan judul aset di SS (Case-sensitive, spasi, simbol, tanda baca).</p>
         </div>
 
-        <!-- 3. INPUT HASH & HARGA -->
+        <!-- 3. KEMUDIAN INPUT HASH -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelHash">PiBox NFT Transaction / Mint Hash (Copy-Paste)</label>
           <input type="text" id="assetHashInput" placeholder="Example: GCVJ2EXX..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
@@ -740,7 +745,7 @@
       }, 500);
     }
 
-    // VALIDASI KETAT & SENSITIF TINGKAT TINGGI (MENGAKTIFKAN INDIKATOR SALAH INPUT)
+    // VALIDASI KETAT & POP-UP PERINGATAN SALAH INPUT SESUAI PERMINTAAN
     function validateAssetTitleInputRealtime() {
       const titleInput = document.getElementById('assetTitleInput');
       const iconEl = document.getElementById('titleIndicatorIcon');
@@ -764,7 +769,7 @@
         return false;
       }
 
-      const isExactMatch = (enteredTitle === expectedTitle);
+      const isExactMatch = SecureShield.cognitiveCoreVerify(enteredTitle, expectedTitle);
 
       if (isExactMatch) {
         titleInput.classList.remove('input-error');
@@ -781,7 +786,7 @@
         titleInput.classList.add('input-error');
         iconEl.innerText = "❌";
         msgEl.className = "text-[9px] text-red-400 mt-1 font-semibold";
-        msgEl.innerText = "⚠️ Terindikasi Kesalahan Input! Periksa huruf besar/kecil, spasi, atau tanda baca.";
+        msgEl.innerText = "⚠️ Peringatan: Judul tidak sama persis dengan SS (Periksa huruf besar/kecil, spasi, simbol).";
         
         if (btnPublish) btnPublish.disabled = true;
         if (btnReleaseGallery) btnReleaseGallery.disabled = true;
@@ -797,7 +802,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 Gagal: Judul NFT tidak valid atau tidak cocok persis. Indikator salah input aktif!");
+        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama persis dengan judul di SS! Mohon periksa kembali.");
         return;
       }
 
@@ -894,7 +899,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 Gagal: Judul NFT tidak valid atau tidak cocok persis. Indikator salah input aktif!");
+        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama persis dengan judul di SS! Mohon periksa kembali.");
         return;
       }
 
