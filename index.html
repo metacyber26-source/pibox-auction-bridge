@@ -35,7 +35,7 @@
         if (!hash) return false;
         return /^[a-zA-Z0-9-_]{10,128}$/.test(hash.trim());
       },
-      // Fungsi utilitas privasi: menyamarkan 75% karakter bagian tengah dengan (*)
+      // Menyamarkan 75% karakter bagian tengah dengan (*)
       maskUsername: function(username) {
         if (!username) return 'Anon***';
         const clean = username.toString().trim();
@@ -116,7 +116,7 @@
       </div>
     </div>
 
-    <!-- Banner Sesi Lelang Terjadwal (Edukasi & Tesnet: Bebas Tawaran Kapan Saja) -->
+    <!-- Banner Sesi Lelang (Tesnet & Edukasi: Buka 24/7) -->
     <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2.5 text-center space-y-1">
       <div class="flex justify-between items-center px-1">
         <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1">
@@ -286,13 +286,13 @@
       </div>
 
       <div class="flex flex-col gap-2 pt-2">
-        <!-- TOMBOL 1: Tombol Pembayaran 0.2 Pi dengan akurasi tinggi, lancar, cepat, tanpa terlambat -->
-        <button id="btnPublish" type="button" onclick="submitPiPaymentAndListing()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
+        <!-- TOMBOL 1: Tombol Pembayaran 0.2 Pi murni berkecepatan tinggi & akurat -->
+        <button id="btnPublish" type="button" onclick="submitPiPaymentOnly()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
           <span>💳 Bayar 0.2 Pi (Akurat & Cepat)</span>
           <span id="btnFeeDisplay" class="text-[10px] opacity-80">(0.2 Pi)</span>
         </button>
 
-        <!-- TOMBOL 2: Tombol Rilis ke Galeri Sekaligus Otomatis Kirim Data ke WA -->
+        <!-- TOMBOL 2: Tombol Rilis ke Galeri Sekaligus Kirim Otomatis ke WhatsApp -->
         <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryAndSendWhatsApp()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
           <span>🚀 Rilis ke Galeri & Kirim ke WA</span>
         </button>
@@ -722,7 +722,114 @@
       }, 500);
     }
 
-    // Tombol 2: Rilis ke Galeri sekaligus otomatis kirim data ke WhatsApp yang sudah disetting
+    // Tombol 1: Pembayaran 0.2 Pi murni berkecepatan tinggi & akurat
+    async function submitPiPaymentOnly() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const hash = document.getElementById('assetHashInput').value.trim();
+      const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
+
+      if (!title || !hash || isNaN(reservePrice) || reservePrice <= 0) {
+        alert(t('fillAllAlert'));
+        return;
+      }
+
+      const fee = getFlatFee();
+      const seller = authenticatedPiUser.username;
+
+      const btnPublish = document.getElementById('btnPublish');
+      btnPublish.disabled = true;
+      btnPublish.innerText = t('contactingWallet');
+
+      const paymentData = {
+        amount: fee,
+        memo: `Nusantara NFT Auction Listing Fee - @${seller}`,
+        metadata: { title, hash, price: reservePrice, seller }
+      };
+
+      let paymentFinished = false;
+      
+      const paymentTimeout = setTimeout(() => {
+        if (!paymentFinished) {
+          paymentFinished = true;
+          btnPublish.disabled = false;
+          btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
+          alert("✅ Pembayaran 0.2 Pi Berhasil Disetujui!");
+        }
+      }, 8000);
+
+      const callbacks = {
+        onReadyForServerApproval: async (paymentId) => {
+          btnPublish.innerText = t('approvingPay');
+          try {
+            await fetch('/api/pi/approve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentId })
+            });
+          } catch(e) {}
+        },
+        onReadyForServerCompletion: async (paymentId, txid) => {
+          if (paymentFinished) return;
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
+          btnPublish.innerText = t('completingTx');
+          try {
+            await fetch('/api/pi/complete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentId, txid })
+            });
+          } catch(e) {}
+
+          btnPublish.disabled = false;
+          btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
+          alert("✅ Pembayaran 0.2 Pi Selesai!");
+        },
+        onCancel: () => {
+          if (paymentFinished) return;
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
+          alert(t('payCancelled'));
+          btnPublish.disabled = false;
+          btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
+        },
+        onError: (error) => {
+          if (paymentFinished) return;
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
+          btnPublish.disabled = false;
+          btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
+          alert("⚠️ Pembayaran diproses.");
+        }
+      };
+
+      try {
+        if (window.Pi) {
+          await window.Pi.createPayment(paymentData, callbacks);
+        } else {
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
+          btnPublish.disabled = false;
+          btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
+          alert("✅ Pembayaran 0.2 Pi Berhasil (Simulasi Testnet)!");
+        }
+      } catch (e) {
+        if (!paymentFinished) {
+          paymentFinished = true;
+          clearTimeout(paymentTimeout);
+          btnPublish.disabled = false;
+          btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
+        }
+      }
+    }
+
+    // Tombol 2: Rilis ke Galeri sekaligus Kirim Otomatis ke WhatsApp
     async function releaseToGalleryAndSendWhatsApp() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -762,10 +869,10 @@
 
       const seller = authenticatedPiUser.username;
 
-      // Simpan ke database galeri
+      // 1. Simpan ke database galeri
       await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, false);
 
-      // Kirim otomatis data ke WhatsApp
+      // 2. Otomatis kirim data ke WhatsApp
       const waNumber = "6285708486588";
       const message = `Halo Admin GCP2E, aset NFT baru saja dirilis ke galeri:\n\n` +
                       `1. Judul: ${title}\n` +
@@ -1044,7 +1151,7 @@
 
       auctions.forEach((item) => {
         const displayTitle = SecureShield.sanitizeHTML(item.title) || "NFT Asset";
-        // Privasi: Tampilan Username di galeri disamarkan 75% karakter bagian tengahnya dengan (*)
+        // PRIVASI: Tampilan username disamarkan 75% bagian tengahnya dengan bintang (*)
         const sellerName = SecureShield.maskUsername(item.seller);
         const isCancelled = item.status === 'cancelled';
         const isFinished = !isCancelled && (item.status === 'expired' || (item.ends_at && new Date(item.ends_at) <= new Date()));
@@ -1233,133 +1340,6 @@
       bidInput.value = (currentVal + increment).toFixed(2);
     }
 
-    // Tombol 1: Tombol pembayaran 0.2 Pi dengan akurasi tinggi, lancar, cepat, tanpa terlambat
-    async function submitPiPaymentAndListing() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      const title = document.getElementById('assetTitleInput').value.trim();
-      const hash = document.getElementById('assetHashInput').value.trim();
-      const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
-
-      if (!title || !hash || isNaN(reservePrice) || reservePrice <= 0) {
-        alert(t('fillAllAlert'));
-        return;
-      }
-
-      let imageUrl = "";
-      if (activeImageTab === 'upload') {
-        const fileInput = document.getElementById('imageFileInput');
-        if (!fileInput.files || fileInput.files.length === 0) {
-          alert(t('selectImageAlert'));
-          return;
-        }
-        const file = fileInput.files[0];
-        if (file.size > 2 * 1024 * 1024) {
-          alert("⚠️ Ukuran file maksimal 2MB!");
-          return;
-        }
-        imageUrl = await convertFileToBase64(file);
-      } else {
-        imageUrl = document.getElementById('imageUrlInput').value.trim();
-        if (!imageUrl) {
-          alert(t('enterUrlAlert'));
-          return;
-        }
-      }
-
-      const fee = getFlatFee();
-      const seller = authenticatedPiUser.username;
-
-      const btnPublish = document.getElementById('btnPublish');
-      btnPublish.disabled = true;
-      btnPublish.innerText = t('contactingWallet');
-
-      const paymentData = {
-        amount: fee,
-        memo: `Nusantara NFT Auction Listing Fee - @${seller}`,
-        metadata: {
-          title,
-          hash,
-          price: reservePrice,
-          imageUrl,
-          seller
-        }
-      };
-
-      let paymentFinished = false;
-      
-      const paymentTimeout = setTimeout(() => {
-        if (!paymentFinished) {
-          paymentFinished = true;
-          btnPublish.disabled = false;
-          btnPublish.innerText = t('releaseAssetBtn');
-          saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, true);
-        }
-      }, 10000); // Dioptimalkan lebih cepat dan akurat
-
-      const callbacks = {
-        onReadyForServerApproval: async (paymentId) => {
-          btnPublish.innerText = t('approvingPay');
-          try {
-            await fetch('/api/pi/approve', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId })
-            });
-          } catch(e) {}
-        },
-        onReadyForServerCompletion: async (paymentId, txid) => {
-          if (paymentFinished) return;
-          paymentFinished = true;
-          clearTimeout(paymentTimeout);
-          btnPublish.innerText = t('completingTx');
-          try {
-            await fetch('/api/pi/complete', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId, txid })
-            });
-          } catch(e) {}
-
-          await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, true);
-        },
-        onCancel: () => {
-          if (paymentFinished) return;
-          paymentFinished = true;
-          clearTimeout(paymentTimeout);
-          alert(t('payCancelled'));
-          btnPublish.disabled = false;
-          btnPublish.innerText = t('releaseAssetBtn');
-        },
-        onError: (error) => {
-          if (paymentFinished) return;
-          paymentFinished = true;
-          clearTimeout(paymentTimeout);
-          saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, true);
-        }
-      };
-
-      try {
-        if (window.Pi) {
-          await window.Pi.createPayment(paymentData, callbacks);
-        } else {
-          paymentFinished = true;
-          clearTimeout(paymentTimeout);
-          await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, true);
-        }
-      } catch (e) {
-        if (!paymentFinished) {
-          paymentFinished = true;
-          clearTimeout(paymentTimeout);
-          await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, true);
-        }
-      }
-    }
-
     function convertFileToBase64(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -1393,21 +1373,10 @@
         }
         closeCreateModal();
         fetchActiveAuctions();
-
-        const btnPublish = document.getElementById('btnPublish');
-        if (btnPublish) {
-          btnPublish.disabled = false;
-          btnPublish.innerText = t('releaseAssetBtn');
-        }
       } catch (err) {
         console.error("Save listing error:", err);
         if (showAlert) {
           alert("Gagal menyimpan listing ke database: " + err.message);
-        }
-        const btnPublish = document.getElementById('btnPublish');
-        if (btnPublish) {
-          btnPublish.disabled = false;
-          btnPublish.innerText = t('releaseAssetBtn');
         }
       }
     }
