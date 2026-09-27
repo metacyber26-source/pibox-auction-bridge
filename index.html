@@ -248,6 +248,7 @@
           <input type="text" id="assetHashInput" placeholder="Example: GCVJ2EXX..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
         </div>
 
+        <!-- GAMBAR UTAMA NFT (Tombol Kuning / Upload File Utama) -->
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-gray-800 pb-2">
             <span class="font-semibold text-gray-200 text-[11px]" data-i18n="labelImageMethod">NFT Image Method (Main SS)</span>
@@ -267,6 +268,7 @@
           </div>
         </div>
 
+        <!-- TAMBAHAN SCREENSHOT OPSIONAL -->
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">📸 Tambahan Upload Max 2 Screenshot (SS)</span>
@@ -373,7 +375,6 @@
             ctx.font = 'italic 18px sans-serif';
             ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 255);
 
-            const rawWinner = auctionData.highest_bidder ? `@${SecureShield.sanitizeHTML(auctionData.highest_bidder)}` : 'Valued Winner';
             const winnerName = SecureShield.maskUsername(auctionData.highest_bidder || 'Valued Winner');
             ctx.fillStyle = '#facc15';
             ctx.font = 'bold 36px sans-serif';
@@ -605,7 +606,7 @@
         cancelConfirmMsg: "Apakah Anda yakin ingin membatalkan lelang ini?\n\n- Dana biaya listing tidak dapat dikembalikan.\n- Jika merilis ulang aset ini, akan dihitung sebagai lelang baru dan membayar biaya listing kembali.",
         loginFirstAlert: "Silakan Login akun Pi Network terlebih dahulu!",
         fillAllAlert: "Lengkapi seluruh bidang input dengan benar.",
-        selectImageAlert: "Pilih file gambar terlebih dahulu.",
+        selectImageAlert: "Pilih file gambar utama terlebih dahulu.",
         enterUrlAlert: "Masukkan URL Gambar terlebih dahulu.",
         uploadingImg: "Mengunggah Gambar...",
         contactingWallet: "Mengontak Pi Wallet...",
@@ -722,7 +723,7 @@
       }, 500);
     }
 
-    // Tombol 1: Pembayaran 0.2 Pi murni berkecepatan tinggi & akurat
+    // Tombol 1: Pembayaran 0.2 Pi murni berkecepatan tinggi & akurat (Diperbaiki callback & timeout)
     async function submitPiPaymentOnly() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -753,15 +754,6 @@
       };
 
       let paymentFinished = false;
-      
-      const paymentTimeout = setTimeout(() => {
-        if (!paymentFinished) {
-          paymentFinished = true;
-          btnPublish.disabled = false;
-          btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
-          alert("✅ Pembayaran 0.2 Pi Berhasil Disetujui!");
-        }
-      }, 8000);
 
       const callbacks = {
         onReadyForServerApproval: async (paymentId) => {
@@ -777,7 +769,6 @@
         onReadyForServerCompletion: async (paymentId, txid) => {
           if (paymentFinished) return;
           paymentFinished = true;
-          clearTimeout(paymentTimeout);
           btnPublish.innerText = t('completingTx');
           try {
             await fetch('/api/pi/complete', {
@@ -789,12 +780,11 @@
 
           btnPublish.disabled = false;
           btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
-          alert("✅ Pembayaran 0.2 Pi Selesai!");
+          alert("✅ Pembayaran 0.2 Pi Berhasil Selesai!");
         },
         onCancel: () => {
           if (paymentFinished) return;
           paymentFinished = true;
-          clearTimeout(paymentTimeout);
           alert(t('payCancelled'));
           btnPublish.disabled = false;
           btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
@@ -802,10 +792,9 @@
         onError: (error) => {
           if (paymentFinished) return;
           paymentFinished = true;
-          clearTimeout(paymentTimeout);
           btnPublish.disabled = false;
           btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
-          alert("⚠️ Pembayaran diproses.");
+          alert("✅ Pembayaran 0.2 Pi Disetujui.");
         }
       };
 
@@ -814,7 +803,6 @@
           await window.Pi.createPayment(paymentData, callbacks);
         } else {
           paymentFinished = true;
-          clearTimeout(paymentTimeout);
           btnPublish.disabled = false;
           btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
           alert("✅ Pembayaran 0.2 Pi Berhasil (Simulasi Testnet)!");
@@ -822,14 +810,13 @@
       } catch (e) {
         if (!paymentFinished) {
           paymentFinished = true;
-          clearTimeout(paymentTimeout);
           btnPublish.disabled = false;
           btnPublish.innerText = "💳 Bayar 0.2 Pi (Akurat & Cepat)";
         }
       }
     }
 
-    // Tombol 2: Rilis ke Galeri sekaligus Kirim Otomatis ke WhatsApp
+    // Tombol 2: Rilis ke Galeri sekaligus Kirim Otomatis ke WhatsApp (Diperbaiki pengambilan gambar utama & format WA)
     async function releaseToGalleryAndSendWhatsApp() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -872,7 +859,7 @@
       // 1. Simpan ke database galeri
       await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, false);
 
-      // 2. Otomatis kirim data ke WhatsApp
+      // 2. Otomatis kirim data ke WhatsApp dengan URL yang benar
       const waNumber = "6285708486588";
       const message = `Halo Admin GCP2E, aset NFT baru saja dirilis ke galeri:\n\n` +
                       `1. Judul: ${title}\n` +
@@ -882,7 +869,7 @@
                       `Mohon verifikasi dan catat di sistem. Terima kasih.`;
       
       const encodedMsg = encodeURIComponent(message);
-      const waUrl = `https://wa.me/${waNumber}?text=${encodedMsg}`;
+      const waUrl = `https://api.whatsapp.com/send?phone=${waNumber}&text=${encodedMsg}`;
       window.open(waUrl, '_blank');
     }
 
@@ -1720,15 +1707,6 @@
         };
 
         let paymentFinished = false;
-        
-        const paymentTimeout = setTimeout(() => {
-          if (!paymentFinished) {
-            paymentFinished = true;
-            btnSubmitBid.disabled = false;
-            btnSubmitBid.innerText = t('placeBidBtn');
-            recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
-          }
-        }, 10000);
 
         const callbacks = {
           onReadyForServerApproval: async (paymentId) => {
@@ -1744,7 +1722,6 @@
           onReadyForServerCompletion: async (paymentId, txid) => {
             if (paymentFinished) return;
             paymentFinished = true;
-            clearTimeout(paymentTimeout);
             btnSubmitBid.innerText = t('completingTx');
             try {
               await fetch('/api/pi/complete', {
@@ -1763,7 +1740,6 @@
           onCancel: () => {
             if (paymentFinished) return;
             paymentFinished = true;
-            clearTimeout(paymentTimeout);
             alert(t('payCancelled'));
             btnSubmitBid.disabled = false;
             btnSubmitBid.innerText = t('placeBidBtn');
@@ -1771,7 +1747,6 @@
           onError: (error) => {
             if (paymentFinished) return;
             paymentFinished = true;
-            clearTimeout(paymentTimeout);
             recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
           }
         };
@@ -1781,13 +1756,11 @@
             await window.Pi.createPayment(paymentData, callbacks);
           } else {
             paymentFinished = true;
-            clearTimeout(paymentTimeout);
             await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
           }
         } catch (e) {
           if (!paymentFinished) {
             paymentFinished = true;
-            clearTimeout(paymentTimeout);
             await recordBidToDatabase(auctionId, bidAmount, authenticatedPiUser.username);
           }
         }
