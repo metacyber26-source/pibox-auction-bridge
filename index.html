@@ -673,13 +673,6 @@
       setupRealtimeSubscription();
       setInterval(updateTimers, 1000);
       authenticatePiUser();
-      
-      // Inisialisasi awal validasi judul agar indikator langsung aktif
-      const titleInput = document.getElementById('assetTitleInput');
-      if (titleInput && !titleInput.value) {
-        titleInput.value = analyzedExtraData.title;
-        validateAssetTitleInputRealtime();
-      }
     });
 
     function updateNetworkBannerUI() {
@@ -747,15 +740,15 @@
       }, 500);
     }
 
-    // --- FITUR INDIKATOR KEAKURATAN TINGGI KHUSUS KOLOM JUDUL SAJA ---
+    // --- FITUR INDIKATOR KEAKURATAN TINGGI (SENSITIF TERHADAP HURUF BESAR/KECIL, SPASI, TANDA BACA, ANGKA & SIMBOL) ---
     function validateAssetTitleInputRealtime() {
       const titleInput = document.getElementById('assetTitleInput');
       const iconEl = document.getElementById('titleIndicatorIcon');
       const msgEl = document.getElementById('titleIndicatorMessage');
+      const btnPublish = document.getElementById('btnPublish');
+      const btnReleaseGallery = document.getElementById('btnReleaseGallery');
       
-      if (!titleInput || !iconEl || !msgEl) return false;
-      
-      const enteredTitle = titleInput.value.trim();
+      const enteredTitle = titleInput.value; // Tanpa trim di awal agar spasi depan/belakang juga terdeteksi akurat jika diperlukan, atau gunakan .trim() jika disesuaikan
       const expectedTitle = analyzedExtraData.title || "Megah Candi borobudur (Warisan Dunia)";
 
       if (!enteredTitle) {
@@ -763,23 +756,29 @@
         iconEl.innerText = "⏳";
         msgEl.className = "text-[9px] text-gray-400 mt-1";
         msgEl.innerText = "⚠️ Harap masukkan judul aset NFT.";
+        if (btnPublish) btnPublish.disabled = true;
+        if (btnReleaseGallery) btnReleaseGallery.disabled = true;
         return false;
       }
 
-      // Deteksi persis tingkat keakuratan tinggi (format, kapitalisasi, spasi, tanda baca)
-      if (enteredTitle.toLowerCase() === expectedTitle.toLowerCase()) {
+      // Validasi ketat secara presisi (Strict Equality: Karakter, Spasi, Simbol, Angka, Case-Sensitive)
+      if (enteredTitle === expectedTitle) {
         titleInput.classList.remove('input-error');
         titleInput.classList.add('input-success');
         iconEl.innerText = "✅";
         msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
         msgEl.innerText = "✨ Akurasi Tinggi: Judul cocok dan terverifikasi valid!";
+        if (btnPublish) btnPublish.disabled = false;
+        if (btnReleaseGallery) btnReleaseGallery.disabled = false;
         return true;
       } else {
         titleInput.classList.remove('input-success');
         titleInput.classList.add('input-error');
         iconEl.innerText = "❌";
         msgEl.className = "text-[9px] text-red-400 mt-1 font-semibold";
-        msgEl.innerText = "⚠️ Nama Aset Salah / Tidak Akurat (harus sama persis dengan SS).";
+        msgEl.innerText = "⚠️ Kesalahan Input: Huruf besar/kecil, spasi, tanda baca, angka, atau simbol tidak sesuai!";
+        if (btnPublish) btnPublish.disabled = true;
+        if (btnReleaseGallery) btnReleaseGallery.disabled = true;
         return false;
       }
     }
@@ -792,11 +791,11 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("Nama Aset Salah / Tidak Akurat!");
+        alert("⚠️ Validasi Gagal: Terindikasi kesalahan pada input judul (huruf, spasi, tanda baca, atau simbol tidak sesuai). Tidak dapat melanjutkan langkah.");
         return;
       }
 
-      const title = document.getElementById('assetTitleInput').value.trim();
+      const title = document.getElementById('assetTitleInput').value;
       const hash = document.getElementById('assetHashInput').value.trim();
       const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
 
@@ -881,6 +880,7 @@
       }
     }
 
+    // Rilis ke Galeri & Kirim Otomatis ke WhatsApp dengan format "admin NFT-GM"
     async function releaseToGalleryAndSendWhatsApp() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -889,11 +889,11 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("Nama Aset Salah / Tidak Akurat!");
+        alert("⚠️ Validasi Gagal: Terindikasi kesalahan pada input judul (huruf, spasi, tanda baca, atau simbol tidak sesuai). Tidak dapat melanjutkan langkah.");
         return;
       }
 
-      const title = document.getElementById('assetTitleInput').value.trim();
+      const title = document.getElementById('assetTitleInput').value;
       const hash = document.getElementById('assetHashInput').value.trim();
       const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
 
@@ -1330,6 +1330,7 @@
 
       document.getElementById('createModal').classList.remove('hidden');
       updateListingFeePreview();
+      validateAssetTitleInputRealtime();
     }
 
     function switchImageTab(tab) {
