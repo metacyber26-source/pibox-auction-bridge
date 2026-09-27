@@ -129,7 +129,7 @@
         <span class="text-yellow-400 text-base">🧠</span>
         <div>
           <p class="font-bold text-gray-200">Cognitive Guard Active</p>
-          <p id="aiStatusText" class="text-indigo-300">Optimizing security & strict high-accuracy title matching...</p>
+          <p id="aiStatusText" class="text-indigo-300">Optimizing security & strict high-accuracy matching...</p>
         </div>
       </div>
       <span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg border border-indigo-500/30 font-bold">Secure Guard</span>
@@ -263,7 +263,7 @@
             <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Example: Megah Candi borobudur (Warisan Dunia)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">⚠️ Harus sama persis dengan judul aset di SS (format, besar-kecil, spasi, tanda baca).</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">⚠️ Harus sama persis dengan judul aset di SS (Case-sensitive, spasi, simbol, tanda baca).</p>
         </div>
 
         <div>
@@ -295,9 +295,9 @@
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">📸 Tambahan Upload Max 2 Screenshot (SS)</span>
-            <span class="text-[9px] text-yellow-400 font-medium">High Accuracy Engine</span>
+            <span class="text-[9px] text-yellow-400 font-medium">Strict Vision Guard</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Unggah SS dengan posisi judul tulisan paling tebal berada di antara gambar dan deskripsi. Sistem akan mendeteksi keakuratan judul secara otomatis.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Unggah SS pendukung. Sistem mendeteksi teks secara ketat dan teliti terhadap huruf besar/kecil, spasi, dan simbol.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" multiple max="2" onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
@@ -312,13 +312,13 @@
 
       <div class="flex flex-col gap-2 pt-2">
         <!-- TOMBOL 1: Pembayaran 0.2 Pi -->
-        <button id="btnPublish" type="button" onclick="submitPiPaymentOnly()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
+        <button id="btnPublish" type="button" onclick="submitPiPaymentOnly()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
           <span>💳 Bayar 0.2 Pi (Akurat & Cepat)</span>
           <span id="btnFeeDisplay" class="text-[10px] opacity-80">(0.2 Pi)</span>
         </button>
 
         <!-- TOMBOL 2: Rilis ke Galeri & Kirim ke WhatsApp (admin NFT-GM) -->
-        <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryAndSendWhatsApp()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
+        <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryAndSendWhatsApp()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
           <span>🚀 Rilis ke Galeri & Kirim ke WA</span>
         </button>
 
@@ -524,7 +524,7 @@
     })();
   </script>
 
-  <!-- SKRIP UTAMA & INTEGRASI SMART VALIDATION -->
+  <!-- SKRIP UTAMA & INTEGRASI STRICT SMART VALIDATION -->
   <script>
     const IS_TESTNET = true; 
 
@@ -544,6 +544,7 @@
     let currentLang = localStorage.getItem('appLang') || 'en';
 
     let extraSSFiles = [];
+    // Referensi judul eksak dari Smart Vision / Screenshot (Case-sensitive & Symbol strict)
     let analyzedExtraData = { title: 'Megah Candi borobudur (Warisan Dunia)', hash: '', onChainTime: '', creator: '' };
 
     const translations = {
@@ -731,7 +732,7 @@
       setTimeout(() => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
-          title: "Megah Candi borobudur (Warisan Dunia)",
+          title: "Megah Candi borobudur (Warisan Dunia)", // Eksak target referensi
           hash: "GAIHZJT5AS5GMBTMBDVPMF26V7QN5L4YV",
           onChainTime: nowFormatted,
           creator: authenticatedPiUser ? authenticatedPiUser.username : "Dev"
@@ -740,40 +741,55 @@
       }, 500);
     }
 
-    // --- ANALISIS SENSITIF TINGKAT TINGGI (HIGH ACCURACY & STRICT VALIDATION) ---
+    // --- VALIDASI KETAT & SENSITIF TINGKAT TINGGI (CASE-SENSITIVE, SPASI, TANDA BACA) ---
     function validateAssetTitleInputRealtime() {
       const titleInput = document.getElementById('assetTitleInput');
       const iconEl = document.getElementById('titleIndicatorIcon');
       const msgEl = document.getElementById('titleIndicatorMessage');
-      
+      const btnPublish = document.getElementById('btnPublish');
+      const btnReleaseGallery = document.getElementById('btnReleaseGallery');
+
       if (!titleInput || !iconEl || !msgEl) return false;
 
-      // Ambil nilai mentah tanpa menghilangkan spasi internal agar sensitif terhadap spasi ekstra
-      const enteredTitle = titleInput.value;
+      // Mengambil input persis tanpa menghilangkan spasi internal agar sensitif terhadap spasi ganda/karakter
+      const enteredTitle = titleInput.value; 
       const expectedTitle = analyzedExtraData.title || "Megah Candi borobudur (Warisan Dunia)";
 
-      if (!enteredTitle || enteredTitle.trim() === "") {
-        titleInput.classList.remove('input-error', 'input-success');
+      if (!enteredTitle) {
+        titleInput.classList.remove('input-success');
+        titleInput.classList.add('input-error');
         iconEl.innerText = "⏳";
         msgEl.className = "text-[9px] text-gray-400 mt-1";
         msgEl.innerText = "⚠️ Harap masukkan judul aset NFT.";
+        if (btnPublish) btnPublish.disabled = true;
+        if (btnReleaseGallery) btnReleaseGallery.disabled = true;
         return false;
       }
 
-      // Validasi ketat sensitif terhadap: Huruf besar/kecil, Spasi, Tanda baca, Angka, & Simbol
-      if (enteredTitle === expectedTitle) {
+      // Perbandingan ketat (Strict Equality) untuk mendeteksi huruf besar/kecil, spasi, simbol, tanda baca
+      const isExactMatch = (enteredTitle === expectedTitle);
+
+      if (isExactMatch) {
         titleInput.classList.remove('input-error');
         titleInput.classList.add('input-success');
         iconEl.innerText = "✅";
         msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-        msgEl.innerText = "✨ Akurasi Tinggi: Judul 100% identik dan valid!";
+        msgEl.innerText = "✨ Validasi Sempurna: Judul akurat dan cocok persis!";
+        
+        // Aktifkan kembali tombol langkah berikutnya jika valid
+        if (btnPublish) btnPublish.disabled = false;
+        if (btnReleaseGallery) btnReleaseGallery.disabled = false;
         return true;
       } else {
         titleInput.classList.remove('input-success');
         titleInput.classList.add('input-error');
         iconEl.innerText = "❌";
         msgEl.className = "text-[9px] text-red-400 mt-1 font-semibold";
-        msgEl.innerText = "⚠️ Terindikasi Kesalahan Input (Periksa huruf besar/kecil, spasi, tanda baca, simbol).";
+        msgEl.innerText = "⚠️ Terindikasi Kesalahan Input! Periksa huruf besar/kecil, spasi, atau tanda baca.";
+        
+        // Kunci total tombol langkah berikutnya agar user tidak bisa melanjutkan langkah
+        if (btnPublish) btnPublish.disabled = true;
+        if (btnReleaseGallery) btnReleaseGallery.disabled = true;
         return false;
       }
     }
@@ -785,9 +801,8 @@
         return;
       }
 
-      // Pengecekan ketat: Jika terindikasi salah input, batalkan dan hentikan langkah berikutnya
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 Gagal Melanjutkan: Judul NFT tidak akurat atau tidak sama persis dengan standar sistem/SS!");
+        alert("🚫 Gagal: Judul NFT tidak valid atau tidak cocok persis. Langkah diblokir!");
         return;
       }
 
@@ -884,9 +899,8 @@
         return;
       }
 
-      // Pengecekan ketat: Jika terindikasi salah input, batalkan dan hentikan langkah berikutnya
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 Gagal Melanjutkan: Judul NFT tidak akurat atau tidak sama persis dengan standar sistem/SS!");
+        alert("🚫 Gagal: Judul NFT tidak valid atau tidak cocok persis. Langkah diblokir!");
         return;
       }
 
@@ -1327,6 +1341,7 @@
 
       document.getElementById('createModal').classList.remove('hidden');
       updateListingFeePreview();
+      validateAssetTitleInputRealtime(); // Cek status validasi saat modal dibuka
     }
 
     function switchImageTab(tab) {
