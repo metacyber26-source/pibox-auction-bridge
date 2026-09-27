@@ -673,6 +673,13 @@
       setupRealtimeSubscription();
       setInterval(updateTimers, 1000);
       authenticatePiUser();
+      
+      // Inisialisasi awal validasi judul agar indikator langsung aktif
+      const titleInput = document.getElementById('assetTitleInput');
+      if (titleInput && !titleInput.value) {
+        titleInput.value = analyzedExtraData.title;
+        validateAssetTitleInputRealtime();
+      }
     });
 
     function updateNetworkBannerUI() {
@@ -745,6 +752,9 @@
       const titleInput = document.getElementById('assetTitleInput');
       const iconEl = document.getElementById('titleIndicatorIcon');
       const msgEl = document.getElementById('titleIndicatorMessage');
+      
+      if (!titleInput || !iconEl || !msgEl) return false;
+      
       const enteredTitle = titleInput.value.trim();
       const expectedTitle = analyzedExtraData.title || "Megah Candi borobudur (Warisan Dunia)";
 
@@ -757,7 +767,7 @@
       }
 
       // Deteksi persis tingkat keakuratan tinggi (format, kapitalisasi, spasi, tanda baca)
-      if (enteredTitle === expectedTitle) {
+      if (enteredTitle.toLowerCase() === expectedTitle.toLowerCase()) {
         titleInput.classList.remove('input-error');
         titleInput.classList.add('input-success');
         iconEl.innerText = "✅";
@@ -871,7 +881,6 @@
       }
     }
 
-    // Rilis ke Galeri & Kirim Otomatis ke WhatsApp dengan format "admin NFT-GM"
     async function releaseToGalleryAndSendWhatsApp() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
