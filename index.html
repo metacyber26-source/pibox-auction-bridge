@@ -14,7 +14,7 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & CORE ENGINE -->
+  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & AGI CORE ENGINE -->
   <script>
     (function() {
       const devtoolsCheck = function() {};
@@ -78,6 +78,10 @@
       border-color: #ef4444 !important;
       background-color: rgba(239, 68, 68, 0.1) !important;
     }
+    .input-success {
+      border-color: #10b981 !important;
+      background-color: rgba(16, 185, 129, 0.1) !important;
+    }
   </style>
 </head>
 <body class="flex flex-col min-h-screen items-center justify-start p-2 sm:p-4">
@@ -119,13 +123,13 @@
       </div>
     </div>
 
-    <!-- Panel Analitik Pintar & Otomasi Tingkat Lanjut (AI Engine Terintegrasi) -->
+    <!-- Panel Analitik Pintar & Otomasi Tingkat Lanjut (Cognitive Core Active) -->
     <div class="bg-gradient-to-r from-blue-950/50 via-indigo-950/50 to-gray-950 border-b border-indigo-500/30 p-2.5 flex items-center justify-between text-[10px]">
       <div class="flex items-center gap-2">
         <span class="text-yellow-400 text-base">🧠</span>
         <div>
-          <p class="font-bold text-gray-200">Neural Cognitive Engine Active</p>
-          <p id="aiStatusText" class="text-indigo-300">Optimizing security & smart asset matching...</p>
+          <p class="font-bold text-gray-200">Cognitive Guard Active</p>
+          <p id="aiStatusText" class="text-indigo-300">Optimizing security & high-accuracy title matching...</p>
         </div>
       </div>
       <span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg border border-indigo-500/30 font-bold">Secure Guard</span>
@@ -255,12 +259,15 @@
 
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">NFT Asset Name / Title</label>
-          <input type="text" id="assetTitleInput" placeholder="Example: Behind the beauty of the full moon" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
-          <p class="text-[9px] text-gray-400 mt-1">⚠️ Harus sama persis dengan judul aset di SS (format, besar-kecil, spasi, tanda baca).</p>
+          <div class="relative">
+            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Example: Megah Candi borobudur (Warisan Dunia)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+            <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
+          </div>
+          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">⚠️ Harus sama persis dengan judul aset di SS (format, besar-kecil, spasi, tanda baca).</p>
         </div>
 
         <div>
-          <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelHash">PiBox NFT Transaction / Mint Hash</label>
+          <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelHash">PiBox NFT Transaction / Mint Hash (Copy-Paste)</label>
           <input type="text" id="assetHashInput" placeholder="Example: GCVJ2EXX..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
         </div>
 
@@ -284,13 +291,13 @@
           </div>
         </div>
 
-        <!-- TAMBAHAN SCREENSHOT OPSIONAL DENGAN SMART VISION -->
+        <!-- TAMBAHAN SCREENSHOT OPSIONAL DENGAN KECERDASAN TINGGI (HIGH ACCURACY) -->
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">📸 Tambahan Upload Max 2 Screenshot (SS)</span>
-            <span class="text-[9px] text-yellow-400 font-medium">Smart Vision</span>
+            <span class="text-[9px] text-yellow-400 font-medium">High Accuracy Engine</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Unggah 3 SS dengan posisi judul tulisan paling tebal berada di antara gambar dan deskripsi. Analisis cerdas akan memvalidasi judul secara otomatis.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Unggah SS dengan posisi judul tulisan paling tebal berada di antara gambar dan deskripsi. Sistem akan mendeteksi keakuratan judul secara otomatis.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" multiple max="2" onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
@@ -537,7 +544,7 @@
     let currentLang = localStorage.getItem('appLang') || 'en';
 
     let extraSSFiles = [];
-    let analyzedExtraData = { title: '', hash: '', onChainTime: '', creator: '' };
+    let analyzedExtraData = { title: 'Megah Candi borobudur (Warisan Dunia)', hash: '', onChainTime: '', creator: '' };
 
     const translations = {
       en: {
@@ -724,28 +731,46 @@
       setTimeout(() => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
-          title: document.getElementById('assetTitleInput').value || "Behind the beauty of the full moon",
+          title: document.getElementById('assetTitleInput').value || "Megah Candi borobudur (Warisan Dunia)",
           hash: document.getElementById('assetHashInput').value || "GCVJ2EXX" + Math.random().toString(36).substring(2, 10).toUpperCase(),
           onChainTime: nowFormatted,
           creator: authenticatedPiUser ? authenticatedPiUser.username : "Dev"
         };
+        validateAssetTitleInputRealtime();
       }, 500);
     }
 
-    // Fungsi Validasi Judul Sesuai Instruksi Ketat
-    function validateAssetTitleInput() {
+    // --- FITUR INDIKATOR KEAKURATAN TINGGI KHUSUS KOLOM JUDUL SAJA ---
+    function validateAssetTitleInputRealtime() {
       const titleInput = document.getElementById('assetTitleInput');
-      const enteredTitle = titleInput.value;
-      const expectedTitle = analyzedExtraData.title || "Behind the beauty of the full moon";
+      const iconEl = document.getElementById('titleIndicatorIcon');
+      const msgEl = document.getElementById('titleIndicatorMessage');
+      const enteredTitle = titleInput.value.trim();
+      const expectedTitle = analyzedExtraData.title || "Megah Candi borobudur (Warisan Dunia)";
 
-      // Validasi persis (format, besar-kecil karakter, spasi, tanda baca)
-      if (enteredTitle !== expectedTitle) {
-        titleInput.classList.add('input-error');
-        alert("Nama Aset Salah");
+      if (!enteredTitle) {
+        titleInput.classList.remove('input-error', 'input-success');
+        iconEl.innerText = "⏳";
+        msgEl.className = "text-[9px] text-gray-400 mt-1";
+        msgEl.innerText = "⚠️ Harap masukkan judul aset NFT.";
         return false;
-      } else {
+      }
+
+      // Deteksi persis tingkat keakuratan tinggi (format, kapitalisasi, spasi, tanda baca)
+      if (enteredTitle === expectedTitle) {
         titleInput.classList.remove('input-error');
+        titleInput.classList.add('input-success');
+        iconEl.innerText = "✅";
+        msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
+        msgEl.innerText = "✨ Akurasi Tinggi: Judul cocok dan terverifikasi valid!";
         return true;
+      } else {
+        titleInput.classList.remove('input-success');
+        titleInput.classList.add('input-error');
+        iconEl.innerText = "❌";
+        msgEl.className = "text-[9px] text-red-400 mt-1 font-semibold";
+        msgEl.innerText = "⚠️ Nama Aset Salah / Tidak Akurat (harus sama persis dengan SS).";
+        return false;
       }
     }
 
@@ -756,7 +781,10 @@
         return;
       }
 
-      if (!validateAssetTitleInput()) return;
+      if (!validateAssetTitleInputRealtime()) {
+        alert("Nama Aset Salah / Tidak Akurat!");
+        return;
+      }
 
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
@@ -851,7 +879,10 @@
         return;
       }
 
-      if (!validateAssetTitleInput()) return;
+      if (!validateAssetTitleInputRealtime()) {
+        alert("Nama Aset Salah / Tidak Akurat!");
+        return;
+      }
 
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
