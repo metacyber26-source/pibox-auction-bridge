@@ -56,16 +56,9 @@
         return masked;
       },
       cognitiveCoreVerify: function(inputTitle, targetTitle) {
-        if (!inputTitle || !targetTitle) return false;
-        const normalizeText = (text) => {
-          return text
-            .toString()
-            .toLowerCase()
-            .replace(/[\r\n]+/g, ' ')     
-            .replace(/\s+/g, ' ')         
-            .trim();                      
-        };
-        return normalizeText(inputTitle) === normalizeText(targetTitle);
+        // Logika pembatasan dihapus/dilonggarkan sepenuhnya agar selalu bernilai true jika input terisi
+        if (!inputTitle) return false;
+        return true;
       }
     };
   </script>
@@ -284,7 +277,7 @@
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">2. Upload SS Tambahan (Analisa Data)</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Sistem menganalisa otomatis: <strong>NFT Asset Name</strong>, <strong>On-chain Time</strong>, & <strong>Initial creator</strong>.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Sistem mengambil nama file secara otomatis sebagai judul awal.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" multiple onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-purple-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
@@ -294,10 +287,10 @@
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. Input NFT Asset Name / Title</label>
           <div class="relative">
-            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Example: The Spirit of Surabaya-Pi2Day2026" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
-            <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
+            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Contoh judul bebas..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+            <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">✅</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">⚠️ Perbedaan spasi berlebih atau baris baru diabaikan, namun kalimat harus sama persis.</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-emerald-400 mt-1 font-bold">✨ Input bebas diaktifkan. Silakan masukkan judul lengkap.</p>
         </div>
 
         <!-- 4. INPUT HASH -->
@@ -691,10 +684,10 @@
       setTimeout(() => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         
-        // MENGGUNAKAN NAMA FILE LENGKAP DARI SS TAMBAHAN SEBAGAI TARGET JUDUL
-        let detectedTitle = "The Spirit of Surabaya-Pi2Day2026";
+        let detectedTitle = "";
         if (extraSSFiles.length > 0 && extraSSFiles[0].name) {
-          detectedTitle = extraSSFiles[0].name;
+          const rawName = extraSSFiles[0].name;
+          detectedTitle = rawName.substring(0, rawName.lastIndexOf('.')) || rawName;
         }
 
         analyzedExtraData = {
@@ -705,8 +698,8 @@
         };
 
         const titleInput = document.getElementById('assetTitleInput');
-        if (titleInput && !titleInput.value) {
-          titleInput.value = analyzedExtraData.title;
+        if (titleInput && !titleInput.value && detectedTitle) {
+          titleInput.value = detectedTitle;
         }
         validateAssetTitleInputRealtime();
       }, 300);
@@ -721,8 +714,7 @@
 
       if (!titleInput || !iconEl || !msgEl) return false;
 
-      const enteredTitle = titleInput.value; 
-      const expectedTitle = analyzedExtraData.title || "";
+      const enteredTitle = titleInput.value.trim(); 
 
       if (!enteredTitle) {
         titleInput.classList.remove('input-success');
@@ -735,29 +727,16 @@
         return false;
       }
 
-      const isExactMatch = SecureShield.cognitiveCoreVerify(enteredTitle, expectedTitle);
-
-      if (isExactMatch) {
-        titleInput.classList.remove('input-error');
-        titleInput.classList.add('input-success');
-        iconEl.innerText = "✅";
-        msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-        msgEl.innerText = "✨ Validasi Sempurna: Kata & kalimat cocok persis!";
-        
-        if (btnPublish) btnPublish.disabled = false;
-        if (btnReleaseGallery) btnReleaseGallery.disabled = false;
-        return true;
-      } else {
-        titleInput.classList.remove('input-success');
-        titleInput.classList.add('input-error');
-        iconEl.innerText = "❌";
-        msgEl.className = "text-[9px] text-red-400 mt-1 font-semibold";
-        msgEl.innerText = "⚠️ PERINGATAN: Kata atau kalimat tidak sesuai dengan data dari SS! Periksa kembali tulisan Anda.";
-        
-        if (btnPublish) btnPublish.disabled = true;
-        if (btnReleaseGallery) btnReleaseGallery.disabled = true;
-        return false;
-      }
+      // Selalu lolos validasi tanpa batasan ketat
+      titleInput.classList.remove('input-error');
+      titleInput.classList.add('input-success');
+      iconEl.innerText = "✅";
+      msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
+      msgEl.innerText = "✨ Judul diterima dengan sempurna!";
+      
+      if (btnPublish) btnPublish.disabled = false;
+      if (btnReleaseGallery) btnReleaseGallery.disabled = false;
+      return true;
     }
 
     async function submitPiPaymentOnly() {
@@ -768,7 +747,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama dengan data dari SS!");
+        alert("🚫 Silakan masukkan judul aset NFT!");
         return;
       }
 
@@ -865,7 +844,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama dengan data dari SS!");
+        alert("🚫 Silakan masukkan judul aset NFT!");
         return;
       }
 
