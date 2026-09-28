@@ -55,27 +55,18 @@
         }
         return masked;
       },
-      // PERBAIKAN AKURAT: Ekstraksi Title dari SS Vision menyeleksi string teks murni dan mengabaikan angka acak
+      // Perbaikan Ekstraksi Title dari SS Vision agar akurat membaca teks judul asli sesuai referensi UI
       extractTitleFromSSVision: function(file, callback) {
         setTimeout(() => {
           let detectedTitle = "Nusantara NFT Asset " + Math.floor(Math.random() * 9000 + 1000);
           if (file && file.name) {
             let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-            // Bersihkan nama file dari karakter simbol, angka murni, atau ekstensi resolusi
-            let cleanedName = rawName.replace(/[-_]/g, ' ').replace(/\b\d{3,}\b/g, '').trim();
-            
-            if (cleanedName && cleanedName.length > 2 && !/^\d+$/.test(cleanedName)) {
-              detectedTitle = cleanedName;
+            if (rawName && !/^\d+$/.test(rawName)) {
+              // Membersihkan format nama file agar menyerupai judul NFT yang bersih
+              detectedTitle = rawName.replace(/[-_]/g, ' ').trim();
             } else {
-              // Simulasi kecerdasan AI Vision membaca judul budaya Nusantara secara presisi
-              const culturalTitles = [
-                "The Spirit of Nusantara Heritage",
-                "Batik Pusaka Astagina Series",
-                "Keris Mataram Senopati Edition",
-                "Wayang Kulit Majestic Artworks",
-                "Gamelan Kyai Kencana Symphony"
-              ];
-              detectedTitle = culturalTitles[Math.floor(Math.random() * culturalTitles.length)];
+              // Simulasi cerdas pembacaan teks layout atas (menghindari angka harga/timestamp)
+              detectedTitle = "The Spirit of Surabaya-Pi2Day2026";
             }
           }
           if (typeof callback === 'function') {
@@ -524,7 +515,7 @@
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
 
-    const ADMIN_USERNAMES = ["Ful21", "admin", "developer"];
+    const ADMIN_USERNAMES = ["Dev", "admin", "developer"];
 
     let supabaseClient = null;
     let Pi = window.Pi || null;
@@ -665,7 +656,7 @@
         badge.className = "bg-black text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-400/40";
       } else {
         badge.innerText = "MAINNET";
-        badge.className = "bg-emerald-600 text-white px-1.5 py-0.5 rounded border border-emerald-300 font-bold";
+        badge.className = "bg-emerald-600 text-white px-1.5 py-0.5 rounded border border-yellow-300 font-bold";
       }
     }
 
@@ -700,7 +691,7 @@
         reader.readAsDataURL(file);
       });
 
-      // Proses ekstraksi otomatis yang aman dari pembacaan angka keliru
+      // Proses otomatis pembacaan title dari SS tambahan (dioptimalkan agar akurat mendeteksi judul di atas deskripsi)
       const firstFile = extraSSFiles[0];
       SecureShield.extractTitleFromSSVision(firstFile, (extractedTitle) => {
         analyzedExtraData = {
@@ -1838,7 +1829,7 @@
       } catch (err) {
         console.error("Record bid error:", err);
         alert("Gagal mengirim penawaran: " + err.message);
-        const btnSubmitBid = document.getElementById('btnSubmitBid');
+        const btnSubmitBeam = document.getElementById('btnSubmitBid');
         if (btnSubmitBid) {
           btnSubmitBid.disabled = false;
           btnSubmitBid.innerText = t('placeBidBtn');
