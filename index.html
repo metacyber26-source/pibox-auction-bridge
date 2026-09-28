@@ -55,9 +55,11 @@
         }
         return masked;
       },
+      // Disempurnakan: Validasi lebih longgar (mengabaikan spasi berlebih, baris baru, dan huruf kapital/kecil)
       cognitiveCoreVerify: function(inputTitle, targetTitle) {
         if (!inputTitle || !targetTitle) return false;
-        return inputTitle.trim() === targetTitle.trim();
+        const normalize = (str) => str.toString().replace(/\s+/g, ' ').trim().toLowerCase();
+        return normalize(inputTitle) === normalize(targetTitle);
       }
     };
   </script>
@@ -133,7 +135,7 @@
         <span class="text-yellow-400 text-base">🛡️</span>
         <div>
           <p class="font-bold text-gray-200">Secure Engine Guard Active</p>
-          <p id="aiStatusText" class="text-indigo-300">Strict Vision & Pending Status Protection...</p>
+          <p id="aiStatusText" class="text-indigo-300">Smart Flexible Vision & Protection...</p>
         </div>
       </div>
       <span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg border border-indigo-500/30 font-bold">Encrypted</span>
@@ -282,14 +284,14 @@
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
         </div>
 
-        <!-- 3. INPUT NFT ASSET NAME / TITLE DENGAN VALIDASI KETAT & POP-UP PERINGATAN -->
+        <!-- 3. INPUT NFT ASSET NAME / TITLE DENGAN VALIDASI FLEKSIBEL & PANDUAN PENGGUNA -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. Input NFT Asset Name / Title</label>
           <div class="relative">
             <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Example: Megah Candi borobudur (Warisan Dunia)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">⚠️ Harus sama persis dengan data dari SS (format, huruf besar/kecil, spasi, karakter tertentu).</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">ℹ️ Sistem otomatis menoleransi perbedaan spasi ganda dan huruf besar/kecil.</p>
         </div>
 
         <!-- 4. INPUT HASH (COPY-PASTE) -->
@@ -688,7 +690,6 @@
           onChainTime: nowFormatted,
           creator: authenticatedPiUser ? authenticatedPiUser.username : "Dev"
         };
-        // Auto-fill extracted title if empty
         const titleInput = document.getElementById('assetTitleInput');
         if (titleInput && !titleInput.value) {
           titleInput.value = analyzedExtraData.title;
@@ -697,7 +698,7 @@
       }, 500);
     }
 
-    // VALIDASI KETAT & POP-UP PERINGATAN SALAH INPUT
+    // VALIDASI JUDUL NFT DENGAN PENDAYAGUNAAN SMART VISION GUARD (FLEKSIBEL TERHADAP SPASI/BARIS)
     function validateAssetTitleInputRealtime() {
       const titleInput = document.getElementById('assetTitleInput');
       const iconEl = document.getElementById('titleIndicatorIcon');
@@ -728,7 +729,7 @@
         titleInput.classList.add('input-success');
         iconEl.innerText = "✅";
         msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-        msgEl.innerText = "✨ Validasi Sempurna: Judul akurat dan cocok persis!";
+        msgEl.innerText = "✨ Validasi Berhasil: Judul cocok dan terverifikasi secara fleksibel!";
         
         if (btnPublish) btnPublish.disabled = false;
         if (btnReleaseGallery) btnReleaseGallery.disabled = false;
@@ -738,7 +739,7 @@
         titleInput.classList.add('input-error');
         iconEl.innerText = "❌";
         msgEl.className = "text-[9px] text-red-400 mt-1 font-semibold";
-        msgEl.innerText = "⚠️ PERINGATAN: Judul tidak sama persis dengan SS (Format, huruf besar/kecil, spasi, karakter tertentu harus sama).";
+        msgEl.innerText = "⚠️ PERINGATAN: Judul tidak sesuai dengan teks target pada tangkapan layar.";
         
         if (btnPublish) btnPublish.disabled = true;
         if (btnReleaseGallery) btnReleaseGallery.disabled = true;
@@ -754,7 +755,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama persis dengan data dari SS! Harap perbaiki format, huruf besar/kecil, spasi, atau karakter tertentu.");
+        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sesuai! Periksa kembali tulisan Anda.");
         return;
       }
 
@@ -851,7 +852,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama persis dengan data dari SS! Harap perbaiki terlebih dahulu.");
+        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sesuai!");
         return;
       }
 
@@ -878,10 +879,8 @@
       const seller = authenticatedPiUser.username;
       const onChainTime = analyzedExtraData.onChainTime || new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-      // Simpan ke database dengan status "pending"
       await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, onChainTime, true);
 
-      // Kirim data ke WhatsApp admin
       const waNumber = "6285708486588";
       const message = `Halo Admin NFT-GM, verifikasi data rilis aset baru:\n\n` +
                       `• NFT Asset Name: ${title}\n` +
@@ -1126,7 +1125,6 @@
         const isMyListing = authenticatedPiUser && item.seller === authenticatedPiUser.username;
         const isMyBid = authenticatedPiUser && userBiddedAuctionIds.has(item.id);
 
-        // Jika status pending, hanya admin/dev atau pemilik listing yang bisa melihat di galeri (kecuali difilter khusus)
         if (isPending && !isAdminUser && !isMyListing) {
           return false;
         }
@@ -1346,7 +1344,7 @@
             seller,
             on_chain_time: onChainTime,
             ends_at: endsAt,
-            status: 'pending', // Aset baru dilisting dengan status "Pending"
+            status: 'pending',
             extension_count: 0
           }]);
 
@@ -1365,7 +1363,6 @@
       }
     }
 
-    // Hanya Admin dan Dev yang bisa membuka status pending menjadi aktif
     async function approvePendingAsset(auctionId) {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("🚫 Hanya Admin atau Dev yang berhak membuka status pending aset ini!");
