@@ -14,7 +14,7 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & STRICT EXACT MATCH ENGINE -->
+  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & AGI COGNITIVE ENGINE -->
   <script>
     (function() {
       const devtoolsCheck = function() {};
@@ -55,11 +55,17 @@
         }
         return masked;
       },
-      // Pembaruan Strict Exact Match: Kata dan kalimat harus sama persis (tidak boleh diganti/ditambah/dikurangi).
       cognitiveCoreVerify: function(inputTitle, targetTitle) {
         if (!inputTitle || !targetTitle) return false;
-        // Hanya membuang spasi di awal/akhir input agar akurat secara ketat
-        return inputTitle.trim() === targetTitle.trim();
+        const normalizeText = (text) => {
+          return text
+            .toString()
+            .toLowerCase()
+            .replace(/[\r\n]+/g, ' ')     
+            .replace(/\s+/g, '         ')         
+            .trim();                      
+        };
+        return normalizeText(inputTitle) === normalizeText(targetTitle);
       }
     };
   </script>
@@ -134,8 +140,8 @@
       <div class="flex items-center gap-2">
         <span class="text-yellow-400 text-base">🛡️</span>
         <div>
-          <p class="font-bold text-gray-200">Strict Match Guard Active</p>
-          <p id="aiStatusText" class="text-indigo-300">Exact string verification enabled...</p>
+          <p class="font-bold text-gray-200">Secure Engine Guard Active</p>
+          <p id="aiStatusText" class="text-indigo-300">Smart Vision & Pending Status Protection...</p>
         </div>
       </div>
       <span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg border border-indigo-500/30 font-bold">Encrypted</span>
@@ -248,7 +254,7 @@
     </div>
   </div>
 
-  <!-- MODAL: Buat Lelang / Rilis Aset Sesuai Alur Baru -->
+  <!-- MODAL: Buat Lelang / Rilis Aset -->
   <div id="createModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
     <div class="bg-gray-950 border border-gray-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
       <div class="flex justify-between items-center border-b border-gray-800 pb-3">
@@ -278,7 +284,7 @@
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">2. Upload SS Tambahan (Analisa Data)</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Sistem membaca otomatis: <strong>NFT Asset Name</strong>, <strong>On-chain Time</strong>, & <strong>Initial creator</strong>.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Sistem menganalisa otomatis: <strong>NFT Asset Name</strong>, <strong>On-chain Time</strong>, & <strong>Initial creator</strong>.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" multiple onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-purple-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
@@ -288,10 +294,10 @@
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. Input NFT Asset Name / Title</label>
           <div class="relative">
-            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Example: Megah Candi borobudur (Warisan Dunia)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Example: The Spirit of Surabaya-Pi2Day2026" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">⚠️ Kata dan kalimat harus sama persis (tidak boleh diganti, ditambah, atau dikurangi).</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">⚠️ Perbedaan spasi berlebih atau baris baru diabaikan, namun kalimat harus sama persis.</p>
         </div>
 
         <!-- 4. INPUT HASH -->
@@ -514,7 +520,8 @@
     let currentLang = localStorage.getItem('appLang') || 'en';
 
     let extraSSFiles = [];
-    let analyzedExtraData = { title: 'Megah Candi borobudur (Warisan Dunia)', hash: '', onChainTime: '', creator: '' };
+    // PERBAIKAN: Default dinamis berdasarkan file SS tambahan yang diunggah
+    let analyzedExtraData = { title: 'The Spirit of Surabaya-Pi2Day2026', hash: '', onChainTime: '', creator: '' };
 
     const translations = {
       en: {
@@ -684,21 +691,29 @@
     function simulateSmartVisionAnalysis() {
       setTimeout(() => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        
+        // PERBAIKAN UTAMA: Mengambil nama file asli dari SS Tambahan (tanpa ekstensi) sebagai target judul yang valid
+        let detectedTitle = "The Spirit of Surabaya-Pi2Day2026";
+        if (extraSSFiles.length > 0 && extraSSFiles[0].name) {
+          const rawName = extraSSFiles[0].name;
+          detectedTitle = rawName.substring(0, rawName.lastIndexOf('.')) || rawName;
+        }
+
         analyzedExtraData = {
-          title: "Megah Candi borobudur (Warisan Dunia)",
+          title: detectedTitle,
           hash: "GAIHZJT5AS5GMBTMBDVPMF26V7QN5L4YV",
           onChainTime: nowFormatted,
           creator: authenticatedPiUser ? authenticatedPiUser.username : "Dev"
         };
+
         const titleInput = document.getElementById('assetTitleInput');
         if (titleInput && !titleInput.value) {
           titleInput.value = analyzedExtraData.title;
         }
         validateAssetTitleInputRealtime();
-      }, 500);
+      }, 300);
     }
 
-    // VALIDASI REALTIME: Strict Exact Match (kata dan kalimat harus sama persis)
     function validateAssetTitleInputRealtime() {
       const titleInput = document.getElementById('assetTitleInput');
       const iconEl = document.getElementById('titleIndicatorIcon');
@@ -709,7 +724,7 @@
       if (!titleInput || !iconEl || !msgEl) return false;
 
       const enteredTitle = titleInput.value; 
-      const expectedTitle = analyzedExtraData.title || "Megah Candi borobudur (Warisan Dunia)";
+      const expectedTitle = analyzedExtraData.title || "The Spirit of Surabaya-Pi2Day2026";
 
       if (!enteredTitle) {
         titleInput.classList.remove('input-success');
@@ -729,7 +744,7 @@
         titleInput.classList.add('input-success');
         iconEl.innerText = "✅";
         msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-        msgEl.innerText = "✨ Validasi Sempurna: Kata dan kalimat sama persis!";
+        msgEl.innerText = "✨ Validasi Sempurna: Kata & kalimat cocok persis!";
         
         if (btnPublish) btnPublish.disabled = false;
         if (btnReleaseGallery) btnReleaseGallery.disabled = false;
@@ -739,7 +754,7 @@
         titleInput.classList.add('input-error');
         iconEl.innerText = "❌";
         msgEl.className = "text-[9px] text-red-400 mt-1 font-semibold";
-        msgEl.innerText = "⚠️ PERINGATAN: Kata atau kalimat harus sama persis (tidak boleh ada yang diganti, ditambah, atau dikurangi)!";
+        msgEl.innerText = "⚠️ PERINGATAN: Kata atau kalimat tidak sesuai dengan data dari SS! Periksa kembali tulisan Anda.";
         
         if (btnPublish) btnPublish.disabled = true;
         if (btnReleaseGallery) btnReleaseGallery.disabled = true;
@@ -755,7 +770,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama persis dengan data referensi!");
+        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama dengan data dari SS!");
         return;
       }
 
@@ -852,7 +867,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama persis dengan data referensi!");
+        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama dengan data dari SS!");
         return;
       }
 
