@@ -55,11 +55,20 @@
         }
         return masked;
       },
-      // Disempurnakan: Validasi lebih longgar (mengabaikan spasi berlebih, baris baru, dan huruf kapital/kecil)
+      // Pembaruan CognitiveCoreVerify: Mengabaikan perbedaan baris baru (newline), 
+      // merapikan spasi berlebih, dan tidak sensitif huruf besar/kecil, 
+      // namun isi kata/kalimat tetap harus sama persis.
       cognitiveCoreVerify: function(inputTitle, targetTitle) {
         if (!inputTitle || !targetTitle) return false;
-        const normalize = (str) => str.toString().replace(/\s+/g, ' ').trim().toLowerCase();
-        return normalize(inputTitle) === normalize(targetTitle);
+        const normalizeText = (text) => {
+          return text
+            .toString()
+            .toLowerCase()
+            .replace(/[\r\n]+/g, ' ')     // Ubah semua baris baru menjadi spasi
+            .replace(/\s+/g, ' ')         // Ubah spasi ganda/lebih menjadi satu spasi tunggal
+            .trim();                      // Buang spasi di awal/akhir
+        };
+        return normalizeText(inputTitle) === normalizeText(targetTitle);
       }
     };
   </script>
@@ -135,7 +144,7 @@
         <span class="text-yellow-400 text-base">🛡️</span>
         <div>
           <p class="font-bold text-gray-200">Secure Engine Guard Active</p>
-          <p id="aiStatusText" class="text-indigo-300">Smart Flexible Vision & Protection...</p>
+          <p id="aiStatusText" class="text-indigo-300">Smart Vision & Pending Status Protection...</p>
         </div>
       </div>
       <span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg border border-indigo-500/30 font-bold">Encrypted</span>
@@ -264,7 +273,7 @@
           📌 Ensure this NFT is registered in <strong>PIBOX NFT EVENT ZONE</strong>. Enter official Hash!
         </div>
 
-        <!-- 1. UPLOAD SS UTAMA: Tombol Pilih File Warna Kuning -->
+        <!-- 1. UPLOAD SS UTAMA -->
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-gray-800 pb-2">
             <span class="font-semibold text-gray-200 text-[11px]">1. Upload SS Utama (Full Gambar ke Galeri)</span>
@@ -273,28 +282,28 @@
           <p class="text-[9px] text-gray-500">SS utama full gambar akan di-upload langsung ke galeri dengan status "Pending".</p>
         </div>
 
-        <!-- 2. UPLOAD SS TAMBAHAN: Tombol Pilih File Warna Ungu -->
+        <!-- 2. UPLOAD SS TAMBAHAN -->
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">2. Upload SS Tambahan (Analisa Data)</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Sistem menganalisa otomatis: <strong>NFT Asset Name</strong> (tulisan tebal di bawah gambar/atas deskripsi), <strong>On-chain Time</strong>, & <strong>Initial creator</strong>.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Sistem menganalisa otomatis: <strong>NFT Asset Name</strong>, <strong>On-chain Time</strong>, & <strong>Initial creator</strong>.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" multiple onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-purple-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
         </div>
 
-        <!-- 3. INPUT NFT ASSET NAME / TITLE DENGAN VALIDASI FLEKSIBEL & PANDUAN PENGGUNA -->
+        <!-- 3. INPUT NFT ASSET NAME / TITLE -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. Input NFT Asset Name / Title</label>
           <div class="relative">
             <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Example: Megah Candi borobudur (Warisan Dunia)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">ℹ️ Sistem otomatis menoleransi perbedaan spasi ganda dan huruf besar/kecil.</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-gray-400 mt-1">⚠️ Perbedaan spasi berlebih atau baris baru diabaikan, namun kalimat harus sama persis.</p>
         </div>
 
-        <!-- 4. INPUT HASH (COPY-PASTE) -->
+        <!-- 4. INPUT HASH -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1">4. Input Hash (Metode Copy-Paste)</label>
           <input type="text" id="assetHashInput" placeholder="Example: GCVJ2EXX..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
@@ -698,7 +707,7 @@
       }, 500);
     }
 
-    // VALIDASI JUDUL NFT DENGAN PENDAYAGUNAAN SMART VISION GUARD (FLEKSIBEL TERHADAP SPASI/BARIS)
+    // VALIDASI REALTIME: Baris baru & spasi berlebih diabaikan, isi teks harus sama persis
     function validateAssetTitleInputRealtime() {
       const titleInput = document.getElementById('assetTitleInput');
       const iconEl = document.getElementById('titleIndicatorIcon');
@@ -729,7 +738,7 @@
         titleInput.classList.add('input-success');
         iconEl.innerText = "✅";
         msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-        msgEl.innerText = "✨ Validasi Berhasil: Judul cocok dan terverifikasi secara fleksibel!";
+        msgEl.innerText = "✨ Validasi Sempurna: Kata & kalimat cocok persis!";
         
         if (btnPublish) btnPublish.disabled = false;
         if (btnReleaseGallery) btnReleaseGallery.disabled = false;
@@ -739,7 +748,7 @@
         titleInput.classList.add('input-error');
         iconEl.innerText = "❌";
         msgEl.className = "text-[9px] text-red-400 mt-1 font-semibold";
-        msgEl.innerText = "⚠️ PERINGATAN: Judul tidak sesuai dengan teks target pada tangkapan layar.";
+        msgEl.innerText = "⚠️ PERINGATAN: Kata atau kalimat tidak sesuai dengan data dari SS! Periksa kembali tulisan Anda.";
         
         if (btnPublish) btnPublish.disabled = true;
         if (btnReleaseGallery) btnReleaseGallery.disabled = true;
@@ -755,7 +764,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sesuai! Periksa kembali tulisan Anda.");
+        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama dengan data dari SS!");
         return;
       }
 
@@ -852,7 +861,7 @@
       }
 
       if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sesuai!");
+        alert("🚫 PERINGATAN SALAH INPUT: Judul aset NFT tidak sama dengan data dari SS!");
         return;
       }
 
