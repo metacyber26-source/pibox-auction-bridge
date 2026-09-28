@@ -56,7 +56,7 @@
         return masked;
       },
       cognitiveCoreVerify: function(inputTitle, targetTitle) {
-        // Logika pembatasan dihapus/dilonggarkan sepenuhnya agar selalu bernilai true jika input terisi
+        // Validasi ekstrak string ketat dihapus sepenuhnya agar bebas tanpa pembatasan
         if (!inputTitle) return false;
         return true;
       }
@@ -287,10 +287,10 @@
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. Input NFT Asset Name / Title</label>
           <div class="relative">
-            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Contoh judul bebas..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
-            <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">✅</span>
+            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Pastikan penulisan judul sudah sesuai dengan aset NFT Anda..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+            <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">💡</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-emerald-400 mt-1 font-bold">✨ Input bebas diaktifkan. Silakan masukkan judul lengkap.</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-blue-400 mt-1 font-medium">💡 Saran: Pastikan penulisan judul sudah sesuai dengan aset NFT Anda.</p>
         </div>
 
         <!-- 4. INPUT HASH -->
@@ -716,23 +716,24 @@
 
       const enteredTitle = titleInput.value.trim(); 
 
+      // Validasi bebas tanpa pembatasan ketat: hanya memeriksa apakah input terisi
       if (!enteredTitle) {
         titleInput.classList.remove('input-success');
-        titleInput.classList.add('input-error');
-        iconEl.innerText = "⏳";
-        msgEl.className = "text-[9px] text-gray-400 mt-1";
-        msgEl.innerText = "⚠️ Harap masukkan judul aset NFT.";
-        if (btnPublish) btnPublish.disabled = true;
-        if (btnReleaseGallery) btnReleaseGallery.disabled = true;
-        return false;
+        titleInput.classList.remove('input-error');
+        iconEl.innerText = "💡";
+        msgEl.className = "text-[9px] text-blue-400 mt-1 font-medium";
+        msgEl.innerText = "💡 Saran: Pastikan penulisan judul sudah sesuai dengan aset NFT Anda.";
+        if (btnPublish) btnPublish.disabled = false; // Tombol tetap tidak diblokir mutlak
+        if (btnReleaseGallery) btnReleaseGallery.disabled = false;
+        return true;
       }
 
-      // Selalu lolos validasi tanpa batasan ketat
+      // Selalu lolos validasi tanpa error merah
       titleInput.classList.remove('input-error');
       titleInput.classList.add('input-success');
       iconEl.innerText = "✅";
       msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-      msgEl.innerText = "✨ Judul diterima dengan sempurna!";
+      msgEl.innerText = "✨ Judul diterima dengan baik. Pastikan penulisan sudah sesuai dengan aset NFT Anda.";
       
       if (btnPublish) btnPublish.disabled = false;
       if (btnReleaseGallery) btnReleaseGallery.disabled = false;
@@ -746,12 +747,7 @@
         return;
       }
 
-      if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 Silakan masukkan judul aset NFT!");
-        return;
-      }
-
-      const title = document.getElementById('assetTitleInput').value;
+      const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
       const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
 
@@ -843,12 +839,7 @@
         return;
       }
 
-      if (!validateAssetTitleInputRealtime()) {
-        alert("🚫 Silakan masukkan judul aset NFT!");
-        return;
-      }
-
-      const title = document.getElementById('assetTitleInput').value;
+      const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
       const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
 
