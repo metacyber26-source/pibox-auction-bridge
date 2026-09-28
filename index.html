@@ -1422,7 +1422,12 @@
     }
 
     async function deleteAuction(auctionId) {
-      if (!confirm("⚠️ ADMIN WARNING:\nAre you sure you want to PERMANENTLY delete this asset from the database?")) return;
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("🚫 Akses ditolak! Hanya Admin/Dev yang dapat menghapus aset dari galeri.");
+        return;
+      }
+
+      if (!confirm("⚠️ ADMIN WARNING:\nAre you sure you want to PERMANENTLY delete this asset from the gallery database?")) return;
 
       try {
         const { error } = await supabaseClient
@@ -1432,7 +1437,7 @@
 
         if (error) throw error;
 
-        alert("🗑️ Auction asset successfully deleted!");
+        alert("🗑️ Auction asset successfully deleted from gallery!");
         closeDetailModal();
         fetchActiveAuctions();
       } catch (err) {
@@ -1647,8 +1652,8 @@
               </button>
               <button 
                 onclick="deleteAuction('${selectedAuction.id}')"
-                class="flex-1 text-[10px] font-bold py-1.5 px-2 rounded-lg bg-red-600 hover:bg-red-500 text-white transition cursor-pointer">
-                🗑️ Admin: Delete
+                class="flex-1 text-[10px] font-bold py-1.5 px-2 rounded-lg bg-red-600 hover:bg-red-500 text-white transition cursor-pointer shadow-lg">
+                🗑️ Admin: Hapus Aset dari Galeri
               </button>
             </div>
           ` : ''}
