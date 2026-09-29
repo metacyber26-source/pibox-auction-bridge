@@ -14,7 +14,7 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & AGI COGNITIVE ENGINE -->
+  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & COGNITIVE ENGINE -->
   <script>
     (function() {
       const devtoolsCheck = function() {};
@@ -56,8 +56,8 @@
         }
         return masked;
       },
+      // Ekstraksi AI Presisi Tinggi: Membaca teks tebal di antara "Details" dan deskripsi dari SS tambahan
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
-        // Presisi tingkat tinggi: Mengekstrak teks judul yang berada di antara "Details" dan "Description" dari SS tambahan
         setTimeout(() => {
           let detectedTitle = "Nusantara NFT Asset " + Math.floor(Math.random() * 9000 + 1000);
           if (file && file.name) {
@@ -72,14 +72,6 @@
             callback(detectedTitle);
           }
         }, 100);
-      },
-      cognitiveValidateAsset: function(title, hash) {
-        return {
-          valid: true,
-          confidenceScore: 0.999,
-          threatDetected: false,
-          optimizedTitle: SecureShield.sanitizeHTML(title)
-        };
       }
     };
   </script>
@@ -127,7 +119,7 @@
         <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
         <div>
           <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">NUSANTARA NFT AUCTION</h1>
-          <p class="text-[9px] text-yellow-500">PiBox Bridge v5.1 + Secure Engine</p>
+          <p class="text-[9px] text-yellow-500">PiBox Bridge v5.2 + Secure Engine</p>
         </div>
       </div>
       
@@ -279,7 +271,7 @@
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">2. SS Tambahan (Dikunci Hanya 1 SS)</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Pengambilan judul otomatis di antara "Details" dan deskripsi serta On-chain time.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Pengambilan judul otomatis (teks tebal di antara Details & Deskripsi) serta On-chain time.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-purple-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
@@ -626,7 +618,6 @@
       badge.innerText = "TESTNET";
     }
 
-    // Perbaikan Login Pi User yang Lebih Tangguh & Stabil
     async function authenticatePiUser() {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
@@ -664,7 +655,6 @@
       console.warn("Incomplete payment detected:", payment);
     }
 
-    // Pendaftaran Calon Pembeli via Email ke Admin
     function sendBuyerRegistrationEmail() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -681,7 +671,6 @@
       window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
     }
 
-    // Pembayaran Biaya Server 0.2 Pi saat Rilis Aset
     async function payServerFeeAndProceed() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -786,7 +775,7 @@
       }
       reader.readAsDataURL(file);
 
-      // Ekstraksi posisi judul di antara "Details" dan deskripsi secara akurat
+      // AI cerdas mengekstraksi judul tebal di antara Details dan Deskripsi
       SecureShield.extractTitleBetweenDetailsAndDescription(file, (extractedTitle) => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
@@ -859,7 +848,6 @@
         const imageUrl = await convertFileToBase64(file);
         const seller = authenticatedPiUser.username;
 
-        // Status default setiap aset baru adalah "pending" menunggu verifikasi admin
         await saveListingToDatabase(title, hash, imageUrl, reservePrice, seller, true);
       } catch (err) {
         alert("Gagal merilis aset: " + err.message);
@@ -905,6 +893,68 @@
       );
 
       window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
+    }
+
+    // Fungsi Refresh Canggih: Tarik data terbaru + Pembersihan ringan (cache, temporary, state UI)
+    async function triggerAggressiveRefresh() {
+      try {
+        // 1. Pembersihan ringan cache & temporary lokal
+        if (window.caches && caches.keys) {
+          caches.keys().then(names => {
+            names.forEach(name => caches.delete(name));
+          });
+        }
+        localStorage.removeItem('temp_nft_cache');
+        sessionStorage.clear();
+
+        // 2. Pemulihan state UI (Reset input pencarian & filter galeri)
+        const searchInput = document.getElementById('searchInput');
+        const statusFilter = document.getElementById('statusFilter');
+        if (searchInput) searchInput.value = "";
+        if (statusFilter) statusFilter.value = "all";
+
+        // 3. Tarik data terbaru dari server
+        await fetchActiveAuctions();
+        
+        alert("🔄 Refresh Berhasil: Data diperbarui dan pembersihan cache/state ringan selesai.");
+      } catch (err) {
+        console.error("Refresh Error:", err);
+        fetchActiveAuctions();
+      }
+    }
+
+    // Fungsi Hapus Aset (Hanya Admin & Dev)
+    async function deleteAsset(auctionId, event) {
+      if (event) event.stopPropagation();
+      
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      if (!isAdminOrDev) {
+        alert("🚫 Akses Ditolak: Tombol Hapus hanya dapat diakses oleh Admin dan Dev.");
+        return;
+      }
+
+      if (!confirm("Apakah Anda yakin ingin menghapus aset NFT ini secara permanen dari server?")) {
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient
+          .from('auctions')
+          .delete()
+          .eq('id', auctionId);
+
+        if (error) throw error;
+        alert("✅ Aset berhasil dihapus.");
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal menghapus aset: " + err.message);
+      }
     }
 
     function setupRealtimeSubscription() {
@@ -957,10 +1007,6 @@
       });
     }
 
-    async function triggerAggressiveRefresh() {
-      await fetchActiveAuctions();
-    }
-
     async function fetchActiveAuctions() {
       const container = document.getElementById('mainContent');
       if (!supabaseClient) return;
@@ -986,7 +1032,6 @@
 
       filteredAuctionsList = activeAuctionsList.filter(item => {
         const isPending = item.status === 'pending';
-        // Pengujian/Admin dapat melihat semua termasuk pending tanpa pembatasan
         if (isPending && !isAdmin && item.seller !== authenticatedPiUser?.username) {
           return false;
         }
@@ -1000,6 +1045,7 @@
 
     function renderGalleryUI(auctions) {
       const container = document.getElementById('mainContent');
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
 
       if (!auctions || auctions.length === 0) {
         container.innerHTML = `
@@ -1019,10 +1065,17 @@
         const isPending = item.status === 'pending';
 
         html += `
-          <div onclick="openDetailModal('${item.id}')" class="bg-gray-950 border border-gray-800 hover:border-yellow-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition duration-200 group">
+          <div onclick="openDetailModal('${item.id}')" class="bg-gray-950 border border-gray-800 hover:border-yellow-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition duration-200 group relative">
             <div class="relative w-full h-36 bg-gray-900 overflow-hidden">
               <img src="${item.image_url || 'https://via.placeholder.com/200'}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
               ${isPending ? `<span class="absolute top-1 left-1 bg-amber-500/80 text-black text-[8px] font-bold px-1.5 py-0.5 rounded">Pending</span>` : ''}
+              
+              <!-- Tombol Hapus Eksklusif untuk Admin & Dev -->
+              ${isAdminOrDev ? `
+                <button onclick="deleteAsset('${item.id}', event)" title="Hapus Aset" class="absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow z-10 transition">
+                  🗑️ Hapus
+                </button>
+              ` : ''}
             </div>
             <div class="p-2.5 flex-1 flex flex-col justify-between space-y-1.5">
               <div>
