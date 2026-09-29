@@ -56,16 +56,16 @@
         }
         return masked;
       },
-      // Ekstraksi AI Presisi Tinggi: Membaca teks tebal di antara "Details" dan deskripsi dari SS tambahan
+      // Ekstraksi AI Membaca apa adanya: Jika nama file angka/timestamp, kolom dikosongkan agar diisi manual dengan presisi tinggi
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
         setTimeout(() => {
-          let detectedTitle = "Nusantara NFT Asset " + Math.floor(Math.random() * 9000 + 1000);
+          let detectedTitle = "";
           if (file && file.name) {
             let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             if (rawName && !/^\d+$/.test(rawName)) {
               detectedTitle = rawName.replace(/[-_]/g, ' ').trim();
             } else {
-              detectedTitle = "The Spirit of Nusantara-Pi2Day2026 [Details-Desc Verified]";
+              detectedTitle = "";
             }
           }
           if (typeof callback === 'function') {
@@ -281,7 +281,7 @@
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. NFT Asset Name (Otomatis / Input Manual Alternatif)</label>
           <div class="relative">
-            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Judul terbaca otomatis di antara Details & Deskripsi..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Masukkan judul aset secara manual atau otomatis..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">✅</span>
           </div>
           <p id="titleIndicatorMessage" class="text-[9px] text-emerald-400 mt-1 font-bold">✨ Judul akurat & dapat disesuaikan manual.</p>
@@ -775,7 +775,7 @@
       }
       reader.readAsDataURL(file);
 
-      // AI cerdas mengekstraksi judul tebal di antara Details dan Deskripsi
+      // AI membaca apa adanya dari nama file jika deskriptif, atau mengosongkan jika berupa angka
       SecureShield.extractTitleBetweenDetailsAndDescription(file, (extractedTitle) => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
@@ -806,14 +806,14 @@
         titleInput.classList.remove('input-success');
         titleInput.classList.add('input-error');
         iconEl.innerText = "⏳";
-        msgEl.innerText = "⚠️ Masukkan judul aset NFT di antara Details & Deskripsi.";
+        msgEl.innerText = "⚠️ Masukkan judul aset NFT secara manual.";
         return false;
       }
 
       titleInput.classList.remove('input-error');
       titleInput.classList.add('input-success');
       iconEl.innerText = "✅";
-      msgEl.innerText = "✨ Judul valid dan terdeteksi akurat.";
+      msgEl.innerText = "✨ Judul valid dan siap digunakan.";
       return true;
     }
 
@@ -895,10 +895,8 @@
       window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
     }
 
-    // Fungsi Refresh Canggih: Tarik data terbaru + Pembersihan ringan (cache, temporary, state UI)
     async function triggerAggressiveRefresh() {
       try {
-        // 1. Pembersihan ringan cache & temporary lokal
         if (window.caches && caches.keys) {
           caches.keys().then(names => {
             names.forEach(name => caches.delete(name));
@@ -907,13 +905,11 @@
         localStorage.removeItem('temp_nft_cache');
         sessionStorage.clear();
 
-        // 2. Pemulihan state UI (Reset input pencarian & filter galeri)
         const searchInput = document.getElementById('searchInput');
         const statusFilter = document.getElementById('statusFilter');
         if (searchInput) searchInput.value = "";
         if (statusFilter) statusFilter.value = "all";
 
-        // 3. Tarik data terbaru dari server
         await fetchActiveAuctions();
         
         alert("🔄 Refresh Berhasil: Data diperbarui dan pembersihan cache/state ringan selesai.");
@@ -923,7 +919,6 @@
       }
     }
 
-    // Fungsi Hapus Aset (Hanya Admin & Dev)
     async function deleteAsset(auctionId, event) {
       if (event) event.stopPropagation();
       
