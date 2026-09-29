@@ -56,7 +56,7 @@
         }
         return masked;
       },
-      // Ekstraksi AI Membaca apa adanya: Jika nama file angka/timestamp, kolom dikosongkan agar diisi manual dengan presisi tinggi
+      // Mengosongkan otomatis agar diisi manual secara lengkap oleh pengguna
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
         setTimeout(() => {
           let detectedTitle = "";
@@ -279,12 +279,12 @@
 
         <!-- 3. INPUT NFT ASSET NAME / TITLE -->
         <div>
-          <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. NFT Asset Name (Otomatis / Input Manual Alternatif)</label>
+          <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. NFT Asset Name / Title</label>
           <div class="relative">
-            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Masukkan judul aset secara manual atau otomatis..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
-            <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">✅</span>
+            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Ketik nama / title aset di sini..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+            <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-emerald-400 mt-1 font-bold">✨ Judul akurat & dapat disesuaikan manual.</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold">⚠️ isi dengan nama / title aset, lengkap.</p>
         </div>
 
         <!-- 4. INPUT HASH & ON-CHAIN TIME -->
@@ -775,17 +775,17 @@
       }
       reader.readAsDataURL(file);
 
-      // AI membaca apa adanya dari nama file jika deskriptif, atau mengosongkan jika berupa angka
+      // Kolom judul dikosongkan otomatis agar diisi manual secara lengkap oleh pengguna
       SecureShield.extractTitleBetweenDetailsAndDescription(file, (extractedTitle) => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
-          title: extractedTitle,
+          title: "",
           hash: "GAIHZJT5AS5GMBTMBDVPMF26V7QN5L4YV",
           onChainTime: nowFormatted
         };
 
         const titleInput = document.getElementById('assetTitleInput');
-        if (titleInput) titleInput.value = extractedTitle;
+        if (titleInput) titleInput.value = ""; // Dikosongkan agar pengguna input manual lengkap
 
         const timeInput = document.getElementById('onChainTimeInput');
         if (timeInput) timeInput.value = nowFormatted;
@@ -806,13 +806,15 @@
         titleInput.classList.remove('input-success');
         titleInput.classList.add('input-error');
         iconEl.innerText = "⏳";
-        msgEl.innerText = "⚠️ Masukkan judul aset NFT secara manual.";
+        msgEl.className = "text-[9px] text-amber-400 mt-1 font-bold";
+        msgEl.innerText = "⚠️ isi dengan nama / title aset, lengkap.";
         return false;
       }
 
       titleInput.classList.remove('input-error');
       titleInput.classList.add('input-success');
       iconEl.innerText = "✅";
+      msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
       msgEl.innerText = "✨ Judul valid dan siap digunakan.";
       return true;
     }
