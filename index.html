@@ -17,9 +17,16 @@
   <!-- LAPISAN KEAMANAN TINGKAT LANJUT & COGNITIVE ENGINE -->
   <script>
     (function() {
+      // Mencegah Inspect Element & Debugging Berbahaya
       const devtoolsCheck = function() {};
       devtoolsCheck.toString = function() { return ''; };
       window.addEventListener('contextmenu', e => e.preventDefault());
+      window.addEventListener('keydown', e => {
+        if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || (e.ctrlKey && e.keyCode === 85)) {
+          e.preventDefault();
+          return false;
+        }
+      });
     })();
 
     window.SecureShield = {
@@ -56,7 +63,6 @@
         }
         return masked;
       },
-      // Mengosongkan otomatis agar diisi manual secara lengkap oleh pengguna
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
         setTimeout(() => {
           let detectedTitle = "";
@@ -64,8 +70,6 @@
             let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             if (rawName && !/^\d+$/.test(rawName)) {
               detectedTitle = rawName.replace(/[-_]/g, ' ').trim();
-            } else {
-              detectedTitle = "";
             }
           }
           if (typeof callback === 'function') {
@@ -257,7 +261,7 @@
       </div>
 
       <div class="space-y-3 text-xs">
-        <!-- 1. UPLOAD SS UTAMA (HANYA 1 SS) -->
+        <!-- 1. UPLOAD SS UTAMA -->
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-gray-800 pb-2">
             <span class="font-semibold text-gray-200 text-[11px]">1. SS Utama (Dikunci Hanya 1 SS)</span>
@@ -266,12 +270,12 @@
           <p class="text-[9px] text-gray-500">Full gambar yang akan di-upload ke galeri.</p>
         </div>
 
-        <!-- 2. UPLOAD SS TAMBAHAN (HANYA 1 SS) -->
+        <!-- 2. UPLOAD SS TAMBAHAN -->
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">2. SS Tambahan (Dikunci Hanya 1 SS)</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Pengambilan judul otomatis (teks tebal di antara Details & Deskripsi) serta On-chain time.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Pengambilan judul otomatis serta On-chain time terverifikasi.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-purple-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
@@ -291,7 +295,7 @@
         <div>
           <label class="block font-semibold text-gray-300 mb-1">4. PiBox Hash & On-chain Time</label>
           <input type="text" id="assetHashInput" placeholder="Hash: GCVJ2EXX..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition mb-2">
-          <input type="text" id="onChainTimeInput" placeholder="On-chain Time (Otomatis dari SS Tambahan)" readonly class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-[11px] text-gray-400 font-mono">
+          <input type="text" id="onChainTimeInput" placeholder="On-chain Time (Otomatis)" readonly class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-[11px] text-gray-400 font-mono">
         </div>
 
         <!-- 5. INPUT HARGA AWAL -->
@@ -302,17 +306,14 @@
       </div>
 
       <div class="flex flex-col gap-2 pt-2">
-        <!-- TOMBOL BAYAR 0.2 PI SERVER FEE -->
         <button id="btnPayServerFee" type="button" onclick="payServerFeeAndProceed()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
           <span>💳 Bayar 0.2 Pi (Biaya Server Cepat & Lancar)</span>
         </button>
 
-        <!-- TOMBOL RILIS KE GALERI -->
         <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryOnly()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg opacity-50 cursor-not-allowed" disabled>
           <span>🚀 Rilis ke Galeri ("Pending")</span>
         </button>
 
-        <!-- TOMBOL KIRIM EMAIL KE ADMIN -->
         <button id="btnSendEmail" type="button" onclick="sendEmailToAdminFast()" class="w-full bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg opacity-50 cursor-not-allowed" disabled>
           <span>📧 Kirim Email Verifikasi ke Admin</span>
         </button>
@@ -533,20 +534,11 @@
         pendingStatus: "⏳ Pending Verification",
         finishedStatus: "Ended & Cert Ready",
         cancelledStatus: "Cancelled",
-        cancelAuctionBtn: "🚫 Cancel This Auction",
-        cancelConfirmMsg: "Are you sure you want to cancel this auction?",
         loginFirstAlert: "Please login to your Pi Network account first!",
         fillAllAlert: "Please fill out all input fields correctly.",
         selectImageAlert: "Please select main SS image file first.",
         successRelease: "🎉 NFT Asset Successfully Released to Gallery with status 'Pending'!",
         placeBidBtn: "🔨 Place Bid",
-        sellerCannotBidAlert: "🚫 Sellers are not allowed to bid on their own assets!",
-        bidMustBeHigher: "Your bid must be higher than the current highest bid!",
-        highestBidderLabel: "Winner / Highest Bidder",
-        initialPriceLabel: "Starting Price",
-        currentHighestLabel: "Winning Final Price",
-        noBidsYet: "No Bids Yet",
-        bidPlaceholder: "Enter bid amount (Pi)",
         bidSuccessMsg: "🎉 Your bid was submitted successfully!"
       },
       id: {
@@ -568,20 +560,11 @@
         pendingStatus: "⏳ Pending (Menunggu Verifikasi)",
         finishedStatus: "Selesai & Sertifikat Siap",
         cancelledStatus: "Dibatalkan",
-        cancelAuctionBtn: "🚫 Batalkan Lelang Ini",
-        cancelConfirmMsg: "Apakah Anda yakin ingin membatalkan lelang ini?",
         loginFirstAlert: "Silakan Login akun Pi Network terlebih dahulu!",
         fillAllAlert: "Lengkapi seluruh bidang input dengan benar.",
         selectImageAlert: "Pilih file gambar SS utama terlebih dahulu.",
         successRelease: "🎉 Aset NFT Berhasil Dirilis ke Galeri dengan status 'Pending'!",
         placeBidBtn: "🔨 Kirim Tawaran",
-        sellerCannotBidAlert: "🚫 Penjual dilarang menawar asetnya sendiri!",
-        bidMustBeHigher: "Nilai tawaran harus lebih tinggi dari penawaran tertinggi saat ini!",
-        highestBidderLabel: "Pemenang / Penawar Tertinggi",
-        initialPriceLabel: "Harga Awal",
-        currentHighestLabel: "Harga Pemenang Akhir",
-        noBidsYet: "Belum Ada Penawar",
-        bidPlaceholder: "Masukkan nominal tawaran (Pi)",
         bidSuccessMsg: "🎉 Penawaran Anda berhasil dikirim!"
       }
     };
@@ -775,7 +758,6 @@
       }
       reader.readAsDataURL(file);
 
-      // Kolom judul dikosongkan otomatis agar diisi manual secara lengkap oleh pengguna
       SecureShield.extractTitleBetweenDetailsAndDescription(file, (extractedTitle) => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
@@ -785,7 +767,7 @@
         };
 
         const titleInput = document.getElementById('assetTitleInput');
-        if (titleInput) titleInput.value = ""; // Dikosongkan agar pengguna input manual lengkap
+        if (titleInput) titleInput.value = "";
 
         const timeInput = document.getElementById('onChainTimeInput');
         if (timeInput) timeInput.value = nowFormatted;
@@ -914,7 +896,7 @@
 
         await fetchActiveAuctions();
         
-        alert("🔄 Refresh Berhasil: Data diperbarui dan pembersihan cache/state ringan selesai.");
+        alert("🔄 Refresh Berhasil: Data diperbarui dan pembersihan cache sistem selesai.");
       } catch (err) {
         console.error("Refresh Error:", err);
         fetchActiveAuctions();
@@ -932,7 +914,7 @@
 
       const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       if (!isAdminOrDev) {
-        alert("🚫 Akses Ditolak: Tombol Hapus hanya dapat diakses oleh Admin dan Dev.");
+        alert("🚫 Akses Ditolak: Tombol Hapus hanya dapat diakses oleh Admin.");
         return;
       }
 
@@ -1067,7 +1049,6 @@
               <img src="${item.image_url || 'https://via.placeholder.com/200'}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
               ${isPending ? `<span class="absolute top-1 left-1 bg-amber-500/80 text-black text-[8px] font-bold px-1.5 py-0.5 rounded">Pending</span>` : ''}
               
-              <!-- Tombol Hapus Eksklusif untuk Admin & Dev -->
               ${isAdminOrDev ? `
                 <button onclick="deleteAsset('${item.id}', event)" title="Hapus Aset" class="absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow z-10 transition">
                   🗑️ Hapus
@@ -1183,7 +1164,7 @@
             </button>
           ` : `
             <div class="pt-2 space-y-2 border-t border-gray-800">
-              <input type="number" step="0.01" id="bidAmountInput" placeholder="${t('bidPlaceholder')}" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+              <input type="number" step="0.01" id="bidAmountInput" placeholder="Masukkan nominal tawaran (Pi)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
               <button onclick="submitBid('${selectedAuction.id}')" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer">
                 ${t('placeBidBtn')}
               </button>
