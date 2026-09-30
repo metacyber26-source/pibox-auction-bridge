@@ -155,10 +155,10 @@
         </div>
       </div>
       <div class="flex gap-1">
-        <button onclick="sendBuyerRegistrationEmail()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow">
+        <button onclick="registerAndSendBuyerEmail()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow cursor-pointer">
           📧 Daftar (Email)
         </button>
-        <button onclick="openBuyersTableModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow">
+        <button onclick="openBuyersTableModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow cursor-pointer">
           👥 Data Pembeli
         </button>
       </div>
@@ -223,7 +223,7 @@
           </ol>
         </div>
       </div>
-      <p class="text-[9px] text-amber-400/90 italic text-center pt-1">NB: Karena transaksinya terjadi di luar aplikasi ini, maka aplikasi ini dibatasi untuk mengaksesnya.</p>
+      <p class="text-[9px] text-amber-400/90 italic text-center pt-1">NB: Karena transaksinya terjadi di PiBox, maka akses verifikasi divalidasi ketat oleh sistem.</p>
     </div>
 
     <!-- Galeri Content -->
@@ -260,7 +260,7 @@
       <div class="flex justify-between items-center gap-2">
         <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari pembeli..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500">
         <div id="adminDeleteBatchContainer" class="hidden">
-          <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl transition shadow">
+          <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl transition shadow cursor-pointer">
             🗑️ Hapus Terpilih (Massal)
           </button>
         </div>
@@ -283,7 +283,7 @@
       </div>
 
       <div class="flex justify-end pt-1">
-        <button onclick="closeBuyersTableModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2 px-4 rounded-xl transition font-semibold">Tutup</button>
+        <button onclick="closeBuyersTableModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2 px-4 rounded-xl transition font-semibold cursor-pointer">Tutup</button>
       </div>
     </div>
   </div>
@@ -310,8 +310,13 @@
         <button onclick="closeCertModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
       </div>
       
+      <!-- Pemberitahuan Verifikasi PiBox -->
+      <div class="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-center">
+        <p class="text-[10px] text-amber-300 font-medium">⚠️ The certificate will be sent via email once the transaction has been verified.</p>
+      </div>
+
       <div class="flex justify-center bg-black p-2 rounded-xl border border-gray-800 overflow-hidden">
-        <canvas id="certCanvas" class="w-full h-auto max-h-[60vh] object-contain rounded shadow-lg"></canvas>
+        <canvas id="certCanvas" class="w-full h-auto max-h-[50vh] object-contain rounded shadow-lg"></canvas>
       </div>
 
       <div class="flex gap-2 pt-1">
@@ -857,10 +862,10 @@
             </td>
             <td class="p-2 text-right space-x-1">
               ${isAdminOrDev ? `
-                <button onclick="updateBuyerStatus('${b.id}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold">
+                <button onclick="updateBuyerStatus('${b.id}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer">
                   ${isApproved ? 'Set Pending' : 'Approve'}
                 </button>
-                <button onclick="deleteSingleBuyer('${b.id}')" class="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-[10px] font-bold">
+                <button onclick="deleteSingleBuyer('${b.id}')" class="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer">
                   Hapus
                 </button>
               ` : '<span class="text-[9px] text-gray-500 italic">Hanya Lihat</span>'}
@@ -919,17 +924,38 @@
       }
     }
 
-    function sendBuyerRegistrationEmail() {
+    // Fungsi otomatis menyimpan data ke antrian dan mengirim email verifikasi
+    async function registerAndSendBuyerEmail() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
+
+      const username = authenticatedPiUser.username;
+
+      if (supabaseClient) {
+        try {
+          const { data: existing } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
+          if (!existing) {
+            await supabaseClient.from('buyers').insert([{ username, status: 'pending' }]);
+          } else if (existing.status !== 'approved') {
+            await supabaseClient.from('buyers').update({ status: 'pending' }).eq('username', username);
+          }
+          await fetchBuyersList();
+        } catch (e) {
+          console.error("Gagal menyimpan otomatis ke tabel antrian:", e);
+        }
+      }
+
+      document.getElementById('buyerApprovalStatusText').innerText = "Menunggu Verifikasi Pembeli oleh Admin";
+
       const recipient = "auctionbridge314@gmail.com";
-      const subject = encodeURIComponent(`Pendaftaran Akses Pembeli NFT-GM: @${authenticatedPiUser.username}`);
+      const subject = encodeURIComponent(`Pendaftaran Akses Pembeli NFT-GM: @${username}`);
       const body = encodeURIComponent(
         `Halo Admin,\n\nSaya ingin mendaftar sebagai calon pembeli / bider dalam lelang Nusantara NFT.\n\n` +
-        `• Username Pi: @${authenticatedPiUser.username}\n\n` +
+        `• Username Pi: @${username}\n` +
+        `• Status: Tunggu Verifikasi\n\n` +
         `Mohon persetujuan dan verifikasi akses biding saya. Terima kasih.`
       );
       window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
@@ -1376,10 +1402,10 @@
               
               <div class="absolute top-1 right-1 flex gap-1 z-10">
                 ${isAdminOrDev ? `
-                  <button onclick="toggleAssetActiveStatus('${item.id}', '${item.status}', event)" title="Ubah Status" class="bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow transition">
+                  <button onclick="toggleAssetActiveStatus('${item.id}', '${item.status}', event)" title="Ubah Status" class="bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow transition cursor-pointer">
                     🔄 Status
                   </button>
-                  <button onclick="deleteAsset('${item.id}', event)" title="Hapus Aset" class="bg-red-600 hover:bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow transition">
+                  <button onclick="deleteAsset('${item.id}', event)" title="Hapus Aset" class="bg-red-600 hover:bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow transition cursor-pointer">
                     🗑️ Hapus
                   </button>
                 ` : ''}
