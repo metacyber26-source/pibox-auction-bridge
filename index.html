@@ -14,7 +14,7 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & COGNITIVE ENGINE (AI-AGI SECURE CORE) -->
+  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & COGNITIVE ENGINE (SECURE CORE) -->
   <script>
     (function() {
       // Mencegah Inspect Element & Debugging Berbahaya
@@ -123,7 +123,7 @@
         <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
         <div>
           <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">NUSANTARA NFT AUCTION</h1>
-          <p class="text-[9px] text-yellow-500">PiBox Bridge v5.2 + Secure Engine</p>
+          <p class="text-[9px] text-yellow-500">PiBox Bridge v5.2 + Secure Core</p>
         </div>
       </div>
       
@@ -154,9 +154,14 @@
           <p id="buyerApprovalStatusText" class="text-amber-300">Menunggu Verifikasi Pendaftaran Admin...</p>
         </div>
       </div>
-      <button onclick="sendBuyerRegistrationEmail()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow">
-        📧 Daftar Pembeli (Kirim Email)
-      </button>
+      <div class="flex gap-1">
+        <button onclick="sendBuyerRegistrationEmail()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow">
+          📧 Daftar (Email)
+        </button>
+        <button onclick="openBuyersTableModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow">
+          👥 Data Pembeli
+        </button>
+      </div>
     </div>
 
     <!-- Banner Sesi Lelang -->
@@ -194,7 +199,7 @@
       </select>
     </div>
 
-    <!-- Panduan Singkat Awal (Tampil sebelum galeri dimuat penuh / saat galeri tertutup) -->
+    <!-- Panduan Singkat Awal -->
     <div id="welcomeGuidePanel" class="p-3 bg-gradient-to-b from-gray-950 to-gray-900 border-b border-gray-800 space-y-2 text-[11px]">
       <div class="flex items-center justify-between cursor-pointer" onclick="toggleGuidePanel()">
         <span class="font-bold text-yellow-400 flex items-center gap-1.5">📖 Panduan Singkat Penggunaan & Rilis Aset</span>
@@ -239,6 +244,48 @@
       </button>
     </div>
 
+  </div>
+
+  <!-- MODAL: Tabel Calon Pembeli & Status Verifikasi -->
+  <div id="buyersTableModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5 w-full max-w-lg space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div>
+          <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider">👥 Tabel Daftar Calon Pembeli & Status</h2>
+          <p class="text-[9px] text-gray-400">Admin/Dev dapat memverifikasi & menghapus data pembeli.</p>
+        </div>
+        <button onclick="closeBuyersTableModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <div class="flex justify-between items-center gap-2">
+        <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari pembeli..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500">
+        <div id="adminDeleteBatchContainer" class="hidden">
+          <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl transition shadow">
+            🗑️ Hapus Terpilih (Massal)
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto border border-gray-800 rounded-xl">
+        <table class="w-full text-left text-[11px] text-gray-300">
+          <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800">
+            <tr>
+              <th class="p-2 text-center w-8"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
+              <th class="p-2">Username</th>
+              <th class="p-2">Status Verifikasi</th>
+              <th class="p-2 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="buyersTableBody">
+            <!-- Data pembeli dimuat dinamis -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex justify-end pt-1">
+        <button onclick="closeBuyersTableModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2 px-4 rounded-xl transition font-semibold">Tutup</button>
+      </div>
+    </div>
   </div>
 
   <!-- MODAL: Detail & Penawaran -->
@@ -288,7 +335,6 @@
       </div>
 
       <div class="space-y-3 text-xs">
-        <!-- 1. UPLOAD SS UTAMA -->
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-gray-800 pb-2">
             <span class="font-semibold text-gray-200 text-[11px]">1. SS Utama (Dikunci Hanya 1 SS)</span>
@@ -297,7 +343,6 @@
           <p class="text-[9px] text-gray-500">Full gambar yang akan di-upload ke galeri.</p>
         </div>
 
-        <!-- 2. UPLOAD SS TAMBAHAN -->
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">2. SS Tambahan (Dikunci Hanya 1 SS)</span>
@@ -308,7 +353,6 @@
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
         </div>
 
-        <!-- 3. INPUT NFT ASSET NAME / TITLE -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. NFT Asset Name / Title</label>
           <div class="relative">
@@ -318,14 +362,12 @@
           <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold">⚠️ isi dengan nama / title aset, lengkap.</p>
         </div>
 
-        <!-- 4. INPUT HASH & ON-CHAIN TIME -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1">4. PiBox Hash & On-chain Time</label>
           <input type="text" id="assetHashInput" placeholder="Hash: GCVJ2EXX..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition mb-2">
           <input type="text" id="onChainTimeInput" placeholder="On-chain Time (Otomatis)" readonly class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-[11px] text-gray-400 font-mono">
         </div>
 
-        <!-- 5. INPUT HARGA AWAL -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1">5. Harga Awal (Reserve Price in Pi)</label>
           <input type="number" step="0.01" id="reservePriceInput" placeholder="Example: 150" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
@@ -533,6 +575,7 @@
     let Pi = window.Pi || null;
     let activeAuctionsList = [];
     let filteredAuctionsList = [];
+    let buyersList = [];
     let selectedAuction = null;
     let authenticatedPiUser = null;
     let currentLang = localStorage.getItem('appLang') || 'en';
@@ -669,6 +712,7 @@
       document.getElementById('langSelector').value = currentLang;
       applyTranslations();
       fetchActiveAuctions();
+      fetchBuyersList();
       setupRealtimeSubscription();
       setInterval(updateTimers, 1000);
       authenticatePiUser();
@@ -716,10 +760,12 @@
             isBuyerApproved = true;
             document.getElementById('buyerApprovalStatusText').innerText = "Admin Terverifikasi (Akses Penuh Tanpa Batas)";
           } else {
-            document.getElementById('buyerApprovalStatusText').innerText = "Menunggu Verifikasi Pembeli oleh Admin";
+            checkBuyerStatusInDatabase(authenticatedPiUser.username);
           }
           
+          registerOrUpdateBuyerUser(authenticatedPiUser.username);
           fetchActiveAuctions();
+          fetchBuyersList();
         }
       } catch (err) {
         console.error("Pi Authentication Error:", err);
@@ -729,6 +775,148 @@
 
     function onIncompletePaymentFound(payment) {
       console.warn("Incomplete payment detected:", payment);
+    }
+
+    async function registerOrUpdateBuyerUser(username) {
+      if (!supabaseClient || !username) return;
+      try {
+        const { data } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
+        if (!data) {
+          await supabaseClient.from('buyers').insert([{ username, status: 'pending' }]);
+        }
+      } catch(e) {}
+    }
+
+    async function checkBuyerStatusInDatabase(username) {
+      if (!supabaseClient || !username) return;
+      try {
+        const { data } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
+        if (data && data.status === 'approved') {
+          isBuyerApproved = true;
+          document.getElementById('buyerApprovalStatusText').innerText = "Status Pembeli: Disetujui (Approved)";
+        } else {
+          isBuyerApproved = false;
+          document.getElementById('buyerApprovalStatusText').innerText = "Menunggu Verifikasi Pembeli oleh Admin";
+        }
+      } catch(e) {}
+    }
+
+    async function fetchBuyersList() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient.from('buyers').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        buyersList = data || [];
+      } catch(e) {
+        buyersList = [];
+      }
+    }
+
+    function openBuyersTableModal() {
+      fetchBuyersList().then(() => {
+        renderBuyersTable();
+        document.getElementById('buyersTableModal').classList.remove('hidden');
+        const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+        if (isAdminOrDev) {
+          document.getElementById('adminDeleteBatchContainer').classList.remove('hidden');
+        } else {
+          document.getElementById('adminDeleteBatchContainer').classList.add('hidden');
+        }
+      });
+    }
+
+    function closeBuyersTableModal() {
+      document.getElementById('buyersTableModal').classList.add('hidden');
+    }
+
+    function renderBuyersTable() {
+      const tbody = document.getElementById('buyersTableBody');
+      const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+
+      const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Belum ada data calon pembeli.</td></tr>`;
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(b => {
+        const isApproved = b.status === 'approved';
+        html += `
+          <tr class="border-b border-gray-800 hover:bg-gray-900/50">
+            <td class="p-2 text-center">
+              ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.id}">` : ''}
+            </td>
+            <td class="p-2 font-mono text-yellow-400">@${b.username}</td>
+            <td class="p-2">
+              <span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'}">
+                ${isApproved ? 'Approved' : 'Pending'}
+              </span>
+            </td>
+            <td class="p-2 text-right space-x-1">
+              ${isAdminOrDev ? `
+                <button onclick="updateBuyerStatus('${b.id}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold">
+                  ${isApproved ? 'Set Pending' : 'Approve'}
+                </button>
+                <button onclick="deleteSingleBuyer('${b.id}')" class="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-[10px] font-bold">
+                  Hapus
+                </button>
+              ` : '<span class="text-[9px] text-gray-500 italic">Hanya Lihat</span>'}
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function toggleSelectAllBuyers(master) {
+      document.querySelectorAll('.buyer-checkbox').forEach(cb => cb.checked = master.checked);
+    }
+
+    async function updateBuyerStatus(buyerId, newStatus) {
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient.from('buyers').update({ status: newStatus }).eq('id', buyerId);
+        if (error) throw error;
+        alert(`✅ Status pembeli berhasil diubah menjadi ${newStatus}.`);
+        fetchBuyersList().then(() => renderBuyersTable());
+        if (authenticatedPiUser) checkBuyerStatusInDatabase(authenticatedPiUser.username);
+      } catch(e) {
+        alert("Gagal mengubah status: " + e.message);
+      }
+    }
+
+    async function deleteSingleBuyer(buyerId) {
+      if (!confirm("Hapus calon pembeli ini?")) return;
+      try {
+        const { error } = await supabaseClient.from('buyers').delete().eq('id', buyerId);
+        if (error) throw error;
+        alert("✅ Berhasil dihapus.");
+        fetchBuyersList().then(() => renderBuyersTable());
+      } catch(e) {
+        alert("Gagal menghapus: " + e.message);
+      }
+    }
+
+    async function deleteSelectedBuyers() {
+      const selected = Array.from(document.querySelectorAll('.buyer-checkbox:checked')).map(cb => cb.value);
+      if (selected.length === 0) {
+        alert("Pilih minimal satu calon pembeli yang ingin dihapus.");
+        return;
+      }
+      if (!confirm(`Hapus ${selected.length} calon pembeli terpilih secara massal?`)) return;
+
+      try {
+        for (const id of selected) {
+          await supabaseClient.from('buyers').delete().eq('id', id);
+        }
+        alert("✅ Penghapusan massal berhasil.");
+        fetchBuyersList().then(() => renderBuyersTable());
+      } catch(e) {
+        alert("Gagal menghapus massal: " + e.message);
+      }
     }
 
     function sendBuyerRegistrationEmail() {
@@ -991,6 +1179,7 @@
         if (statusFilter) statusFilter.value = "all";
 
         await fetchActiveAuctions();
+        await fetchBuyersList();
         
         alert("🔄 Refresh Berhasil: Data diperbarui dan pembersihan cache sistem selesai.");
       } catch (err) {
@@ -1061,6 +1250,9 @@
         .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
           fetchActiveAuctions();
         })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'buyers' }, () => {
+          fetchBuyersList();
+        })
         .subscribe();
     }
 
@@ -1117,7 +1309,6 @@
         if (error) throw error;
         activeAuctionsList = data || [];
         
-        // Hitung Active Sellers & Bidders unik
         const sellersSet = new Set(activeAuctionsList.map(item => item.seller));
         const biddersSet = new Set(activeAuctionsList.map(item => item.highest_bidder).filter(Boolean));
         
@@ -1138,7 +1329,6 @@
       filteredAuctionsList = activeAuctionsList.filter(item => {
         const isPending = item.status === 'pending';
         
-        // Sesuai aturan: Semua yang diupload berstatus Pending, tidak dapat ditawar, hanya admin & dev yang bisa merubah menjadi aktif.
         if (isPending && !isAdminOrDev && item.seller !== authenticatedPiUser?.username) {
           return false;
         }
@@ -1339,7 +1529,6 @@
 
       if (!selectedAuction) return;
 
-      // Aturan 15: Tidak dapat menawar barang sendiri, kecuali dev
       const isSellerOrCreator = (selectedAuction.seller === username);
       if (isSellerOrCreator && !isAdmin) {
         alert("🚫 Anda tidak dapat menawar barang/aset sendiri kecuali Admin/Dev.");
@@ -1355,13 +1544,11 @@
         return;
       }
 
-      // Aturan 16: Penawaran harus diatas harga awal atau penawaran terakhir
       if (bidAmount <= currentHighest) {
         alert(`❌ Penawaran harus lebih tinggi dari harga saat ini (${currentHighest} Pi)!`);
         return;
       }
 
-      // Aturan 14: Untuk penawaran pertama pada salah satu aset, bayar dulu 0.2 Pi, untuk berikutnya tidak perlu bayar. Menawar aset lain bayar lagi.
       const userBidKey = `bid_paid_${username}_${auctionId}`;
       const hasPaidBidFee = localStorage.getItem(userBidKey) === 'true';
 
@@ -1369,7 +1556,6 @@
         const confirmPay = confirm("💳 Penawaran pertama pada aset ini memerlukan biaya 0.2 Pi. Lanjutkan pembayaran?");
         if (!confirmPay) return;
 
-        // Simulasi/Eksekusi Pembayaran 0.2 Pi untuk Bidding Pertama
         try {
           if (window.Pi) {
             await window.Pi.createPayment({
