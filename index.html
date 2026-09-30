@@ -14,7 +14,7 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & COGNITIVE ENGINE -->
+  <!-- LAPISAN KEAMANAN TINGKAT LANJUT & COGNITIVE ENGINE (AI-AGI SECURE CORE) -->
   <script>
     (function() {
       // Mencegah Inspect Element & Debugging Berbahaya
@@ -192,6 +192,33 @@
         <option value="ended">Ended & Certs</option>
         <option value="cancelled">Cancelled</option>
       </select>
+    </div>
+
+    <!-- Panduan Singkat Awal (Tampil sebelum galeri dimuat penuh / saat galeri tertutup) -->
+    <div id="welcomeGuidePanel" class="p-3 bg-gradient-to-b from-gray-950 to-gray-900 border-b border-gray-800 space-y-2 text-[11px]">
+      <div class="flex items-center justify-between cursor-pointer" onclick="toggleGuidePanel()">
+        <span class="font-bold text-yellow-400 flex items-center gap-1.5">📖 Panduan Singkat Penggunaan & Rilis Aset</span>
+        <span id="guideToggleIcon" class="text-gray-400 text-xs">▼ Sembunyikan</span>
+      </div>
+      <div id="guideContentBody" class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-gray-300 text-[10px]">
+        <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
+          <p class="font-bold text-yellow-400 mb-1">🚀 Panduan Rilis Aset:</p>
+          <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
+            <li>Unggah detail aset (SS Utama & Tambahan).</li>
+            <li>Tentukan harga awal & verifikasi hash.</li>
+            <li>Konfirmasi publikasi (Status Pending).</li>
+          </ol>
+        </div>
+        <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
+          <p class="font-bold text-emerald-400 mb-1">🔨 Panduan Penawaran:</p>
+          <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
+            <li>Pilih aset dari galeri aktif.</li>
+            <li>Ajukan penawaran (bisa beberapa kali).</li>
+            <li>Konfirmasi dan pantau perkembangan.</li>
+          </ol>
+        </div>
+      </div>
+      <p class="text-[9px] text-amber-400/90 italic text-center pt-1">NB: Karena transaksinya terjadi di luar aplikasi ini, maka aplikasi ini dibatasi untuk mengaksesnya.</p>
     </div>
 
     <!-- Galeri Content -->
@@ -566,6 +593,58 @@
         successRelease: "🎉 Aset NFT Berhasil Dirilis ke Galeri dengan status 'Pending'!",
         placeBidBtn: "🔨 Kirim Tawaran",
         bidSuccessMsg: "🎉 Penawaran Anda berhasil dikirim!"
+      },
+      zh: {
+        loginBtn: "登录",
+        releaseAssetBtn: "+ 发布资产",
+        loadingGallery: "正在加载资产画廊...",
+        guestUser: "用户: 访客 (未登录)",
+        refreshBtn: "刷新",
+        modalDetailTitle: "资产拍卖详情",
+        modalCreateTitle: "发布新NFT拍卖",
+        labelTitle: "NFT资产名称 / 标题",
+        cancelBtn: "取消",
+        emptyGallery: "暂无上架的NFT资产。",
+        firstReleaseBtn: "+ 发布首个资产",
+        sellerLabel: "卖家",
+        priceLabel: "价格",
+        timeLabel: "时间",
+        activeStatus: "活跃",
+        pendingStatus: "⏳ 待审核",
+        finishedStatus: "已结束 & 证书就绪",
+        cancelledStatus: "已取消",
+        loginFirstAlert: "请先登录 Pi Network 账户！",
+        fillAllAlert: "请正确填写所有输入字段。",
+        selectImageAlert: "请先选择主屏幕截图文件。",
+        successRelease: "🎉 NFT资产已成功发布到画廊，状态为 'Pending'！",
+        placeBidBtn: "🔨 出价",
+        bidSuccessMsg: "🎉 您的出价已成功提交！"
+      },
+      es: {
+        loginBtn: "Iniciar sesión",
+        releaseAssetBtn: "+ Listar Activo",
+        loadingGallery: "Cargando galería de activos...",
+        guestUser: "Usuario: Invitado (No conectado)",
+        refreshBtn: "Actualizar",
+        modalDetailTitle: "Detalles de Subasta",
+        modalCreateTitle: "Listar Nueva Subasta NFT",
+        labelTitle: "Nombre / Título del Activo NFT",
+        cancelBtn: "Cancelar",
+        emptyGallery: "No hay activos NFT listados todavía.",
+        firstReleaseBtn: "+ Listar Primer Activo",
+        sellerLabel: "Vendedor",
+        priceLabel: "Precio",
+        timeLabel: "Tiempo",
+        activeStatus: "Activo",
+        pendingStatus: "⏳ Pendiente",
+        finishedStatus: "Finalizado y Certificado Listo",
+        cancelledStatus: "Cancelado",
+        loginFirstAlert: "¡Por favor inicie sesión en su cuenta de Pi Network primero!",
+        fillAllAlert: "Complete todos los campos de entrada correctamente.",
+        selectImageAlert: "Seleccione primero el archivo de imagen principal.",
+        successRelease: "¡Activo NFT lanzado exitosamente con estado 'Pending'!",
+        placeBidBtn: "🔨 Ofertar",
+        bidSuccessMsg: "¡Su oferta se envió con éxito!"
       }
     };
 
@@ -598,7 +677,19 @@
     function updateNetworkBannerUI() {
       const badge = document.getElementById('networkModeBadge');
       if (!badge) return;
-      badge.innerText = "TESTNET";
+      badge.innerText = IS_TESTNET ? "TESTNET" : "MAINNET";
+    }
+
+    function toggleGuidePanel() {
+      const body = document.getElementById('guideContentBody');
+      const icon = document.getElementById('guideToggleIcon');
+      if (body.classList.contains('hidden')) {
+        body.classList.remove('hidden');
+        icon.innerText = "▼ Sembunyikan";
+      } else {
+        body.classList.add('hidden');
+        icon.innerText = "▶ Tampilkan Panduan";
+      }
     }
 
     async function authenticatePiUser() {
@@ -624,6 +715,8 @@
           if (isAdmin) {
             isBuyerApproved = true;
             document.getElementById('buyerApprovalStatusText').innerText = "Admin Terverifikasi (Akses Penuh Tanpa Batas)";
+          } else {
+            document.getElementById('buyerApprovalStatusText').innerText = "Menunggu Verifikasi Pembeli oleh Admin";
           }
           
           fetchActiveAuctions();
@@ -761,13 +854,16 @@
       SecureShield.extractTitleBetweenDetailsAndDescription(file, (extractedTitle) => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
-          title: "",
+          title: extractedTitle,
           hash: "GAIHZJT5AS5GMBTMBDVPMF26V7QN5L4YV",
           onChainTime: nowFormatted
         };
 
         const titleInput = document.getElementById('assetTitleInput');
-        if (titleInput) titleInput.value = "";
+        if (titleInput && !titleInput.value) titleInput.value = extractedTitle;
+
+        const hashInput = document.getElementById('assetHashInput');
+        if (hashInput && !hashInput.value) hashInput.value = analyzedExtraData.hash;
 
         const timeInput = document.getElementById('onChainTimeInput');
         if (timeInput) timeInput.value = nowFormatted;
@@ -936,6 +1032,28 @@
       }
     }
 
+    async function toggleAssetActiveStatus(auctionId, currentStatus, event) {
+      if (event) event.stopPropagation();
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("🚫 Hanya Admin dan Dev yang dapat merubah status aktif/pending.");
+        return;
+      }
+
+      const newStatus = (currentStatus === 'active') ? 'pending' : 'active';
+      try {
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ status: newStatus })
+          .eq('id', auctionId);
+
+        if (error) throw error;
+        alert(`✅ Status aset berhasil diubah menjadi: ${newStatus.toUpperCase()}`);
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal mengubah status: " + err.message);
+      }
+    }
+
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       supabaseClient
@@ -998,6 +1116,14 @@
 
         if (error) throw error;
         activeAuctionsList = data || [];
+        
+        // Hitung Active Sellers & Bidders unik
+        const sellersSet = new Set(activeAuctionsList.map(item => item.seller));
+        const biddersSet = new Set(activeAuctionsList.map(item => item.highest_bidder).filter(Boolean));
+        
+        document.getElementById('activeSellersCount').innerText = `${sellersSet.size} User`;
+        document.getElementById('activeBiddersCount').innerText = `${biddersSet.size} User`;
+
         filterGallery();
       } catch (err) {
         container.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Failed to load gallery.</div>`;
@@ -1006,14 +1132,23 @@
 
     function filterGallery() {
       const query = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
-      const status = document.getElementById('statusFilter')?.value || 'all';
-      const isAdmin = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      const statusFilterVal = document.getElementById('statusFilter')?.value || 'all';
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
 
       filteredAuctionsList = activeAuctionsList.filter(item => {
         const isPending = item.status === 'pending';
-        if (isPending && !isAdmin && item.seller !== authenticatedPiUser?.username) {
+        
+        // Sesuai aturan: Semua yang diupload berstatus Pending, tidak dapat ditawar, hanya admin & dev yang bisa merubah menjadi aktif.
+        if (isPending && !isAdminOrDev && item.seller !== authenticatedPiUser?.username) {
           return false;
         }
+
+        if (statusFilterVal === 'active' && item.status !== 'active') return false;
+        if (statusFilterVal === 'pending' && item.status !== 'pending') return false;
+        if (statusFilterVal === 'my_listings' && item.seller !== authenticatedPiUser?.username) return false;
+        if (statusFilterVal === 'my_bids' && item.highest_bidder !== authenticatedPiUser?.username) return false;
+        if (statusFilterVal === 'ended' && (!item.ends_at || new Date(item.ends_at) > new Date())) return false;
+
         const matchTitle = (item.title || '').toLowerCase().includes(query);
         const matchHash = (item.hash || '').toLowerCase().includes(query);
         return matchTitle || matchHash;
@@ -1047,13 +1182,18 @@
           <div onclick="openDetailModal('${item.id}')" class="bg-gray-950 border border-gray-800 hover:border-yellow-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition duration-200 group relative">
             <div class="relative w-full h-36 bg-gray-900 overflow-hidden">
               <img src="${item.image_url || 'https://via.placeholder.com/200'}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-              ${isPending ? `<span class="absolute top-1 left-1 bg-amber-500/80 text-black text-[8px] font-bold px-1.5 py-0.5 rounded">Pending</span>` : ''}
+              ${isPending ? `<span class="absolute top-1 left-1 bg-amber-500/90 text-black text-[8px] font-bold px-1.5 py-0.5 rounded shadow">Pending</span>` : `<span class="absolute top-1 left-1 bg-emerald-500/90 text-black text-[8px] font-bold px-1.5 py-0.5 rounded shadow">Active</span>`}
               
-              ${isAdminOrDev ? `
-                <button onclick="deleteAsset('${item.id}', event)" title="Hapus Aset" class="absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow z-10 transition">
-                  🗑️ Hapus
-                </button>
-              ` : ''}
+              <div class="absolute top-1 right-1 flex gap-1 z-10">
+                ${isAdminOrDev ? `
+                  <button onclick="toggleAssetActiveStatus('${item.id}', '${item.status}', event)" title="Ubah Status" class="bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow transition">
+                    🔄 Status
+                  </button>
+                  <button onclick="deleteAsset('${item.id}', event)" title="Hapus Aset" class="bg-red-600 hover:bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow transition">
+                    🗑️ Hapus
+                  </button>
+                ` : ''}
+              </div>
             </div>
             <div class="p-2.5 flex-1 flex flex-col justify-between space-y-1.5">
               <div>
@@ -1131,6 +1271,7 @@
       const onChainTimeVal = selectedAuction.created_at ? new Date(selectedAuction.created_at).toISOString().replace('T', ' ').substring(0, 19) : "-";
       const isFinished = selectedAuction.ends_at && new Date(selectedAuction.ends_at) <= new Date();
       const isWinner = authenticatedPiUser && (selectedAuction.highest_bidder === authenticatedPiUser.username);
+      const currentHighestPrice = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
 
       const modalContent = document.getElementById('modalDetailContent');
       modalContent.innerHTML = `
@@ -1142,6 +1283,7 @@
           <div>
             <h3 class="text-sm font-bold text-gray-100">${displayTitle}</h3>
             <p class="text-xs text-gray-400">Seller: <span class="text-yellow-400 font-semibold">${sellerName}</span></p>
+            <p class="text-xs text-gray-400">Current Price: <span class="text-emerald-400 font-bold">${currentHighestPrice} Pi</span></p>
           </div>
 
           <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 text-[10px] space-y-1">
@@ -1164,7 +1306,8 @@
             </button>
           ` : `
             <div class="pt-2 space-y-2 border-t border-gray-800">
-              <input type="number" step="0.01" id="bidAmountInput" placeholder="Masukkan nominal tawaran (Pi)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+              <p class="text-[10px] text-gray-400">💡 Ketentuan: Penawaran pertama bayar 0.2 Pi. Penawaran berikutnya gratis. Harga harus diatas penawaran terakhir (${currentHighestPrice} Pi).</p>
+              <input type="number" step="0.01" id="bidAmountInput" placeholder="Masukkan nominal tawaran (> ${currentHighestPrice} Pi)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
               <button onclick="submitBid('${selectedAuction.id}')" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer">
                 ${t('placeBidBtn')}
               </button>
@@ -1186,24 +1329,71 @@
         return;
       }
       
-      const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      const username = authenticatedPiUser.username;
+      const isAdmin = ADMIN_USERNAMES.includes(username);
+      
       if (!isAdmin && !isBuyerApproved) {
-        alert("🚫 Akses biding Anda belum disetujui admin. Silakan lakukan pendaftaran calon pembeli via tombol email di atas.");
+        alert("🚫 Akses biding Anda belum disetujui admin. Pendaftar berstatus menunggu verifikasi sehingga belum dapat mengakses galeri/biding.");
+        return;
+      }
+
+      if (!selectedAuction) return;
+
+      // Aturan 15: Tidak dapat menawar barang sendiri, kecuali dev
+      const isSellerOrCreator = (selectedAuction.seller === username);
+      if (isSellerOrCreator && !isAdmin) {
+        alert("🚫 Anda tidak dapat menawar barang/aset sendiri kecuali Admin/Dev.");
         return;
       }
 
       const bidInput = document.getElementById('bidAmountInput');
       const bidAmount = parseFloat(bidInput.value);
+      const currentHighest = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
 
       if (isNaN(bidAmount)) {
         alert("Masukkan nominal tawaran yang valid!");
         return;
       }
 
+      // Aturan 16: Penawaran harus diatas harga awal atau penawaran terakhir
+      if (bidAmount <= currentHighest) {
+        alert(`❌ Penawaran harus lebih tinggi dari harga saat ini (${currentHighest} Pi)!`);
+        return;
+      }
+
+      // Aturan 14: Untuk penawaran pertama pada salah satu aset, bayar dulu 0.2 Pi, untuk berikutnya tidak perlu bayar. Menawar aset lain bayar lagi.
+      const userBidKey = `bid_paid_${username}_${auctionId}`;
+      const hasPaidBidFee = localStorage.getItem(userBidKey) === 'true';
+
+      if (!hasPaidBidFee && !isAdmin) {
+        const confirmPay = confirm("💳 Penawaran pertama pada aset ini memerlukan biaya 0.2 Pi. Lanjutkan pembayaran?");
+        if (!confirmPay) return;
+
+        // Simulasi/Eksekusi Pembayaran 0.2 Pi untuk Bidding Pertama
+        try {
+          if (window.Pi) {
+            await window.Pi.createPayment({
+              amount: 0.2,
+              memo: `Nusantara NFT First Bid Fee - @${username}`,
+              metadata: { type: 'bid_fee', auctionId, username }
+            }, {
+              onReadyForServerApproval: () => {},
+              onReadyForServerCompletion: () => {},
+              onCancel: () => { throw new Error("Pembayaran dibatalkan."); },
+              onError: () => {}
+            });
+          }
+          localStorage.setItem(userBidKey, 'true');
+        } catch (e) {
+          alert("Pembayaran biaya penawaran dibatalkan atau gagal.");
+          return;
+        }
+      }
+
       try {
         const { error: aucErr } = await supabaseClient
           .from('auctions')
-          .update({ highest_bid: bidAmount, highest_bidder: authenticatedPiUser.username })
+          .update({ highest_bid: bidAmount, highest_bidder: username })
           .eq('id', auctionId);
 
         if (aucErr) throw aucErr;
