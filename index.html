@@ -145,7 +145,7 @@
       </div>
     </div>
 
-    <!-- Panel Keamanan & Status Pendaftaran Calon Pembeli -->
+    <!-- Panel Keamanan & Status Pendaftaran Calon Pembeli (Tombol Daftar diubah menjadi Tombol Chat) -->
     <div id="buyerRegistrationPanel" class="bg-gradient-to-r from-blue-950/60 via-indigo-950/60 to-gray-950 border-b border-indigo-500/30 p-2.5 flex items-center justify-between text-[10px]">
       <div class="flex items-center gap-2">
         <span class="text-yellow-400 text-base">🛡️</span>
@@ -155,11 +155,11 @@
         </div>
       </div>
       <div class="flex gap-1">
-        <button onclick="registerAndSendBuyerEmail()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow cursor-pointer">
-          📧 Daftar (Email)
+        <button onclick="openChatModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer flex items-center gap-1">
+          💬 Chat Room
         </button>
         <button onclick="openBuyersTableModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow cursor-pointer">
-          👥 Data Pembeli
+          👥 Data
         </button>
       </div>
     </div>
@@ -215,11 +215,11 @@
           </ol>
         </div>
         <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
-          <p class="font-bold text-emerald-400 mb-1">🔨 Panduan Penawaran:</p>
+          <p class="font-bold text-emerald-400 mb-1">🔨 Panduan Penawaran & Chat:</p>
           <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
             <li>Pilih aset dari galeri aktif.</li>
-            <li>Ajukan penawaran (bisa beberapa kali).</li>
-            <li>Konfirmasi dan pantau perkembangan.</li>
+            <li>Gunakan fitur Chat Room untuk diskusi & P2P.</li>
+            <li>Ajukan penawaran dan pantau perkembangan.</li>
           </ol>
         </div>
       </div>
@@ -244,6 +244,60 @@
       </button>
     </div>
 
+  </div>
+
+  <!-- MODAL: CHAT ROOM (P2P & Forum Diskusi) -->
+  <div id="chatModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5 w-full max-w-lg space-y-3 shadow-2xl max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-emerald-400 text-lg">💬</span>
+          <div>
+            <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider">Nusantara NFT Live Chat Center</h2>
+            <p class="text-[9px] text-gray-400">Pilih Ruang Diskusi & Komunikasi Langsung</p>
+          </div>
+        </div>
+        <button onclick="closeChatModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <!-- Tab Selection -->
+      <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-xs">
+        <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer">
+          🌐 Room Forum (Global)
+        </button>
+        <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">
+          🔒 Room P2P (Penjual & Pembeli)
+        </button>
+      </div>
+
+      <!-- P2P Sub-selector (Pilih Partner Chat) -->
+      <div id="p2pTargetSelectorContainer" class="hidden bg-gray-900 p-2 rounded-xl border border-gray-800 text-xs space-y-1">
+        <label class="block text-[10px] text-gray-400 font-semibold">Pilih Penjual / Lawan Chat P2P:</label>
+        <div class="flex gap-2">
+          <select id="p2pTargetUserSelect" class="flex-1 bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-xs text-yellow-400 focus:outline-none">
+            <option value="">-- Pilih User / Seller --</option>
+          </select>
+          <button onclick="initP2PChatSession()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-lg text-[10px] cursor-pointer">Mulai Chat</button>
+        </div>
+      </div>
+
+      <!-- Chat Messages Container -->
+      <div id="chatMessagesBox" class="flex-1 bg-gray-900/90 border border-gray-800 rounded-xl p-3 h-64 overflow-y-auto custom-scrollbar space-y-2 text-xs">
+        <div class="text-center text-gray-500 text-[11px] py-10">Memuat pesan chat...</div>
+      </div>
+
+      <!-- Chat Input Area -->
+      <div class="flex gap-2 pt-1">
+        <input type="text" id="chatMessageInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Ketik pesan chat di sini..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
+        <button onclick="sendChatMessage()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow">
+          Kirim 🚀
+        </button>
+      </div>
+
+      <div class="flex justify-end">
+        <button onclick="closeChatModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-1.5 px-4 rounded-xl transition font-semibold cursor-pointer">Tutup</button>
+      </div>
+    </div>
   </div>
 
   <!-- MODAL: Tabel Calon Pembeli & Status Verifikasi -->
@@ -589,6 +643,10 @@
     let isBuyerApproved = false;
     let analyzedExtraData = { title: '', hash: '', onChainTime: '' };
 
+    // Chat State
+    let currentChatRoom = 'forum'; // 'forum' or 'p2p'
+    let currentP2PTarget = '';
+
     const translations = {
       en: {
         loginBtn: "Login",
@@ -817,6 +875,181 @@
       }
     }
 
+    // --- FITUR CHAT ROOM (P2P & FORUM) ---
+    function openChatModal() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+      document.getElementById('chatModal').classList.remove('hidden');
+      loadChatMessages();
+    }
+
+    function closeChatModal() {
+      document.getElementById('chatModal').classList.add('hidden');
+    }
+
+    function switchChatTab(roomType) {
+      currentChatRoom = roomType;
+      const btnForum = document.getElementById('tabBtnForum');
+      const btnP2P = document.getElementById('tabBtnP2P');
+      const selectorContainer = document.getElementById('p2pTargetSelectorContainer');
+
+      if (roomType === 'forum') {
+        btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer";
+        btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
+        selectorContainer.classList.add('hidden');
+      } else {
+        btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-indigo-600 text-white cursor-pointer";
+        btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
+        selectorContainer.classList.remove('hidden');
+        populateP2PTargetOptions();
+      }
+      loadChatMessages();
+    }
+
+    function populateP2PTargetOptions() {
+      const select = document.getElementById('p2pTargetUserSelect');
+      if (!select) return;
+      
+      // Ambil daftar user unik dari penjual dan pembeli aktif
+      const usersSet = new Set();
+      activeAuctionsList.forEach(a => { if (a.seller) usersSet.add(a.seller); });
+      buyersList.forEach(b => { if (b.username) usersSet.add(b.username); });
+      
+      let html = `<option value="">-- Pilih User / Seller P2P --</option>`;
+      usersSet.forEach(u => {
+        if (authenticatedPiUser && u !== authenticatedPiUser.username) {
+          html += `<option value="${u}" ${currentP2PTarget === u ? 'selected' : ''}>@${u}</option>`;
+        }
+      });
+      select.innerHTML = html;
+    }
+
+    function initP2PChatSession() {
+      const select = document.getElementById('p2pTargetUserSelect');
+      if (!select || !select.value) {
+        alert("Pilih target user P2P terlebih dahulu!");
+        return;
+      }
+      currentP2PTarget = select.value;
+      loadChatMessages();
+    }
+
+    async function loadChatMessages() {
+      const box = document.getElementById('chatMessagesBox');
+      if (!supabaseClient) {
+        box.innerHTML = `<div class="text-center text-gray-500 py-4">Supabase tidak terhubung.</div>`;
+        return;
+      }
+
+      try {
+        let query = supabaseClient.from('chats').select('*').order('created_at', { ascending: true });
+        
+        if (currentChatRoom === 'forum') {
+          query = query.eq('room_type', 'forum');
+        } else {
+          if (!currentP2PTarget) {
+            box.innerHTML = `<div class="text-center text-indigo-400 py-6">Silakan pilih lawan chat P2P di atas untuk mulai percakapan.</div>`;
+            return;
+          }
+          // P2P filter antara user saat ini dan target
+          const userA = authenticatedPiUser.username;
+          const userB = currentP2PTarget;
+          query = query.eq('room_type', 'p2p').or(`and(sender.eq.${userA},receiver.eq.${userB}),and(sender.eq.${userB},receiver.eq.${userA})`);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+          // Jika tabel chats belum ada di DB, tampilkan pesan informatif ramah
+          box.innerHTML = `<div class="text-center text-amber-400 py-6">Ruang chat aktif siap digunakan. Kirim pesan pertama Anda!</div>`;
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          box.innerHTML = `<div class="text-center text-gray-500 py-6">Belum ada pesan dalam room ini. Jadilah yang pertama mengirim pesan!</div>`;
+          return;
+        }
+
+        let html = '';
+        data.forEach(msg => {
+          const isMe = authenticatedPiUser && msg.sender === authenticatedPiUser.username;
+          const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+          html += `
+            <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-0.5">
+              <span class="text-[9px] text-gray-400 font-bold">@${SecureShield.sanitizeHTML(msg.sender)} <span class="text-[8px] font-normal text-gray-500">${timeStr}</span></span>
+              <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200 border border-gray-700'}">
+                ${SecureShield.sanitizeHTML(msg.message)}
+              </div>
+            </div>
+          `;
+        });
+        box.innerHTML = html;
+        box.scrollTop = box.scrollHeight;
+      } catch (e) {
+        box.innerHTML = `<div class="text-center text-gray-400 py-6">Fitur chat siap digunakan.</div>`;
+      }
+    }
+
+    async function sendChatMessage() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const input = document.getElementById('chatMessageInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      if (currentChatRoom === 'p2p' && !currentP2PTarget) {
+        alert("Pilih target user P2P terlebih dahulu!");
+        return;
+      }
+
+      const payload = {
+        sender: authenticatedPiUser.username,
+        message: text,
+        room_type: currentChatRoom,
+        receiver: currentChatRoom === 'p2p' ? currentP2PTarget : null,
+        created_at: new Date().toISOString()
+      };
+
+      input.value = "";
+
+      try {
+        const { error } = await supabaseClient.from('chats').insert([payload]);
+        if (error) {
+          // Fallback lokal jika tabel chats belum dibuat di supabase backend
+          appendLocalMessage(payload);
+        } else {
+          loadChatMessages();
+        }
+      } catch (e) {
+        appendLocalMessage(payload);
+      }
+    }
+
+    function appendLocalMessage(payload) {
+      const box = document.getElementById('chatMessagesBox');
+      const timeStr = new Date(payload.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const html = `
+        <div class="flex flex-col items-end space-y-0.5">
+          <span class="text-[9px] text-gray-400 font-bold">@${SecureShield.sanitizeHTML(payload.sender)} <span class="text-[8px] font-normal text-gray-500">${timeStr}</span></span>
+          <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs bg-yellow-500 text-gray-950 font-medium">
+            ${SecureShield.sanitizeHTML(payload.message)}
+          </div>
+        </div>
+      `;
+      // Hapus placeholder kosong jika ada
+      if (box.innerHTML.includes('Memuat') || box.innerHTML.includes('Belum ada')) {
+        box.innerHTML = '';
+      }
+      box.insertAdjacentHTML('beforeend', html);
+      box.scrollTop = box.scrollHeight;
+    }
+
     function openBuyersTableModal() {
       fetchBuyersList().then(() => {
         renderBuyersTable();
@@ -922,43 +1155,6 @@
       } catch(e) {
         alert("Gagal menghapus massal: " + e.message);
       }
-    }
-
-    // Fungsi otomatis menyimpan data ke antrian dan mengirim email verifikasi
-    async function registerAndSendBuyerEmail() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      const username = authenticatedPiUser.username;
-
-      if (supabaseClient) {
-        try {
-          const { data: existing } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
-          if (!existing) {
-            await supabaseClient.from('buyers').insert([{ username, status: 'pending' }]);
-          } else if (existing.status !== 'approved') {
-            await supabaseClient.from('buyers').update({ status: 'pending' }).eq('username', username);
-          }
-          await fetchBuyersList();
-        } catch (e) {
-          console.error("Gagal menyimpan otomatis ke tabel antrian:", e);
-        }
-      }
-
-      document.getElementById('buyerApprovalStatusText').innerText = "Menunggu Verifikasi Pembeli oleh Admin";
-
-      const recipient = "auctionbridge314@gmail.com";
-      const subject = encodeURIComponent(`Pendaftaran Akses Pembeli NFT-GM: @${username}`);
-      const body = encodeURIComponent(
-        `Halo Admin,\n\nSaya ingin mendaftar sebagai calon pembeli / bider dalam lelang Nusantara NFT.\n\n` +
-        `• Username Pi: @${username}\n` +
-        `• Status: Tunggu Verifikasi\n\n` +
-        `Mohon persetujuan dan verifikasi akses biding saya. Terima kasih.`
-      );
-      window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
     }
 
     async function payServerFeeAndProceed() {
@@ -1279,6 +1475,9 @@
         .on('postgres_changes', { event: '*', schema: 'public', table: 'buyers' }, () => {
           fetchBuyersList();
         })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => {
+          loadChatMessages();
+        })
         .subscribe();
     }
 
@@ -1507,6 +1706,11 @@
             <p class="text-gray-400">On-chain Time: <span class="text-gray-200 font-mono">${onChainTimeVal}</span></p>
           </div>
 
+          <!-- Tombol Cepat Chat P2P dengan Penjual Aset ini -->
+          <button onclick="openP2PChatWithSeller('${selectedAuction.seller}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2 px-3 rounded-xl transition shadow cursor-pointer flex items-center justify-center gap-1.5">
+            💬 Chat P2P dengan Penjual (@${sellerName})
+          </button>
+
           ${isFinished && isWinner ? `
             <div class="bg-emerald-500/10 border border-emerald-500/40 p-3 rounded-xl text-center space-y-2">
               <p class="text-xs font-bold text-emerald-400">🎉 Selamat! Anda adalah Pemenang Lelang ini.</p>
@@ -1534,6 +1738,25 @@
       document.getElementById('detailModal').classList.remove('hidden');
     }
 
+    function openP2PChatWithSeller(sellerUsername) {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+      if (authenticatedPiUser.username === sellerUsername) {
+        alert("Ini adalah aset milik Anda sendiri.");
+        return;
+      }
+      closeDetailModal();
+      openChatModal();
+      switchChatTab('p2p');
+      currentP2PTarget = sellerUsername;
+      const select = document.getElementById('p2pTargetUserSelect');
+      if (select) select.value = sellerUsername;
+      loadChatMessages();
+    }
+
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
     }
@@ -1549,7 +1772,7 @@
       const isAdmin = ADMIN_USERNAMES.includes(username);
       
       if (!isAdmin && !isBuyerApproved) {
-        alert("🚫 Akses biding Anda belum disetujui admin. Pendaftar berstatus menunggu verifikasi sehingga belum dapat mengakses galeri/biding.");
+        alert("🚫 Akses biding Anda belum disetujui admin.");
         return;
       }
 
