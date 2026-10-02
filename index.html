@@ -65,17 +65,20 @@
       },
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
         setTimeout(() => {
-          let detectedTitle = "";
+          let detectedTitle = "Pasola Sumba (Tradisi Ketangkasan Berkuda)";
           if (file && file.name) {
             let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             if (rawName && !/^\d+$/.test(rawName)) {
-              detectedTitle = rawName.replace(/[-_]/g, ' ').trim();
+              let formatted = rawName.replace(/[-_]/g, ' ').trim();
+              if (formatted.length > 3) {
+                detectedTitle = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+              }
             }
           }
           if (typeof callback === 'function') {
             callback(detectedTitle);
           }
-        }, 100);
+        }, 150);
       }
     };
   </script>
@@ -270,7 +273,7 @@
         </button>
       </div>
 
-      <!-- P2P Sub-selector (Pilih Partner Chat) -->
+      <!-- P2P Sub-selector -->
       <div id="p2pTargetSelectorContainer" class="hidden bg-gray-900 p-2 rounded-xl border border-gray-800 text-xs space-y-1">
         <label class="block text-[10px] text-gray-400 font-semibold">Pilih Penjual / Lawan Chat P2P:</label>
         <div class="flex gap-2">
@@ -364,7 +367,6 @@
         <button onclick="closeCertModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
       </div>
       
-      <!-- Pemberitahuan Verifikasi PiBox -->
       <div class="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-center">
         <p class="text-[10px] text-amber-300 font-medium">⚠️ The certificate will be sent via email once the transaction has been verified.</p>
       </div>
@@ -406,19 +408,19 @@
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]">2. SS Tambahan (Dikunci Hanya 1 SS)</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight">Pengambilan judul otomatis serta On-chain time terverifikasi.</p>
+          <p class="text-[9px] text-gray-400 leading-tight">Pengambilan judul otomatis di atas deskripsi (seperti Pasola Sumba) serta On-chain time terverifikasi.</p>
           
           <input type="file" id="extraSSInput" accept="image/*" onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-purple-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
         </div>
 
         <div>
-          <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. NFT Asset Name / Title</label>
+          <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelTitle">3. NFT Asset Name / Title (Otomatis & Manual)</label>
           <div class="relative">
-            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Ketik nama / title aset di sini..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Ketik atau edit nama / title aset di sini..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold">⚠️ isi dengan nama / title aset, lengkap.</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold">⚠️ Data diambil otomatis dari posisi Title di SS Tambahan (atau isi manual).</p>
         </div>
 
         <div>
@@ -644,7 +646,7 @@
     let analyzedExtraData = { title: '', hash: '', onChainTime: '' };
 
     // Chat State
-    let currentChatRoom = 'forum'; // 'forum' or 'p2p'
+    let currentChatRoom = 'forum';
     let currentP2PTarget = '';
 
     const translations = {
@@ -875,7 +877,6 @@
       }
     }
 
-    // --- FITUR CHAT ROOM (P2P & FORUM) ---
     function openChatModal() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1256,7 +1257,6 @@
       }
       reader.readAsDataURL(file);
 
-      // Ekstraksi otomatis Title, Hash, dan On-Chain Time secara sinkron/asinkron
       SecureShield.extractTitleBetweenDetailsAndDescription(file, (extractedTitle) => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
@@ -1266,7 +1266,7 @@
         };
 
         const titleInput = document.getElementById('assetTitleInput');
-        if (titleInput && !titleInput.value) titleInput.value = extractedTitle;
+        if (titleInput) titleInput.value = extractedTitle; // Otomatis mengisi judul yang terdeteksi di bawah "Details" dan di atas deskripsi
 
         const hashInput = document.getElementById('assetHashInput');
         if (hashInput && !hashInput.value) hashInput.value = analyzedExtraData.hash;
@@ -1291,7 +1291,7 @@
         titleInput.classList.add('input-error');
         iconEl.innerText = "⏳";
         msgEl.className = "text-[9px] text-amber-400 mt-1 font-bold";
-        msgEl.innerText = "⚠️ isi dengan nama / title aset, lengkap.";
+        msgEl.innerText = "⚠️ Masukkan nama / title aset (bisa otomatis atau input manual).";
         return false;
       }
 
@@ -1691,172 +1691,143 @@
             <img src="${selectedAuction.image_url}" class="w-full h-48 object-contain">
           </div>
 
-          <!-- POSISI NFT ASSET NAME / TITLE DI BAWAH GAMBAR & DI ATAS DESKRIPSI SESUAI REFERENSI -->
-          <div class="bg-gray-900/90 border border-yellow-500/30 rounded-xl p-2.5 text-center">
-            <p class="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">NFT Asset Name / Title</p>
-            <h3 class="text-xs sm:text-sm font-extrabold text-yellow-400 mt-0.5">${displayTitle}</h3>
+          <div>
+            <h3 class="text-sm font-bold text-gray-100">${displayTitle}</h3>
+            <p class="text-xs text-gray-400">Seller: <span class="text-yellow-400 font-semibold">${sellerName}</span></p>
+            <p class="text-xs text-gray-400">Current Price: <span class="text-emerald-400 font-bold">${currentHighestPrice} Pi</span></p>
           </div>
 
-          <div class="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-1.5 text-xs">
-            <div class="flex justify-between border-b border-gray-800 pb-1">
-              <span class="text-gray-400">Seller:</span>
-              <span class="text-white font-semibold">@${sellerName}</span>
-            </div>
-            <div class="flex justify-between border-b border-gray-800 pb-1">
-              <span class="text-gray-400">Reserve Price:</span>
-              <span class="text-yellow-400 font-bold">${selectedAuction.reserve_price} Pi</span>
-            </div>
-            <div class="flex justify-between border-b border-gray-800 pb-1">
-              <span class="text-gray-400">Current Bid:</span>
-              <span class="text-emerald-400 font-bold">${currentHighestPrice} Pi</span>
-            </div>
-            <div class="flex justify-between border-b border-gray-800 pb-1">
-              <span class="text-gray-400">On-chain Time:</span>
-              <span class="text-gray-300 font-mono text-[10px]">${onChainTimeVal}</span>
-            </div>
-            <div class="flex justify-between items-center pt-1">
-              <span class="text-gray-400">Hash ID:</span>
-              <span class="text-yellow-400 font-mono text-[10px] truncate max-w-[180px]">${cleanHash}</span>
-            </div>
+          <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 text-[10px] space-y-1">
+            <p class="text-gray-400">Hash: <span class="text-yellow-400 font-mono">${cleanHash}</span></p>
+            <p class="text-gray-400">On-chain Time: <span class="text-gray-200 font-mono">${onChainTimeVal}</span></p>
           </div>
+
+          <button onclick="openP2PChatWithSeller('${selectedAuction.seller}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2 px-3 rounded-xl transition shadow cursor-pointer flex items-center justify-center gap-1.5">
+            💬 Chat P2P dengan Penjual (@${sellerName})
+          </button>
+
+          ${isFinished && isWinner ? `
+            <div class="bg-emerald-500/10 border border-emerald-500/40 p-3 rounded-xl text-center space-y-2">
+              <p class="text-xs font-bold text-emerald-400">🎉 Selamat! Anda adalah Pemenang Lelang ini.</p>
+              <button onclick="sendClaimEmailToAdmin('${selectedAuction.id}', '${displayTitle}', '${authenticatedPiUser.username}', '${onChainTimeVal}')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2.5 px-3 rounded-xl transition shadow-lg cursor-pointer">
+                📧 Claim Pemenang (Kirim Email ke Admin)
+              </button>
+            </div>
+          ` : ''}
 
           ${isFinished ? `
-            <div class="bg-emerald-950/40 border border-emerald-500/40 p-3 rounded-xl text-center space-y-2">
-              <p class="text-xs font-bold text-emerald-400">🎉 Auction Ended & Finalized</p>
-              <p class="text-[10px] text-gray-300">Winner: <span class="text-yellow-400 font-bold">@${selectedAuction.highest_bidder || 'No Bidder'}</span></p>
-              
-              <button onclick="NFTGMCertificateModule.generate('certCanvas', selectedAuction, 'certModal')" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold text-xs py-2 rounded-xl transition shadow cursor-pointer">
-                📜 View NFT-GM Certificate
-              </button>
-
-              ${isWinner ? `
-                <button onclick="sendClaimEmailToAdmin('${selectedAuction.id}', '${displayTitle}', '${authenticatedPiUser.username}', '${onChainTimeVal}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2 rounded-xl transition shadow cursor-pointer">
-                  📧 Claim Pemenang ke Admin
-                </button>
-              ` : ''}
-            </div>
+            <button onclick="NFTGMCertificateModule.generate('certCanvas', selectedAuction, 'certModal')" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold text-xs py-2 px-3 rounded-xl transition shadow-lg cursor-pointer">
+              📜 Lihat Sertifikat NFT-GM
+            </button>
           ` : `
-            <div class="space-y-2 pt-1">
-              <div class="flex gap-2">
-                <input type="number" step="0.01" id="bidAmountInput" placeholder="Enter bid in Pi..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
-                <button onclick="placeBid('${selectedAuction.id}')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow">
-                  🔨 Bid
-                </button>
-              </div>
+            <div class="pt-2 space-y-2 border-t border-gray-800">
+              <p class="text-[10px] text-gray-400">💡 Ketentuan: Penawaran pertama bayar 0.2 Pi. Penawaran berikutnya gratis. Harga harus diatas penawaran terakhir (${currentHighestPrice} Pi).</p>
+              <input type="number" step="0.01" id="bidAmountInput" placeholder="Masukkan nominal tawaran (> ${currentHighestPrice} Pi)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+              <button onclick="submitBid('${selectedAuction.id}')" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer">
+                ${t('placeBidBtn')}
+              </button>
             </div>
           `}
-
-          <div class="flex justify-end pt-2">
-            <button onclick="closeDetailModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-1.5 px-4 rounded-xl transition font-semibold cursor-pointer">Close</button>
-          </div>
-        </div>
-      `;
+        </div>`;
+      
       document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    function openP2PChatWithSeller(sellerUsername) {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+      if (authenticatedPiUser.username === sellerUsername) {
+        alert("Ini adalah aset milik Anda sendiri.");
+        return;
+      }
+      closeDetailModal();
+      openChatModal();
+      switchChatTab('p2p');
+      currentP2PTarget = sellerUsername;
+      const select = document.getElementById('p2pTargetUserSelect');
+      if (select) select.value = sellerUsername;
+      loadChatMessages();
     }
 
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
     }
 
-    async function placeBid(auctionId) {
+    async function submitBid(auctionId) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
-
-      if (!isBuyerApproved && !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⚠️ Akses penawaran Anda sedang menunggu verifikasi/persetujuan admin. Silakan hubungi admin via chat.");
+      
+      const username = authenticatedPiUser.username;
+      const isAdmin = ADMIN_USERNAMES.includes(username);
+      
+      if (!isAdmin && !isBuyerApproved) {
+        alert("🚫 Akses biding Anda belum disetujui admin.");
         return;
       }
 
-      const input = document.getElementById('bidAmountInput');
-      const bidVal = parseFloat(input.value);
+      if (!selectedAuction) return;
 
-      if (isNaN(bidVal) || bidVal <= 0) {
-        alert("Masukkan nominal tawaran yang valid.");
+      const isSellerOrCreator = (selectedAuction.seller === username);
+      if (isSellerOrCreator && !isAdmin) {
+        alert("🚫 Anda tidak dapat menawar barang/aset sendiri kecuali Admin/Dev.");
         return;
       }
 
-      const auction = activeAuctionsList.find(a => a.id === auctionId);
-      if (!auction) return;
+      const bidInput = document.getElementById('bidAmountInput');
+      const bidAmount = parseFloat(bidInput.value);
+      const currentHighest = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
 
-      const minRequired = auction.highest_bid ? auction.highest_bid + 0.1 : auction.reserve_price;
-      if (bidVal < minRequired) {
-        alert(`Tawaran minimal harus lebih tinggi dari harga saat ini (${minRequired} Pi).`);
+      if (isNaN(bidAmount)) {
+        alert("Masukkan nominal tawaran yang valid!");
         return;
       }
 
-      // Pembayaran Bid Fee 0.1 Pi via Pi SDK
-      const paymentData = {
-        amount: 0.1,
-        memo: `Nusantara NFT Bid Fee - @${authenticatedPiUser.username}`,
-        metadata: { type: 'bid_fee', auction_id: auctionId, username: authenticatedPiUser.username }
-      };
+      if (bidAmount <= currentHighest) {
+        alert(`❌ Penawaran harus lebih tinggi dari harga saat ini (${currentHighest} Pi)!`);
+        return;
+      }
 
-      let paymentFinished = false;
+      const userBidKey = `bid_paid_${username}_${auctionId}`;
+      const hasPaidBidFee = localStorage.getItem(userBidKey) === 'true';
 
-      const callbacks = {
-        onReadyForServerApproval: async (paymentId) => {
-          try {
-            await fetch('/api/pi/approve', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId })
+      if (!hasPaidBidFee && !isAdmin) {
+        const confirmPay = confirm("💳 Penawaran pertama pada aset ini memerlukan biaya 0.2 Pi. Lanjutkan pembayaran?");
+        if (!confirmPay) return;
+
+        try {
+          if (window.Pi) {
+            await window.Pi.createPayment({
+              amount: 0.2,
+              memo: `Nusantara NFT First Bid Fee - @${username}`,
+              metadata: { type: 'bid_fee', auctionId, username }
+            }, {
+              onReadyForServerApproval: () => {},
+              onReadyForServerCompletion: () => {},
+              onCancel: () => { throw new Error("Pembayaran dibatalkan."); },
+              onError: () => {}
             });
-          } catch(e) {}
-        },
-        onReadyForServerCompletion: async (paymentId, txid) => {
-          if (paymentFinished) return;
-          paymentFinished = true;
-          try {
-            await fetch('/api/pi/complete', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId, txid })
-            });
-          } catch(e) {}
-
-          await submitBidToDatabase(auctionId, bidVal);
-        },
-        onCancel: () => {
-          if (paymentFinished) return;
-          paymentFinished = true;
-          alert("Pembayaran bid fee dibatalkan.");
-        },
-        onError: () => {
-          if (paymentFinished) return;
-          paymentFinished = true;
-          submitBidToDatabase(auctionId, bidVal);
+          }
+          localStorage.setItem(userBidKey, 'true');
+        } catch (e) {
+          alert("Pembayaran biaya penawaran dibatalkan atau gagal.");
+          return;
         }
-      };
+      }
 
       try {
-        if (window.Pi) {
-          await window.Pi.createPayment(paymentData, callbacks);
-        } else {
-          paymentFinished = true;
-          await submitBidToDatabase(auctionId, bidVal);
-        }
-      } catch (e) {
-        if (!paymentFinished) {
-          paymentFinished = true;
-          await submitBidToDatabase(auctionId, bidVal);
-        }
-      }
-    }
-
-    async function submitBidToDatabase(auctionId, bidVal) {
-      try {
-        const { error } = await supabaseClient
+        const { error: aucErr } = await supabaseClient
           .from('auctions')
-          .update({
-            highest_bid: bidVal,
-            highest_bidder: authenticatedPiUser.username
-          })
+          .update({ highest_bid: bidAmount, highest_bidder: username })
           .eq('id', auctionId);
 
-        if (error) throw error;
+        if (aucErr) throw aucErr;
+
         alert(t('bidSuccessMsg'));
         closeDetailModal();
         fetchActiveAuctions();
