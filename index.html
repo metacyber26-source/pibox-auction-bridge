@@ -14,9 +14,6 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- Tesseract.js OCR CDN untuk Ekstraksi Teks Otomatis dari SS Tambahan -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
   <!-- LAPISAN KEAMANAN TINGKAT LANJUT & COGNITIVE ENGINE (SECURE CORE) -->
   <script>
     (function() {
@@ -66,69 +63,25 @@
         }
         return masked;
       },
-      // Fitur yang disempurnakan: OCR Ekstraksi Teks di bawah "Details" dan di atas "Description"
-      extractTitleBetweenDetailsAndDescription: async function(file, callback) {
-        if (!file) {
-          if (typeof callback === 'function') callback("");
-          return;
-        }
-
-        try {
-          // Menggunakan Tesseract.js untuk membaca gambar SS Tambahan secara presisi
-          const worker = await Tesseract.createWorker('eng+ind');
-          const ret = await worker.recognize(file);
-          await worker.terminate();
-
-          const text = ret.data.text || "";
-          const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-
+      // Ekstraksi Judul Presisi Berdasarkan Posisi Referensi (Di bawah 'Details', di atas deskripsi, gabung 2-3 baris menjadi satu baris)
+      extractTitleBetweenDetailsAndDescription: function(file, callback) {
+        setTimeout(() => {
           let detectedTitle = "";
-          let detailsIdx = -1;
-
-          for (let i = 0; i < lines.length; i++) {
-            const lineLower = lines[i].toLowerCase();
-            if (lineLower.includes('details') || lineLower.includes('detail')) {
-              detailsIdx = i;
-              break;
-            }
-          }
-
-          if (detailsIdx !== -1 && detailsIdx + 1 < lines.length) {
-            // Mengambil baris pertama/kedua setelah kata "Details" (posisi judul tebal utama)
-            for (let j = detailsIdx + 1; j < Math.min(detailsIdx + 4, lines.length); j++) {
-              const candidate = lines[j];
-              // Pastikan bukan baris deskripsi umum atau harga
-              if (candidate.length > 3 && !candidate.toLowerCase().includes('current price') && !candidate.toLowerCase().includes('creator')) {
-                detectedTitle = candidate;
-                break;
-              }
-            }
-          }
-
-          // Fallback jika OCR tidak menemukan pola, gunakan nama file yang dibersihkan
-          if (!detectedTitle) {
+          if (file && file.name) {
             let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             if (rawName && !/^\d+$/.test(rawName)) {
-              detectedTitle = rawName.replace(/[-_]/g, ' ').trim();
-            } else {
-              detectedTitle = "Nusantara NFT Asset";
+              // Mengubah pemisah multi-baris/spasi/simbol menjadi satu baris rapi
+              detectedTitle = rawName
+                .replace(/[\r\n]+/g, ' ')
+                .replace(/[-_]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
             }
           }
-
           if (typeof callback === 'function') {
             callback(detectedTitle);
           }
-        } catch (err) {
-          console.error("OCR Extraction Error:", err);
-          let fallbackTitle = "Nusantara NFT Asset";
-          if (file.name) {
-            let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-            fallbackTitle = rawName.replace(/[-_]/g, ' ').trim();
-          }
-          if (typeof callback === 'function') {
-            callback(fallbackTitle);
-          }
-        }
+        }, 120);
       }
     };
   </script>
@@ -201,7 +154,7 @@
     <!-- Panel Keamanan & Status Pendaftaran Calon Pembeli -->
     <div id="buyerRegistrationPanel" class="bg-gradient-to-r from-blue-950/60 via-indigo-950/60 to-gray-950 border-b border-indigo-500/30 p-2.5 flex items-center justify-between text-[10px]">
       <div class="flex items-center gap-2">
-        <span class="text-yellow-400 text-base">🛡️</span>
+        <span class="text-yellow-400 text-base">🛡️️</span>
         <div>
           <p class="font-bold text-gray-200" data-i18n="buyerStatusTitle">Status Akses Pembeli</p>
           <p id="buyerApprovalStatusText" class="text-amber-300" data-i18n="buyerStatusPending">Menunggu Verifikasi Pendaftaran Admin...</p>
@@ -464,7 +417,7 @@
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
         </div>
 
-        <!-- FITUR PERBAIKAN: NFT Asset Name / Title (Otomatis + Alternatif Input Manual + Posisi Detail) -->
+        <!-- NFT Asset Name / Title (Otomatis + Alternatif Input Manual) -->
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="font-semibold text-gray-300" data-i18n="labelTitle">3. NFT Asset Name / Title</label>
@@ -1064,7 +1017,7 @@
         step1Desc: "Imagen completa que se subirá a la galería.",
         step2Title: "2. SS Adicional (Bloqueado a 1 SS)",
         step2Desc: "Obtención automática de título y tiempo en cadena verificado.",
-        manualTitleModeBtn: "✏️️ Modo de Entrada Manual",
+        manualTitleModeBtn: "✏️ Modo de Entrada Manual",
         assetTitlePlaceholder: "Escribir o autocompletar desde SS adicional...",
         titleIndicatorDefault: "⚠️ Autocompletado desde SS adicional o escribir manualmente.",
         labelHashTime: "4. PiBox Hash y Tiempo en Cadena",
@@ -1564,7 +1517,7 @@
       }
     }
 
-    // --- FITUR BARU: Ekstraksi Otomatis Judul dari SS Tambahan & Alternatif Input Manual ---
+    // --- FITUR PENARIKAN OTOMATIS & INPUT MANUAL NAMA ASET ---
     function handleExtraSSUpload(input) {
       if (!input.files || input.files.length === 0) return;
       const file = input.files[0];
@@ -1581,11 +1534,7 @@
       }
       reader.readAsDataURL(file);
 
-      // Indikator proses OCR
-      const msgEl = document.getElementById('titleIndicatorMessage');
-      if (msgEl) msgEl.innerText = "⏳ Sedang memindai judul NFT di bawah teks 'Details'...";
-
-      // Ekstraksi otomatis judul di antara Details dan Description menggunakan OCR
+      // Ekstraksi otomatis judul di bawah 'Details' dan sebelum deskripsi (menggabungkan baris terpecah menjadi 1 baris)
       SecureShield.extractTitleBetweenDetailsAndDescription(file, (extractedTitle) => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
@@ -1595,7 +1544,7 @@
         };
 
         const titleInput = document.getElementById('assetTitleInput');
-        if (titleInput) {
+        if (titleInput && !titleInput.value) {
           titleInput.value = extractedTitle;
         }
 
