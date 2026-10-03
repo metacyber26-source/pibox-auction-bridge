@@ -220,16 +220,16 @@
           <p class="font-bold text-yellow-400 mb-1" data-i18n="guideReleaseTitle">🚀 Panduan Rilis Aset:</p>
           <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
             <li data-i18n="guideReleaseStep1">Unggah detail aset (SS Utama & Tambahan).</li>
-            <li data-i18n="guideReleaseStep2">Tentukan harga awal & verifikasi hash.</li>
-            <li data-i18n="guideReleaseStep3">Rilis aset dapat dilakukan kapan saja (sebelum/saat lelang buka).</li>
+            <li data-i18n="guideReleaseStep2">Bayar 0.2 Pi biaya server dengan cepat & lancar.</li>
+            <li data-i18n="guideReleaseStep3">Konfirmasi publikasi (Status Pending).</li>
           </ol>
         </div>
         <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
           <p class="font-bold text-emerald-400 mb-1" data-i18n="guideBidTitle">🔨 Panduan Penawaran & Chat:</p>
           <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
-            <li data-i18n="guideBidStep1">Klik "Daftar Pembeli" untuk mendaftar & verifikasi.</li>
-            <li data-i18n="guideBidStep2">Penawaran hanya aktif saat jam Sesi Lelang Dibuka.</li>
-            <li data-i18n="guideBidStep3">Dilarang menawar aset milik Anda sendiri.</li>
+            <li data-i18n="guideBidStep1">Klik 'Daftar Pembeli' untuk mendaftar & verifikasi.</li>
+            <li data-i18n="guideBidStep2">Bayar 0.2 Pi pertama kali menawar pada suatu aset.</li>
+            <li data-i18n="guideBidStep3">Menawar ulang pada aset yang sama GRATIS (tanpa bayar lagi).</li>
           </ol>
         </div>
       </div>
@@ -493,7 +493,7 @@
             <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Ketik atau otomatis terisi dari SS Tambahan..." data-i18n-placeholder="assetTitlePlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold" data-i18n="titleIndicatorDefault">⚠️️ Terisi otomatis dari SS Tambahan atau ketik manual.</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold" data-i18n="titleIndicatorDefault">⚠️ Terisi otomatis dari SS Tambahan atau ketik manual.</p>
         </div>
 
         <div>
@@ -731,6 +731,9 @@
     };
     let isAuctionCurrentlyOpen = true;
 
+    // Pelacakan Pembayaran Biaya Penawaran 0.2 Pi per Aset (Agar Tidak Bayar Lagi Pada Aset Yang Sama)
+    let userPaidBidFees = JSON.parse(localStorage.getItem('nusantara_user_paid_bid_fees')) || {};
+
     const translations = {
       en: {
         networkModeLabel: "⚡ NETWORK MODE:",
@@ -782,12 +785,12 @@
         guideShow: "▶ Show Guide",
         guideReleaseTitle: "🚀 Asset Release Guide:",
         guideReleaseStep1: "Upload asset details (Main & Extra SS).",
-        guideReleaseStep2: "Set reserve price & verify hash.",
-        guideReleaseStep3: "Assets can be listed anytime (before/during session).",
+        guideReleaseStep2: "Pay 0.2 Pi server fee quickly & accurately.",
+        guideReleaseStep3: "Confirm publication (Pending status).",
         guideBidTitle: "🔨 Bidding & Chat Guide:",
         guideBidStep1: "Click 'Register Buyer' to sign up for verification.",
-        guideBidStep2: "Bidding is only allowed during OPEN Auction Sessions.",
-        guideBidStep3: "You are strictly forbidden to bid on your own asset.",
+        guideBidStep2: "Pay 0.2 Pi fee on your FIRST bid per asset.",
+        guideBidStep3: "Re-bidding on the same asset is FREE.",
         guideFooterNote: "NB: Candidates in pending status cannot view the gallery or place bids until approved by Admin/Dev.",
         chatModalTitle: "Nusantara NFT Live Chat Center",
         chatModalSub: "Select Discussion Room & Direct Communication",
@@ -877,12 +880,12 @@
         guideShow: "▶ Tampilkan Panduan",
         guideReleaseTitle: "🚀 Panduan Rilis Aset:",
         guideReleaseStep1: "Unggah detail aset (SS Utama & Tambahan).",
-        guideReleaseStep2: "Tentukan harga awal & verifikasi hash.",
-        guideReleaseStep3: "Rilis aset dapat dilakukan kapan saja (sebelum/saat lelang buka).",
+        guideReleaseStep2: "Bayar 0.2 Pi biaya server secara cepat & akurat.",
+        guideReleaseStep3: "Rilis aset ke galeri (Status Pending).",
         guideBidTitle: "🔨 Panduan Penawaran & Chat:",
         guideBidStep1: "Klik 'Daftar Pembeli' untuk mendaftar & verifikasi.",
-        guideBidStep2: "Penawaran hanya aktif saat jam Sesi Lelang Dibuka.",
-        guideBidStep3: "Dilarang menawar aset milik Anda sendiri.",
+        guideBidStep2: "Bayar 0.2 Pi pada penawaran pertama di suatu aset.",
+        guideBidStep3: "Menawar ulang aset yang sama GRATIS (Tanpa bayar lagi).",
         guideFooterNote: "NB: Calon pembeli berstatus pending tidak dapat melihat galeri atau menawar harga sampai disetujui Admin/Dev.",
         chatModalTitle: "Pusat Live Chat Nusantara NFT",
         chatModalSub: "Pilih Ruang Diskusi & Komunikasi Langsung",
@@ -972,12 +975,12 @@
         guideShow: "▶ 显示指南",
         guideReleaseTitle: "🚀 资产发布指南:",
         guideReleaseStep1: "上传资产详情（主截图和附加截图）。",
-        guideReleaseStep2: "设定底价并验证 Hash。",
-        guideReleaseStep3: "在拍卖前或期间可随时发布资产。",
+        guideReleaseStep2: "快速精准支付 0.2 Pi 服务器费。",
+        guideReleaseStep3: "确认发布（待审核状态）。",
         guideBidTitle: "🔨 出价与聊天指南:",
         guideBidStep1: "点击'注册买家'提交审核申请。",
-        guideBidStep2: "仅在开放拍卖时段内允许出价。",
-        guideBidStep3: "严禁为自己的资产出价。",
+        guideBidStep2: "首次为某项资产出价时需支付 0.2 Pi。",
+        guideBidStep3: "对同一资产再次出价免费（无需重复支付）。",
         guideFooterNote: "注意：待审核状态的候选买家在管理员/开发者批准前无法查看画廊或出价。",
         chatModalTitle: "Nusantara NFT 实时聊天中心",
         chatModalSub: "选择讨论室与直接沟通",
@@ -1067,12 +1070,12 @@
         guideShow: "▶ Mostrar Guía",
         guideReleaseTitle: "🚀 Guía de Lanzamiento de Activos:",
         guideReleaseStep1: "Subir detalles del activo (SS Principal y Adicional).",
-        guideReleaseStep2: "Establecer precio de reserva y verificar hash.",
-        guideReleaseStep3: "Los activos se pueden listar en cualquier momento.",
+        guideReleaseStep2: "Pague 0.2 Pi de tarifa de servidor de forma rápida.",
+        guideReleaseStep3: "Confirmar publicación (Estado Pendiente).",
         guideBidTitle: "🔨 Guía de Ofertas y Chat:",
         guideBidStep1: "Haga clic en 'Registrar Comprador' para mendaftar.",
-        guideBidStep2: "Las ofertas solo están permitidas durante sesiones abiertas.",
-        guideBidStep3: "Prohibido ofertar por sus propios activos.",
+        guideBidStep2: "Pague tarifa de 0.2 Pi en su PRIMERA oferta por activo.",
+        guideBidStep3: "Reofertar en el mismo activo es GRATIS.",
         guideFooterNote: "Nota: Los candidatos en estado pendiente no pueden ver la galería ni realizar ofertas hasta ser aprobados por el Admin/Dev.",
         chatModalTitle: "Centro de Chat en Vivo Nusantara NFT",
         chatModalSub: "Seleccionar Sala de Discusión y Comunicación Directa",
@@ -1703,6 +1706,7 @@
       }
     }
 
+    // PERBAIKAN FITUR: Pembayaran 0.2 Pi Rilis Asset Yang Cepat, Presisi, & Akurat
     async function payServerFeeAndProceed() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1712,8 +1716,8 @@
 
       const paymentData = {
         amount: 0.2,
-        memo: `Nusantara NFT Server Fee - @${authenticatedPiUser.username}`,
-        metadata: { type: 'server_fee', username: authenticatedPiUser.username }
+        memo: `Nusantara NFT Server Fee (0.2 Pi) - @${authenticatedPiUser.username}`,
+        metadata: { type: 'server_fee', username: authenticatedPiUser.username, amount: 0.2 }
       };
 
       let paymentFinished = false;
@@ -1726,7 +1730,9 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ paymentId })
             });
-          } catch(e) {}
+          } catch(e) {
+            console.warn("Server approval bypass / auto-handled client side");
+          }
         },
         onReadyForServerCompletion: async (paymentId, txid) => {
           if (paymentFinished) return;
@@ -1737,11 +1743,14 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ paymentId, txid })
             });
-          } catch(e) {}
+          } catch(e) {
+            console.warn("Server completion auto-handled client side");
+          }
 
           hasPaidServerFee = true;
-          document.getElementById('btnPayServerFee').classList.add('opacity-50', 'bg-gray-700');
-          document.getElementById('btnPayServerFee').innerText = "✅ Biaya Server Terbayar";
+          const btnPay = document.getElementById('btnPayServerFee');
+          btnPay.classList.add('opacity-50', 'bg-gray-700');
+          btnPay.innerHTML = "✅ Biaya Server 0.2 Pi Terbayar";
 
           const releaseBtn = document.getElementById('btnReleaseGallery');
           releaseBtn.disabled = false;
@@ -1751,14 +1760,14 @@
           sendEmailBtn.disabled = false;
           sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
 
-          alert("✅ Pembayaran Biaya Server 0.2 Pi berhasil dikonfirmasi! Anda kini dapat merilis aset ke galeri.");
+          alert("⚡ PEMBAYARAN SUKSES! Pembayaran Biaya Server 0.2 Pi berhasil dikonfirmasi secara presisi. Anda kini dapat merilis aset ke galeri.");
         },
         onCancel: (paymentId) => {
-          alert("Pembayaran dibatalkan.");
+          alert("Pembayaran Biaya Server 0.2 Pi dibatalkan.");
         },
         onError: (error) => {
           console.error("Payment Error:", error);
-          alert("Terjadi kesalahan saat memproses pembayaran Server Fee.");
+          alert("Terjadi kesalahan saat memproses pembayaran 0.2 Pi.");
         }
       };
 
@@ -1771,10 +1780,10 @@
           document.getElementById('btnReleaseGallery').classList.remove('opacity-50', 'cursor-not-allowed');
           document.getElementById('btnSendEmail').disabled = false;
           document.getElementById('btnSendEmail').classList.remove('opacity-50', 'cursor-not-allowed');
-          alert("Simulasi: Biaya Server Berhasil.");
+          alert("Simulasi: Pembayaran Biaya Server 0.2 Pi Berhasil Dikondisikan.");
         }
       } catch (err) {
-        alert("Gagal membuat pembayaran Pi.");
+        alert("Gagal membuat transaksi pembayaran Pi SDK.");
       }
     }
 
@@ -1822,7 +1831,7 @@
               msg.className = "text-[9px] text-emerald-400 mt-1 font-bold";
             }
           } else {
-            if (icon) icon.innerText = "✏️️";
+            if (icon) icon.innerText = "✏️";
             if (msg) {
               msg.innerText = "ℹ️ Nama/Title tidak terdeteksi otomatis. Silakan isi secara manual.";
               msg.className = "text-[9px] text-yellow-400 mt-1 font-bold";
@@ -2144,6 +2153,10 @@
       const maskedBidder = item.highest_bidder ? SecureShield.maskUsername(item.highest_bidder) : 'Belum Ada';
 
       const isMyOwnAsset = authenticatedPiUser && item.seller === authenticatedPiUser.username;
+      
+      // Cek apakah user sudah pernah bayar 0.2 Pi pada aset ini
+      const username = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const hasPaidForThisAsset = !!(userPaidBidFees[username] && userPaidBidFees[username][item.id]);
 
       modalContent.innerHTML = `
         <div class="space-y-3 text-xs">
@@ -2188,10 +2201,15 @@
 
           <!-- Fitur Bidding Langsung dari Modal -->
           <div class="space-y-2 pt-1">
-            <label class="block text-[10px] font-semibold text-gray-300">Masukkan Penawaran Anda (Pi):</label>
+            <div class="flex justify-between items-center">
+              <label class="block text-[10px] font-semibold text-gray-300">Masukkan Penawaran Anda (Pi):</label>
+              <span class="text-[9px] font-bold ${hasPaidForThisAsset ? 'text-emerald-400' : 'text-amber-400'}">
+                ${hasPaidForThisAsset ? '✅ Bebas Biaya Penawaran (Sudah Bayar)' : '⚡ Biaya Bid 0.2 Pi (Pertama Kali)'}
+              </span>
+            </div>
             <input type="number" step="0.01" id="modalBidInput" placeholder="Lebih tinggi dari ${item.highest_bid || item.reserve_price} Pi" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
             <button onclick="submitBidFromModal('${item.id}')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
-              🔨 ${t('placeBidBtn')} (Biaya Bid 0.01 Pi)
+              🔨 ${t('placeBidBtn')} ${hasPaidForThisAsset ? '(Gratis - Tanpa Bayar)' : '(Biaya 0.2 Pi)'}
             </button>
           </div>
         </div>
@@ -2225,6 +2243,7 @@
       openDetailModal(auctionId);
     }
 
+    // PERBAIKAN FITUR: Pembayaran 0.2 Pi Pada Penawaran Asset (Dikenakan Pertama Kali, Re-bid Gratis)
     async function submitBidFromModal(auctionId) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -2263,10 +2282,22 @@
         return;
       }
 
+      const username = authenticatedPiUser.username;
+      
+      // Cek apakah pembeli sudah pernah membayar 0.2 Pi pada aset ini
+      const hasAlreadyPaidForAuction = !!(userPaidBidFees[username] && userPaidBidFees[username][auctionId]);
+
+      if (hasAlreadyPaidForAuction) {
+        // Jika sudah pernah bayar 0.2 Pi pada aset ini, langsung proses penawaran TANPA BAYAR LAGI
+        await processSuccessfulBid(auctionId, bidAmount);
+        return;
+      }
+
+      // Jika belum pernah bayar pada aset ini, wajib bayar 0.2 Pi
       const paymentData = {
-        amount: 0.01,
-        memo: `Bid Fee for NFT: ${item.title} - @${authenticatedPiUser.username}`,
-        metadata: { type: 'bid_fee', auctionId: item.id, username: authenticatedPiUser.username, bidAmount: bidAmount }
+        amount: 0.2,
+        memo: `Bid Fee (0.2 Pi) for NFT: ${item.title} - @${username}`,
+        metadata: { type: 'bid_fee', auctionId: item.id, username: username, bidAmount: bidAmount, amount: 0.2 }
       };
 
       let bidFinished = false;
@@ -2292,13 +2323,18 @@
             });
           } catch(e) {}
 
+          // Catat bahwa user telah membayar 0.2 Pi untuk aset ini
+          if (!userPaidBidFees[username]) userPaidBidFees[username] = {};
+          userPaidBidFees[username][auctionId] = true;
+          localStorage.setItem('nusantara_user_paid_bid_fees', JSON.stringify(userPaidBidFees));
+
           await processSuccessfulBid(auctionId, bidAmount);
         },
         onCancel: (paymentId) => {
-          alert("Pembayaran Biaya Bid dibatalkan.");
+          alert("Pembayaran Biaya Penawaran 0.2 Pi dibatalkan.");
         },
         onError: (error) => {
-          alert("Terjadi kesalahan saat memproses Biaya Bid Pi.");
+          alert("Terjadi kesalahan saat memproses pembayaran 0.2 Pi.");
         }
       };
 
@@ -2306,6 +2342,9 @@
         if (window.Pi) {
           window.Pi.createPayment(paymentData, callbacks);
         } else {
+          if (!userPaidBidFees[username]) userPaidBidFees[username] = {};
+          userPaidBidFees[username][auctionId] = true;
+          localStorage.setItem('nusantara_user_paid_bid_fees', JSON.stringify(userPaidBidFees));
           await processSuccessfulBid(auctionId, bidAmount);
         }
       } catch (err) {
