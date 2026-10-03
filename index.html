@@ -69,7 +69,6 @@
           if (file && file.name) {
             let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             if (rawName && !/^\d+$/.test(rawName)) {
-              // Ekstraksi, pembersihan spasi ganda/line break (\n), dan penggabungan teks tebal multi-baris menjadi 1 baris utuh kontinu
               detectedTitle = rawName
                 .replace(/[-_]/g, ' ')
                 .replace(/[\r\n]+/g, ' ')
@@ -169,12 +168,24 @@
       </div>
     </div>
 
-    <!-- Banner Sesi Lelang -->
-    <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2 text-center flex justify-between items-center px-3">
-      <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider" data-i18n="auctionStatusLabel">⏳ STATUS LELANG:</span>
-      <span id="sessionStateBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" data-i18n="liveOpenBadge">
-        BUKA LIVE 24/7
-      </span>
+    <!-- Banner Sesi Lelang & Live Countdown Engine -->
+    <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2.5 text-center flex flex-col sm:flex-row justify-between items-center px-3 gap-1.5">
+      <div class="flex items-center gap-1.5">
+        <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider" data-i18n="auctionStatusLabel">⏳ STATUS LELANG:</span>
+        <span id="sessionStateBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+          BUKA LIVE
+        </span>
+      </div>
+      
+      <!-- Display Timer Penjadwalan/Countdown -->
+      <div id="auctionScheduleCountdownDisplay" class="text-[10px] font-mono font-bold text-yellow-400 bg-black/50 px-2 py-0.5 rounded-lg border border-yellow-500/30">
+        Memuat Jadwal...
+      </div>
+
+      <!-- Tombol Akses Pengaturan Penjadwalan (Hanya Admin / Dev) -->
+      <button id="btnAdminScheduleControl" onclick="openAdminScheduleModal()" class="hidden bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 text-[9px] font-bold px-2 py-0.5 rounded border border-yellow-500/40 cursor-pointer">
+        ⚙️ Atur Jadwal
+      </button>
     </div>
 
     <!-- Indikator Pengguna Real -->
@@ -249,6 +260,46 @@
       </button>
     </div>
 
+  </div>
+
+  <!-- MODAL: Pengaturan Jadwal Lelang (Hanya Admin / Dev) -->
+  <div id="adminScheduleModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-yellow-400 text-lg">⚙️</span>
+          <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider">Pengaturan Penjadwalan Lelang</h2>
+        </div>
+        <button onclick="closeAdminScheduleModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <p class="text-[10px] text-gray-300">Tentukan tanggal dan jam pembukaan lelang. Lelang akan otomatis aktif selama 24 jam tepat saat jam pembukaan tercapai.</p>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-gray-400 mb-1 font-semibold">Pilih Tanggal Buka Lelang:</label>
+          <select id="scheduleDateSelect" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 font-mono focus:outline-none focus:border-yellow-500">
+            <!-- Pilihan Tanggal Dimuat Otomatis Melalui JavaScript -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-gray-400 mb-1 font-semibold">Pilih Jam Buka Lelang (WIB):</label>
+          <select id="scheduleTimeSelect" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 font-mono focus:outline-none focus:border-yellow-500">
+            <!-- Pilihan Jam Dimuat Otomatis Melalui JavaScript -->
+          </select>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="saveAuctionScheduleSetting()" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl transition cursor-pointer text-xs shadow-lg">
+          💾 Simpan Jadwal
+        </button>
+        <button onclick="closeAdminScheduleModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2.5 rounded-xl transition cursor-pointer text-xs">
+          Batal
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- MODAL: CHAT ROOM (P2P & Forum Diskusi) -->
@@ -370,7 +421,7 @@
       </div>
       
       <div class="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-center">
-        <p class="text-[10px] text-amber-300 font-medium" data-i18n="certEmailNotice">⚠️️ The certificate will be sent via email once the transaction has been verified.</p>
+        <p class="text-[10px] text-amber-300 font-medium" data-i18n="certEmailNotice">⚠️ The certificate will be sent via email once the transaction has been verified.</p>
       </div>
 
       <div class="flex justify-center bg-black p-2 rounded-xl border border-gray-800 overflow-hidden">
@@ -655,6 +706,10 @@
     let currentChatRoom = 'forum';
     let currentP2PTarget = '';
 
+    // Auction Scheduling State Default (Misal: 10 Okt 2026 / 09:00 WIB)
+    let globalScheduledStartTime = localStorage.getItem('globalScheduledStartTime') || "2026-10-10T09:00:00+07:00";
+    let isAuctionSessionActive = false;
+
     const translations = {
       en: {
         networkModeLabel: "⚡ NETWORK MODE:",
@@ -919,14 +974,14 @@
         tableThStatus: "验证状态",
         tableThAction: "操作",
         certModalTitle: "NFT-GM 官方电子证书",
-        certEmailNotice: "⚠️️ 交易验证后，证书将通过电子邮件发送。",
+        certEmailNotice: "⚠ 交易验证后，证书将通过电子邮件发送。",
         downloadCertBtn: "📥 下载证书 (JPG)",
         quotaDisplayMsg: "每个用户名最多 3 个活跃上架",
         step1Title: "1. 主截图 (锁定仅 1 张)",
         step1Desc: "将上传至画廊的完整图片。",
         step2Title: "2. 附加截图 (锁定仅 1 张)",
         step2Desc: "自动提取标题及验证链上时间。",
-        manualTitleModeBtn: "✏️️ 手动输入模式",
+        manualTitleModeBtn: "✏ 手动输入模式",
         assetTitlePlaceholder: "键入或从附加截图自动填充...",
         titleIndicatorDefault: "⚠️ 从附加截图自动填充或手动键入。",
         labelHashTime: "4. PiBox Hash & 链上时间",
@@ -1080,10 +1135,13 @@
       updateNetworkBannerUI();
       document.getElementById('langSelector').value = currentLang;
       applyTranslations();
+      fetchAuctionScheduleSetting();
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
       setInterval(updateTimers, 1000);
+      setInterval(updateGlobalAuctionScheduleEngine, 1000);
+      populateScheduleDropdowns();
       authenticatePiUser();
     });
 
@@ -1105,9 +1163,140 @@
       }
     }
 
+    // --- LOGIKA UTAMA & ENGINE PENJADWALAN LELANG ---
+    async function fetchAuctionScheduleSetting() {
+      if (!supabaseClient) return;
+      try {
+        const { data } = await supabaseClient.from('settings').select('*').eq('key', 'scheduled_start_time').single();
+        if (data && data.value) {
+          globalScheduledStartTime = data.value;
+          localStorage.setItem('globalScheduledStartTime', data.value);
+        }
+      } catch (e) {}
+    }
+
+    function updateGlobalAuctionScheduleEngine() {
+      const badge = document.getElementById('sessionStateBadge');
+      const display = document.getElementById('auctionScheduleCountdownDisplay');
+      if (!badge || !display) return;
+
+      const now = new Date().getTime();
+      const startTime = new Date(globalScheduledStartTime).getTime();
+      const endTime = startTime + (24 * 60 * 60 * 1000); // Tepat 24 jam setelah buka
+      const timeUntilStart = startTime - now;
+
+      if (now >= startTime && now < endTime) {
+        // Lelang Aktif Berlangsung
+        isAuctionSessionActive = true;
+        badge.innerText = "LIVE ACTIVE (24 JAM)";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
+        
+        const diffEnd = endTime - now;
+        const hrs = Math.floor(diffEnd / (1000 * 60 * 60));
+        const mins = Math.floor((diffEnd % (1000 * 60 * 60)) / (1000 * 60));
+        const secs = Math.floor((diffEnd % (1000 * 60)) / 1000);
+        display.innerText = `Sisa Waktu Sesi: ${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+        display.className = "text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded-lg border border-emerald-500/30";
+      } else if (timeUntilStart > 0 && timeUntilStart <= (24 * 60 * 60 * 1000)) {
+        // T-24 Jam Live Countdown
+        isAuctionSessionActive = false;
+        badge.innerText = "⏳ AKAN DIBUKA";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
+
+        const hrs = Math.floor(timeUntilStart / (1000 * 60 * 60));
+        const mins = Math.floor((timeUntilStart % (1000 * 60 * 60)) / (1000 * 60));
+        const secs = Math.floor((timeUntilStart % (1000 * 60)) / 1000);
+        display.innerText = `Buka Dalam: ${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+        display.className = "text-[10px] font-mono font-bold text-amber-300 bg-amber-950/50 px-2 py-0.5 rounded-lg border border-amber-500/30 animate-pulse";
+      } else if (now < startTime) {
+        // Masih Terjadwal (> 24 Jam)
+        isAuctionSessionActive = false;
+        badge.innerText = "📅 TERJADWAL";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40";
+        
+        const dateFormatted = new Date(globalScheduledStartTime).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        const timeFormatted = new Date(globalScheduledStartTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        display.innerText = `Buka: ${dateFormatted} ${timeFormatted} WIB`;
+        display.className = "text-[10px] font-mono font-bold text-blue-300 bg-blue-950/50 px-2 py-0.5 rounded-lg border border-blue-500/30";
+      } else {
+        // Lelang Ditutup
+        isAuctionSessionActive = false;
+        badge.innerText = "🔒 DITUTUP";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+        display.innerText = "Sesi Lelang Telah Berakhir";
+        display.className = "text-[10px] font-mono font-bold text-red-400 bg-red-950/50 px-2 py-0.5 rounded-lg border border-red-500/30";
+      }
+    }
+
+    function populateScheduleDropdowns() {
+      const dateSelect = document.getElementById('scheduleDateSelect');
+      const timeSelect = document.getElementById('scheduleTimeSelect');
+      if (!dateSelect || !timeSelect) return;
+
+      // Generasi pilihan tanggal (30 Hari Ke Depan)
+      dateSelect.innerHTML = '';
+      const today = new Date();
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        const isoDate = d.toISOString().split('T')[0];
+        const displayDate = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        dateSelect.innerHTML += `<option value="${isoDate}">${displayDate}</option>`;
+      }
+
+      // Generasi pilihan jam (00:00 s.d 23:00)
+      timeSelect.innerHTML = '';
+      for (let h = 0; h < 24; h++) {
+        const hourStr = h.toString().padStart(2, '0') + ":00";
+        timeSelect.innerHTML += `<option value="${hourStr}">${hourStr} WIB</option>`;
+      }
+    }
+
+    function openAdminScheduleModal() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("Akses Ditolak: Hanya Admin atau Dev yang berhak mengatur jadwal lelang.");
+        return;
+      }
+      document.getElementById('adminScheduleModal').classList.remove('hidden');
+    }
+
+    function closeAdminScheduleModal() {
+      document.getElementById('adminScheduleModal').classList.add('hidden');
+    }
+
+    async function saveAuctionScheduleSetting() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("Akses Ditolak: Hak akses dibatasi hanya untuk Admin/Dev.");
+        return;
+      }
+
+      const selectedDate = document.getElementById('scheduleDateSelect').value;
+      const selectedTime = document.getElementById('scheduleTimeSelect').value;
+
+      if (!selectedDate || !selectedTime) {
+        alert("Pilih tanggal dan jam dengan benar.");
+        return;
+      }
+
+      const isoSchedule = `${selectedDate}T${selectedTime}:00+07:00`;
+      globalScheduledStartTime = isoSchedule;
+      localStorage.setItem('globalScheduledStartTime', isoSchedule);
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from('settings').upsert([{ key: 'scheduled_start_time', value: isoSchedule }]);
+        } catch (e) {}
+      }
+
+      alert(`✅ Jadwal lelang berhasil disimpan! Lelang diset untuk dibuka pada: ${selectedDate} pukul ${selectedTime} WIB.`);
+      closeAdminScheduleModal();
+      updateGlobalAuctionScheduleEngine();
+    }
+
     async function authenticatePiUser() {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+      const btnAdminSchedule = document.getElementById('btnAdminScheduleControl');
       
       if (!window.Pi) {
         alert("Pi SDK belum tersedia pada perangkat ini.");
@@ -1128,7 +1317,9 @@
           if (isAdmin) {
             isBuyerApproved = true;
             document.getElementById('buyerApprovalStatusText').innerText = "Admin Terverifikasi (Akses Penuh Tanpa Batas)";
+            if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
           } else {
+            if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
             checkBuyerStatusInDatabase(authenticatedPiUser.username);
           }
           
@@ -1578,7 +1769,6 @@
       }
     }
 
-    // FITUR PERBAIKAN: Penanganan SS Tambahan & Ekstraksi Asset Title Otomatis
     function handleExtraSSUpload(input) {
       const previewList = document.getElementById('extraSSPreviewList');
       previewList.innerHTML = '';
@@ -1596,12 +1786,10 @@
         };
         reader.readAsDataURL(file);
 
-        // Set otomatis On-Chain Time secara presisi
         const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
         document.getElementById('onChainTimeInput').value = nowIso;
         analyzedExtraData.onChainTime = nowIso;
 
-        // Ekstraksi Otomatis NFT Asset Name / Title dari SS Tambahan
         const titleInput = document.getElementById('assetTitleInput');
         const icon = document.getElementById('titleIndicatorIcon');
         const msg = document.getElementById('titleIndicatorMessage');
@@ -1933,7 +2121,6 @@
       });
     }
 
-    // FITUR PERBAIKAN: Posisi NFT Asset Name/Title Berada di Atas Deskripsi & Di Bawah Details / Gambar
     function openDetailModal(auctionId) {
       const item = activeAuctionsList.find(a => a.id === auctionId);
       if (!item) return;
@@ -2009,6 +2196,12 @@
         return;
       }
 
+      // Validasi Jadwal Sesi Lelang Aktif
+      if (!isAuctionSessionActive) {
+        alert("🔒 Sesi Lelang Saat Ini Belum Dibuka / Telah Ditutup. Mohon periksa jadwal lelang pada banner atas.");
+        return;
+      }
+
       const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       if (!isBuyerApproved && !isAdminOrDev) {
         alert("🔒 Akses Penawaran Dibatasi: Status pendaftaran calon pembeli Anda masih 'Pending'. Silakan hubungi Admin/Dev untuk mengaktifkan status Anda.");
@@ -2022,6 +2215,12 @@
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
+        return;
+      }
+
+      // Validasi Sesi Lelang
+      if (!isAuctionSessionActive) {
+        alert("🔒 Sesi Lelang Saat Ini Belum Dibuka / Telah Ditutup.");
         return;
       }
 
@@ -2171,7 +2370,8 @@
     function triggerAggressiveRefresh() {
       const btnText = document.getElementById('refreshTextBtn');
       if (btnText) btnText.innerText = "Refreshing...";
-      fetchActiveAuctions().then(() => {
+      fetchAuctionScheduleSetting().then(() => {
+        fetchActiveAuctions();
         fetchBuyersList();
         if (authenticatedPiUser) checkBuyerStatusInDatabase(authenticatedPiUser.username);
         if (btnText) btnText.innerText = t('refreshBtn');
