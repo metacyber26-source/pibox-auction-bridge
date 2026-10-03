@@ -211,7 +211,7 @@
           <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
             <li data-i18n="guideReleaseStep1">Unggah detail aset (SS Utama & Tambahan).</li>
             <li data-i18n="guideReleaseStep2">Bayar 0.2 Pi biaya server dengan aman & tepat.</li>
-            <li data-i18n="guideReleaseStep3">Rilis aset masuk ke galeri berstatus Pending (memerlukan persetujuan Admin/Dev).</li>
+            <li data-i18n="guideReleaseStep3">Kirim email verifikasi lalu rilis ke galeri berstatus Pending.</li>
           </ol>
         </div>
         <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
@@ -460,17 +460,18 @@
         </div>
       </div>
 
+      <!-- URUTAN TOMBOL DISESUAIKAN: 1. Bayar 0.2 Pi -> 2. Kirim Email Verifikasi -> 3. Rilis ke Galeri -->
       <div class="flex flex-col gap-2 pt-2">
         <button id="btnPayServerFee" type="button" onclick="payServerFeeAndProceed()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
           <span data-i18n="payServerFeeBtn">💳 Bayar 0.2 Pi (Biaya Server)</span>
         </button>
 
-        <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryOnly()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg opacity-50 cursor-not-allowed" disabled>
-          <span data-i18n="releaseGalleryBtn">🚀 Rilis ke Galeri ("Pending")</span>
-        </button>
-
         <button id="btnSendEmail" type="button" onclick="sendEmailToAdminFast()" class="w-full bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg opacity-50 cursor-not-allowed" disabled>
           <span data-i18n="sendEmailBtn">📧 Kirim Email Verifikasi ke Admin</span>
+        </button>
+
+        <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryOnly()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg opacity-50 cursor-not-allowed" disabled>
+          <span data-i18n="releaseGalleryBtn">🚀 Rilis ke Galeri ("Pending")</span>
         </button>
 
         <button type="button" onclick="closeCreateModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2 rounded-xl transition cursor-pointer">Cancel</button>
@@ -660,7 +661,7 @@
         guideReleaseTitle: "🚀 Asset Release Guide:",
         guideReleaseStep1: "Upload asset details (Main & Extra SS).",
         guideReleaseStep2: "Pay 0.2 Pi server fee quickly & accurately.",
-        guideReleaseStep3: "Assets are set to Pending status upon gallery release.",
+        guideReleaseStep3: "Send verification email and release asset to gallery.",
         chatModalTitle: "Nusantara NFT Live Chat Center",
         chatTabForum: "🌐 Room Forum (Global)",
         chatTabP2P: "🔒 Room P2P (Seller & Buyer)",
@@ -735,7 +736,7 @@
         guideReleaseTitle: "🚀 Panduan Rilis Aset:",
         guideReleaseStep1: "Unggah detail aset (SS Utama & Tambahan).",
         guideReleaseStep2: "Bayar 0.2 Pi biaya server dengan cepat & akurat.",
-        guideReleaseStep3: "Aset otomatis berstatus Pending dan memerlukan persetujuan Admin/Dev untuk aktif.",
+        guideReleaseStep3: "Kirim email verifikasi lalu rilis aset ke galeri berstatus Pending.",
         chatModalTitle: "Pusat Live Chat Nusantara NFT",
         chatTabForum: "🌐 Room Forum (Global)",
         chatTabP2P: "🔒 Room P2P (Penjual & Pembeli)",
@@ -1271,6 +1272,7 @@
       } catch(e) { alert(e.message); }
     }
 
+    // TAHAP 1: PEMBAYARAN 0.2 PI (Membuka tombol Kirim Email Verifikasi)
     async function payServerFeeAndProceed() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       const payBtn = document.getElementById('btnPayServerFee');
@@ -1281,11 +1283,13 @@
         hasPaidServerFee = true;
         payBtn.disabled = true;
         payBtn.innerText = "✅ Biaya Server Terbayar";
-        document.getElementById('btnReleaseGallery').disabled = false;
-        document.getElementById('btnReleaseGallery').classList.remove('opacity-50', 'cursor-not-allowed');
-        document.getElementById('btnSendEmail').disabled = false;
-        document.getElementById('btnSendEmail').classList.remove('opacity-50', 'cursor-not-allowed');
-        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil!");
+        
+        // Membuka Tombol Kirim Email Verifikasi (Tahap 2)
+        const sendEmailBtn = document.getElementById('btnSendEmail');
+        sendEmailBtn.disabled = false;
+        sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil! Silakan lanjut ke tahap Kirim Email Verifikasi ke Admin.");
       };
 
       const paymentData = {
@@ -1327,7 +1331,38 @@
     function toggleManualTitleInput() { document.getElementById('assetTitleInput').focus(); }
     function validateAssetTitleInputRealtime() {}
 
-    // PERBAIKAN UTAMA: Aset yang diupload otomatis berstatus PENDING dan form tidak hilang sebelum klik Kirim Email
+    // TAHAP 2: KIRIM EMAIL VERIFIKASI KE ADMIN (Membuka tombol Rilis ke Galeri)
+    function sendEmailToAdminFast() {
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const hash = document.getElementById('assetHashInput').value.trim();
+      const onChainTime = document.getElementById('onChainTimeInput').value.trim();
+
+      if (!title || !hash) {
+        alert("Harap lengkapi nama aset dan hash sebelum mengirim email verifikasi.");
+        return;
+      }
+
+      const emailSubject = encodeURIComponent("Verifikasi Rilis Aset NFT - Nusantara Auction");
+      const emailBody = encodeURIComponent(
+        `Halo Admin,\n\n` +
+        `Mohon verifikasi aset NFT yang baru saja saya unggah.\n\n` +
+        `NFT Asset Name / Title: ${title}\n` +
+        `Hash: ${hash}\n` +
+        `On-chain Time: ${onChainTime}\n\n` +
+        `Terima kasih!`
+      );
+
+      window.location.href = `mailto:admin@nusantaranft.com?subject=${emailSubject}&body=${emailBody}`;
+
+      // Membuka Tombol Rilis ke Galeri (Tahap 3) tanpa menghilangkan data input di form
+      const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
+      releaseGalleryBtn.disabled = false;
+      releaseGalleryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+      alert("📧 Email verifikasi telah disiapkan. Data Anda aman di form, sekarang silakan klik tombol 'Rilis ke Galeri (\"Pending\")' di bawah.");
+    }
+
+    // TAHAP 3: UPLOAD KE GALERI (STATUS PENDING)
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       if (!hasPaidServerFee) { alert("Selesaikan Pembayaran Server Fee terlebih dahulu!"); return; }
@@ -1355,7 +1390,7 @@
           reserve_price: reservePrice,
           seller: authenticatedPiUser.username,
           image_url: imageBase64,
-          status: 'pending', // Aset wajib berstatus pending
+          status: 'pending',
           created_at: createdAtDate.toISOString(),
           ends_at: endsAtDate.toISOString(),
           on_chain_time: onChainTime
@@ -1369,40 +1404,14 @@
             activeAuctionsList.unshift(payload);
           }
 
-          alert("🎉 Aset berhasil dirilis dengan status 'Pending'. Silakan klik tombol 'Kirim Email Verifikasi ke Admin' di bawah untuk verifikasi (Data Anda tetap aman di form).");
+          alert("🎉 Aset Berhasil Dirilis ke Galeri dengan status 'Pending'!");
+          closeCreateModal();
           fetchActiveAuctions();
         } catch (err) {
           alert("Gagal menyimpan ke database: " + err.message);
         }
       };
       reader.readAsDataURL(mainImageFile);
-    }
-
-    // PERBAIKAN FORMAT EMAIL VERIFIKASI KE ADMIN
-    function sendEmailToAdminFast() {
-      const title = document.getElementById('assetTitleInput').value.trim();
-      const hash = document.getElementById('assetHashInput').value.trim();
-      const onChainTime = document.getElementById('onChainTimeInput').value.trim();
-
-      if (!title || !hash) {
-        alert("Harap lengkapi nama aset dan hash sebelum mengirim email verifikasi.");
-        return;
-      }
-
-      const emailSubject = encodeURIComponent("Verifikasi Rilis Aset NFT - Nusantara Auction");
-      const emailBody = encodeURIComponent(
-        `Halo Admin,\n\n` +
-        `Mohon verifikasi aset NFT yang baru saja saya unggah.\n\n` +
-        `NFT Asset Name / Title: ${title}\n` +
-        `Hash: ${hash}\n` +
-        `On-chain Time: ${onChainTime}\n\n` +
-        `Terima kasih!`
-      );
-
-      window.location.href = `mailto:admin@nusantaranft.com?subject=${emailSubject}&body=${emailBody}`;
-      
-      // Setelah klik email, tutup modal dengan aman karena data telah terkirim/disimpan
-      setTimeout(() => { closeCreateModal(); }, 500);
     }
 
     async function fetchActiveAuctions() {
@@ -1441,7 +1450,6 @@
       renderGallery();
     }
 
-    // TAMPILAN GALERI DENGAN KONTROL HAPUS & UBAH STATUS KHUSUS ADMIN/DEV
     function renderGallery() {
       const container = document.getElementById('mainContent');
       const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
@@ -1482,7 +1490,6 @@
                 <p class="text-[10px] text-gray-400 mt-0.5">Seller: <span class="text-yellow-400 font-semibold">@${SecureShield.maskUsername(item.seller)}</span></p>
               </div>
 
-              <!-- TOMBOL KONTROL KHUSUS ADMIN & DEV (UBAH STATUS & HAPUS) -->
               ${isAdminOrDev ? `
                 <div class="bg-purple-950/40 p-2 rounded-xl border border-purple-500/30 flex items-center justify-between gap-1">
                   <span class="text-[9px] text-purple-300 font-bold">Admin/Dev Control:</span>
@@ -1566,7 +1573,9 @@
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       hasPaidServerFee = false;
       document.getElementById('btnReleaseGallery').disabled = true;
+      document.getElementById('btnReleaseGallery').classList.add('opacity-50', 'cursor-not-allowed');
       document.getElementById('btnSendEmail').disabled = true;
+      document.getElementById('btnSendEmail').classList.add('opacity-50', 'cursor-not-allowed');
       document.getElementById('imageFileInput').value = '';
       document.getElementById('extraSSInput').value = '';
       document.getElementById('extraSSPreviewList').innerHTML = '';
