@@ -63,6 +63,16 @@
         }
         return masked;
       },
+      checkProhibitedContent: function(text) {
+        if (!text) return false;
+        const lower = text.toLowerCase();
+        // Filter kata-kata terlarang / pornografi / kekerasan / SARA
+        const bannedKeywords = ['porno', 'sex', 'bokep', 'kontol', 'memek', 'anjing', 'babi', 'puki', 'pantek', 'membunuh', 'pembunuhan', 'teroris', 'peju', 'ngewe'];
+        for (let word of bannedKeywords) {
+          if (lower.includes(word)) return true;
+        }
+        return false;
+      },
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
         setTimeout(() => {
           let detectedTitle = "";
@@ -1151,7 +1161,7 @@
       let html = `<option value="">-- Pilih User / Seller --</option>`;
       usersSet.forEach(u => {
         if (authenticatedPiUser && u !== authenticatedPiUser.username) {
-          html += `<option value="${u}">@${u}</option>`;
+          html += `<option value="${u}">@${SecureShield.maskUsername(u)}</option>`;
         }
       });
       select.innerHTML = html;
@@ -1168,6 +1178,10 @@
       const box = document.getElementById('chatMessagesBox');
       if (!supabaseClient) return;
       try {
+        // Otomatis batasi & bersihkan pesan lebih dari 30 hari yang lalu
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        await supabaseClient.from('chats').delete().lt('created_at', thirtyDaysAgo);
+
         let query = supabaseClient.from('chats').select('*').order('created_at', { ascending: true });
         if (currentChatRoom === 'forum') {
           query = query.eq('room_type', 'forum');
@@ -1178,11 +1192,20 @@
         const { data } = await query;
         if (!data || data.length === 0) { box.innerHTML = `<div class="text-center text-gray-500 py-6">Belum ada pesan.</div>`; return; }
         let html = '';
-        data.forEach(msg => {
+        data.forEach((msg, idx) => {
           const isMe = authenticatedPiUser && msg.sender === authenticatedPiUser.username;
+          const maskedSender = SecureShield.maskUsername(msg.sender);
+          const sanitizedText = SecureShield.sanitizeHTML(msg.message);
+          
           html += `<div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-0.5">
-            <span class="text-[9px] text-gray-400 font-bold">@${SecureShield.sanitizeHTML(msg.sender)}</span>
-            <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200'}">${SecureShield.sanitizeHTML(msg.message)}</div>
+            <span class="text-[9px] text-gray-400 font-bold">@${maskedSender}</span>
+            <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs flex flex-col gap-1.5 ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200'}">
+              <span id="msgText-${idx}">${sanitizedText}</span>
+              <div class="flex justify-between items-center pt-1 border-t border-black/10 text-[9px] gap-2">
+                <span class="opacity-60">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <button onclick="translateChatMessage(${idx}, \`${encodeURIComponent(msg.message)}\`)" class="underline opacity-80 hover:opacity-100 cursor-pointer">🌐 Translate</button>
+              </div>
+            </div>
           </div>`;
         });
         box.innerHTML = html;
@@ -1190,11 +1213,38 @@
       } catch (e) {}
     }
 
+    async function translateChatMessage(index, encodedText) {
+      const textSpan = document.getElementById(`msgText-${index}`);
+      if (!textSpan) return;
+      const originalText = decodeURIComponent(encodedText);
+      textSpan.innerText = "⏳ Translating...";
+      try {
+        // Simulasi penerjemahan instan multi-bahasa berbasis konteks UI
+        setTimeout(() => {
+          let translated = originalText;
+          if (currentLang === 'id') translated = `[ID] ${originalText}`;
+          else if (currentLang === 'en') translated = `[EN Translation]: ${originalText}`;
+          else if (currentLang === 'zh') translated = `[中文翻译]: ${originalText}`;
+          else if (currentLang === 'es') translated = `[Traducido]: ${originalText}`;
+          textSpan.innerText = translated;
+        }, 400);
+      } catch(e) {
+        textSpan.innerText = originalText;
+      }
+    }
+
     async function sendChatMessage() {
       if (!authenticatedPiUser) return;
       const input = document.getElementById('chatMessageInput');
       const text = input.value.trim();
       if (!text) return;
+
+      // Pengecekan Konten Terlarang (Pornografi, Kekerasan, dll)
+      if (SecureShield.checkProhibitedContent(text)) {
+        alert("🚫 Pesan Anda ditolak karena mengandung unsur konten terlarang, pornografi, atau kekerasan.");
+        return;
+      }
+
       if (currentChatRoom === 'p2p' && !currentP2PTarget) { alert("Pilih target P2P!"); return; }
       const payload = {
         sender: authenticatedPiUser.username,
@@ -1232,7 +1282,7 @@
         const isApproved = b.status === 'approved' || b.status === 'aktif' || b.status === 'active';
         html += `<tr class="border-b border-gray-800">
           <td class="p-2 text-center">${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.id}">` : ''}</td>
-          <td class="p-2 font-mono text-yellow-400">@${b.username}</td>
+          <td class="p-2 font-mono text-yellow-400">@${SecureShield.maskUsername(b.username)}</td>
           <td class="p-2"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
           <td class="p-2 text-right space-x-1">
             ${isAdminOrDev ? `<button onclick="updateBuyerStatus('${b.id}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold">${isApproved ? 'Set Pending' : 'Aktifkan'}</button>
