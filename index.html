@@ -460,7 +460,7 @@
         </div>
       </div>
 
-      <!-- URUTAN TOMBOL DISESUAIKAN: 1. Bayar 0.2 Pi -> 2. Kirim Email Verifikasi -> 3. Rilis ke Galeri -->
+      <!-- URUTAN TOMBOL: 1. Bayar 0.2 Pi -> 2. Kirim Email Verifikasi -> 3. Rilis ke Galeri -->
       <div class="flex flex-col gap-2 pt-2">
         <button id="btnPayServerFee" type="button" onclick="payServerFeeAndProceed()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
           <span data-i18n="payServerFeeBtn">💳 Bayar 0.2 Pi (Biaya Server)</span>
@@ -1272,7 +1272,7 @@
       } catch(e) { alert(e.message); }
     }
 
-    // TAHAP 1: PEMBAYARAN 0.2 PI (Membuka tombol Kirim Email Verifikasi)
+    // PEMBAYARAN 0.2 PI
     async function payServerFeeAndProceed() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       const payBtn = document.getElementById('btnPayServerFee');
@@ -1284,7 +1284,6 @@
         payBtn.disabled = true;
         payBtn.innerText = "✅ Biaya Server Terbayar";
         
-        // Membuka Tombol Kirim Email Verifikasi (Tahap 2)
         const sendEmailBtn = document.getElementById('btnSendEmail');
         sendEmailBtn.disabled = false;
         sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -1331,7 +1330,7 @@
     function toggleManualTitleInput() { document.getElementById('assetTitleInput').focus(); }
     function validateAssetTitleInputRealtime() {}
 
-    // TAHAP 2: KIRIM EMAIL VERIFIKASI KE ADMIN (Membuka tombol Rilis ke Galeri)
+    // KIRIM EMAIL VERIFIKASI KE ADMIN
     function sendEmailToAdminFast() {
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
@@ -1354,7 +1353,6 @@
 
       window.location.href = `mailto:admin@nusantaranft.com?subject=${emailSubject}&body=${emailBody}`;
 
-      // Membuka Tombol Rilis ke Galeri (Tahap 3) tanpa menghilangkan data input di form
       const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
       releaseGalleryBtn.disabled = false;
       releaseGalleryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -1362,7 +1360,7 @@
       alert("📧 Email verifikasi telah disiapkan. Data Anda aman di form, sekarang silakan klik tombol 'Rilis ke Galeri (\"Pending\")' di bawah.");
     }
 
-    // TAHAP 3: UPLOAD KE GALERI (STATUS PENDING)
+    // UPLOAD KE GALERI (STATUS PENDING)
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       if (!hasPaidServerFee) { alert("Selesaikan Pembayaran Server Fee terlebih dahulu!"); return; }
@@ -1450,6 +1448,7 @@
       renderGallery();
     }
 
+    // RENDER GALERI DENGAN TOMBOL KONTROL "Aktif" / "Pending" & LOGIKA TOMBOL PENAWARAN
     function renderGallery() {
       const container = document.getElementById('mainContent');
       const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
@@ -1475,7 +1474,7 @@
       let html = '<div class="grid grid-cols-1 gap-4">';
       filteredAuctionsList.forEach(item => {
         const isPending = item.status === 'pending';
-        const statusText = isPending ? '⏳ Pending' : 'Aktif';
+        const statusText = isPending ? '⏳ Pending (Tidak dapat ditawar)' : 'Aktif';
         const badgeClass = isPending ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
 
         html += `
@@ -1490,19 +1489,24 @@
                 <p class="text-[10px] text-gray-400 mt-0.5">Seller: <span class="text-yellow-400 font-semibold">@${SecureShield.maskUsername(item.seller)}</span></p>
               </div>
 
+              <!-- TOMBOL KONTROL ADMIN: "Aktif" / "Pending" -->
               ${isAdminOrDev ? `
                 <div class="bg-purple-950/40 p-2 rounded-xl border border-purple-500/30 flex items-center justify-between gap-1">
                   <span class="text-[9px] text-purple-300 font-bold">Admin/Dev Control:</span>
                   <div class="flex gap-1">
-                    ${isPending ? `<button onclick="adminChangeStatus('${item.id}', 'active')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-bold px-2 py-1 rounded">Aktifkan</button>` : `<button onclick="adminChangeStatus('${item.id}', 'pending')" class="bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-bold px-2 py-1 rounded">Set Pending</button>`}
-                    <button onclick="adminDeleteAsset('${item.id}')" class="bg-red-600 hover:bg-red-500 text-white text-[9px] font-bold px-2 py-1 rounded">Hapus</button>
+                    ${isPending 
+                      ? `<button onclick="adminChangeStatus('${item.id}', 'active')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-bold px-2 py-1 rounded cursor-pointer">⚡ Set Status Aktif</button>` 
+                      : `<button onclick="adminChangeStatus('${item.id}', 'pending')" class="bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-bold px-2 py-1 rounded cursor-pointer">⏳ Pending</button>`
+                    }
+                    <button onclick="adminDeleteAsset('${item.id}')" class="bg-red-600 hover:bg-red-500 text-white text-[9px] font-bold px-2 py-1 rounded cursor-pointer">Hapus Aset</button>
                   </div>
                 </div>
               ` : ''}
 
+              <!-- LOGIKA TOMBOL PENAWARAN: Aktif = Bisa Diklik | Pending = Disabled (Tidak Aktif) -->
               <div class="flex gap-2 pt-1">
-                <button onclick="openDetailModal('${item.id}')" class="flex-1 bg-gray-900 text-gray-200 text-xs py-2 rounded-xl border border-gray-700">Details</button>
-                <button onclick="handleBidClick('${item.id}')" class="flex-1 bg-emerald-600 text-white text-xs font-bold py-2 rounded-xl shadow-md ${isPending ? 'opacity-50 cursor-not-allowed' : ''}">🔨 Place Bid</button>
+                <button onclick="openDetailModal('${item.id}')" class="flex-1 bg-gray-900 text-gray-200 text-xs py-2 rounded-xl border border-gray-700 cursor-pointer">Details</button>
+                <button onclick="handleBidClick('${item.id}')" class="flex-1 text-xs font-bold py-2 rounded-xl shadow-md transition ${isPending ? 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-60' : 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer'}" ${isPending ? 'disabled' : ''}>🔨 Kirim Tawaran</button>
               </div>
             </div>
           </div>`;
@@ -1550,7 +1554,7 @@
             <span class="text-[9px] uppercase tracking-widest text-yellow-400 font-bold">NFT Asset Title</span>
             <h2 class="text-sm font-black text-white leading-tight">${SecureShield.sanitizeHTML(item.title)}</h2>
           </div>
-          ${isPending ? `<div class="bg-amber-500/10 border border-amber-500/30 p-2 text-center text-amber-300 rounded-lg text-[10px]">⚠️ Aset ini masih berstatus Pending dan belum dapat ditawar sebelum diaktifkan oleh Admin/Dev.</div>` : ''}
+          ${isPending ? `<div class="bg-amber-500/10 border border-amber-500/30 p-2 text-center text-amber-300 rounded-lg text-[10px]">⚠️ Aset ini masih berstatus Pending dan tidak dapat ditawar sebelum diaktifkan oleh Admin/Dev.</div>` : ''}
           <div class="space-y-2 pt-1">
             <button onclick="closeDetailModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 py-2 rounded-xl">Tutup</button>
           </div>
