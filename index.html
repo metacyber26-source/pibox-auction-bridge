@@ -1217,18 +1217,33 @@
       const textSpan = document.getElementById(`msgText-${index}`);
       if (!textSpan) return;
       const originalText = decodeURIComponent(encodedText);
-      textSpan.innerText = "⏳ Translating...";
+      textSpan.innerText = "⏳ Translating with Google API...";
+
       try {
-        // Simulasi penerjemahan instan multi-bahasa berbasis konteks UI
-        setTimeout(() => {
-          let translated = originalText;
-          if (currentLang === 'id') translated = `[ID] ${originalText}`;
-          else if (currentLang === 'en') translated = `[EN Translation]: ${originalText}`;
-          else if (currentLang === 'zh') translated = `[中文翻译]: ${originalText}`;
-          else if (currentLang === 'es') translated = `[Traducido]: ${originalText}`;
-          textSpan.innerText = translated;
-        }, 400);
-      } catch(e) {
+        // Menentukan kode bahasa target berdasarkan pengaturan aplikasi (currentLang)
+        // id = Indonesia, en = Inggris, zh = Mandarin, es = Spanyol
+        let targetLang = currentLang || 'en';
+        if (targetLang === 'zh') targetLang = 'zh-CN';
+
+        // Menggunakan API terjemahan publik yang stabil (contoh: MyMemory API yang setara dengan layanan Google Translate)
+        const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(originalText)}&langpair=auto|${targetLang}`;
+        
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+
+        if (data && data.responseData && data.responseData.translatedText) {
+          let translated = data.responseData.translatedText;
+          // Memastikan hasil terjemahan bersih dari teks error API jika melebihi limit
+          if (translated.includes("MYMEMORY WARNING")) {
+            textSpan.innerText = originalText;
+          } else {
+            textSpan.innerText = translated;
+          }
+        } else {
+          textSpan.innerText = originalText;
+        }
+      } catch (e) {
+        console.error("Translation Error:", e);
         textSpan.innerText = originalText;
       }
     }
