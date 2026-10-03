@@ -643,7 +643,7 @@
             ctx.fillStyle = '#94a3b8';
             ctx.fillText('• On-chain Time:', 180, 540);
             ctx.fillStyle = '#facc15';
-            ctx.fillText(auctionData.created_at ? new Date(auctionData.created_at).toISOString().replace('T', ' ').substring(0, 19) : new Date().toISOString().replace('T', ' ').substring(0, 19), 370, 540);
+            ctx.fillText(auctionData.on_chain_time || (auctionData.created_at ? new Date(auctionData.created_at).toISOString().replace('T', ' ').substring(0, 19) : new Date().toISOString().replace('T', ' ').substring(0, 19)), 370, 540);
 
             ctx.textAlign = 'center';
             ctx.fillStyle = '#94a3b8';
@@ -1010,7 +1010,7 @@
         step2Desc: "自动提取标题及验证链上时间。",
         manualTitleModeBtn: "✏ 手动输入模式",
         assetTitlePlaceholder: "键入或从附加截图自动填充...",
-        titleIndicatorDefault: "⚠️️ 从附加截图自动填充或手动键入。",
+        titleIndicatorDefault: "⚠️ 从附加截图自动填充或手动键入。",
         labelHashTime: "4. PiBox Hash & 链上时间",
         hashPlaceholder: "Hash: GCVJ2EXX...",
         timePlaceholder: "链上时间 (自动)",
@@ -1383,7 +1383,7 @@
       }
     }
 
-    // FITUR PERBAIKAN: Fungsi Tombol Daftar Pembeli
+    // FITUR: Fungsi Tombol Daftar Pembeli
     async function handleBuyerRegistrationAction() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1713,6 +1713,64 @@
       }
     }
 
+    // --- FUNGSI ADMIN & DEV UNTUK KELOLA ASET GALERI (UBAH STATUS & HAPUS) ---
+    async function updateAssetStatusByAdmin(assetId, newStatus) {
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      if (!isAdminOrDev) {
+        alert("Akses Ditolak: Hanya Admin dan Developer yang dapat mengubah status aset!");
+        return;
+      }
+
+      try {
+        if (supabaseClient) {
+          const { error } = await supabaseClient
+            .from('auctions')
+            .update({ status: newStatus })
+            .eq('id', assetId);
+          if (error) throw error;
+        } else {
+          const item = activeAuctionsList.find(a => a.id === assetId);
+          if (item) item.status = newStatus;
+        }
+
+        alert(`✅ Status aset berhasil diubah menjadi '${newStatus.toUpperCase()}'! ${newStatus === 'active' ? 'Aset sekarang dapat ditawar.' : 'Aset tidak dapat ditawar.'}`);
+        closeDetailModal();
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal mengubah status aset: " + err.message);
+      }
+    }
+
+    async function deleteAssetByAdmin(assetId) {
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      if (!isAdminOrDev) {
+        alert("Akses Ditolak: Hanya Admin dan Developer yang dapat menghapus aset dari galeri!");
+        return;
+      }
+
+      if (!confirm("⚠️ Apakah Anda yakin ingin menghapus aset NFT ini secara permanen dari galeri?")) {
+        return;
+      }
+
+      try {
+        if (supabaseClient) {
+          const { error } = await supabaseClient
+            .from('auctions')
+            .delete()
+            .eq('id', assetId);
+          if (error) throw error;
+        } else {
+          activeAuctionsList = activeAuctionsList.filter(a => a.id !== assetId);
+        }
+
+        alert("🗑️ Aset NFT berhasil dihapus dari galeri!");
+        closeDetailModal();
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal menghapus aset: " + err.message);
+      }
+    }
+
     // PROSES PEMBAYARAN 0.2 PI UNTUK RILIS ASET
     async function payServerFeeAndProceed() {
       if (!authenticatedPiUser) {
@@ -1803,7 +1861,7 @@
       }
     }
 
-    // FITUR PERBAIKAN: Penanganan SS Tambahan & Ekstraksi Asset Title Otomatis
+    // Penanganan SS Tambahan & Ekstraksi Asset Title Otomatis
     function handleExtraSSUpload(input) {
       const previewList = document.getElementById('extraSSPreviewList');
       previewList.innerHTML = '';
@@ -1849,7 +1907,7 @@
           } else {
             if (icon) icon.innerText = "✏️";
             if (msg) {
-              msg.innerText = "ℹ️ Nama/Title tidak terdeteksi otomatis. Silakan isi secara manual.";
+              msg.innerText = "ℹ️️ Nama/Title tidak terdeteksi otomatis. Silakan isi secara manual.";
               msg.className = "text-[9px] text-yellow-400 mt-1 font-bold";
             }
           }
@@ -1890,6 +1948,7 @@
       }
     }
 
+    // FUNGSI RILIS KE GALERI: Status Awal Selalu 'pending' & Tidak Hilang Sebelum Kirim Email
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1925,14 +1984,13 @@
         const createdAtDate = new Date();
         const endsAtDate = new Date(createdAtDate.getTime() + (24 * 60 * 60 * 1000));
 
-        // RILIS ASSET DENGAN STATUS PENDING SECARA OTOMATIS
         const payload = {
           title: title,
           hash: hash,
           reserve_price: reservePrice,
           seller: authenticatedPiUser.username,
           image_url: imageBase64,
-          status: 'pending',
+          status: 'pending', // Status Wajib Pending untuk Diversifikasi Admin
           created_at: createdAtDate.toISOString(),
           ends_at: endsAtDate.toISOString(),
           on_chain_time: onChainTime
@@ -1947,8 +2005,7 @@
             activeAuctionsList.unshift(payload);
           }
 
-          alert("🎉 Asset berhasil di-upload ke galeri dengan status PENDING. Silakan kirim email ke admin untuk diversifikasi!");
-          closeCreateModal();
+          alert("🎉 NFT Asset Berhasil Dirilis ke Galeri dengan status 'Pending'! Silakan klik tombol 'Kirim Email Verifikasi ke Admin' di bawah untuk verifikasi.");
           fetchActiveAuctions();
         } catch (err) {
           alert("Gagal menyimpannya ke database Supabase: " + err.message);
@@ -1957,85 +2014,23 @@
       reader.readAsDataURL(mainImageFile);
     }
 
-    // FITUR LENGKAP: Pengiriman Email Data Aset ke Admin
+    // FUNGSI KIRIM EMAIL KE ADMIN: Mengirimkan NFT Asset Name / Title, Hash, dan On-chain Time Sesuai Persyaratan
     function sendEmailToAdminFast() {
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
       const onChainTime = document.getElementById('onChainTimeInput').value || new Date().toISOString();
+      const price = document.getElementById('reservePriceInput').value;
+      const user = authenticatedPiUser ? authenticatedPiUser.username : 'Guest';
 
       if (!title || !hash) {
         alert("Pastikan NFT Asset Name / Title dan Hash sudah terisi sebelum mengirim email!");
         return;
       }
 
-      const emailSubject = encodeURIComponent(`Verifikasi Asset NFT: ${title}`);
-      const emailBody = encodeURIComponent(
-        `Halo Admin & Developer Nusantara NFT,\n\n` +
-        `Berikut adalah data asset NFT baru yang diupload ke galeri untuk mohon diversifikasi dan diaktifkan statusnya:\n\n` +
-        `NFT Asset Name / Title: ${title}\n` +
-        `Hash: ${hash}\n` +
-        `On-chain Time: ${onChainTime}\n\n` +
-        `Mohon verifikasi untuk merubah status dari pending menjadi aktif. Terima kasih!`
-      );
+      const bodyText = `Halo Admin,\n\nSaya telah mengunggah data aset ke galeri dan ingin mengajukan verifikasi/diversifikasi status lelang:\n\nNFT Asset Name / Title: ${title}\nHash: ${hash}\nOn-chain Time: ${onChainTime}\n\nRincian Tambahan:\n- Reserve Price: ${price} Pi\n- Seller Username: @${user}\n\nMohon untuk memverifikasi dan mengubah status aset dari pending menjadi aktif. Terima kasih!`;
 
-      window.location.href = `mailto:admin@nusantaranft.com?subject=${emailSubject}&body=${emailBody}`;
-    }
-
-    // FITUR KHUSUS ADMIN/DEV: Merubah Status Aset (Pending <-> Active) & Menghapus Aset
-    async function toggleAssetStatus(auctionId, currentStatus) {
-      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      if (!isAdminOrDev) {
-        alert("Akses Ditolak: Hanya Admin dan Developer yang dapat merubah status aset!");
-        return;
-      }
-
-      const newStatus = (currentStatus === 'pending') ? 'active' : 'pending';
-      try {
-        if (supabaseClient) {
-          const { error } = await supabaseClient
-            .from('auctions')
-            .update({ status: newStatus })
-            .eq('id', auctionId);
-
-          if (error) throw error;
-        } else {
-          const idx = activeAuctionsList.findIndex(a => a.id === auctionId);
-          if (idx !== -1) activeAuctionsList[idx].status = newStatus;
-        }
-
-        alert(`✅ Status aset berhasil diubah menjadi: ${newStatus.toUpperCase()}`);
-        fetchActiveAuctions();
-      } catch (err) {
-        alert("Gagal memperbarui status aset: " + err.message);
-      }
-    }
-
-    async function deleteAssetFromGallery(auctionId) {
-      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      if (!isAdminOrDev) {
-        alert("Akses Ditolak: Hanya Admin dan Developer yang dapat menghapus aset dari galeri!");
-        return;
-      }
-
-      if (!confirm("Apakah Anda yakin ingin menghapus aset ini dari galeri secara permanen?")) return;
-
-      try {
-        if (supabaseClient) {
-          const { error } = await supabaseClient
-            .from('auctions')
-            .delete()
-            .eq('id', auctionId);
-
-          if (error) throw error;
-        } else {
-          activeAuctionsList = activeAuctionsList.filter(a => a.id !== auctionId);
-        }
-
-        alert("🗑️ Aset berhasil dihapus dari galeri.");
-        fetchActiveAuctions();
-      } catch (err) {
-        alert("Gagal menghapus aset: " + err.message);
-      }
+      const mailtoUrl = `mailto:admin@nusantaranft.com?subject=${encodeURIComponent('Verifikasi Rilis NFT - ' + title)}&body=${encodeURIComponent(bodyText)}`;
+      window.location.href = mailtoUrl;
     }
 
     async function fetchActiveAuctions() {
@@ -2103,7 +2098,6 @@
     function renderGallery() {
       const container = document.getElementById('mainContent');
       
-      // Restriksi Akses Galeri Bagi Pembeli Pending / Belum Disetujui
       const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       if (!isBuyerApproved && !isAdminOrDev) {
         container.innerHTML = `
@@ -2141,7 +2135,7 @@
 
       let html = '<div class="grid grid-cols-1 gap-4">';
       filteredAuctionsList.forEach(item => {
-        const isPending = (item.status === 'pending' || !item.status);
+        const isPending = item.status === 'pending';
         const isEnded = item.status === 'ended' || item.status === 'finished';
         const isCancelled = item.status === 'cancelled';
 
@@ -2162,7 +2156,7 @@
         const maskedSeller = SecureShield.maskUsername(item.seller);
 
         html += `
-          <div class="bg-gray-950 border ${isPending ? 'border-amber-500/50' : 'border-gray-800'} rounded-2xl overflow-hidden shadow-xl hover:border-yellow-500/40 transition duration-300 flex flex-col">
+          <div class="bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden shadow-xl hover:border-yellow-500/40 transition duration-300 flex flex-col">
             <div class="relative bg-black flex items-center justify-center min-h-[180px] max-h-[240px] overflow-hidden group cursor-pointer" onclick="openDetailModal('${item.id}')">
               <img src="${item.image_url}" alt="${SecureShield.sanitizeHTML(item.title)}" class="w-full h-full object-contain group-hover:scale-105 transition duration-500">
               <span class="absolute top-2 right-2 text-[9px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md ${badgeClass}">
@@ -2190,38 +2184,19 @@
                 </div>
               </div>
 
-              <!-- PANEL AKSI USER DAN ADMIN/DEV -->
-              <div class="flex flex-col gap-1.5 pt-1">
-                <div class="flex gap-2">
-                  <button onclick="openDetailModal('${item.id}')" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-semibold py-2 rounded-xl border border-gray-700 transition cursor-pointer text-center">
-                    Details
+              <div class="flex gap-2 pt-1">
+                <button onclick="openDetailModal('${item.id}')" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-semibold py-2 rounded-xl border border-gray-700 transition cursor-pointer text-center">
+                  Details
+                </button>
+                ${isEnded ? `
+                  <button onclick="openCertificateModal('${item.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2 rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1">
+                    📜 Certificate
                   </button>
-                  ${isEnded ? `
-                    <button onclick="openCertificateModal('${item.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2 rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1">
-                      📜 Certificate
-                    </button>
-                  ` : (isPending ? `
-                    <button class="flex-1 bg-gray-800 text-amber-400 text-xs font-bold py-2 rounded-xl border border-amber-500/30 cursor-not-allowed text-center" disabled>
-                      ⏳ Pending (Tidak dapat ditawar)
-                    </button>
-                  ` : `
-                    <button onclick="handleBidClick('${item.id}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1 shadow-md">
-                      ${t('placeBidBtn')}
-                    </button>
-                  `)}
-                </div>
-
-                <!-- KHUSUS AKSI ADMIN DAN DEV: UBAH STATUS & HAPUS ASET -->
-                ${isAdminOrDev ? `
-                  <div class="flex gap-1.5 pt-1 border-t border-gray-800">
-                    <button onclick="toggleAssetStatus('${item.id}', '${item.status || 'pending'}')" class="flex-1 ${isPending ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'} text-white text-[10px] font-bold py-1.5 rounded-lg transition cursor-pointer">
-                      ${isPending ? '⚡ Set Status Aktif' : '⏳ Set Pending'}
-                    </button>
-                    <button onclick="deleteAssetFromGallery('${item.id}')" class="bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition cursor-pointer">
-                      🗑️️ Hapus Aset
-                    </button>
-                  </div>
-                ` : ''}
+                ` : `
+                  <button onclick="handleBidClick('${item.id}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1 shadow-md">
+                    ${t('placeBidBtn')}
+                  </button>
+                `}
               </div>
             </div>
           </div>
@@ -2253,6 +2228,7 @@
       });
     }
 
+    // DETAIL MODAL: Menampilkan status pending & kontrol Admin/Dev untuk Ubah Status / Hapus
     function openDetailModal(auctionId) {
       const item = activeAuctionsList.find(a => a.id === auctionId);
       if (!item) return;
@@ -2263,11 +2239,12 @@
       const maskedBidder = item.highest_bidder ? SecureShield.maskUsername(item.highest_bidder) : 'Belum Ada';
 
       const isMyOwnAsset = authenticatedPiUser && item.seller === authenticatedPiUser.username;
-      
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      const isPending = item.status === 'pending';
+
       const username = authenticatedPiUser ? authenticatedPiUser.username : '';
       const userKey = `${username}_${item.id}`;
       const hasAlreadyBiddedOnThisAsset = !!userBiddedAssets[userKey];
-      const isPending = (item.status === 'pending' || !item.status);
 
       modalContent.innerHTML = `
         <div class="space-y-3 text-xs">
@@ -2280,17 +2257,33 @@
           <div class="bg-gray-900 border border-yellow-500/40 p-3 rounded-xl space-y-1 text-center shadow-md">
             <span class="text-[9px] uppercase tracking-widest text-yellow-400 font-bold">NFT Asset Title</span>
             <h2 class="text-sm font-black text-white leading-tight">${SecureShield.sanitizeHTML(item.title)}</h2>
+            <div class="pt-1">
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-bold ${isPending ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'}">
+                Status: ${isPending ? 'Pending (Tidak Dapat Ditawar)' : 'Aktif (Dapat Ditawar)'}
+              </span>
+            </div>
           </div>
+
+          <!-- Panel Khusus Admin & Dev (Ubah Status & Hapus Aset) -->
+          ${isAdminOrDev ? `
+            <div class="bg-purple-950/50 border border-purple-500/40 p-2.5 rounded-xl space-y-2">
+              <span class="text-[10px] font-bold text-purple-300 block text-center">⚙️ Panel Kontrol Admin & Dev</span>
+              <div class="flex gap-2">
+                <button onclick="updateAssetStatusByAdmin('${item.id}', '${isPending ? 'active' : 'pending'}')" class="flex-1 ${isPending ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'} text-white font-bold py-1.5 px-2 rounded-lg text-[10px] transition cursor-pointer shadow">
+                  ${isPending ? '⚡ Set Aktif (Aktifkan Tawar)' : '⏸ Set Pending (Kunci Tawar)'}
+                </button>
+                <button onclick="deleteAssetByAdmin('${item.id}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] transition cursor-pointer shadow">
+                  🗑 Hapus Aset
+                </button>
+              </div>
+            </div>
+          ` : ''}
 
           <!-- Deskripsi & Rincian Aset -->
           <div class="bg-gray-900/80 p-3 rounded-xl border border-gray-800 space-y-2">
             <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
               <span class="text-gray-400 text-[10px]">Seller:</span>
               <span class="font-bold text-yellow-400">@${maskedSeller} ${isMyOwnAsset ? '(Aset Milik Anda)' : ''}</span>
-            </div>
-            <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
-              <span class="text-gray-400 text-[10px]">Status Aset:</span>
-              <span class="font-bold ${isPending ? 'text-amber-400' : 'text-emerald-400'}">${isPending ? '⏳ Pending (Verifikasi Admin)' : '🟢 Aktif (Dapat Ditawar)'}</span>
             </div>
             <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
               <span class="text-gray-400 text-[10px]">Reserve Price:</span>
@@ -2320,20 +2313,13 @@
           </div>
 
           <!-- Fitur Bidding Langsung dari Modal -->
-          ${isPending ? `
-            <div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center">
-              <p class="text-xs text-amber-300 font-bold">⏳ Aset dalam Status Pending</p>
-              <p class="text-[10px] text-gray-400 mt-1">Aset ini belum dapat ditawar. Menunggu Admin/Dev merubah status dari pending menjadi aktif.</p>
-            </div>
-          ` : `
-            <div class="space-y-2 pt-1">
-              <label class="block text-[10px] font-semibold text-gray-300">Masukkan Penawaran Anda (Pi):</label>
-              <input type="number" step="0.01" id="modalBidInput" placeholder="Lebih tinggi dari ${item.highest_bid || item.reserve_price} Pi" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
-              <button id="btnSubmitModalBid" onclick="submitBidFromModal('${item.id}')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
-                🔨 ${t('placeBidBtn')}${hasAlreadyBiddedOnThisAsset ? '(GRATIS)' : '(Biaya 0.2 Pi)'}
-              </button>
-            </div>
-          `}
+          <div class="space-y-2 pt-1">
+            <label class="block text-[10px] font-semibold text-gray-300">Masukkan Penawaran Anda (Pi):</label>
+            <input type="number" step="0.01" id="modalBidInput" ${isPending ? 'disabled' : ''} placeholder="${isPending ? 'Aset berstatus Pending - Penawaran Dikunci' : 'Lebih tinggi dari ' + (item.highest_bid || item.reserve_price) + ' Pi'}" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 disabled:opacity-50">
+            <button id="btnSubmitModalBid" onclick="submitBidFromModal('${item.id}')" ${isPending ? 'disabled' : ''} class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              🔨 ${isPending ? 'Aset Pending (Tidak Dapat Ditawar)' : t('placeBidBtn') + ' ' + (hasAlreadyBiddedOnThisAsset ? '(GRATIS)' : '(Biaya 0.2 Pi)')}
+            </button>
+          </div>
         </div>
       `;
 
@@ -2356,6 +2342,13 @@
         return;
       }
 
+      const item = activeAuctionsList.find(a => a.id === auctionId);
+      if (item && item.status === 'pending') {
+        alert("⏳ Aset NFT ini berstatus 'Pending' dan belum disetujui oleh Admin/Dev. Aset yang berstatus pending tidak dapat ditawar.");
+        openDetailModal(auctionId);
+        return;
+      }
+
       const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       if (!isBuyerApproved && !isAdminOrDev) {
         alert("🔒 Akses Penawaran Dibatasi: Status pendaftaran calon pembeli Anda masih 'Pending'. Silakan hubungi Admin/Dev untuk mengaktifkan status Anda.");
@@ -2365,6 +2358,7 @@
       openDetailModal(auctionId);
     }
 
+    // PROSES PEMBAYARAN 0.2 PI SAAT PENAWARAN ASET
     async function submitBidFromModal(auctionId) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -2377,17 +2371,17 @@
         return;
       }
 
-      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      if (!isBuyerApproved && !isAdminOrDev) {
-        alert("🔒 Akses Penawaran Dibatasi: Status pendaftaran calon pembeli Anda masih 'Pending'. Silakan hubungi Admin/Dev untuk mengaktifkan status Anda.");
-        return;
-      }
-
       const item = activeAuctionsList.find(a => a.id === auctionId);
       if (!item) return;
 
-      if (item.status === 'pending' || !item.status) {
-        alert("🔒 Penawaran Ditolak: Status aset ini masih 'Pending' dan belum dapat ditawar!");
+      if (item.status === 'pending') {
+        alert("⏳ Aset NFT ini berstatus 'Pending'. Aset berstatus pending tidak dapat ditawar!");
+        return;
+      }
+
+      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      if (!isBuyerApproved && !isAdminOrDev) {
+        alert("🔒 Akses Penawaran Dibatasi: Status pendaftaran calon pembeli Anda masih 'Pending'. Silakan hubungi Admin/Dev untuk mengaktifkan status Anda.");
         return;
       }
 
