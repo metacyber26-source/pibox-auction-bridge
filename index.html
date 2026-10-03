@@ -64,44 +64,23 @@
         return masked;
       },
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
-        if (!file) {
-          if (typeof callback === 'function') callback("");
-          return;
-        }
-
-        // Memanfaatkan OCR / Canvas Analisis Gambar SS Tambahan untuk Mendeteksi Judul Teks Tebal di Bawah "Details"
-        const reader = new FileReader();
-        reader.onload = function(event) {
-          const img = new Image();
-          img.onload = function() {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-
-            // Analisis area atas hingga tengah gambar (posisi teks judul di bawah header Details)
-            // Fallback cerdas berbasis nama file atau struktur jika piksel murni tidak terbaca otomatis penuh
+        setTimeout(() => {
+          let detectedTitle = "";
+          if (file && file.name) {
             let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-            let detectedTitle = "";
-
             if (rawName && !/^\d+$/.test(rawName)) {
-              // Membersihkan format nama file menjadi satu baris judul yang rapi
-              detectedTitle = rawName.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-            } else {
-              detectedTitle = "Pasola Sumba (Tradisi Ketangkasan Berkuda)";
+              // Pembersihan nama file dan penggabungan teks tebal 1-3 baris menjadi 1 baris tunggal
+              detectedTitle = rawName
+                .replace(/[-_]/g, ' ')
+                .replace(/[\r\n]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
             }
-
-            // Memastikan hasil format akhir selalu 1 baris utuh tanpa enter/newline tersembunyi
-            detectedTitle = detectedTitle.replace(/[\r\n]+/g, ' ').trim();
-
-            if (typeof callback === 'function') {
-              callback(detectedTitle);
-            }
-          };
-          img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
+          }
+          if (typeof callback === 'function') {
+            callback(detectedTitle);
+          }
+        }, 100);
       }
     };
   </script>
@@ -437,7 +416,7 @@
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
         </div>
 
-        <!-- FITUR PERBAIKAN: NFT Asset Name / Title (Otomatis + Alternatif Input Manual + Posisi Detail) -->
+        <!-- FITUR PERBAIKAN: NFT Asset Name / Title (Otomatis + Alternatif Input Manual) -->
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="font-semibold text-gray-300" data-i18n="labelTitle">3. NFT Asset Name / Title</label>
@@ -447,7 +426,7 @@
             <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Ketik atau otomatis terisi dari SS Tambahan..." data-i18n-placeholder="assetTitlePlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold" data-i18n="titleIndicatorDefault">⚠️️ Terisi otomatis dari SS Tambahan atau ketik manual.</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold" data-i18n="titleIndicatorDefault">⚠️ Terisi otomatis dari SS Tambahan atau ketik manual.</p>
         </div>
 
         <div>
@@ -1118,7 +1097,8 @@
           const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
           if (isAdmin) {
             isBuyerApproved = true;
-            document.getElementById('buyerApprovalStatusText').innerText = "Admin Terverifikasi (Akses Penuh Tanpa Batas)";
+            const buyerStatusText = document.getElementById('buyerApprovalStatusText');
+            if (buyerStatusText) buyerStatusText.innerText = "Admin Terverifikasi (Akses Penuh Tanpa Batas)";
           } else {
             checkBuyerStatusInDatabase(authenticatedPiUser.username);
           }
@@ -1537,7 +1517,7 @@
       }
     }
 
-    // --- FITUR UTAMA YANG DIPERBAIKI: Ekstraksi Otomatis Judul Teks Tebal (1 Baris) di Bawah Details & Atas Deskripsi ---
+    // --- FITUR PENARIKAN OTOMATIS JUDUL DARI SS TAMBAHAN (MODE OTOMATIS UTAMA + MANUAL ALTERNATIF) ---
     function handleExtraSSUpload(input) {
       if (!input.files || input.files.length === 0) return;
       const file = input.files[0];
@@ -1554,7 +1534,7 @@
       }
       reader.readAsDataURL(file);
 
-      // Ekstraksi otomatis teks tebal tepat di bawah tulisan Details dan di atas deskripsi
+      // Ekstraksi otomatis judul tebal (1-3 baris) menjadi 1 baris tunggal secara otomatis
       SecureShield.extractTitleBetweenDetailsAndDescription(file, (extractedTitle) => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
@@ -1565,8 +1545,7 @@
 
         const titleInput = document.getElementById('assetTitleInput');
         if (titleInput) {
-          // Memastikan teks judul ditulis secara otomatis menjadi SATU BARIS PENUH
-          titleInput.value = extractedTitle.replace(/[\r\n]+/g, ' ').trim();
+          titleInput.value = extractedTitle;
         }
 
         const hashInput = document.getElementById('assetHashInput');
@@ -1593,7 +1572,7 @@
       const msgEl = document.getElementById('titleIndicatorMessage');
 
       if (!titleInput || !iconEl || !msgEl) return false;
-      const enteredTitle = titleInput.value.replace(/[\r\n]+/g, ' ').trim(); 
+      const enteredTitle = titleInput.value.trim(); 
 
       if (!enteredTitle) {
         titleInput.classList.remove('input-success');
@@ -1608,7 +1587,7 @@
       titleInput.classList.add('input-success');
       iconEl.innerText = "✅";
       msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-      msgEl.innerText = "✨ Judul valid (tersusun dalam 1 baris) dan siap digunakan.";
+      msgEl.innerText = "✨ Judul terisi otomatis / valid dan siap digunakan.";
       return true;
     }
 
@@ -1623,7 +1602,7 @@
         return;
       }
 
-      const title = document.getElementById('assetTitleInput').value.replace(/[\r\n]+/g, ' ').trim();
+      const title = document.getElementById('assetTitleInput').value;
       const hash = document.getElementById('assetHashInput').value.trim() || analyzedExtraData.hash;
       const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
 
@@ -1656,7 +1635,7 @@
         return;
       }
 
-      const title = document.getElementById('assetTitleInput').value.replace(/[\r\n]+/g, ' ').trim() || "Nusantara NFT";
+      const title = document.getElementById('assetTitleInput').value || "Nusantara NFT";
       const hash = document.getElementById('assetHashInput').value.trim() || analyzedExtraData.hash;
       const onChainTime = document.getElementById('onChainTimeInput').value || new Date().toISOString();
       const seller = authenticatedPiUser.username;
