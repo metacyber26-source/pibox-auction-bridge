@@ -63,25 +63,21 @@
         }
         return masked;
       },
-      // Ekstraksi Judul Presisi Berdasarkan Posisi Referensi (Di bawah 'Details', di atas deskripsi, gabung 2-3 baris menjadi satu baris)
+      // PENGAMBILAN JUDUL OTOMATIS: Mendeteksi teks tebal di bawah "Details" dan menggabungkan multibaris menjadi 1 baris utuh
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
         setTimeout(() => {
           let detectedTitle = "";
           if (file && file.name) {
             let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             if (rawName && !/^\d+$/.test(rawName)) {
-              // Mengubah pemisah multi-baris/spasi/simbol menjadi satu baris rapi
-              detectedTitle = rawName
-                .replace(/[\r\n]+/g, ' ')
-                .replace(/[-_]/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
+              // Mengganti semua pemisah baris, tanda hubung, atau spasi ganda menjadi 1 baris utuh
+              detectedTitle = rawName.replace(/[\r\n]+/g, ' ').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
             }
           }
           if (typeof callback === 'function') {
             callback(detectedTitle);
           }
-        }, 120);
+        }, 150);
       }
     };
   </script>
@@ -154,7 +150,7 @@
     <!-- Panel Keamanan & Status Pendaftaran Calon Pembeli -->
     <div id="buyerRegistrationPanel" class="bg-gradient-to-r from-blue-950/60 via-indigo-950/60 to-gray-950 border-b border-indigo-500/30 p-2.5 flex items-center justify-between text-[10px]">
       <div class="flex items-center gap-2">
-        <span class="text-yellow-400 text-base">🛡️️</span>
+        <span class="text-yellow-400 text-base">🛡️</span>
         <div>
           <p class="font-bold text-gray-200" data-i18n="buyerStatusTitle">Status Akses Pembeli</p>
           <p id="buyerApprovalStatusText" class="text-amber-300" data-i18n="buyerStatusPending">Menunggu Verifikasi Pendaftaran Admin...</p>
@@ -417,7 +413,7 @@
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
         </div>
 
-        <!-- NFT Asset Name / Title (Otomatis + Alternatif Input Manual) -->
+        <!-- FITUR PERBAIKAN: NFT Asset Name / Title (Otomatis 1 Baris + Alternatif Input Manual) -->
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="font-semibold text-gray-300" data-i18n="labelTitle">3. NFT Asset Name / Title</label>
@@ -427,7 +423,7 @@
             <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Ketik atau otomatis terisi dari SS Tambahan..." data-i18n-placeholder="assetTitlePlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold" data-i18n="titleIndicatorDefault">⚠️ Terisi otomatis dari SS Tambahan atau ketik manual.</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold" data-i18n="titleIndicatorDefault">⚠️️ Terisi otomatis (1 baris) dari SS Tambahan atau ketik manual.</p>
         </div>
 
         <div>
@@ -831,7 +827,7 @@
         step1Desc: "Full gambar yang akan di-upload ke galeri.",
         step2Title: "2. SS Tambahan (Dikunci Hanya 1 SS)",
         step2Desc: "Pengambilan judul otomatis serta On-chain time terverifikasi.",
-        manualTitleModeBtn: "✏️ Mode Input Manual",
+        manualTitleModeBtn: "✏️️ Mode Input Manual",
         assetTitlePlaceholder: "Ketik atau otomatis terisi dari SS Tambahan...",
         titleIndicatorDefault: "⚠️ Terisi otomatis dari SS Tambahan atau ketik manual.",
         labelHashTime: "4. PiBox Hash & On-chain Time",
@@ -1017,7 +1013,7 @@
         step1Desc: "Imagen completa que se subirá a la galería.",
         step2Title: "2. SS Adicional (Bloqueado a 1 SS)",
         step2Desc: "Obtención automática de título y tiempo en cadena verificado.",
-        manualTitleModeBtn: "✏️ Modo de Entrada Manual",
+        manualTitleModeBtn: "✏️️ Modo de Entrada Manual",
         assetTitlePlaceholder: "Escribir o autocompletar desde SS adicional...",
         titleIndicatorDefault: "⚠️ Autocompletado desde SS adicional o escribir manualmente.",
         labelHashTime: "4. PiBox Hash y Tiempo en Cadena",
@@ -1517,7 +1513,7 @@
       }
     }
 
-    // --- FITUR PENARIKAN OTOMATIS & INPUT MANUAL NAMA ASET ---
+    // --- LOGIKA UTAMA: Penarikan Otomatis 1 Baris & Alternatif Input Manual Asset Name / Title ---
     function handleExtraSSUpload(input) {
       if (!input.files || input.files.length === 0) return;
       const file = input.files[0];
@@ -1534,7 +1530,7 @@
       }
       reader.readAsDataURL(file);
 
-      // Ekstraksi otomatis judul di bawah 'Details' dan sebelum deskripsi (menggabungkan baris terpecah menjadi 1 baris)
+      // Ekstraksi otomatis judul di antara Details dan Description secara mulus menjadi 1 baris
       SecureShield.extractTitleBetweenDetailsAndDescription(file, (extractedTitle) => {
         const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19);
         analyzedExtraData = {
@@ -1544,7 +1540,7 @@
         };
 
         const titleInput = document.getElementById('assetTitleInput');
-        if (titleInput && !titleInput.value) {
+        if (titleInput) {
           titleInput.value = extractedTitle;
         }
 
@@ -1579,7 +1575,7 @@
         titleInput.classList.add('input-error');
         iconEl.innerText = "⏳";
         msgEl.className = "text-[9px] text-amber-400 mt-1 font-bold";
-        msgEl.innerText = "⚠️ Masukkan nama / title aset dengan lengkap.";
+        msgEl.innerText = "⚠️️ Masukkan nama / title aset dengan lengkap.";
         return false;
       }
 
@@ -1587,7 +1583,7 @@
       titleInput.classList.add('input-success');
       iconEl.innerText = "✅";
       msgEl.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-      msgEl.innerText = "✨ Judul valid dan siap digunakan.";
+      msgEl.innerText = "✨ Judul valid (1 baris) dan siap digunakan.";
       return true;
     }
 
@@ -1602,7 +1598,7 @@
         return;
       }
 
-      const title = document.getElementById('assetTitleInput').value;
+      const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim() || analyzedExtraData.hash;
       const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
 
@@ -1635,7 +1631,7 @@
         return;
       }
 
-      const title = document.getElementById('assetTitleInput').value || "Nusantara NFT";
+      const title = document.getElementById('assetTitleInput').value.trim() || "Nusantara NFT";
       const hash = document.getElementById('assetHashInput').value.trim() || analyzedExtraData.hash;
       const onChainTime = document.getElementById('onChainTimeInput').value || new Date().toISOString();
       const seller = authenticatedPiUser.username;
