@@ -932,6 +932,12 @@
           el.innerText = translations[currentLang][key];
         }
       });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (translations[currentLang]?.[key]) {
+          el.placeholder = translations[currentLang][key];
+        }
+      });
     }
 
     try {
@@ -1434,13 +1440,231 @@
         return;
       }
 
-      alert(t('successRelease'));
+      // Upload gambar ke Supabase Storage atau simpan data lelang ke tabel auctions
+      try {
+        const reader = new FileReader();
+        reader.readAsDataURL(mainImageFile);
+        reader.onload = async function() {
+          const base64Image = reader.result;
+          const payload = {
+            title: title,
+            hash: hash,
+            reserve_price: reservePrice,
+            seller: authenticatedPiUser.username,
+            image_url: base64Image,
+            status: 'pending',
+            created_at: new Date().toISOString()
+          };
+          
+          if (supabaseClient) {
+            const { error } = await supabaseClient.from('auctions').insert([payload]);
+            if (error) throw error;
+          }
+
+          alert(t('successRelease'));
+          closeCreateModal();
+          fetchActiveAuctions();
+        };
+      } catch (err) {
+        alert("Gagal merilis aset: " + err.message);
+      }
     }
 
-    function fetchActiveAuctions() {}
-    function setupRealtimeSubscription() {}
+    // ==========================================
+    // PERBAIKAN UTAMA: MODUL GALERI & SUPABASE
+    // ==========================================
+    async function fetchActiveAuctions() {
+      const mainContent = document.getElementById('mainContent');
+      if (!supabaseClient) {
+        mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Supabase Client belum terinisialisasi.</div>`;
+        return;
+      }
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('auctions')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        activeAuctionsList = data || [];
+        updateActiveCounts();
+        filterGallery();
+      } catch (err) {
+        console.error("Fetch Auctions Error:", err);
+        mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Gagal memuat galeri: ${err.message}</div>`;
+      }
+    }
+
+    function updateActiveCounts() {
+      const sellersSet = new Set();
+      const biddersSet = new Set();
+      activeAuctionsList.forEach(a => {
+        if (a.seller) sellersSet.add(a.seller);
+        if (a.highest_bidder) biddersSet.add(a.highest_bidder);
+      });
+      
+      const sellersEl = document.getElementById('activeSellersCount');
+      const biddersEl = document.getElementById('activeBiddersCount');
+      if (sellersEl) sellersEl.innerText = `${sellersSet.size} User`;
+      if (biddersEl) biddersEl.innerText = `${biddersSet.size} User`;
+    }
+
+    function filterGallery() {
+      const query = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+      const statusFilter = document.getElementById('statusFilter')?.value || 'all';
+
+      filteredAuctionsList = activeAuctionsList.filter(item => {
+        const matchesQuery = (item.title || '').toLowerCase().includes(query) || (item.hash || '').toLowerCase().includes(query) || (item.seller || '').toLowerCase().includes(query);
+        
+        if (!matchesQuery) return false;
+
+        if (statusFilter === 'all') return true;
+        if (statusFilter === 'active') return item.status === 'active';
+        if (statusFilter === 'pending') return item.status === 'pending';
+        if (statusFilter === 'my_listings') return authenticatedPiUser && item.seller === authenticatedPiUser.username;
+        if (statusFilter === 'my_bids') return authenticatedPiUser && item.highest_bidder === authenticatedPiUser.username;
+        if (statusFilter === 'ended') return item.status === 'ended' || item.status === 'finished';
+        if (statusFilter === 'cancelled') return item.status === 'cancelled';
+
+        return true;
+      });
+
+      renderGallery();
+    }
+
+    function renderGallery() {
+      const mainContent = document.getElementById('mainContent');
+      if (!mainContent) return;
+
+      if (filteredAuctionsList.length === 0) {
+        mainContent.innerHTML = `
+          <div class="text-center py-16 space-y-3">
+            <p class="text-gray-500 text-xs">${t('emptyGallery')}</p>
+            <button onclick="handleOpenCreateModal()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow">
+              ${t('firstReleaseBtn')}
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      let html = '<div class="grid grid-cols-1 gap-3">';
+      filteredAuctionsList.forEach(auction => {
+        const title = SecureShield.sanitizeHTML(auction.title || 'Untitled NFT');
+        const seller = SecureShield.maskUsername(auction.seller || 'Anonymous');
+        const price = auction.highest_bid || auction.reserve_price || 0;
+        const status = auction.status || 'active';
+        
+        let statusBadge = `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Active</span>`;
+        if (status === 'pending') statusBadge = `<span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Pending</span>`;
+        if (status === 'ended' || status === 'finished') statusBadge = `<span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Ended</span>`;
+        if (status === 'cancelled') statusBadge = `<span class="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Cancelled</span>`;
+
+        html += `
+          <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex gap-3 items-center hover:border-yellow-500/50 transition shadow-md">
+            <div class="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 border border-gray-800">
+              <img src="${auction.image_url || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover">
+            </div>
+            <div class="flex-1 min-w-0 space-y-1">
+              <div class="flex justify-between items-start">
+                <h3 class="font-bold text-xs text-white truncate">${title}</h3>
+                ${statusBadge}
+              </div>
+              <p class="text-[10px] text-gray-400">Seller: <span class="text-yellow-400 font-mono">@${seller}</span></p>
+              <div class="flex justify-between items-center text-[11px]">
+                <span class="text-emerald-400 font-bold">${price} Pi</span>
+                <button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">
+                  Details & Bid
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+      mainContent.innerHTML = html;
+    }
+
+    function openDetailModalWithData(auctionId) {
+      selectedAuction = activeAuctionsList.find(a => a.id === auctionId);
+      if (!selectedAuction) return;
+
+      const content = document.getElementById('modalDetailContent');
+      const title = SecureShield.sanitizeHTML(selectedAuction.title || 'Untitled');
+      const seller = SecureShield.maskUsername(selectedAuction.seller || 'Anon');
+      const price = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
+
+      content.innerHTML = `
+        <div class="space-y-3 text-xs">
+          <div class="w-full h-48 bg-black rounded-xl overflow-hidden border border-gray-800">
+            <img src="${selectedAuction.image_url}" class="w-full h-full object-contain">
+          </div>
+          <div class="space-y-1">
+            <h3 class="font-bold text-sm text-yellow-400">${title}</h3>
+            <p class="text-gray-400">Creator/Seller: <span class="text-white font-mono">@${seller}</span></p>
+            <p class="text-gray-400">Current Price: <span class="text-emerald-400 font-bold">${price} Pi</span></p>
+            <p class="text-[10px] text-gray-500 font-mono">Hash: ${selectedAuction.hash || '-'}</p>
+          </div>
+          <div class="pt-2 flex gap-2">
+            <button onclick="placeBidOnAuction('${selectedAuction.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl transition cursor-pointer shadow">${t('placeBidBtn')}</button>
+            <button onclick="closeDetailModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 py-2.5 px-4 rounded-xl transition cursor-pointer font-semibold">Close</button>
+          </div>
+        </div>
+      `;
+      document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    async function placeBidOnAuction(auctionId) {
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      if (!isBuyerApproved && !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⚠️ Akun Anda belum disetujui sebagai pembeli aktif oleh Admin!");
+        return;
+      }
+
+      const current = activeAuctionsList.find(a => a.id === auctionId);
+      if (!current) return;
+      if (current.seller === authenticatedPiUser.username) {
+        alert("❌ Dilarang menawar aset milik Anda sendiri!");
+        return;
+      }
+
+      const nextPrice = (parseFloat(current.highest_bid || current.reserve_price || 0)) + 5;
+
+      try {
+        if (supabaseClient) {
+          const { error } = await supabaseClient
+            .from('auctions')
+            .update({ highest_bid: nextPrice, highest_bidder: authenticatedPiUser.username })
+            .eq('id', auctionId);
+
+          if (error) throw error;
+        }
+
+        alert(t('bidSuccessMsg'));
+        closeDetailModal();
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal menawar: " + err.message);
+      }
+    }
+
+    function setupRealtimeSubscription() {
+      if (!supabaseClient) return;
+      try {
+        supabaseClient
+          .channel('public:auctions')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, payload => {
+            fetchActiveAuctions();
+          })
+          .subscribe();
+      } catch(e) {
+        console.warn("Realtime subscription failed:", e);
+      }
+    }
+
     function updateTimers() {}
-    function filterGallery() {}
     function triggerAggressiveRefresh() { location.reload(); }
     function handleOpenCreateModal() { document.getElementById('createModal').classList.remove('hidden'); }
     function closeCreateModal() { document.getElementById('createModal').classList.add('hidden'); }
