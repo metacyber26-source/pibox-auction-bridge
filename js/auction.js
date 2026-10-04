@@ -1,64 +1,54 @@
 import { compressImage } from './compressor.js';
 
-// js/auction.js - Logika Lelang, Kompresi, & Pengiriman Supabase
+// js/auction.js - Logika Lelang & Kompresi Gambar Terintegrasi
 export function initAuction() {
-    const btnRelease = document.getElementById('btn-release');
     const fileInput = document.getElementById('file-input');
+    const btnRelease = document.getElementById('btn-release');
 
-    let processedFile = null; // Menyimpan file yang sudah dikompres
+    let compressedFile = null;
 
-    // 1. Tangani pemilihan file & kompresi otomatis
+    // 1. Kompres gambar otomatis saat file dipilih untuk mencegah macet di HP
     if (fileInput) {
         fileInput.addEventListener('change', async (e) => {
-            let file = e.target.files[0];
-            if (!file) return;
+            const originalFile = e.target.files[0];
+            if (!originalFile) return;
 
             try {
-                console.log("Ukuran file asli:", (file.size / 1024 / 1024).toFixed(2), "MB");
-                // Kompres gambar agar tidak macet di perangkat seluler
-                processedFile = await compressImage(file, 1024, 0.7);
-                console.log("Ukuran setelah dikompres:", (processedFile.size / 1024 / 1024).toFixed(2), "MB");
+                console.log(`Ukuran asli: ${(originalFile.size / 1024 / 1024).toFixed(2)} MB`);
+                
+                // Kompres gambar (maks lebar 1024px, kualitas 70%)
+                compressedFile = await compressImage(originalFile, 1024, 0.7);
+                
+                console.log(`Ukuran setelah kompres: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
+                alert('Gambar berhasil dikompres dan siap dirilis!');
             } catch (err) {
-                console.error("Gagal kompres gambar:", err);
-                alert("Gagal memproses gambar.");
+                console.error("Gagal mengompres gambar:", err);
+                alert("Terjadi kesalahan saat memproses gambar.");
             }
         });
     }
 
-    // 2. Tangani tombol Rilis Aset & Kirim ke Supabase
+    // 2. Menyiapkan data lelang saat tombol Rilis Aset diklik
     if (btnRelease) {
         btnRelease.addEventListener('click', async () => {
             try {
-                console.log("Memulai proses rilis aset ke galeri...");
-                
-                // Buat waktu berakhir lelang 24 jam ke depan (Mencegah error ends_at null)
-                const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-                
-                // Ambil nilai input judul atau nama aset jika ada
-                const titleInput = document.getElementById('nft-title') || document.getElementById('title');
-                const titleValue = titleInput ? titleInput.value : "Aset Nusantara";
+                // Wajib ada untuk memenuhi aturan database (ends_at tidak boleh null)
+                const endsAtTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-                // Contoh perintah pengiriman ke Supabase 
-                /*
-                // Pastikan variabel 'supabase' sudah terhubung di proyek Anda
-                const { data, error } = await supabase
-                    .from('auctions')
-                    .insert([
-                        {
-                            title: titleValue,
-                            image_url: processedFile ? processedFile.name : "default.jpg",
-                            ends_at: endsAt // <-- Parameter wajib agar tidak error null constraint
-                        }
-                    ]);
+                console.log("Parameter waktu lelang disiapkan:", endsAtTime);
 
-                if (error) throw error;
+                // Contoh struktur data yang dikirim ke Supabase:
+                /* 
+                const auctionPayload = {
+                    title: "Aset Nusantara",
+                    image_file: compressedFile,
+                    ends_at: endsAtTime // <-- KUNCI UTAMA AGAR TIDAK ERROR NULL
+                };
+                // await supabase.from('auctions').insert([auctionPayload]);
                 */
-
-                alert("Aset berhasil dirilis dan waktu lelang (ends_at) telah dicatat!");
 
             } catch (err) {
                 console.error("Gagal merilis aset:", err);
-                alert("Gagal merilis aset: " + err.message);
             }
         });
     }
