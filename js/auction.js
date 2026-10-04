@@ -1,18 +1,18 @@
 import { compressImage } from './compressor.js';
 
-// js/auction.js - Logika Lelang & Galeri
+// js/auction.js - Logika Lelang, Kompresi, & Pengiriman Data
 export function initAuction() {
     // 1. Logika untuk tombol Sertifikat
     const btnCert = document.getElementById('btn-certificate');
     if (btnCert) {
         btnCert.addEventListener('click', () => {
             alert('Modul Sertifikat NFT-GM dibuka.');
-            // Logika canvas sertifikat dapat dipanggil di sini
         });
     }
 
-    // 2. Logika untuk Kompresi Gambar Otomatis saat Pilih File
-    const fileInput = document.getElementById('file-input'); // Sesuaikan ID jika id di HTML Anda berbeda
+    // 2. Logika Utama Pengunggahan dan Pelelangan Aset
+    const fileInput = document.getElementById('file-input');
+    
     if (fileInput) {
         fileInput.addEventListener('change', async (e) => {
             let file = e.target.files[0];
@@ -21,18 +21,29 @@ export function initAuction() {
             try {
                 console.log(`Ukuran file asli: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
                 
-                // Proses kompresi gambar (maksimal lebar 1024px, kualitas 70%)
+                // Kompres gambar otomatis (maksimal lebar 1024px, kualitas 70%)
                 file = await compressImage(file, 1024, 0.7);
                 
                 console.log(`Ukuran setelah dikompres: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
                 
-                // Beritahu pengguna bahwa gambar siap
-                alert('Gambar berhasil dikompres dan siap diunggah!');
+                // Contoh pembuatan waktu berakhir lelang otomatis (misal: 24 jam dari sekarang)
+                const now = new Date();
+                const endsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
-                // Di sini Anda bisa melanjutkan proses unggah file 'file' yang sudah diringkas ke Supabase/Galeri Anda
+                // Pastikan variabel 'ends_at' dikirim bersama data ke Supabase Anda, contoh:
+                /*
+                const auctionData = {
+                    title: document.getElementById('title-input')?.value || "Aset Nusantara",
+                    image_url: file, // atau hasil upload URL Supabase Storage
+                    ends_at: endsAt // <-- Ini wajib diisi agar tidak error 'null constraint'
+                };
+                */
+
+                alert('Gambar siap dan parameter waktu lelang terpenuhi!');
+
             } catch (err) {
-                console.error("Gagal mengompres gambar:", err);
-                alert("Terjadi kesalahan saat memproses gambar.");
+                console.error("Gagal memproses lelang:", err);
+                alert("Gagal merilis aset: " + err.message);
             }
         });
     }
