@@ -987,43 +987,57 @@
       }
     }
 
-    async function authenticatePiUser() {
+        async function authenticatePiUser() {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
       const btnAdminSchedule = document.getElementById('btnAdminSchedule');
       
       if (!window.Pi) {
-        alert("Pi SDK belum tersedia.");
+        alert("Pi SDK belum tersedia. Pastikan Anda membukanya di dalam Pi Browser.");
         return;
       }
 
       try {
         const scopes = ['username', 'payments'];
-        const auth = await window.Pi.authenticate(scopes, () => {});
-        authenticatedPiUser = auth.user;
         
-        if (authenticatedPiUser) {
-          const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-          if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">${maskedName}</span>`;
+        // Fungsi callback untuk menangani pembayaran tertunda (mandatory Pi SDK)
+        const onIncompletePaymentFound = (payment) => {
+          console.log("Incomplete payment found:", payment);
+        };
+
+        window.Pi.authenticate(scopes, onIncompletePaymentFound).then(auth => {
+          authenticatedPiUser = auth.user;
           
-          const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-          if (isAdmin) {
-            isBuyerApproved = true;
-            document.getElementById('buyerApprovalStatusText').innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-            if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          } else {
-            if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-            checkBuyerStatusInDatabase(authenticatedPiUser.username);
+          if (authenticatedPiUser) {
+            const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
+            if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+            if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">${maskedName}</span>`;
+            
+            const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+            if (isAdmin) {
+              isBuyerApproved = true;
+              document.getElementById('buyerApprovalStatusText').innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+              if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+            } else {
+              if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+              checkBuyerStatusInDatabase(authenticatedPiUser.username);
+            }
+            
+            fetchActiveAuctions();
+            fetchBuyersList();
+            alert(`🎉 Berhasil Login sebagai @${maskedName}`);
           }
-          
-          fetchActiveAuctions();
-          fetchBuyersList();
-        }
+        }).catch(err => {
+          console.error("Pi Auth Failed:", err);
+          alert("Gagal melakukan autentikasi Pi Network: " + (err.message || err));
+        });
+
       } catch (err) {
         console.error("Pi Authentication Error:", err);
+        alert("Terjadi kesalahan saat memproses login Pi.");
       }
     }
+
 
     async function checkBuyerStatusInDatabase(username) {
       if (!supabaseClient || !username) return;
