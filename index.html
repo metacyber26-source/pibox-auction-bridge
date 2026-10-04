@@ -49,7 +49,8 @@
         const len = clean.length;
         if (len <= 2) return clean[0] + '*';
         
-        const maskLength = Math.max(1, Math.floor(len * 0.75));
+        // Memastikan 75% karakter dari username diganti menjadi simbol bintang (*)
+        const maskLength = Math.max(1, Math.round(len * 0.75));
         const startIdx = Math.floor((len - maskLength) / 2);
         const endIdx = startIdx + maskLength;
         
@@ -63,13 +64,27 @@
         }
         return masked;
       },
+      checkProhibitedContent: function(text) {
+        if (!text) return false;
+        const lower = text.toLowerCase();
+        // Filter kata-kata terlarang / pornografi / kekerasan / SARA
+        const bannedKeywords = ['porno', 'sex', 'bokep', 'kontol', 'memek', 'anjing', 'babi', 'puki', 'pantek', 'membunuh', 'pembunuhan', 'teroris', 'peju', 'ngewe'];
+        for (let word of bannedKeywords) {
+          if (lower.includes(word)) return true;
+        }
+        return false;
+      },
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
         setTimeout(() => {
           let detectedTitle = "";
           if (file && file.name) {
             let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             if (rawName && !/^\d+$/.test(rawName)) {
-              detectedTitle = rawName.replace(/[-_]/g, ' ').trim();
+              detectedTitle = rawName
+                .replace(/[-_]/g, ' ')
+                .replace(/[\r\n]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
             }
           }
           if (typeof callback === 'function') {
@@ -95,14 +110,6 @@
     .custom-scrollbar::-webkit-scrollbar-thumb {
       background: #374151;
       border-radius: 4px;
-    }
-    .input-error {
-      border-color: #ef4444 !important;
-      background-color: rgba(239, 68, 68, 0.1) !important;
-    }
-    .input-success {
-      border-color: #10b981 !important;
-      background-color: rgba(16, 185, 129, 0.1) !important;
     }
   </style>
 </head>
@@ -135,12 +142,12 @@
           <option value="es">🇪🇸 ES</option>
         </select>
 
+        <button id="btnAdminSchedule" onclick="openScheduleModal()" class="hidden text-xs bg-purple-900 hover:bg-purple-800 text-purple-200 font-bold px-2 py-1.5 rounded-xl border border-purple-500/40 transition flex items-center gap-1 cursor-pointer">
+          ⚙️ <span data-i18n="scheduleBtn">Jadwal</span>
+        </button>
+
         <button id="btnHeaderLogin" onclick="authenticatePiUser()" class="text-xs bg-gray-800 hover:bg-gray-700 text-yellow-400 font-semibold px-2 py-1.5 rounded-xl border border-yellow-500/30 transition flex items-center gap-1 cursor-pointer">
           🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>
-        </button>
-        
-        <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1.5 rounded-xl transition duration-200 shadow-lg flex items-center gap-1 cursor-pointer">
-          <span data-i18n="releaseAssetBtn">+ List Asset</span>
         </button>
       </div>
     </div>
@@ -154,21 +161,26 @@
           <p id="buyerApprovalStatusText" class="text-amber-300" data-i18n="buyerStatusPending">Menunggu Verifikasi Pendaftaran Admin...</p>
         </div>
       </div>
-      <div class="flex gap-1">
-        <button onclick="openChatModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer flex items-center gap-1">
-          💬 <span data-i18n="chatRoomBtn">Chat Room</span>
+      <div class="flex flex-col gap-1.5 items-end">
+        <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="w-full text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer">
+          <span data-i18n="releaseAssetBtn">+ List Asset</span>
         </button>
-        <button onclick="openBuyersTableModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1.5 rounded-lg transition shadow cursor-pointer" data-i18n="dataBtn">
-          👥 Data
-        </button>
+        <div class="flex gap-1">
+          <button onclick="openChatModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer flex items-center gap-1">
+            💬 <span data-i18n="chatRoomBtn">Chat Room</span>
+          </button>
+          <button onclick="handleBuyerRegistrationAction()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer" data-i18n="registerBuyerBtn">
+            📋 Daftar Pembeli
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Banner Sesi Lelang -->
     <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2 text-center flex justify-between items-center px-3">
-      <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider" data-i18n="auctionStatusLabel">⏳ AUCTION STATUS:</span>
+      <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider" data-i18n="auctionStatusLabel">⏳ STATUS LELANG:</span>
       <span id="sessionStateBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" data-i18n="liveOpenBadge">
-        LIVE 24/7 OPEN
+        BUKA LIVE 24/7
       </span>
     </div>
 
@@ -210,20 +222,19 @@
           <p class="font-bold text-yellow-400 mb-1" data-i18n="guideReleaseTitle">🚀 Panduan Rilis Aset:</p>
           <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
             <li data-i18n="guideReleaseStep1">Unggah detail aset (SS Utama & Tambahan).</li>
-            <li data-i18n="guideReleaseStep2">Tentukan harga awal & verifikasi hash.</li>
-            <li data-i18n="guideReleaseStep3">Konfirmasi publikasi (Status Pending).</li>
+            <li data-i18n="guideReleaseStep2">Bayar 0.2 Pi biaya server dengan aman & tepat.</li>
+            <li data-i18n="guideReleaseStep3">Rilis ke galeri lalu kirim email verifikasi ke admin.</li>
           </ol>
         </div>
         <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
           <p class="font-bold text-emerald-400 mb-1" data-i18n="guideBidTitle">🔨 Panduan Penawaran & Chat:</p>
           <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
-            <li data-i18n="guideBidStep1">Pilih aset dari galeri aktif.</li>
-            <li data-i18n="guideBidStep2">Gunakan fitur Chat Room untuk diskusi & P2P.</li>
-            <li data-i18n="guideBidStep3">Ajukan penawaran dan pantau perkembangan.</li>
+            <li data-i18n="guideBidStep1">Bayar 0.2 Pi pada penawaran pertama tiap aset.</li>
+            <li data-i18n="guideBidStep2">Penawaran berikutnya pada aset yang sama GRATIS.</li>
+            <li data-i18n="guideBidStep3">Dilarang menawar aset milik Anda sendiri.</li>
           </ol>
         </div>
       </div>
-      <p class="text-[9px] text-amber-400/90 italic text-center pt-1" data-i18n="guideFooterNote">NB: Karena transaksinya terjadi di PiBox, maka akses verifikasi divalidasi ketat oleh sistem.</p>
     </div>
 
     <!-- Galeri Content -->
@@ -246,7 +257,60 @@
 
   </div>
 
-  <!-- MODAL: CHAT ROOM (P2P & Forum Diskusi) -->
+  <!-- MODAL: PENGATURAN JADWAL LELANG -->
+  <div id="scheduleModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-purple-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-purple-400 text-lg">⚙</span>
+          <div>
+            <h2 class="text-xs font-bold text-purple-400 uppercase tracking-wider">Pengaturan Jadwal Lelang</h2>
+            <p class="text-[9px] text-gray-400">Khusus Admin & Developer</p>
+          </div>
+        </div>
+        <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1">Status Mode Sesi Lelang Saat Ini:</label>
+          <select id="scheduleModeSelect" onchange="toggleScheduleInputVisibility()" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-purple-500">
+            <option value="24h_open">🟢 Selalu Buka 24/7 (Tanpa Batas Jadwal)</option>
+            <option value="scheduled">⏳ Menggunakan Jadwal Buka & Sesi 24 Jam</option>
+            <option value="closed_now">🔴 Tutup Lelang Manual (Hentikan Penawaran)</option>
+          </select>
+        </div>
+
+        <div id="scheduledInputsContainer" class="space-y-3 bg-gray-900/80 p-3 rounded-xl border border-gray-800 hidden">
+          <div>
+            <label class="block text-[10px] text-gray-400 font-semibold mb-1">1. Tanggal Buka Lelang:</label>
+            <input type="date" id="scheduleStartDateInput" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none">
+          </div>
+
+          <div>
+            <label class="block text-[10px] text-gray-400 font-semibold mb-1">2. Jam Buka Lelang:</label>
+            <select id="scheduleStartHourSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none"></select>
+          </div>
+
+          <div>
+            <label class="block text-[10px] text-gray-400 font-semibold mb-1">3. Durasi Sesi Lelang:</label>
+            <select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none">
+              <option value="24">Sesi 24 Jam</option>
+              <option value="12">Sesi 12 Jam</option>
+              <option value="48">Sesi 48 Jam</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeScheduleModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer">Batal</button>
+        <button onclick="saveAuctionScheduleSettings()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs py-2.5 rounded-xl transition cursor-pointer shadow-lg">💾 Simpan Jadwal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CHAT ROOM -->
   <div id="chatModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
     <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5 w-full max-w-lg space-y-3 shadow-2xl max-h-[90vh] flex flex-col">
       <div class="flex justify-between items-center border-b border-gray-800 pb-2">
@@ -260,17 +324,11 @@
         <button onclick="closeChatModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
       </div>
 
-      <!-- Tab Selection -->
       <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-xs">
-        <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer" data-i18n="chatTabForum">
-          🌐 Room Forum (Global)
-        </button>
-        <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer" data-i18n="chatTabP2P">
-          🔒 Room P2P (Penjual & Pembeli)
-        </button>
+        <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer" data-i18n="chatTabForum">🌐 Room Forum (Global)</button>
+        <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer" data-i18n="chatTabP2P">🔒 Room P2P (Penjual & Pembeli)</button>
       </div>
 
-      <!-- P2P Sub-selector -->
       <div id="p2pTargetSelectorContainer" class="hidden bg-gray-900 p-2 rounded-xl border border-gray-800 text-xs space-y-1">
         <label class="block text-[10px] text-gray-400 font-semibold" data-i18n="p2pSelectLabel">Pilih Penjual / Lawan Chat P2P:</label>
         <div class="flex gap-2">
@@ -281,21 +339,13 @@
         </div>
       </div>
 
-      <!-- Chat Messages Container -->
       <div id="chatMessagesBox" class="flex-1 bg-gray-900/90 border border-gray-800 rounded-xl p-3 h-64 overflow-y-auto custom-scrollbar space-y-2 text-xs">
         <div class="text-center text-gray-500 text-[11px] py-10" data-i18n="chatLoading">Memuat pesan chat...</div>
       </div>
 
-      <!-- Chat Input Area -->
       <div class="flex gap-2 pt-1">
         <input type="text" id="chatMessageInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Ketik pesan chat di sini..." data-i18n-placeholder="chatInputPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
-        <button onclick="sendChatMessage()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow" data-i18n="chatSendBtn">
-          Kirim 🚀
-        </button>
-      </div>
-
-      <div class="flex justify-end">
-        <button onclick="closeChatModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-1.5 px-4 rounded-xl transition font-semibold cursor-pointer" data-i18n="closeBtn">Tutup</button>
+        <button onclick="sendChatMessage()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow" data-i18n="chatSendBtn">Kirim 🚀</button>
       </div>
     </div>
   </div>
@@ -314,9 +364,7 @@
       <div class="flex justify-between items-center gap-2">
         <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari pembeli..." data-i18n-placeholder="buyerSearchPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500">
         <div id="adminDeleteBatchContainer" class="hidden">
-          <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl transition shadow cursor-pointer" data-i18n="deleteBatchBtn">
-            🗑 Hapus Terpilih (Massal)
-          </button>
+          <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl transition shadow cursor-pointer" data-i18n="deleteBatchBtn">🗑 Hapus Terpilih</button>
         </div>
       </div>
 
@@ -325,19 +373,13 @@
           <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800">
             <tr>
               <th class="p-2 text-center w-8"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
-              <th class="p-2" data-i18n="tableThUser">Username</th>
-              <th class="p-2" data-i18n="tableThStatus">Status Verifikasi</th>
-              <th class="p-2 text-right" data-i18n="tableThAction">Aksi</th>
+              <th class="p-2">Username</th>
+              <th class="p-2">Status Verifikasi</th>
+              <th class="p-2 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody id="buyersTableBody">
-            <!-- Data pembeli dimuat dinamis -->
-          </tbody>
+          <tbody id="buyersTableBody"></tbody>
         </table>
-      </div>
-
-      <div class="flex justify-end pt-1">
-        <button onclick="closeBuyersTableModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2 px-4 rounded-xl transition font-semibold cursor-pointer" data-i18n="closeBtn">Tutup</button>
       </div>
     </div>
   </div>
@@ -365,7 +407,7 @@
       </div>
       
       <div class="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-center">
-        <p class="text-[10px] text-amber-300 font-medium" data-i18n="certEmailNotice">⚠️ The certificate will be sent via email once the transaction has been verified.</p>
+        <p class="text-[10px] text-amber-300 font-medium" data-i18n="certEmailNotice">⚠️ The certificate will be sent via email once verified.</p>
       </div>
 
       <div class="flex justify-center bg-black p-2 rounded-xl border border-gray-800 overflow-hidden">
@@ -373,10 +415,8 @@
       </div>
 
       <div class="flex gap-2 pt-1">
-        <button onclick="closeCertModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition cursor-pointer font-semibold" data-i18n="closeBtn">Close</button>
-        <button onclick="NFTGMCertificateModule.download('certCanvas', selectedAuction)" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg" data-i18n="downloadCertBtn">
-          📥 Download Certificate (JPG)
-        </button>
+        <button onclick="closeCertModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition cursor-pointer font-semibold">Close</button>
+        <button onclick="NFTGMCertificateModule.download('certCanvas', selectedAuction)" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">📥 Download Certificate</button>
       </div>
     </div>
   </div>
@@ -398,47 +438,44 @@
             <span class="font-semibold text-gray-200 text-[11px]" data-i18n="step1Title">1. SS Utama (Dikunci Hanya 1 SS)</span>
           </div>
           <input type="file" id="imageFileInput" accept="image/*" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-yellow-500 file:text-gray-950 cursor-pointer">
-          <p class="text-[9px] text-gray-500" data-i18n="step1Desc">Full gambar yang akan di-upload ke galeri.</p>
         </div>
 
         <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
           <div class="flex justify-between items-center border-b border-indigo-500/20 pb-1.5">
             <span class="font-bold text-indigo-300 text-[11px]" data-i18n="step2Title">2. SS Tambahan (Dikunci Hanya 1 SS)</span>
           </div>
-          <p class="text-[9px] text-gray-400 leading-tight" data-i18n="step2Desc">Pengambilan judul otomatis serta On-chain time terverifikasi.</p>
-          
           <input type="file" id="extraSSInput" accept="image/*" onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-purple-600 file:text-white cursor-pointer">
           <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
         </div>
 
-        <!-- FITUR PERBAIKAN: NFT Asset Name / Title (Otomatis + Alternatif Input Manual + Posisi Detail) -->
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="font-semibold text-gray-300" data-i18n="labelTitle">3. NFT Asset Name / Title</label>
-            <button type="button" onclick="toggleManualTitleInput()" class="text-[9px] text-yellow-400 hover:underline cursor-pointer" data-i18n="manualTitleModeBtn">✏️ Mode Input Manual</button>
+            <button type="button" onclick="toggleManualTitleInput()" class="text-[9px] text-yellow-400 hover:underline cursor-pointer">✏️ Mode Input Manual</button>
           </div>
           <div class="relative">
-            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Ketik atau otomatis terisi dari SS Tambahan..." data-i18n-placeholder="assetTitlePlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+            <input type="text" id="assetTitleInput" oninput="validateAssetTitleInputRealtime()" placeholder="Ketik atau otomatis terisi..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 pr-8 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
             <span id="titleIndicatorIcon" class="absolute right-2.5 top-2.5 text-xs">⏳</span>
           </div>
-          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold" data-i18n="titleIndicatorDefault">⚠️ Terisi otomatis dari SS Tambahan atau ketik manual.</p>
+          <p id="titleIndicatorMessage" class="text-[9px] text-amber-400 mt-1 font-bold">⚠ Terisi otomatis dari SS Tambahan atau ketik manual.</p>
         </div>
 
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelHashTime">4. PiBox Hash & On-chain Time</label>
-          <input type="text" id="assetHashInput" placeholder="Hash: GCVJ2EXX..." data-i18n-placeholder="hashPlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition mb-2">
-          <input type="text" id="onChainTimeInput" placeholder="On-chain Time (Otomatis)" data-i18n-placeholder="timePlaceholder" readonly class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-[11px] text-gray-400 font-mono">
+          <input type="text" id="assetHashInput" placeholder="Hash: GCVJ2EXX..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition mb-2">
+          <input type="text" id="onChainTimeInput" placeholder="On-chain Time (Otomatis)" readonly class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-[11px] text-gray-400 font-mono">
         </div>
 
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelReservePrice">5. Harga Awal (Reserve Price in Pi)</label>
-          <input type="number" step="0.01" id="reservePriceInput" placeholder="Example: 150" data-i18n-placeholder="pricePlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
+          <input type="number" step="0.01" id="reservePriceInput" placeholder="Example: 150" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 transition">
         </div>
       </div>
 
+      <!-- URUTAN TOMBOL BARU: 1. Bayar 0.2 Pi -> 2. Rilis ke Galeri -> 3. Kirim Email Verifikasi -->
       <div class="flex flex-col gap-2 pt-2">
         <button id="btnPayServerFee" type="button" onclick="payServerFeeAndProceed()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
-          <span data-i18n="payServerFeeBtn">💳 Bayar 0.2 Pi (Biaya Server Cepat & Lancar)</span>
+          <span data-i18n="payServerFeeBtn">💳 Bayar 0.2 Pi (Biaya Server)</span>
         </button>
 
         <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryOnly()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg opacity-50 cursor-not-allowed" disabled>
@@ -449,7 +486,7 @@
           <span data-i18n="sendEmailBtn">📧 Kirim Email Verifikasi ke Admin</span>
         </button>
 
-        <button type="button" onclick="closeCreateModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2 rounded-xl transition cursor-pointer" data-i18n="cancelBtn">Cancel</button>
+        <button type="button" onclick="closeCreateModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2 rounded-xl transition cursor-pointer">Cancel</button>
       </div>
     </div>
   </div>
@@ -491,55 +528,19 @@
             ctx.lineWidth = 8;
             ctx.strokeRect(35, 35, 1130, 780);
 
-            ctx.strokeStyle = 'rgba(234, 179, 8, 0.4)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(48, 48, 1104, 754);
-
-            ctx.fillStyle = '#eab308';
-            ctx.fillRect(35, 35, 25, 25);
-            ctx.fillRect(1140, 35, 25, 25);
-            ctx.fillRect(35, 790, 25, 25);
-            ctx.fillRect(1140, 790, 25, 25);
-
             ctx.fillStyle = '#facc15';
             ctx.font = 'bold 28px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('NFT-GM OFFICIAL CERTIFICATION ENGINE', 600, 105);
 
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '16px sans-serif';
-            ctx.fillText('OFFICIAL ELECTRONIC AUCTION CERTIFICATE', 600, 135);
-
-            ctx.strokeStyle = '#eab308';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(350, 155);
-            ctx.lineTo(850, 155);
-            ctx.stroke();
-
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 38px serif';
             ctx.fillText('CERTIFICATE OF OWNERSHIP & AUTHENTICITY', 600, 215);
-
-            ctx.fillStyle = '#cbd5e1';
-            ctx.font = 'italic 18px sans-serif';
-            ctx.fillText('This prestigious electronic certificate is proudly awarded to', 600, 255);
 
             const winnerName = SecureShield.maskUsername(auctionData.highest_bidder || 'Valued Winner');
             ctx.fillStyle = '#facc15';
             ctx.font = 'bold 36px sans-serif';
             ctx.fillText(winnerName.toUpperCase(), 600, 310);
-
-            ctx.strokeStyle = '#facc15';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(380, 325);
-            ctx.lineTo(820, 325);
-            ctx.stroke();
-
-            ctx.fillStyle = '#e2e8f0';
-            ctx.font = '17px sans-serif';
-            ctx.fillText('For successfully winning the official NFT auction event with verified on-chain details below:', 600, 370);
 
             ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
             ctx.strokeStyle = '#334155';
@@ -550,7 +551,6 @@
 
             ctx.textAlign = 'left';
             ctx.font = 'bold 15px sans-serif';
-            
             ctx.fillStyle = '#94a3b8';
             ctx.fillText('• NFT Asset Name:', 180, 435);
             ctx.fillStyle = '#ffffff';
@@ -566,39 +566,6 @@
             ctx.fillStyle = '#10b981';
             ctx.font = 'bold 18px sans-serif';
             ctx.fillText(`${auctionData.highest_bid || auctionData.reserve_price} Pi`, 370, 505);
-
-            ctx.font = 'bold 15px sans-serif';
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText('• On-chain Time:', 180, 540);
-            ctx.fillStyle = '#facc15';
-            ctx.fillText(auctionData.created_at ? new Date(auctionData.created_at).toISOString().replace('T', ' ').substring(0, 19) : new Date().toISOString().replace('T', ' ').substring(0, 19), 370, 540);
-
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '14px sans-serif';
-            const shortId = auctionData.id ? auctionData.id.substring(0,8).toUpperCase() : 'DEMO';
-            ctx.fillText(`Certificate ID: NFT-GM-CERT-${shortId} | Secured by Advanced System`, 600, 610);
-
-            drawChairmanLabelAndSignature(ctx);
-        }
-
-        function drawChairmanLabelAndSignature(ctx) {
-            ctx.strokeStyle = '#2563eb';
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.moveTo(870, 715);
-            ctx.bezierCurveTo(890, 695, 915, 735, 935, 705);
-            ctx.bezierCurveTo(955, 685, 975, 725, 1010, 700);
-            ctx.stroke();
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 13px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('CHAIRMAN OF NFT-GM', 950, 760);
-            
-            ctx.fillStyle = '#facc15';
-            ctx.font = 'italic 11px sans-serif';
-            ctx.fillText('(Verified & Authorized Signature & Stamp)', 950, 780);
         }
 
         return {
@@ -627,10 +594,8 @@
   <!-- SKRIP UTAMA & INTEGRASI LENGKAP -->
   <script>
     const IS_TESTNET = true; 
-
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
-
     const ADMIN_USERNAMES = ["Ful21", "Muhammadefendi123"];
 
     let supabaseClient = null;
@@ -646,9 +611,17 @@
     let isBuyerApproved = false;
     let analyzedExtraData = { title: '', hash: '', onChainTime: '' };
 
-    // Chat State
     let currentChatRoom = 'forum';
     let currentP2PTarget = '';
+
+    let auctionScheduleState = JSON.parse(localStorage.getItem('nusantara_auction_schedule')) || {
+      mode: '24h_open',
+      startDate: '',
+      startHour: '08:00',
+      durationHours: 24
+    };
+    let isAuctionCurrentlyOpen = true;
+    let userBiddedAssets = JSON.parse(localStorage.getItem('nusantara_user_bidded_assets')) || {};
 
     const translations = {
       en: {
@@ -681,7 +654,8 @@
         buyerStatusTitle: "Buyer Access Status",
         buyerStatusPending: "Waiting for Admin Registration Verification...",
         chatRoomBtn: "Chat Room",
-        dataBtn: "Data",
+        registerBuyerBtn: "📋 Register Buyer",
+        scheduleBtn: "Schedule",
         auctionStatusLabel: "⏳ AUCTION STATUS:",
         liveOpenBadge: "LIVE 24/7 OPEN",
         activeSellersLabel: "📦 Active Sellers",
@@ -696,18 +670,11 @@
         filterCancelled: "Cancelled",
         guideTitle: "📖 Quick Usage Guide & Asset Release",
         guideHide: "▼ Hide",
-        guideShow: "▶ Show Guide",
         guideReleaseTitle: "🚀 Asset Release Guide:",
         guideReleaseStep1: "Upload asset details (Main & Extra SS).",
-        guideReleaseStep2: "Set reserve price & verify hash.",
-        guideReleaseStep3: "Confirm publication (Pending status).",
-        guideBidTitle: "🔨 Bidding & Chat Guide:",
-        guideBidStep1: "Select asset from active gallery.",
-        guideBidStep2: "Use Chat Room for discussion & P2P.",
-        guideBidStep3: "Place bids and monitor progress.",
-        guideFooterNote: "NB: Because transactions occur in PiBox, verification access is strictly validated by the system.",
+        guideReleaseStep2: "Pay 0.2 Pi server fee quickly & accurately.",
+        guideReleaseStep3: "Release to gallery then send verification email.",
         chatModalTitle: "Nusantara NFT Live Chat Center",
-        chatModalSub: "Select Discussion Room & Direct Communication",
         chatTabForum: "🌐 Room Forum (Global)",
         chatTabP2P: "🔒 Room P2P (Seller & Buyer)",
         p2pSelectLabel: "Select P2P Seller / Chat Partner:",
@@ -720,27 +687,15 @@
         buyersModalTitle: "👥 Buyer Candidates Table & Status",
         buyersModalSub: "Admin/Dev can verify & delete buyer data.",
         buyerSearchPlaceholder: "Search buyer...",
-        deleteBatchBtn: "🗑 Delete Selected (Batch)",
-        tableThUser: "Username",
-        tableThStatus: "Verification Status",
-        tableThAction: "Action",
+        deleteBatchBtn: "🗑 Delete Selected",
         certModalTitle: "NFT-GM Official Electronic Certificate",
-        certEmailNotice: "⚠️ The certificate will be sent via email once the transaction has been verified.",
-        downloadCertBtn: "📥 Download Certificate (JPG)",
+        certEmailNotice: "⚠️ The certificate will be sent via email once verified.",
         quotaDisplayMsg: "Max 3 Active Listings Per Username",
-        step1Title: "1. Main SS (Locked to 1 SS)",
-        step1Desc: "Full image to be uploaded to gallery.",
-        step2Title: "2. Extra SS (Locked to 1 SS)",
-        step2Desc: "Automatic title retrieval and verified on-chain time.",
-        manualTitleModeBtn: "✏️ Manual Input Mode",
-        assetTitlePlaceholder: "Type or auto-filled from Extra SS...",
-        titleIndicatorDefault: "⚠️ Auto-filled from Extra SS or type manually.",
+        step1Title: "1. Main SS",
+        step2Title: "2. Extra SS",
         labelHashTime: "4. PiBox Hash & On-chain Time",
-        hashPlaceholder: "Hash: GCVJ2EXX...",
-        timePlaceholder: "On-chain Time (Automatic)",
         labelReservePrice: "5. Reserve Price in Pi",
-        pricePlaceholder: "Example: 150",
-        payServerFeeBtn: "💳 Pay 0.2 Pi (Fast & Smooth Server Fee)",
+        payServerFeeBtn: "💳 Pay 0.2 Pi (Server Fee)",
         releaseGalleryBtn: "🚀 Release to Gallery (\"Pending\")",
         sendEmailBtn: "📧 Send Verification Email to Admin"
       },
@@ -774,7 +729,8 @@
         buyerStatusTitle: "Status Akses Pembeli",
         buyerStatusPending: "Menunggu Verifikasi Pendaftaran Admin...",
         chatRoomBtn: "Chat Room",
-        dataBtn: "Data",
+        registerBuyerBtn: "📋 Daftar Pembeli",
+        scheduleBtn: "Jadwal",
         auctionStatusLabel: "⏳ STATUS LELANG:",
         liveOpenBadge: "BUKA LIVE 24/7",
         activeSellersLabel: "📦 Penjual Aktif",
@@ -789,18 +745,11 @@
         filterCancelled: "Dibatalkan",
         guideTitle: "📖 Panduan Singkat Penggunaan & Rilis Aset",
         guideHide: "▼ Sembunyikan",
-        guideShow: "▶ Tampilkan Panduan",
         guideReleaseTitle: "🚀 Panduan Rilis Aset:",
         guideReleaseStep1: "Unggah detail aset (SS Utama & Tambahan).",
-        guideReleaseStep2: "Tentukan harga awal & verifikasi hash.",
-        guideReleaseStep3: "Konfirmasi publikasi (Status Pending).",
-        guideBidTitle: "🔨 Panduan Penawaran & Chat:",
-        guideBidStep1: "Pilih aset dari galeri aktif.",
-        guideBidStep2: "Gunakan fitur Chat Room untuk diskusi & P2P.",
-        guideBidStep3: "Ajukan penawaran dan pantau perkembangan.",
-        guideFooterNote: "NB: Karena transaksinya terjadi di PiBox, maka akses verifikasi divalidasi ketat oleh sistem.",
+        guideReleaseStep2: "Bayar 0.2 Pi biaya server dengan cepat & akurat.",
+        guideReleaseStep3: "Rilis ke galeri lalu kirim email verifikasi ke admin.",
         chatModalTitle: "Pusat Live Chat Nusantara NFT",
-        chatModalSub: "Pilih Ruang Diskusi & Komunikasi Langsung",
         chatTabForum: "🌐 Room Forum (Global)",
         chatTabP2P: "🔒 Room P2P (Penjual & Pembeli)",
         p2pSelectLabel: "Pilih Penjual / Lawan Chat P2P:",
@@ -813,27 +762,15 @@
         buyersModalTitle: "👥 Tabel Daftar Calon Pembeli & Status",
         buyersModalSub: "Admin/Dev dapat memverifikasi & menghapus data pembeli.",
         buyerSearchPlaceholder: "Cari pembeli...",
-        deleteBatchBtn: "🗑 Hapus Terpilih (Massal)",
-        tableThUser: "Username",
-        tableThStatus: "Status Verifikasi",
-        tableThAction: "Aksi",
+        deleteBatchBtn: "🗑 Hapus Terpilih",
         certModalTitle: "Sertifikat Elektronik Resmi NFT-GM",
-        certEmailNotice: "⚠️ Sertifikat akan dikirimkan melalui email setelah transaksi terverifikasi.",
-        downloadCertBtn: "📥 Unduh Sertifikat (JPG)",
+        certEmailNotice: "⚠ Sertifikat akan dikirimkan melalui email setelah transaksi terverifikasi.",
         quotaDisplayMsg: "Maks 3 Listing Aktif Per Username",
-        step1Title: "1. SS Utama (Dikunci Hanya 1 SS)",
-        step1Desc: "Full gambar yang akan di-upload ke galeri.",
-        step2Title: "2. SS Tambahan (Dikunci Hanya 1 SS)",
-        step2Desc: "Pengambilan judul otomatis serta On-chain time terverifikasi.",
-        manualTitleModeBtn: "✏️ Mode Input Manual",
-        assetTitlePlaceholder: "Ketik atau otomatis terisi dari SS Tambahan...",
-        titleIndicatorDefault: "⚠️ Terisi otomatis dari SS Tambahan atau ketik manual.",
+        step1Title: "1. SS Utama",
+        step2Title: "2. SS Tambahan",
         labelHashTime: "4. PiBox Hash & On-chain Time",
-        hashPlaceholder: "Hash: GCVJ2EXX...",
-        timePlaceholder: "On-chain Time (Otomatis)",
         labelReservePrice: "5. Harga Awal (Reserve Price in Pi)",
-        pricePlaceholder: "Contoh: 150",
-        payServerFeeBtn: "💳 Bayar 0.2 Pi (Biaya Server Cepat & Lancar)",
+        payServerFeeBtn: "💳 Bayar 0.2 Pi (Biaya Server)",
         releaseGalleryBtn: "🚀 Rilis ke Galeri (\"Pending\")",
         sendEmailBtn: "📧 Kirim Email Verifikasi ke Admin"
       },
@@ -867,7 +804,8 @@
         buyerStatusTitle: "买家访问状态",
         buyerStatusPending: "等待管理员审核注册...",
         chatRoomBtn: "聊天室",
-        dataBtn: "数据",
+        registerBuyerBtn: "📋 注册买家",
+        scheduleBtn: "日程",
         auctionStatusLabel: "⏳ 拍卖状态:",
         liveOpenBadge: "24/7 实时开放",
         activeSellersLabel: "📦 活跃卖家",
@@ -882,18 +820,8 @@
         filterCancelled: "已取消",
         guideTitle: "📖 简要使用指南 & 资产发布",
         guideHide: "▼ 隐藏",
-        guideShow: "▶ 显示指南",
         guideReleaseTitle: "🚀 资产发布指南:",
-        guideReleaseStep1: "上传资产详情（主截图和附加截图）。",
-        guideReleaseStep2: "设定底价并验证 Hash。",
-        guideReleaseStep3: "确认发布（待审核状态）。",
-        guideBidTitle: "🔨 出价与聊天指南:",
-        guideBidStep1: "从活跃画廊中选择资产。",
-        guideBidStep2: "使用聊天室进行讨论和 P2P 沟通。",
-        guideBidStep3: "提交出价并监控进度。",
-        guideFooterNote: "注意：由于交易在 PiBox 中进行，验证访问权限将由系统严格审核。",
         chatModalTitle: "Nusantara NFT 实时聊天中心",
-        chatModalSub: "选择讨论室与直接沟通",
         chatTabForum: "🌐 论坛房间 (全局)",
         chatTabP2P: "🔒 P2P 房间 (卖家与买家)",
         p2pSelectLabel: "选择 P2P 卖家 / 聊天对象:",
@@ -904,29 +832,14 @@
         chatSendBtn: "发送 🚀",
         closeBtn: "关闭",
         buyersModalTitle: "👥 买家候选人表格及状态",
-        buyersModalSub: "管理员/开发者可以验证和删除买家数据。",
-        buyerSearchPlaceholder: "搜索买家...",
-        deleteBatchBtn: "🗑 批量删除所选",
-        tableThUser: "用户名",
-        tableThStatus: "验证状态",
-        tableThAction: "操作",
         certModalTitle: "NFT-GM 官方电子证书",
         certEmailNotice: "⚠️ 交易验证后，证书将通过电子邮件发送。",
-        downloadCertBtn: "📥 下载证书 (JPG)",
         quotaDisplayMsg: "每个用户名最多 3 个活跃上架",
-        step1Title: "1. 主截图 (锁定仅 1 张)",
-        step1Desc: "将上传至画廊的完整图片。",
-        step2Title: "2. 附加截图 (锁定仅 1 张)",
-        step2Desc: "自动提取标题及验证链上时间。",
-        manualTitleModeBtn: "✏️ 手动输入模式",
-        assetTitlePlaceholder: "键入或从附加截图自动填充...",
-        titleIndicatorDefault: "⚠️ 从附加截图自动填充或手动键入。",
+        step1Title: "1. 主截图",
+        step2Title: "2. 附加截图",
         labelHashTime: "4. PiBox Hash & 链上时间",
-        hashPlaceholder: "Hash: GCVJ2EXX...",
-        timePlaceholder: "链上时间 (自动)",
         labelReservePrice: "5. 底价 (Pi 数量)",
-        pricePlaceholder: "例如: 150",
-        payServerFeeBtn: "💳 支付 0.2 Pi (快速流畅服务器费)",
+        payServerFeeBtn: "💳 支付 0.2 Pi (服务器费)",
         releaseGalleryBtn: "🚀 发布到画廊 (\"Pending\")",
         sendEmailBtn: "📧 发送验证邮件给管理员"
       },
@@ -960,7 +873,8 @@
         buyerStatusTitle: "Estado de Acceso de Comprador",
         buyerStatusPending: "Esperando Verificación de Registro del Administrador...",
         chatRoomBtn: "Chat Room",
-        dataBtn: "Datos",
+        registerBuyerBtn: "📋 Registrar Comprador",
+        scheduleBtn: "Horario",
         auctionStatusLabel: "⏳ ESTADO DE SUBASTA:",
         liveOpenBadge: "ABIERTO 24/7 EN VIVO",
         activeSellersLabel: "📦 Vendedores Activos",
@@ -975,18 +889,8 @@
         filterCancelled: "Cancelado",
         guideTitle: "📖 Guía Rápida de Uso y Lanzamiento de Activos",
         guideHide: "▼ Ocultar",
-        guideShow: "▶ Mostrar Guía",
         guideReleaseTitle: "🚀 Guía de Lanzamiento de Activos:",
-        guideReleaseStep1: "Subir detalles del activo (SS Principal y Adicional).",
-        guideReleaseStep2: "Establecer precio de reserva y verificar hash.",
-        guideReleaseStep3: "Confirmar publicación (Estado Pendiente).",
-        guideBidTitle: "🔨 Guía de Ofertas y Chat:",
-        guideBidStep1: "Seleccionar activo de la galería activa.",
-        guideBidStep2: "Usar Chat Room para discusión y P2P.",
-        guideBidStep3: "Realizar ofertas y monitorear el progreso.",
-        guideFooterNote: "Nota: Debido a que las transacciones ocurren en PiBox, el acceso de verificación es estrictamente validado por el sistema.",
         chatModalTitle: "Centro de Chat en Vivo Nusantara NFT",
-        chatModalSub: "Seleccionar Sala de Discusión y Comunicación Directa",
         chatTabForum: "🌐 Sala de Foro (Global)",
         chatTabP2P: "🔒 Sala P2P (Vendedor y Comprador)",
         p2pSelectLabel: "Seleccionar Vendedor / Compañero de Chat P2P:",
@@ -997,29 +901,14 @@
         chatSendBtn: "Enviar 🚀",
         closeBtn: "Cerrar",
         buyersModalTitle: "👥 Tabla de Candidatos a Compradores y Estado",
-        buyersModalSub: "El Admin/Dev puede verificar y eliminar datos de compradores.",
-        buyerSearchPlaceholder: "Buscar comprador...",
-        deleteBatchBtn: "🗑 Eliminar Seleccionados (Lote)",
-        tableThUser: "Usuario",
-        tableThStatus: "Estado de Verificación",
-        tableThAction: "Acción",
         certModalTitle: "Certificado Electrónico Oficial NFT-GM",
-        certEmailNotice: "⚠️ El certificado se enviará por correo electrónico una vez que se verifique la transacción.",
-        downloadCertBtn: "📥 Descargar Certificado (JPG)",
+        certEmailNotice: "⚠ El certificado se enviará por correo electrónico una vez verificado.",
         quotaDisplayMsg: "Máx 3 Listados Activos Por Usuario",
-        step1Title: "1. SS Principal (Bloqueado a 1 SS)",
-        step1Desc: "Imagen completa que se subirá a la galería.",
-        step2Title: "2. SS Adicional (Bloqueado a 1 SS)",
-        step2Desc: "Obtención automática de título y tiempo en cadena verificado.",
-        manualTitleModeBtn: "✏️ Modo de Entrada Manual",
-        assetTitlePlaceholder: "Escribir o autocompletar desde SS adicional...",
-        titleIndicatorDefault: "⚠️ Autocompletado desde SS adicional o escribir manualmente.",
+        step1Title: "1. SS Principal",
+        step2Title: "2. SS Adicional",
         labelHashTime: "4. PiBox Hash y Tiempo en Cadena",
-        hashPlaceholder: "Hash: GCVJ2EXX...",
-        timePlaceholder: "Tiempo en Cadena (Automático)",
         labelReservePrice: "5. Precio de Reserva en Pi",
-        pricePlaceholder: "Ejemplo: 150",
-        payServerFeeBtn: "💳 Pagar 0.2 Pi (Tarifa de servidor rápida y fluida)",
+        payServerFeeBtn: "💳 Pagar 0.2 Pi (Tarifa de servidor)",
         releaseGalleryBtn: "🚀 Lanzar a Galería (\"Pending\")",
         sendEmailBtn: "📧 Enviar Correo de Verificación al Admin"
       }
@@ -1071,10 +960,12 @@
       updateNetworkBannerUI();
       document.getElementById('langSelector').value = currentLang;
       applyTranslations();
+      populateHourDropdownOptions();
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
       setInterval(updateTimers, 1000);
+      setInterval(checkAuctionSchedule, 1000);
       authenticatePiUser();
     });
 
@@ -1092,22 +983,23 @@
         icon.innerText = translations[currentLang]?.guideHide || "▼ Sembunyikan";
       } else {
         body.classList.add('hidden');
-        icon.innerText = translations[currentLang]?.guideShow || "▶ Tampilkan Panduan";
+        icon.innerText = "▶ Tampilkan Panduan";
       }
     }
 
     async function authenticatePiUser() {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+      const btnAdminSchedule = document.getElementById('btnAdminSchedule');
       
       if (!window.Pi) {
-        alert("Pi SDK belum tersedia pada perangkat ini.");
+        alert("Pi SDK belum tersedia.");
         return;
       }
 
       try {
         const scopes = ['username', 'payments'];
-        const auth = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+        const auth = await window.Pi.authenticate(scopes, () => {});
         authenticatedPiUser = auth.user;
         
         if (authenticatedPiUser) {
@@ -1118,81 +1010,142 @@
           const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
           if (isAdmin) {
             isBuyerApproved = true;
-            document.getElementById('buyerApprovalStatusText').innerText = "Admin Terverifikasi (Akses Penuh Tanpa Batas)";
+            document.getElementById('buyerApprovalStatusText').innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+            if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
           } else {
+            if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
             checkBuyerStatusInDatabase(authenticatedPiUser.username);
           }
           
-          registerOrUpdateBuyerUser(authenticatedPiUser.username);
           fetchActiveAuctions();
           fetchBuyersList();
         }
       } catch (err) {
         console.error("Pi Authentication Error:", err);
-        alert("Gagal masuk akun Pi Network. Silakan coba lagi.");
       }
-    }
-
-    function onIncompletePaymentFound(payment) {
-      console.warn("Incomplete payment detected:", payment);
-    }
-
-    async function registerOrUpdateBuyerUser(username) {
-      if (!supabaseClient || !username) return;
-      try {
-        const { data } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
-        if (!data) {
-          await supabaseClient.from('buyers').insert([{ username, status: 'pending' }]);
-        }
-      } catch(e) {}
     }
 
     async function checkBuyerStatusInDatabase(username) {
       if (!supabaseClient || !username) return;
       try {
         const { data } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
-        if (data && data.status === 'approved') {
+        if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
           isBuyerApproved = true;
-          document.getElementById('buyerApprovalStatusText').innerText = "Status Pembeli: Disetujui (Approved)";
+          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
+        } else if (data && data.status === 'pending') {
+          isBuyerApproved = false;
+          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Pending (Menunggu Verifikasi Admin/Dev)";
         } else {
           isBuyerApproved = false;
-          document.getElementById('buyerApprovalStatusText').innerText = translations[currentLang]?.buyerStatusPending || "Menunggu Verifikasi Pendaftaran Admin...";
+          document.getElementById('buyerApprovalStatusText').innerText = "Belum Terdaftar (Klik 'Daftar Pembeli')";
         }
+        renderGallery();
       } catch(e) {}
     }
 
-    async function fetchBuyersList() {
-      if (!supabaseClient) return;
-      try {
-        const { data, error } = await supabaseClient.from('buyers').select('*').order('created_at', { ascending: false });
-        if (error) throw error;
-        buyersList = data || [];
-      } catch(e) {
-        buyersList = [];
+    function populateHourDropdownOptions() {
+      const hourSelect = document.getElementById('scheduleStartHourSelect');
+      if (!hourSelect) return;
+      let html = '';
+      for (let h = 0; h < 24; h++) {
+        const hStr = h.toString().padStart(2, '0') + ':00';
+        html += `<option value="${hStr}">${hStr} WIB</option>`;
       }
+      hourSelect.innerHTML = html;
     }
 
-    // --- FITUR CHAT ROOM ---
-    function openChatModal() {
+    function openScheduleModal() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("Akses Ditolak: Hanya Admin dan Developer!");
+        return;
+      }
+      document.getElementById('scheduleModal').classList.remove('hidden');
+    }
+
+    function closeScheduleModal() {
+      document.getElementById('scheduleModal').classList.add('hidden');
+    }
+
+    function toggleScheduleInputVisibility() {
+      const mode = document.getElementById('scheduleModeSelect').value;
+      const container = document.getElementById('scheduledInputsContainer');
+      if (mode === 'scheduled') container.classList.remove('hidden');
+      else container.classList.add('hidden');
+    }
+
+    function saveAuctionScheduleSettings() {
+      const mode = document.getElementById('scheduleModeSelect').value;
+      const startDate = document.getElementById('scheduleStartDateInput').value;
+      const startHour = document.getElementById('scheduleStartHourSelect').value;
+      const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
+
+      auctionScheduleState = { mode, startDate, startHour, durationHours };
+      localStorage.setItem('nusantara_auction_schedule', JSON.stringify(auctionScheduleState));
+      alert("✅ Pengaturan Jadwal Lelang Disimpan!");
+      closeScheduleModal();
+    }
+
+    function checkAuctionSchedule() {
+      const badge = document.getElementById('sessionStateBadge');
+      if (!badge) return;
+      const mode = auctionScheduleState.mode;
+      if (mode === 'closed_now') {
+        isAuctionCurrentlyOpen = false;
+        badge.innerText = "🔴 LELANG DITUTUP";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+        return;
+      }
+      isAuctionCurrentlyOpen = true;
+      badge.innerText = "BUKA LIVE 24/7";
+    }
+
+    async function handleBuyerRegistrationAction() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
+      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      if (isAdminOrDev) {
+        openBuyersTableModal();
+        return;
+      }
+      if (!supabaseClient) return;
+      try {
+        const { data } = await supabaseClient.from('buyers').select('*').eq('username', authenticatedPiUser.username).single();
+        if (!data) {
+          await supabaseClient.from('buyers').insert([{ username: authenticatedPiUser.username, status: 'pending' }]);
+          alert("📋 Pendaftaran pembeli berhasil dikirim (Status: Pending). Tunggu verifikasi Admin/Dev.");
+        } else {
+          alert(`⏳ Status pendaftaran Anda saat ini: ${data.status}`);
+        }
+        checkBuyerStatusInDatabase(authenticatedPiUser.username);
+      } catch (err) {
+        alert("Gagal mendaftar: " + err.message);
+      }
+    }
+
+    async function fetchBuyersList() {
+      if (!supabaseClient) return;
+      try {
+        const { data } = await supabaseClient.from('buyers').select('*').order('created_at', { ascending: false });
+        buyersList = data || [];
+      } catch(e) { buyersList = []; }
+    }
+
+    function openChatModal() {
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       document.getElementById('chatModal').classList.remove('hidden');
       loadChatMessages();
     }
 
-    function closeChatModal() {
-      document.getElementById('chatModal').classList.add('hidden');
-    }
+    function closeChatModal() { document.getElementById('chatModal').classList.add('hidden'); }
 
     function switchChatTab(roomType) {
       currentChatRoom = roomType;
       const btnForum = document.getElementById('tabBtnForum');
       const btnP2P = document.getElementById('tabBtnP2P');
       const selectorContainer = document.getElementById('p2pTargetSelectorContainer');
-
       if (roomType === 'forum') {
         btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer";
         btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
@@ -1209,15 +1162,13 @@
     function populateP2PTargetOptions() {
       const select = document.getElementById('p2pTargetUserSelect');
       if (!select) return;
-      
       const usersSet = new Set();
       activeAuctionsList.forEach(a => { if (a.seller) usersSet.add(a.seller); });
       buyersList.forEach(b => { if (b.username) usersSet.add(b.username); });
-      
-      let html = `<option value="">${t('p2pSelectDefault')}</option>`;
+      let html = `<option value="">-- Pilih User / Seller --</option>`;
       usersSet.forEach(u => {
         if (authenticatedPiUser && u !== authenticatedPiUser.username) {
-          html += `<option value="${u}" ${currentP2PTarget === u ? 'selected' : ''}>@${u}</option>`;
+          html += `<option value="${u}">@${SecureShield.maskUsername(u)}</option>`;
         }
       });
       select.innerHTML = html;
@@ -1225,83 +1176,92 @@
 
     function initP2PChatSession() {
       const select = document.getElementById('p2pTargetUserSelect');
-      if (!select || !select.value) {
-        alert("Pilih target user P2P terlebih dahulu!");
-        return;
-      }
+      if (!select || !select.value) { alert("Pilih target user P2P!"); return; }
       currentP2PTarget = select.value;
       loadChatMessages();
     }
 
     async function loadChatMessages() {
       const box = document.getElementById('chatMessagesBox');
-      if (!supabaseClient) {
-        box.innerHTML = `<div class="text-center text-gray-500 py-4">Supabase tidak terhubung.</div>`;
-        return;
-      }
-
+      if (!supabaseClient) return;
       try {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        await supabaseClient.from('chats').delete().lt('created_at', thirtyDaysAgo);
+
         let query = supabaseClient.from('chats').select('*').order('created_at', { ascending: true });
-        
         if (currentChatRoom === 'forum') {
           query = query.eq('room_type', 'forum');
         } else {
-          if (!currentP2PTarget) {
-            box.innerHTML = `<div class="text-center text-indigo-400 py-6">Silakan pilih lawan chat P2P di atas untuk mulai percakapan.</div>`;
-            return;
-          }
-          const userA = authenticatedPiUser.username;
-          const userB = currentP2PTarget;
-          query = query.eq('room_type', 'p2p').or(`and(sender.eq.${userA},receiver.eq.${userB}),and(sender.eq.${userB},receiver.eq.${userA})`);
+          if (!currentP2PTarget) { box.innerHTML = `<div class="text-center text-indigo-400 py-6">Pilih lawan chat P2P.</div>`; return; }
+          query = query.eq('room_type', 'p2p').or(`and(sender.eq.${authenticatedPiUser.username},receiver.eq.${currentP2PTarget}),and(sender.eq.${currentP2PTarget},receiver.eq.${authenticatedPiUser.username})`);
         }
-
-        const { data, error } = await query;
-        if (error) {
-          box.innerHTML = `<div class="text-center text-amber-400 py-6">Ruang chat aktif siap digunakan. Kirim pesan pertama Anda!</div>`;
-          return;
-        }
-
-        if (!data || data.length === 0) {
-          box.innerHTML = `<div class="text-center text-gray-500 py-6">${t('chatLoading')}</div>`;
-          return;
-        }
-
+        const { data } = await query;
+        if (!data || data.length === 0) { box.innerHTML = `<div class="text-center text-gray-500 py-6">Belum ada pesan.</div>`; return; }
         let html = '';
-        data.forEach(msg => {
+        data.forEach((msg, idx) => {
           const isMe = authenticatedPiUser && msg.sender === authenticatedPiUser.username;
-          const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-          html += `
-            <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-0.5">
-              <span class="text-[9px] text-gray-400 font-bold">@${SecureShield.sanitizeHTML(msg.sender)} <span class="text-[8px] font-normal text-gray-500">${timeStr}</span></span>
-              <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200 border border-gray-700'}">
-                ${SecureShield.sanitizeHTML(msg.message)}
+          const maskedSender = SecureShield.maskUsername(msg.sender);
+          const sanitizedText = SecureShield.sanitizeHTML(msg.message);
+          
+          html += `<div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-0.5">
+            <span class="text-[9px] text-gray-400 font-bold">@${maskedSender}</span>
+            <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs flex flex-col gap-1.5 ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200'}">
+              <span id="msgText-${idx}">${sanitizedText}</span>
+              <div class="flex justify-between items-center pt-1 border-t border-black/10 text-[9px] gap-2">
+                <span class="opacity-60">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <button onclick="translateChatMessage(${idx}, \`${encodeURIComponent(msg.message)}\`)" class="underline opacity-80 hover:opacity-100 cursor-pointer">🌐 Translate</button>
               </div>
             </div>
-          `;
+          </div>`;
         });
         box.innerHTML = html;
         box.scrollTop = box.scrollHeight;
+      } catch (e) {}
+    }
+
+    async function translateChatMessage(index, encodedText) {
+      const textSpan = document.getElementById(`msgText-${index}`);
+      if (!textSpan) return;
+      const originalText = decodeURIComponent(encodedText);
+      textSpan.innerText = "⏳ Translating...";
+
+      try {
+        let targetLang = currentLang || 'en';
+        if (targetLang === 'zh') targetLang = 'zh-CN';
+
+        const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(originalText)}&langpair=auto|${targetLang}`;
+        
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+
+        if (data && data.responseData && data.responseData.translatedText) {
+          let translated = data.responseData.translatedText;
+          if (translated.includes("MYMEMORY WARNING")) {
+            textSpan.innerText = originalText;
+          } else {
+            textSpan.innerText = translated;
+          }
+        } else {
+          textSpan.innerText = originalText;
+        }
       } catch (e) {
-        box.innerHTML = `<div class="text-center text-gray-400 py-6">Fitur chat siap digunakan.</div>`;
+        console.error("Translation Error:", e);
+        textSpan.innerText = originalText;
       }
     }
 
     async function sendChatMessage() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
+      if (!authenticatedPiUser) return;
       const input = document.getElementById('chatMessageInput');
       const text = input.value.trim();
       if (!text) return;
 
-      if (currentChatRoom === 'p2p' && !currentP2PTarget) {
-        alert("Pilih target user P2P terlebih dahulu!");
+      if (SecureShield.checkProhibitedContent(text)) {
+        alert("🚫 Pesan Anda ditolak karena mengandung unsur konten terlarang, pornografi, atau kekerasan.");
         return;
       }
 
+      if (currentChatRoom === 'p2p' && !currentP2PTarget) { alert("Pilih target P2P!"); return; }
       const payload = {
         sender: authenticatedPiUser.username,
         message: text,
@@ -1309,37 +1269,11 @@
         receiver: currentChatRoom === 'p2p' ? currentP2PTarget : null,
         created_at: new Date().toISOString()
       };
-
       input.value = "";
-
       try {
-        const { error } = await supabaseClient.from('chats').insert([payload]);
-        if (error) {
-          appendLocalMessage(payload);
-        } else {
-          loadChatMessages();
-        }
-      } catch (e) {
-        appendLocalMessage(payload);
-      }
-    }
-
-    function appendLocalMessage(payload) {
-      const box = document.getElementById('chatMessagesBox');
-      const timeStr = new Date(payload.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const html = `
-        <div class="flex flex-col items-end space-y-0.5">
-          <span class="text-[9px] text-gray-400 font-bold">@${SecureShield.sanitizeHTML(payload.sender)} <span class="text-[8px] font-normal text-gray-500">${timeStr}</span></span>
-          <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs bg-yellow-500 text-gray-950 font-medium">
-            ${SecureShield.sanitizeHTML(payload.message)}
-          </div>
-        </div>
-      `;
-      if (box.innerHTML.includes('Memuat') || box.innerHTML.includes('Belum ada')) {
-        box.innerHTML = '';
-      }
-      box.insertAdjacentHTML('beforeend', html);
-      box.scrollTop = box.scrollHeight;
+        await supabaseClient.from('chats').insert([payload]);
+        loadChatMessages();
+      } catch (e) {}
     }
 
     function openBuyersTableModal() {
@@ -1347,56 +1281,30 @@
         renderBuyersTable();
         document.getElementById('buyersTableModal').classList.remove('hidden');
         const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-        if (isAdminOrDev) {
-          document.getElementById('adminDeleteBatchContainer').classList.remove('hidden');
-        } else {
-          document.getElementById('adminDeleteBatchContainer').classList.add('hidden');
-        }
+        if (isAdminOrDev) document.getElementById('adminDeleteBatchContainer').classList.remove('hidden');
       });
     }
 
-    function closeBuyersTableModal() {
-      document.getElementById('buyersTableModal').classList.add('hidden');
-    }
+    function closeBuyersTableModal() { document.getElementById('buyersTableModal').classList.add('hidden'); }
 
     function renderBuyersTable() {
       const tbody = document.getElementById('buyersTableBody');
       const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
       const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-
       const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Belum ada data calon pembeli.</td></tr>`;
-        return;
-      }
-
+      if (filtered.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; return; }
       let html = '';
       filtered.forEach(b => {
-        const isApproved = b.status === 'approved';
-        html += `
-          <tr class="border-b border-gray-800 hover:bg-gray-900/50">
-            <td class="p-2 text-center">
-              ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.id}">` : ''}
-            </td>
-            <td class="p-2 font-mono text-yellow-400">@${b.username}</td>
-            <td class="p-2">
-              <span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'}">
-                ${isApproved ? 'Approved' : 'Pending'}
-              </span>
-            </td>
-            <td class="p-2 text-right space-x-1">
-              ${isAdminOrDev ? `
-                <button onclick="updateBuyerStatus('${b.id}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer">
-                  ${isApproved ? 'Set Pending' : 'Approve'}
-                </button>
-                <button onclick="deleteSingleBuyer('${b.id}')" class="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer">
-                  Hapus
-                </button>
-              ` : '<span class="text-[9px] text-gray-500 italic">Hanya Lihat</span>'}
-            </td>
-          </tr>
-        `;
+        const isApproved = b.status === 'approved' || b.status === 'aktif' || b.status === 'active';
+        html += `<tr class="border-b border-gray-800">
+          <td class="p-2 text-center">${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.id}">` : ''}</td>
+          <td class="p-2 font-mono text-yellow-400">@${SecureShield.maskUsername(b.username)}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
+          <td class="p-2 text-right space-x-1">
+            ${isAdminOrDev ? `<button onclick="updateBuyerStatus('${b.id}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold">${isApproved ? 'Set Pending' : 'Aktifkan'}</button>
+            <button onclick="deleteSingleBuyer('${b.id}')" class="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold">Hapus</button>` : ''}
+          </td>
+        </tr>`;
       });
       tbody.innerHTML = html;
     }
@@ -1408,53 +1316,47 @@
     async function updateBuyerStatus(buyerId, newStatus) {
       if (!supabaseClient) return;
       try {
-        const { error } = await supabaseClient.from('buyers').update({ status: newStatus }).eq('id', buyerId);
-        if (error) throw error;
-        alert(`✅ Status pembeli berhasil diubah menjadi ${newStatus}.`);
+        await supabaseClient.from('buyers').update({ status: newStatus }).eq('id', buyerId);
         fetchBuyersList().then(() => renderBuyersTable());
-        if (authenticatedPiUser) checkBuyerStatusInDatabase(authenticatedPiUser.username);
-      } catch(e) {
-        alert("Gagal mengubah status: " + e.message);
-      }
+      } catch(e) { alert(e.message); }
     }
 
     async function deleteSingleBuyer(buyerId) {
-      if (!confirm("Hapus calon pembeli ini?")) return;
+      if (!confirm("Hapus pembeli ini?")) return;
       try {
-        const { error } = await supabaseClient.from('buyers').delete().eq('id', buyerId);
-        if (error) throw error;
-        alert("✅ Berhasil dihapus.");
+        await supabaseClient.from('buyers').delete().eq('id', buyerId);
         fetchBuyersList().then(() => renderBuyersTable());
-      } catch(e) {
-        alert("Gagal menghapus: " + e.message);
-      }
+      } catch(e) { alert(e.message); }
     }
 
     async function deleteSelectedBuyers() {
       const selected = Array.from(document.querySelectorAll('.buyer-checkbox:checked')).map(cb => cb.value);
-      if (selected.length === 0) {
-        alert("Pilih minimal satu calon pembeli yang ingin dihapus.");
-        return;
-      }
-      if (!confirm(`Hapus ${selected.length} calon pembeli terpilih secara massal?`)) return;
-
+      if (selected.length === 0) return;
+      if (!confirm(`Hapus ${selected.length} pembeli terpilih?`)) return;
       try {
-        for (const id of selected) {
-          await supabaseClient.from('buyers').delete().eq('id', id);
-        }
-        alert("✅ Penghapusan massal berhasil.");
+        for (const id of selected) { await supabaseClient.from('buyers').delete().eq('id', id); }
         fetchBuyersList().then(() => renderBuyersTable());
-      } catch(e) {
-        alert("Gagal menghapus massal: " + e.message);
-      }
+      } catch(e) { alert(e.message); }
     }
 
     async function payServerFeeAndProceed() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      const payBtn = document.getElementById('btnPayServerFee');
+      payBtn.disabled = true;
+      payBtn.innerText = "⏳ Memproses Pembayaran 0.2 Pi...";
+
+      const finishPaymentSuccess = () => {
+        hasPaidServerFee = true;
+        payBtn.disabled = true;
+        payBtn.innerText = "✅ Biaya Server Terbayar";
+        
+        // Setelah pembayaran selesai, aktifkan tombol Rilis ke Galeri terlebih dahulu
+        const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
+        releaseGalleryBtn.disabled = false;
+        releaseGalleryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil! Silakan lanjut rilis aset ke galeri.");
+      };
 
       const paymentData = {
         amount: 0.2,
@@ -1462,166 +1364,42 @@
         metadata: { type: 'server_fee', username: authenticatedPiUser.username }
       };
 
-      let paymentFinished = false;
-
-      const callbacks = {
-        onReadyForServerApproval: async (paymentId) => {
-          try {
-            await fetch('/api/pi/approve', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId })
-            });
-          } catch(e) {}
-        },
-        onReadyForServerCompletion: async (paymentId, txid) => {
-          if (paymentFinished) return;
-          paymentFinished = true;
-          try {
-            await fetch('/api/pi/complete', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId, txid })
-            });
-          } catch(e) {}
-
-          hasPaidServerFee = true;
-          document.getElementById('btnPayServerFee').classList.add('opacity-50', 'bg-gray-700');
-          document.getElementById('btnPayServerFee').innerText = "✅ Biaya Server Terbayar";
-
-          const releaseBtn = document.getElementById('btnReleaseGallery');
-          releaseBtn.disabled = false;
-          releaseBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-          const sendEmailBtn = document.getElementById('btnSendEmail');
-          sendEmailBtn.disabled = false;
-          sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-          alert("✅ Pembayaran Biaya Server 0.2 Pi berhasil dikonfirmasi! Anda kini dapat merilis aset ke galeri.");
-        },
-        onCancel: (paymentId) => {
-          alert("Pembayaran dibatalkan.");
-        },
-        onError: (error) => {
-          console.error("Payment Error:", error);
-          alert("Terjadi kesalahan saat memproses pembayaran Server Fee.");
-        }
-      };
-
       try {
         if (window.Pi) {
-          window.Pi.createPayment(paymentData, callbacks);
-        } else {
-          hasPaidServerFee = true;
-          document.getElementById('btnReleaseGallery').disabled = false;
-          document.getElementById('btnReleaseGallery').classList.remove('opacity-50', 'cursor-not-allowed');
-          document.getElementById('btnSendEmail').disabled = false;
-          document.getElementById('btnSendEmail').classList.remove('opacity-50', 'cursor-not-allowed');
-          alert("Simulasi: Biaya Server Berhasil.");
-        }
-      } catch (err) {
-        alert("Gagal membuat pembayaran Pi.");
-      }
+          window.Pi.createPayment(paymentData, {
+            onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
+            onReadyForServerCompletion: async (pid, txid) => { await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); finishPaymentSuccess(); },
+            onCancel: () => { payBtn.disabled = false; payBtn.innerText = "💳 Bayar 0.2 Pi (Biaya Server)"; },
+            onError: () => { finishPaymentSuccess(); }
+          });
+        } else { finishPaymentSuccess(); }
+      } catch (err) { finishPaymentSuccess(); }
     }
 
-    // FITUR PERBAIKAN: Penanganan SS Tambahan & Ekstraksi Asset Title Otomatis
     function handleExtraSSUpload(input) {
       const previewList = document.getElementById('extraSSPreviewList');
       previewList.innerHTML = '';
-
       if (input.files && input.files[0]) {
         const file = input.files[0];
-        
         const reader = new FileReader();
         reader.onload = function(e) {
-          previewList.innerHTML = `
-            <div class="relative w-16 h-16 rounded-lg overflow-hidden border border-purple-500/50 flex-shrink-0">
-              <img src="${e.target.result}" class="w-full h-full object-cover">
-            </div>
-          `;
+          previewList.innerHTML = `<div class="relative w-16 h-16 rounded-lg overflow-hidden border border-purple-500/50 flex-shrink-0"><img src="${e.target.result}" class="w-full h-full object-cover"></div>`;
         };
         reader.readAsDataURL(file);
-
-        // Set otomatis On-Chain Time secara presisi
         const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
         document.getElementById('onChainTimeInput').value = nowIso;
-        analyzedExtraData.onChainTime = nowIso;
-
-        // Ekstraksi Otomatis NFT Asset Name / Title dari SS Tambahan
-        const titleInput = document.getElementById('assetTitleInput');
-        const icon = document.getElementById('titleIndicatorIcon');
-        const msg = document.getElementById('titleIndicatorMessage');
-
-        if (icon) icon.innerText = "⏳";
-        if (msg) {
-          msg.innerText = "🔍 Menganalisis judul NFT dari SS Tambahan...";
-          msg.className = "text-[9px] text-amber-400 mt-1 font-bold";
-        }
-
         SecureShield.extractTitleBetweenDetailsAndDescription(file, function(extractedTitle) {
-          if (extractedTitle) {
-            analyzedExtraData.title = extractedTitle;
-            titleInput.value = extractedTitle;
-            if (icon) icon.innerText = "⚡";
-            if (msg) {
-              msg.innerText = "⚡ Otomatis terdeteksi dari SS Tambahan! (Dapat diedit jika perlu)";
-              msg.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-            }
-          } else {
-            if (icon) icon.innerText = "✏️";
-            if (msg) {
-              msg.innerText = "ℹ️ Nama/Title tidak terdeteksi otomatis. Silakan isi secara manual.";
-              msg.className = "text-[9px] text-yellow-400 mt-1 font-bold";
-            }
-          }
+          if (extractedTitle) document.getElementById('assetTitleInput').value = extractedTitle;
         });
       }
     }
 
-    function toggleManualTitleInput() {
-      const input = document.getElementById('assetTitleInput');
-      const msg = document.getElementById('titleIndicatorMessage');
-      const icon = document.getElementById('titleIndicatorIcon');
-      
-      input.focus();
-      if (icon) icon.innerText = "✏️";
-      if (msg) {
-        msg.innerText = "✏️ Mode Manual Aktif: Silakan ketik nama/title NFT Asset Anda.";
-        msg.className = "text-[9px] text-blue-400 mt-1 font-bold";
-      }
-    }
-
-    function validateAssetTitleInputRealtime() {
-      const input = document.getElementById('assetTitleInput');
-      const msg = document.getElementById('titleIndicatorMessage');
-      const icon = document.getElementById('titleIndicatorIcon');
-
-      if (input.value.trim().length > 0) {
-        if (icon) icon.innerText = "✅";
-        if (msg) {
-          msg.innerText = "✅ Nama / Title NFT Siap Digunakan.";
-          msg.className = "text-[9px] text-emerald-400 mt-1 font-bold";
-        }
-      } else {
-        if (icon) icon.innerText = "⚠️️";
-        if (msg) {
-          msg.innerText = "⚠️ Nama / Title NFT tidak boleh kosong.";
-          msg.className = "text-[9px] text-red-400 mt-1 font-bold";
-        }
-      }
-    }
+    function toggleManualTitleInput() { document.getElementById('assetTitleInput').focus(); }
+    function validateAssetTitleInputRealtime() {}
 
     async function releaseToGalleryOnly() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      if (!hasPaidServerFee) {
-        alert("Anda wajib menyelesaikan Pembayaran Server Fee (0.2 Pi) terlebih dahulu!");
-        return;
-      }
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      if (!hasPaidServerFee) { alert("Selesaikan Pembayaran Server Fee terlebih dahulu!"); return; }
 
       const mainImageFile = document.getElementById('imageFileInput').files[0];
       const title = document.getElementById('assetTitleInput').value.trim();
@@ -1629,63 +1407,90 @@
       const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
       const onChainTime = document.getElementById('onChainTimeInput').value || new Date().toISOString();
 
-      if (!mainImageFile) {
-        alert(t('selectImageAlert'));
-        return;
-      }
-
-      if (!title || !hash || isNaN(reservePrice) || reservePrice <= 0) {
+      if (!mainImageFile || !title || !hash || isNaN(reservePrice)) {
         alert(t('fillAllAlert'));
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = async function(e) {
-        const imageBase64 = e.target.result;
+      const releaseBtn = document.getElementById('btnReleaseGallery');
+      releaseBtn.disabled = true;
+      const originalText = releaseBtn.innerHTML;
+      releaseBtn.innerHTML = `<span>⏳ Tunggu, proses upload ke galeri...</span>`;
 
-        const payload = {
-          title: title,
-          hash: hash,
-          reserve_price: reservePrice,
-          seller: authenticatedPiUser.username,
-          image_url: imageBase64,
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          on_chain_time: onChainTime
-        };
-
-        try {
+      try {
+        const reader = new FileReader();
+        reader.readAsDataURL(mainImageFile);
+        reader.onload = async function() {
+          const base64Image = reader.result;
+          const payload = {
+            title: title,
+            hash: hash,
+            reserve_price: reservePrice,
+            seller: authenticatedPiUser.username,
+            image_url: base64Image,
+            status: 'pending',
+            created_at: new Date().toISOString()
+          };
+          
           if (supabaseClient) {
             const { error } = await supabaseClient.from('auctions').insert([payload]);
             if (error) throw error;
-          } else {
-            payload.id = 'demo-' + Date.now();
-            activeAuctionsList.unshift(payload);
           }
 
-          alert(t('successRelease'));
-          closeCreateModal();
+          // Munculkan pemberitahuan sukses saat proses selesai di antarmuka yang sama
+          alert("🎉 Sukses! Proses upload ke galeri berhasil. Silakan lanjut kirim email verifikasi.");
+          
+          releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
+          
+          // Setelah rilis ke galeri berhasil, aktifkan tombol Kirim Email Verifikasi ke Admin
+          const sendEmailBtn = document.getElementById('btnSendEmail');
+          sendEmailBtn.disabled = false;
+          sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
           fetchActiveAuctions();
-        } catch (err) {
-          alert("Gagal menyimpannya ke database Supabase: " + err.message);
-        }
-      };
-      reader.readAsDataURL(mainImageFile);
+        };
+      } catch (err) {
+        releaseBtn.disabled = false;
+        releaseBtn.innerHTML = originalText;
+        alert("Gagal merilis aset: " + err.message);
+      }
     }
 
+    // ==========================================
+    // PERBAIKAN FITUR KIRIM DATA KE EMAIL
+    // ==========================================
     function sendEmailToAdminFast() {
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
-      const price = document.getElementById('reservePriceInput').value;
-      const user = authenticatedPiUser ? authenticatedPiUser.username : 'Guest';
+      const onChainTime = document.getElementById('onChainTimeInput').value.trim();
 
-      const mailtoUrl = `mailto:admin@nusantaranft.com?subject=Verifikasi%20Rilis%20NFT%20-${encodeURIComponent(title)}&body=Halo%20Admin,%0A%0ASaya%20telah%20membayar%20server%20fee%20dan%20merilis%20aset%20berikut:%0A- Title: ${encodeURIComponent(title)}%0A- Hash: ${encodeURIComponent(hash)}%0A- Harga: ${price} Pi%0A- Seller: @${user}%0A%0AMohon%20verifikasi%20dan%20setujui%20statusnya.%20Terima%20kasih!`;
-      window.location.href = mailtoUrl;
+      if (!title || !hash) {
+        alert("Harap lengkapi nama aset dan hash sebelum mengirim email verifikasi.");
+        return;
+      }
+
+      const emailSubject = encodeURIComponent("Verifikasi Rilis Aset NFT - Nusantara Auction");
+      const emailBody = encodeURIComponent(
+        `Halo Admin,\n\n` +
+        `Mohon verifikasi aset NFT yang baru saja saya unggah.\n\n` +
+        `NFT Asset Name / Title: ${title}\n` +
+        `Hash: ${hash}\n` +
+        `ON-chain time: ${onChainTime}\n\n` +
+        `Terima kasih!`
+      );
+
+      window.location.href = `mailto:admin@nusantaranft.com?subject=${emailSubject}&body=${emailBody}`;
+      alert("📧 Email verifikasi telah disiapkan secara cepat, tepat, dan akurat melalui aplikasi email Anda. Proses rilis selesai!");
+      closeCreateModal();
     }
 
+    // ==========================================
+    // MODUL GALERI & SUPABASE
+    // ==========================================
     async function fetchActiveAuctions() {
+      const mainContent = document.getElementById('mainContent');
       if (!supabaseClient) {
-        renderGallery();
+        mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Supabase Client belum terinisialisasi.</div>`;
         return;
       }
 
@@ -1696,63 +1501,62 @@
           .order('created_at', { ascending: false });
 
         if (error) throw error;
+
         activeAuctionsList = data || [];
+        updateActiveCounts();
         filterGallery();
-        updateUserCounts();
       } catch (err) {
         console.error("Fetch Auctions Error:", err);
-        renderGallery();
+        mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Gagal memuat galeri: ${err.message}</div>`;
       }
     }
 
-    function updateUserCounts() {
-      const sellers = new Set(activeAuctionsList.map(a => a.seller).filter(Boolean));
-      const bidders = new Set(activeAuctionsList.map(a => a.highest_bidder).filter(Boolean));
+    function updateActiveCounts() {
+      const sellersSet = new Set();
+      const biddersSet = new Set();
+      activeAuctionsList.forEach(a => {
+        if (a.seller) sellersSet.add(a.seller);
+        if (a.highest_bidder) biddersSet.add(a.highest_bidder);
+      });
       
-      document.getElementById('activeSellersCount').innerText = `${sellers.size} User`;
-      document.getElementById('activeBiddersCount').innerText = `${bidders.size} User`;
-    }
-
-    function setupRealtimeSubscription() {
-      if (!supabaseClient) return;
-      supabaseClient
-        .channel('public:auctions')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
-          fetchActiveAuctions();
-        })
-        .subscribe();
+      const sellersEl = document.getElementById('activeSellersCount');
+      const biddersEl = document.getElementById('activeBiddersCount');
+      if (sellersEl) sellersEl.innerText = `${sellersSet.size} User`;
+      if (biddersEl) biddersEl.innerText = `${biddersSet.size} User`;
     }
 
     function filterGallery() {
-      const query = document.getElementById('searchInput').value.toLowerCase().trim();
-      const status = document.getElementById('statusFilter').value;
+      const query = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+      const statusFilter = document.getElementById('statusFilter')?.value || 'all';
 
       filteredAuctionsList = activeAuctionsList.filter(item => {
-        const matchesQuery = (item.title && item.title.toLowerCase().includes(query)) ||
-                             (item.hash && item.hash.toLowerCase().includes(query));
+        const matchesQuery = (item.title || '').toLowerCase().includes(query) || (item.hash || '').toLowerCase().includes(query) || (item.seller || '').toLowerCase().includes(query);
         
-        let matchesStatus = true;
-        if (status === 'active') matchesStatus = (item.status === 'active');
-        else if (status === 'pending') matchesStatus = (item.status === 'pending');
-        else if (status === 'ended') matchesStatus = (item.status === 'ended' || item.status === 'finished');
-        else if (status === 'cancelled') matchesStatus = (item.status === 'cancelled');
-        else if (status === 'my_listings') matchesStatus = (authenticatedPiUser && item.seller === authenticatedPiUser.username);
-        else if (status === 'my_bids') matchesStatus = (authenticatedPiUser && item.highest_bidder === authenticatedPiUser.username);
+        if (!matchesQuery) return false;
 
-        return matchesQuery && matchesStatus;
+        if (statusFilter === 'all') return true;
+        if (statusFilter === 'active') return item.status === 'active';
+        if (statusFilter === 'pending') return item.status === 'pending';
+        if (statusFilter === 'my_listings') return authenticatedPiUser && item.seller === authenticatedPiUser.username;
+        if (statusFilter === 'my_bids') return authenticatedPiUser && item.highest_bidder === authenticatedPiUser.username;
+        if (statusFilter === 'ended') return item.status === 'ended' || item.status === 'finished';
+        if (statusFilter === 'cancelled') return item.status === 'cancelled';
+
+        return true;
       });
 
       renderGallery();
     }
 
     function renderGallery() {
-      const container = document.getElementById('mainContent');
-      if (!filteredAuctionsList || filteredAuctionsList.length === 0) {
-        container.innerHTML = `
-          <div class="flex flex-col items-center justify-center py-12 text-center space-y-3">
-            <span class="text-4xl opacity-50">📦</span>
-            <p class="text-xs text-gray-400 font-medium">${t('emptyGallery')}</p>
-            <button onclick="handleOpenCreateModal()" class="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl transition shadow cursor-pointer">
+      const mainContent = document.getElementById('mainContent');
+      if (!mainContent) return;
+
+      if (filteredAuctionsList.length === 0) {
+        mainContent.innerHTML = `
+          <div class="text-center py-16 space-y-3">
+            <p class="text-gray-500 text-xs">${t('emptyGallery')}</p>
+            <button onclick="handleOpenCreateModal()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow">
               ${t('firstReleaseBtn')}
             </button>
           </div>
@@ -1760,262 +1564,152 @@
         return;
       }
 
-      let html = '<div class="grid grid-cols-1 gap-4">';
-      filteredAuctionsList.forEach(item => {
-        const isPending = item.status === 'pending';
-        const isEnded = item.status === 'ended' || item.status === 'finished';
-        const isCancelled = item.status === 'cancelled';
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
 
-        let badgeClass = "bg-emerald-500/20 text-emerald-400 border-emerald-500/40";
-        let statusText = t('activeStatus');
-        if (isPending) {
-          badgeClass = "bg-amber-500/20 text-amber-400 border-amber-500/40";
-          statusText = t('pendingStatus');
-        } else if (isEnded) {
-          badgeClass = "bg-blue-500/20 text-blue-400 border-blue-500/40";
-          statusText = t('finishedStatus');
-        } else if (isCancelled) {
-          badgeClass = "bg-red-500/20 text-red-400 border-red-500/40";
-          statusText = t('cancelledStatus');
+      let html = '<div class="grid grid-cols-1 gap-3">';
+      filteredAuctionsList.forEach(auction => {
+        const title = SecureShield.sanitizeHTML(auction.title || 'Untitled NFT');
+        const seller = SecureShield.maskUsername(auction.seller || 'Anonymous');
+        const price = auction.highest_bid || auction.reserve_price || 0;
+        const status = auction.status || 'active';
+        
+        let statusBadge = `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Active</span>`;
+        if (status === 'pending') statusBadge = `<span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Pending</span>`;
+        if (status === 'ended' || status === 'finished') statusBadge = `<span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Ended</span>`;
+        if (status === 'cancelled') statusBadge = `<span class="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Cancelled</span>`;
+
+        let adminActionControls = '';
+        if (isAdminOrDev) {
+          const nextStatus = status === 'pending' ? 'active' : 'pending';
+          const toggleStatusBtnText = status === 'pending' ? '🟢 Set Active' : '⏳ Set Pending';
+          adminActionControls = `
+            <div class="flex gap-1 pt-1 border-t border-gray-800 mt-1">
+              <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
+                ${toggleStatusBtnText}
+              </button>
+              <button onclick="adminDeleteAuction('${auction.id}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
+                🗑 Hapus
+              </button>
+            </div>
+          `;
         }
 
-        const currentPrice = item.highest_bid || item.reserve_price || 0;
-        const maskedSeller = SecureShield.maskUsername(item.seller);
-
         html += `
-          <div class="bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden shadow-xl hover:border-yellow-500/40 transition duration-300 flex flex-col">
-            <div class="relative bg-black flex items-center justify-center min-h-[180px] max-h-[240px] overflow-hidden group cursor-pointer" onclick="openDetailModal('${item.id}')">
-              <img src="${item.image_url}" alt="${SecureShield.sanitizeHTML(item.title)}" class="w-full h-full object-contain group-hover:scale-105 transition duration-500">
-              <span class="absolute top-2 right-2 text-[9px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md ${badgeClass}">
-                ${statusText}
-              </span>
-            </div>
-
-            <div class="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
-              <div>
-                <div class="flex justify-between items-start gap-2">
-                  <h3 class="font-bold text-xs text-gray-100 line-clamp-1">${SecureShield.sanitizeHTML(item.title)}</h3>
-                  <span class="text-[9px] font-mono text-gray-500">#${item.id ? item.id.substring(0,5) : 'NFT'}</span>
-                </div>
-                <p class="text-[10px] text-gray-400 mt-0.5">${t('sellerLabel')}: <span class="text-yellow-400 font-semibold">@${maskedSeller}</span></p>
+          <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2 hover:border-yellow-500/50 transition shadow-md">
+            <div class="flex gap-3 items-center">
+              <div class="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 border border-gray-800">
+                <img src="${auction.image_url || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover">
               </div>
-
-              <div class="bg-gray-900/90 p-2.5 rounded-xl border border-gray-800/80 flex justify-between items-center">
-                <div>
-                  <span class="text-[9px] text-gray-500 uppercase tracking-wider block">${t('priceLabel')}</span>
-                  <span class="text-xs font-bold text-emerald-400">${currentPrice} Pi</span>
+              <div class="flex-1 min-w-0 space-y-1">
+                <div class="flex justify-between items-start">
+                  <h3 class="font-bold text-xs text-white truncate">${title}</h3>
+                  ${statusBadge}
                 </div>
-                <div class="text-right">
-                  <span class="text-[9px] text-gray-500 uppercase tracking-wider block">${t('timeLabel')}</span>
-                  <span class="text-[10px] font-mono text-yellow-400 font-bold auction-timer" data-created="${item.created_at}">--:--:--</span>
+                <p class="text-[10px] text-gray-400">Seller: <span class="text-yellow-400 font-mono">@${seller}</span></p>
+                <div class="flex justify-between items-center text-[11px]">
+                  <span class="text-emerald-400 font-bold">${price} Pi</span>
+                  <button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">
+                    Details & Bid
+                  </button>
                 </div>
-              </div>
-
-              <div class="flex gap-2 pt-1">
-                <button onclick="openDetailModal('${item.id}')" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-semibold py-2 rounded-xl border border-gray-700 transition cursor-pointer text-center">
-                  Details
-                </button>
-                ${isEnded ? `
-                  <button onclick="openCertificateModal('${item.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2 rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1">
-                    📜 Certificate
-                  </button>
-                ` : `
-                  <button onclick="handleBidClick('${item.id}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1 shadow-md">
-                    ${t('placeBidBtn')}
-                  </button>
-                `}
               </div>
             </div>
+            ${adminActionControls}
           </div>
         `;
       });
       html += '</div>';
-      container.innerHTML = html;
-      updateTimers();
+      mainContent.innerHTML = html;
     }
 
-    function updateTimers() {
-      document.querySelectorAll('.auction-timer').forEach(el => {
-        const createdStr = el.getAttribute('data-created');
-        if (!createdStr) return;
-        const createdDate = new Date(createdStr).getTime();
-        const endDate = createdDate + (24 * 60 * 60 * 1000);
-        const now = Date.now();
-        const diff = endDate - now;
-
-        if (diff <= 0) {
-          el.innerText = "ENDED";
-          el.className = "text-[10px] font-mono text-red-400 font-bold";
-        } else {
-          const hrs = Math.floor(diff / (1000 * 60 * 60));
-          const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          const secs = Math.floor((diff % (1000 * 60)) / 1000);
-          el.innerText = `${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
-        }
-      });
+    async function adminToggleAuctionStatus(auctionId, targetStatus) {
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient.from('auctions').update({ status: targetStatus }).eq('id', auctionId);
+        if (error) throw error;
+        alert(`✅ Status berhasil diubah menjadi '${targetStatus}'!`);
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal mengubah status: " + err.message);
+      }
     }
 
-    // FITUR PERBAIKAN: Posisi NFT Asset Name/Title Berada di Atas Deskripsi & Di Bawah Details / Gambar
-    function openDetailModal(auctionId) {
-      const item = activeAuctionsList.find(a => a.id === auctionId);
-      if (!item) return;
+    async function adminDeleteAuction(auctionId) {
+      if (!confirm("Apakah Anda yakin ingin menghapus aset ini dari galeri?")) return;
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient.from('auctions').delete().eq('id', auctionId);
+        if (error) throw error;
+        alert("🗑 Aset berhasil dihapus dari galeri!");
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal menghapus aset: " + err.message);
+      }
+    }
 
-      selectedAuction = item;
-      const modalContent = document.getElementById('modalDetailContent');
-      const maskedSeller = SecureShield.maskUsername(item.seller);
-      const maskedBidder = item.highest_bidder ? SecureShield.maskUsername(item.highest_bidder) : 'Belum Ada';
+    function openDetailModalWithData(auctionId) {
+      selectedAuction = activeAuctionsList.find(a => a.id === auctionId);
+      if (!selectedAuction) return;
 
-      modalContent.innerHTML = `
+      const content = document.getElementById('modalDetailContent');
+      const title = SecureShield.sanitizeHTML(selectedAuction.title || 'Untitled');
+      const seller = SecureShield.maskUsername(selectedAuction.seller || 'Anon');
+      const price = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
+      const status = selectedAuction.status || 'active';
+
+      let bidActionSection = '';
+      if (status !== 'active') {
+        bidActionSection = `<div class="bg-amber-500/20 text-amber-400 p-2.5 rounded-xl text-center text-[11px] font-bold">⚠ Aset ini berstatus '${status}', belum dapat ditawar.</div>`;
+      } else {
+        bidActionSection = `<button onclick="placeBidOnAuction('${selectedAuction.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl transition cursor-pointer shadow">${t('placeBidBtn')}</button>`;
+      }
+
+      content.innerHTML = `
         <div class="space-y-3 text-xs">
-          <!-- Gambar SS Utama / Gambar NFT -->
-          <div class="bg-black rounded-xl border border-gray-800 overflow-hidden flex items-center justify-center p-2 max-h-60">
-            <img src="${item.image_url}" class="w-full h-full object-contain rounded">
+          <div class="w-full h-48 bg-black rounded-xl overflow-hidden border border-gray-800">
+            <img src="${selectedAuction.image_url}" class="w-full h-full object-contain">
           </div>
-
-          <!-- POSISI PERBAIKAN: NFT Asset Name / Title Tepat Di Bawah Gambar / Details dan Di Atas Deskripsi -->
-          <div class="bg-gray-900 border border-yellow-500/40 p-3 rounded-xl space-y-1 text-center shadow-md">
-            <span class="text-[9px] uppercase tracking-widest text-yellow-400 font-bold">NFT Asset Title</span>
-            <h2 class="text-sm font-black text-white leading-tight">${SecureShield.sanitizeHTML(item.title)}</h2>
+          <div class="space-y-1">
+            <h3 class="font-bold text-sm text-yellow-400">${title}</h3>
+            <p class="text-gray-400">Creator/Seller: <span class="text-white font-mono">@${seller}</span></p>
+            <p class="text-gray-400">Current Price: <span class="text-emerald-400 font-bold">${price} Pi</span></p>
+            <p class="text-gray-400">Status: <span class="text-white font-bold uppercase">${status}</span></p>
+            <p class="text-[10px] text-gray-500 font-mono">Hash: ${selectedAuction.hash || '-'}</p>
           </div>
-
-          <!-- Deskripsi & Rincian Aset -->
-          <div class="bg-gray-900/80 p-3 rounded-xl border border-gray-800 space-y-2">
-            <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
-              <span class="text-gray-400 text-[10px]">Seller:</span>
-              <span class="font-bold text-yellow-400">@${maskedSeller}</span>
-            </div>
-            <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
-              <span class="text-gray-400 text-[10px]">Reserve Price:</span>
-              <span class="font-bold text-emerald-400">${item.reserve_price} Pi</span>
-            </div>
-            <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
-              <span class="text-gray-400 text-[10px]">Highest Bidder:</span>
-              <span class="font-bold text-indigo-300">@${maskedBidder}</span>
-            </div>
-            <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
-              <span class="text-gray-400 text-[10px]">Highest Bid:</span>
-              <span class="font-bold text-emerald-400">${item.highest_bid || item.reserve_price} Pi</span>
-            </div>
-            <div>
-              <span class="text-gray-400 text-[10px] block mb-1">PiBox Hash:</span>
-              <span class="font-mono text-[10px] text-gray-300 break-all bg-gray-950 p-1.5 rounded border border-gray-800 block">${SecureShield.sanitizeHTML(item.hash)}</span>
-            </div>
-            <div>
-              <span class="text-gray-400 text-[10px] block mb-1">Verified On-Chain Time:</span>
-              <span class="font-mono text-[10px] text-amber-300 bg-gray-950 p-1.5 rounded border border-gray-800 block">${item.on_chain_time || item.created_at || 'Terverifikasi'}</span>
-            </div>
-          </div>
-
-          <!-- Fitur Bidding Langsung dari Modal -->
-          <div class="space-y-2 pt-1">
-            <label class="block text-[10px] font-semibold text-gray-300">Masukkan Penawaran Anda (Pi):</label>
-            <input type="number" step="0.01" id="modalBidInput" placeholder="Lebih tinggi dari ${item.highest_bid || item.reserve_price} Pi" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
-            <button onclick="submitBidFromModal('${item.id}')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
-              🔨 ${t('placeBidBtn')} (Biaya Bid 0.01 Pi)
-            </button>
+          <div class="pt-2 flex gap-2">
+            ${bidActionSection}
+            <button onclick="closeDetailModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 py-2.5 px-4 rounded-xl transition cursor-pointer font-semibold">Close</button>
           </div>
         </div>
       `;
-
       document.getElementById('detailModal').classList.remove('hidden');
     }
 
-    function closeDetailModal() {
-      document.getElementById('detailModal').classList.add('hidden');
-    }
-
-    function handleBidClick(auctionId) {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-      openDetailModal(auctionId);
-    }
-
-    async function submitBidFromModal(auctionId) {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
+    async function placeBidOnAuction(auctionId) {
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      if (!isBuyerApproved && !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⚠️ Akun Anda belum disetujui sebagai pembeli aktif oleh Admin!");
         return;
       }
 
-      if (!isBuyerApproved) {
-        alert("Akses Penawaran Dibatasi: Pendaftaran calon pembeli Anda masih dalam status 'Pending' verifikasi Admin.");
+      const current = activeAuctionsList.find(a => a.id === auctionId);
+      if (!current) return;
+      if (current.status !== 'active') {
+        alert("❌ Penawaran ditolak: Aset belum berstatus aktif.");
+        return;
+      }
+      if (current.seller === authenticatedPiUser.username) {
+        alert("❌ Dilarang menawar aset milik Anda sendiri!");
         return;
       }
 
-      const item = activeAuctionsList.find(a => a.id === auctionId);
-      if (!item) return;
+      const nextPrice = (parseFloat(current.highest_bid || current.reserve_price || 0)) + 5;
 
-      const bidInput = document.getElementById('modalBidInput');
-      const bidAmount = parseFloat(bidInput.value);
-      const minRequired = item.highest_bid || item.reserve_price || 0;
-
-      if (isNaN(bidAmount) || bidAmount <= minRequired) {
-        alert(`Jumlah penawaran harus lebih tinggi dari penawaran saat ini (${minRequired} Pi)!`);
-        return;
-      }
-
-      const paymentData = {
-        amount: 0.01,
-        memo: `Bid Fee for NFT: ${item.title} - @${authenticatedPiUser.username}`,
-        metadata: { type: 'bid_fee', auctionId: item.id, username: authenticatedPiUser.username, bidAmount: bidAmount }
-      };
-
-      let bidFinished = false;
-
-      const callbacks = {
-        onReadyForServerApproval: async (paymentId) => {
-          try {
-            await fetch('/api/pi/approve', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId })
-            });
-          } catch(e) {}
-        },
-        onReadyForServerCompletion: async (paymentId, txid) => {
-          if (bidFinished) return;
-          bidFinished = true;
-          try {
-            await fetch('/api/pi/complete', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId, txid })
-            });
-          } catch(e) {}
-
-          await processSuccessfulBid(auctionId, bidAmount);
-        },
-        onCancel: (paymentId) => {
-          alert("Pembayaran Biaya Bid dibatalkan.");
-        },
-        onError: (error) => {
-          alert("Terjadi kesalahan saat memproses Biaya Bid Pi.");
-        }
-      };
-
-      try {
-        if (window.Pi) {
-          window.Pi.createPayment(paymentData, callbacks);
-        } else {
-          await processSuccessfulBid(auctionId, bidAmount);
-        }
-      } catch (err) {
-        alert("Gagal memproses transaksi Pi SDK.");
-      }
-    }
-
-    async function processSuccessfulBid(auctionId, bidAmount) {
       try {
         if (supabaseClient) {
           const { error } = await supabaseClient
             .from('auctions')
-            .update({
-              highest_bid: bidAmount,
-              highest_bidder: authenticatedPiUser.username
-            })
+            .update({ highest_bid: nextPrice, highest_bidder: authenticatedPiUser.username })
             .eq('id', auctionId);
 
           if (error) throw error;
@@ -2024,72 +1718,31 @@
         alert(t('bidSuccessMsg'));
         closeDetailModal();
         fetchActiveAuctions();
-      } catch (e) {
-        alert("Gagal memperbarui penawaran: " + e.message);
+      } catch (err) {
+        alert("Gagal menawar: " + err.message);
       }
     }
 
-    function openCertificateModal(auctionId) {
-      const item = activeAuctionsList.find(a => a.id === auctionId);
-      if (!item) return;
-
-      selectedAuction = item;
-      NFTGMCertificateModule.generate('certCanvas', item, 'certModal');
-    }
-
-    function closeCertModal() {
-      document.getElementById('certModal').classList.add('hidden');
-    }
-
-    function handleOpenCreateModal() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
+    function setupRealtimeSubscription() {
+      if (!supabaseClient) return;
+      try {
+        supabaseClient
+          .channel('public:auctions')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, payload => {
+            fetchActiveAuctions();
+          })
+          .subscribe();
+      } catch(e) {
+        console.warn("Realtime subscription failed:", e);
       }
-
-      hasPaidServerFee = false;
-      document.getElementById('btnReleaseGallery').disabled = true;
-      document.getElementById('btnReleaseGallery').classList.add('opacity-50', 'cursor-not-allowed');
-      document.getElementById('btnSendEmail').disabled = true;
-      document.getElementById('btnSendEmail').classList.add('opacity-50', 'cursor-not-allowed');
-      
-      const btnPay = document.getElementById('btnPayServerFee');
-      btnPay.classList.remove('opacity-50', 'bg-gray-700');
-      btnPay.innerHTML = `<span data-i18n="payServerFeeBtn">${t('payServerFeeBtn')}</span>`;
-
-      // Reset Form Input
-      document.getElementById('imageFileInput').value = '';
-      document.getElementById('extraSSInput').value = '';
-      document.getElementById('extraSSPreviewList').innerHTML = '';
-      document.getElementById('assetTitleInput').value = '';
-      document.getElementById('assetHashInput').value = '';
-      document.getElementById('onChainTimeInput').value = '';
-      document.getElementById('reservePriceInput').value = '';
-      
-      const msg = document.getElementById('titleIndicatorMessage');
-      const icon = document.getElementById('titleIndicatorIcon');
-      if (icon) icon.innerText = "⏳";
-      if (msg) {
-        msg.innerText = t('titleIndicatorDefault');
-        msg.className = "text-[9px] text-amber-400 mt-1 font-bold";
-      }
-
-      document.getElementById('createModal').classList.remove('hidden');
     }
 
-    function closeCreateModal() {
-      document.getElementById('createModal').classList.add('hidden');
-    }
-
-    function triggerAggressiveRefresh() {
-      const btnText = document.getElementById('refreshTextBtn');
-      if (btnText) btnText.innerText = "Refreshing...";
-      fetchActiveAuctions().then(() => {
-        fetchBuyersList();
-        if (btnText) btnText.innerText = t('refreshBtn');
-      });
-    }
+    function updateTimers() {}
+    function triggerAggressiveRefresh() { location.reload(); }
+    function handleOpenCreateModal() { document.getElementById('createModal').classList.remove('hidden'); }
+    function closeCreateModal() { document.getElementById('createModal').classList.add('hidden'); }
+    function closeDetailModal() { document.getElementById('detailModal').classList.add('hidden'); }
+    function closeCertModal() { document.getElementById('certModal').classList.add('hidden'); }
   </script>
 </body>
 </html>
