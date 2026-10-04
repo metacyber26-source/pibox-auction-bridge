@@ -1440,7 +1440,6 @@
         return;
       }
 
-      // Upload gambar ke Supabase Storage atau simpan data lelang ke tabel auctions
       try {
         const reader = new FileReader();
         reader.readAsDataURL(mainImageFile);
@@ -1471,7 +1470,7 @@
     }
 
     // ==========================================
-    // PERBAIKAN UTAMA: MODUL GALERI & SUPABASE
+    // MODUL GALERI & SUPABASE (DIPERBAIKI)
     // ==========================================
     async function fetchActiveAuctions() {
       const mainContent = document.getElementById('mainContent');
@@ -1550,6 +1549,8 @@
         return;
       }
 
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+
       let html = '<div class="grid grid-cols-1 gap-3">';
       filteredAuctionsList.forEach(auction => {
         const title = SecureShield.sanitizeHTML(auction.title || 'Untitled NFT');
@@ -1562,29 +1563,74 @@
         if (status === 'ended' || status === 'finished') statusBadge = `<span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Ended</span>`;
         if (status === 'cancelled') statusBadge = `<span class="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Cancelled</span>`;
 
+        // Kontrol Tombol Admin & Dev untuk Mengubah Status / Menghapus Aset
+        let adminActionControls = '';
+        if (isAdminOrDev) {
+          const nextStatus = status === 'pending' ? 'active' : 'pending';
+          const toggleStatusBtnText = status === 'pending' ? '🟢 Set Active' : '⏳ Set Pending';
+          adminActionControls = `
+            <div class="flex gap-1 pt-1 border-t border-gray-800 mt-1">
+              <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
+                ${toggleStatusBtnText}
+              </button>
+              <button onclick="adminDeleteAuction('${auction.id}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
+                🗑 Hapus
+              </button>
+            </div>
+          `;
+        }
+
         html += `
-          <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex gap-3 items-center hover:border-yellow-500/50 transition shadow-md">
-            <div class="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 border border-gray-800">
-              <img src="${auction.image_url || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover">
-            </div>
-            <div class="flex-1 min-w-0 space-y-1">
-              <div class="flex justify-between items-start">
-                <h3 class="font-bold text-xs text-white truncate">${title}</h3>
-                ${statusBadge}
+          <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2 hover:border-yellow-500/50 transition shadow-md">
+            <div class="flex gap-3 items-center">
+              <div class="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 border border-gray-800">
+                <img src="${auction.image_url || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover">
               </div>
-              <p class="text-[10px] text-gray-400">Seller: <span class="text-yellow-400 font-mono">@${seller}</span></p>
-              <div class="flex justify-between items-center text-[11px]">
-                <span class="text-emerald-400 font-bold">${price} Pi</span>
-                <button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">
-                  Details & Bid
-                </button>
+              <div class="flex-1 min-w-0 space-y-1">
+                <div class="flex justify-between items-start">
+                  <h3 class="font-bold text-xs text-white truncate">${title}</h3>
+                  ${statusBadge}
+                </div>
+                <p class="text-[10px] text-gray-400">Seller: <span class="text-yellow-400 font-mono">@${seller}</span></p>
+                <div class="flex justify-between items-center text-[11px]">
+                  <span class="text-emerald-400 font-bold">${price} Pi</span>
+                  <button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">
+                    Details & Bid
+                  </button>
+                </div>
               </div>
             </div>
+            ${adminActionControls}
           </div>
         `;
       });
       html += '</div>';
       mainContent.innerHTML = html;
+    }
+
+    async function adminToggleAuctionStatus(auctionId, targetStatus) {
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient.from('auctions').update({ status: targetStatus }).eq('id', auctionId);
+        if (error) throw error;
+        alert(`✅ Status berhasil diubah menjadi '${targetStatus}'!`);
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal mengubah status: " + err.message);
+      }
+    }
+
+    async function adminDeleteAuction(auctionId) {
+      if (!confirm("Apakah Anda yakin ingin menghapus aset ini dari galeri?")) return;
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient.from('auctions').delete().eq('id', auctionId);
+        if (error) throw error;
+        alert("🗑 Aset berhasil dihapus dari galeri!");
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal menghapus aset: " + err.message);
+      }
     }
 
     function openDetailModalWithData(auctionId) {
@@ -1595,6 +1641,14 @@
       const title = SecureShield.sanitizeHTML(selectedAuction.title || 'Untitled');
       const seller = SecureShield.maskUsername(selectedAuction.seller || 'Anon');
       const price = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
+      const status = selectedAuction.status || 'active';
+
+      let bidActionSection = '';
+      if (status !== 'active') {
+        bidActionSection = `<div class="bg-amber-500/20 text-amber-400 p-2.5 rounded-xl text-center text-[11px] font-bold">⚠️️ Aset ini berstatus '${status}', belum dapat ditawar.</div>`;
+      } else {
+        bidActionSection = `<button onclick="placeBidOnAuction('${selectedAuction.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl transition cursor-pointer shadow">${t('placeBidBtn')}</button>`;
+      }
 
       content.innerHTML = `
         <div class="space-y-3 text-xs">
@@ -1605,10 +1659,11 @@
             <h3 class="font-bold text-sm text-yellow-400">${title}</h3>
             <p class="text-gray-400">Creator/Seller: <span class="text-white font-mono">@${seller}</span></p>
             <p class="text-gray-400">Current Price: <span class="text-emerald-400 font-bold">${price} Pi</span></p>
+            <p class="text-gray-400">Status: <span class="text-white font-bold uppercase">${status}</span></p>
             <p class="text-[10px] text-gray-500 font-mono">Hash: ${selectedAuction.hash || '-'}</p>
           </div>
           <div class="pt-2 flex gap-2">
-            <button onclick="placeBidOnAuction('${selectedAuction.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl transition cursor-pointer shadow">${t('placeBidBtn')}</button>
+            ${bidActionSection}
             <button onclick="closeDetailModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 py-2.5 px-4 rounded-xl transition cursor-pointer font-semibold">Close</button>
           </div>
         </div>
@@ -1625,6 +1680,10 @@
 
       const current = activeAuctionsList.find(a => a.id === auctionId);
       if (!current) return;
+      if (current.status !== 'active') {
+        alert("❌ Penawaran ditolak: Aset belum berstatus aktif.");
+        return;
+      }
       if (current.seller === authenticatedPiUser.username) {
         alert("❌ Dilarang menawar aset milik Anda sendiri!");
         return;
