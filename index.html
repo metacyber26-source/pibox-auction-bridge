@@ -1412,6 +1412,11 @@
         return;
       }
 
+      const releaseBtn = document.getElementById('btnReleaseGallery');
+      releaseBtn.disabled = true;
+      const originalText = releaseBtn.innerHTML;
+      releaseBtn.innerHTML = `<span>⏳ Tunggu, proses upload ke galeri...</span>`;
+
       try {
         const reader = new FileReader();
         reader.readAsDataURL(mainImageFile);
@@ -1432,7 +1437,10 @@
             if (error) throw error;
           }
 
-          alert(t('successRelease'));
+          // Munculkan pemberitahuan sukses saat proses selesai di antarmuka yang sama
+          alert("🎉 Sukses! Proses upload ke galeri berhasil. Silakan lanjut kirim email verifikasi.");
+          
+          releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
           
           // Setelah rilis ke galeri berhasil, aktifkan tombol Kirim Email Verifikasi ke Admin
           const sendEmailBtn = document.getElementById('btnSendEmail');
@@ -1442,6 +1450,8 @@
           fetchActiveAuctions();
         };
       } catch (err) {
+        releaseBtn.disabled = false;
+        releaseBtn.innerHTML = originalText;
         alert("Gagal merilis aset: " + err.message);
       }
     }
