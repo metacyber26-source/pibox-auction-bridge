@@ -49,7 +49,8 @@
         const len = clean.length;
         if (len <= 2) return clean[0] + '*';
         
-        const maskLength = Math.max(1, Math.floor(len * 0.75));
+        // Memastikan 75% karakter dari username diganti menjadi simbol bintang (*)
+        const maskLength = Math.max(1, Math.round(len * 0.75));
         const startIdx = Math.floor((len - maskLength) / 2);
         const endIdx = startIdx + maskLength;
         
@@ -763,7 +764,7 @@
         buyerSearchPlaceholder: "Cari pembeli...",
         deleteBatchBtn: "🗑 Hapus Terpilih",
         certModalTitle: "Sertifikat Elektronik Resmi NFT-GM",
-        certEmailNotice: "⚠️️ Sertifikat akan dikirimkan melalui email setelah transaksi terverifikasi.",
+        certEmailNotice: "⚠ Sertifikat akan dikirimkan melalui email setelah transaksi terverifikasi.",
         quotaDisplayMsg: "Maks 3 Listing Aktif Per Username",
         step1Title: "1. SS Utama",
         step2Title: "2. SS Tambahan",
@@ -901,7 +902,7 @@
         closeBtn: "Cerrar",
         buyersModalTitle: "👥 Tabla de Candidatos a Compradores y Estado",
         certModalTitle: "Certificado Electrónico Oficial NFT-GM",
-        certEmailNotice: "⚠️️ El certificado se enviará por correo electrónico una vez verificado.",
+        certEmailNotice: "⚠ El certificado se enviará por correo electrónico una vez verificado.",
         quotaDisplayMsg: "Máx 3 Listados Activos Por Usuario",
         step1Title: "1. SS Principal",
         step2Title: "2. SS Adicional",
@@ -1178,7 +1179,6 @@
       const box = document.getElementById('chatMessagesBox');
       if (!supabaseClient) return;
       try {
-        // Otomatis batasi & bersihkan pesan lebih dari 30 hari yang lalu
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
         await supabaseClient.from('chats').delete().lt('created_at', thirtyDaysAgo);
 
@@ -1220,11 +1220,9 @@
       textSpan.innerText = "⏳ Translating...";
 
       try {
-        // Menentukan kode bahasa target berdasarkan pengaturan aplikasi (currentLang)
         let targetLang = currentLang || 'en';
         if (targetLang === 'zh') targetLang = 'zh-CN';
 
-        // Memanggil API terjemahan publik MyMemory secara real-time
         const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(originalText)}&langpair=auto|${targetLang}`;
         
         const response = await fetch(apiUrl);
@@ -1252,7 +1250,6 @@
       const text = input.value.trim();
       if (!text) return;
 
-      // Pengecekan Konten Terlarang (Pornografi, Kekerasan, dll)
       if (SecureShield.checkProhibitedContent(text)) {
         alert("🚫 Pesan Anda ditolak karena mengandung unsur konten terlarang, pornografi, atau kekerasan.");
         return;
@@ -1336,7 +1333,6 @@
       } catch(e) { alert(e.message); }
     }
 
-    // PEMBAYARAN 0.2 PI
     async function payServerFeeAndProceed() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       const payBtn = document.getElementById('btnPayServerFee');
@@ -1394,7 +1390,6 @@
     function toggleManualTitleInput() { document.getElementById('assetTitleInput').focus(); }
     function validateAssetTitleInputRealtime() {}
 
-    // KIRIM EMAIL VERIFIKASI KE ADMIN
     function sendEmailToAdminFast() {
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
@@ -1424,7 +1419,6 @@
       alert("📧 Email verifikasi telah disiapkan. Data Anda aman di form, sekarang silakan klik tombol 'Rilis ke Galeri (\"Pending\")' di bawah.");
     }
 
-    // UPLOAD KE GALERI (STATUS PENDING)
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       if (!hasPaidServerFee) { alert("Selesaikan Pembayaran Server Fee terlebih dahulu!"); return; }
