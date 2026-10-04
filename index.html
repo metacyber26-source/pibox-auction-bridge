@@ -162,7 +162,6 @@
         </div>
       </div>
       <div class="flex flex-col gap-1.5 items-end">
-        <!-- PERBAIKAN: Tombol rilis aset dipindah ke atas tombol chat room dengan fungsi & logika utuh -->
         <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="w-full text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer">
           <span data-i18n="releaseAssetBtn">+ List Asset</span>
         </button>
@@ -224,7 +223,7 @@
           <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
             <li data-i18n="guideReleaseStep1">Unggah detail aset (SS Utama & Tambahan).</li>
             <li data-i18n="guideReleaseStep2">Bayar 0.2 Pi biaya server dengan aman & tepat.</li>
-            <li data-i18n="guideReleaseStep3">Kirim email verifikasi lalu rilis ke galeri berstatus Pending.</li>
+            <li data-i18n="guideReleaseStep3">Rilis ke galeri lalu kirim email verifikasi ke admin.</li>
           </ol>
         </div>
         <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
@@ -473,18 +472,18 @@
         </div>
       </div>
 
-      <!-- URUTAN TOMBOL: 1. Bayar 0.2 Pi -> 2. Kirim Email Verifikasi -> 3. Rilis ke Galeri -->
+      <!-- URUTAN TOMBOL BARU: 1. Bayar 0.2 Pi -> 2. Rilis ke Galeri -> 3. Kirim Email Verifikasi -->
       <div class="flex flex-col gap-2 pt-2">
         <button id="btnPayServerFee" type="button" onclick="payServerFeeAndProceed()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
           <span data-i18n="payServerFeeBtn">💳 Bayar 0.2 Pi (Biaya Server)</span>
         </button>
 
-        <button id="btnSendEmail" type="button" onclick="sendEmailToAdminFast()" class="w-full bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg opacity-50 cursor-not-allowed" disabled>
-          <span data-i18n="sendEmailBtn">📧 Kirim Email Verifikasi ke Admin</span>
-        </button>
-
         <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryOnly()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg opacity-50 cursor-not-allowed" disabled>
           <span data-i18n="releaseGalleryBtn">🚀 Rilis ke Galeri ("Pending")</span>
+        </button>
+
+        <button id="btnSendEmail" type="button" onclick="sendEmailToAdminFast()" class="w-full bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg opacity-50 cursor-not-allowed" disabled>
+          <span data-i18n="sendEmailBtn">📧 Kirim Email Verifikasi ke Admin</span>
         </button>
 
         <button type="button" onclick="closeCreateModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2 rounded-xl transition cursor-pointer">Cancel</button>
@@ -674,7 +673,7 @@
         guideReleaseTitle: "🚀 Asset Release Guide:",
         guideReleaseStep1: "Upload asset details (Main & Extra SS).",
         guideReleaseStep2: "Pay 0.2 Pi server fee quickly & accurately.",
-        guideReleaseStep3: "Send verification email and release asset to gallery.",
+        guideReleaseStep3: "Release to gallery then send verification email.",
         chatModalTitle: "Nusantara NFT Live Chat Center",
         chatTabForum: "🌐 Room Forum (Global)",
         chatTabP2P: "🔒 Room P2P (Seller & Buyer)",
@@ -749,7 +748,7 @@
         guideReleaseTitle: "🚀 Panduan Rilis Aset:",
         guideReleaseStep1: "Unggah detail aset (SS Utama & Tambahan).",
         guideReleaseStep2: "Bayar 0.2 Pi biaya server dengan cepat & akurat.",
-        guideReleaseStep3: "Kirim email verifikasi lalu rilis aset ke galeri berstatus Pending.",
+        guideReleaseStep3: "Rilis ke galeri lalu kirim email verifikasi ke admin.",
         chatModalTitle: "Pusat Live Chat Nusantara NFT",
         chatTabForum: "🌐 Room Forum (Global)",
         chatTabP2P: "🔒 Room P2P (Penjual & Pembeli)",
@@ -1351,11 +1350,12 @@
         payBtn.disabled = true;
         payBtn.innerText = "✅ Biaya Server Terbayar";
         
-        const sendEmailBtn = document.getElementById('btnSendEmail');
-        sendEmailBtn.disabled = false;
-        sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        // Setelah pembayaran selesai, aktifkan tombol Rilis ke Galeri terlebih dahulu
+        const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
+        releaseGalleryBtn.disabled = false;
+        releaseGalleryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
 
-        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil! Silakan lanjut ke tahap Kirim Email Verifikasi ke Admin.");
+        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil! Silakan lanjut rilis aset ke galeri.");
       };
 
       const paymentData = {
@@ -1397,35 +1397,6 @@
     function toggleManualTitleInput() { document.getElementById('assetTitleInput').focus(); }
     function validateAssetTitleInputRealtime() {}
 
-    function sendEmailToAdminFast() {
-      const title = document.getElementById('assetTitleInput').value.trim();
-      const hash = document.getElementById('assetHashInput').value.trim();
-      const onChainTime = document.getElementById('onChainTimeInput').value.trim();
-
-      if (!title || !hash) {
-        alert("Harap lengkapi nama aset dan hash sebelum mengirim email verifikasi.");
-        return;
-      }
-
-      const emailSubject = encodeURIComponent("Verifikasi Rilis Aset NFT - Nusantara Auction");
-      const emailBody = encodeURIComponent(
-        `Halo Admin,\n\n` +
-        `Mohon verifikasi aset NFT yang baru saja saya unggah.\n\n` +
-        `NFT Asset Name / Title: ${title}\n` +
-        `Hash: ${hash}\n` +
-        `On-chain Time: ${onChainTime}\n\n` +
-        `Terima kasih!`
-      );
-
-      window.location.href = `mailto:admin@nusantaranft.com?subject=${emailSubject}&body=${emailBody}`;
-
-      const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
-      releaseGalleryBtn.disabled = false;
-      releaseGalleryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-      alert("📧 Email verifikasi telah disiapkan. Data Anda aman di form, sekarang silakan klik tombol 'Rilis ke Galeri (\"Pending\")' di bawah.");
-    }
-
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       if (!hasPaidServerFee) { alert("Selesaikan Pembayaran Server Fee terlebih dahulu!"); return; }
@@ -1462,12 +1433,42 @@
           }
 
           alert(t('successRelease'));
-          closeCreateModal();
+          
+          // Setelah rilis ke galeri berhasil, aktifkan tombol Kirim Email Verifikasi ke Admin
+          const sendEmailBtn = document.getElementById('btnSendEmail');
+          sendEmailBtn.disabled = false;
+          sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
           fetchActiveAuctions();
         };
       } catch (err) {
         alert("Gagal merilis aset: " + err.message);
       }
+    }
+
+    function sendEmailToAdminFast() {
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const hash = document.getElementById('assetHashInput').value.trim();
+      const onChainTime = document.getElementById('onChainTimeInput').value.trim();
+
+      if (!title || !hash) {
+        alert("Harap lengkapi nama aset dan hash sebelum mengirim email verifikasi.");
+        return;
+      }
+
+      const emailSubject = encodeURIComponent("Verifikasi Rilis Aset NFT - Nusantara Auction");
+      const emailBody = encodeURIComponent(
+        `Halo Admin,\n\n` +
+        `Mohon verifikasi aset NFT yang baru saja saya unggah.\n\n` +
+        `NFT Asset Name / Title: ${title}\n` +
+        `Hash: ${hash}\n` +
+        `On-chain Time: ${onChainTime}\n\n` +
+        `Terima kasih!`
+      );
+
+      window.location.href = `mailto:admin@nusantaranft.com?subject=${emailSubject}&body=${emailBody}`;
+      alert("📧 Email verifikasi telah disiapkan melalui aplikasi email Anda. Proses rilis selesai!");
+      closeCreateModal();
     }
 
     // ==========================================
