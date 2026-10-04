@@ -365,7 +365,7 @@
       </div>
       
       <div class="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-center">
-        <p class="text-[10px] text-amber-300 font-medium" data-i18n="certEmailNotice">⚠️ The certificate will be sent via email once the transaction has been verified.</p>
+        <p class="text-[10px] text-amber-300 font-medium" data-i18n="certEmailNotice">⚠️️ The certificate will be sent via email once the transaction has been verified.</p>
       </div>
 
       <div class="flex justify-center bg-black p-2 rounded-xl border border-gray-800 overflow-hidden">
@@ -1929,14 +1929,10 @@
           ` : ''}
 
           ${isEnded ? `
-            <button onclick="openCertificateModalById('${auction.id}')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-1 cursor-pointer">
-              📜 Lihat Sertifikat Resmi NFT-GM
+            <button onclick="openCertificateModalById('${auction.id}')" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-lg">
+              📜 ${t('downloadCertBtn')}
             </button>
           ` : ''}
-
-          <button onclick="closeDetailModal()" class="w-full bg-gray-900 text-gray-400 text-xs py-2 rounded-xl hover:bg-gray-800 transition cursor-pointer">
-            ${t('closeBtn')}
-          </button>
         </div>
       `;
 
@@ -1954,56 +1950,61 @@
         return;
       }
 
-      if (!isBuyerApproved) {
-        alert("⚠️ Akses Pembeli Anda belum disetujui oleh Admin. Silakan tunggu verifikasi.");
-        return;
-      }
-
       if (!selectedAuction) return;
 
       const bidInput = document.getElementById('bidAmountInput');
-      const bidValue = parseFloat(bidInput.value);
-      const currentHighest = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
+      const bidAmount = parseFloat(bidInput.value);
+      const minBid = (selectedAuction.highest_bid || selectedAuction.reserve_price) + 0.1;
 
-      if (isNaN(bidValue) || bidValue <= currentHighest) {
-        alert(`Penawaran harus lebih tinggi dari harga tertinggi saat ini (${currentHighest} Pi).`);
+      if (isNaN(bidAmount) || bidAmount < minBid) {
+        alert(`Penawaran minimal adalah ${minBid.toFixed(2)} Pi.`);
         return;
       }
 
-      // Integrasi SDK Pi Payment Fee untuk Bidding
+      if (!window.Pi) {
+        alert("Pi SDK belum siap.");
+        return;
+      }
+
       try {
-        if (window.Pi) {
-          const paymentData = {
-            amount: 0.01,
-            memo: `Biaya Bid Lelang Aset: ${selectedAuction.title}`,
-            metadata: { auction_id: selectedAuction.id, bid_amount: bidValue }
-          };
+        const paymentData = {
+          amount: 0.01,
+          memo: `Bid Fee untuk Aset #${selectedAuction.id.substring(0,6)}`,
+          metadata: { type: "bid_fee", auction_id: selectedAuction.id }
+        };
 
-          const callbacks = {
-            onReadyForServerApproval: function(paymentId) {},
-            onReadyForServerCompletion: async function(paymentId, txid) {
-              await executeBidUpdateInDatabase(selectedAuction.id, bidValue, authenticatedPiUser.username);
-            },
-            onCancel: function(paymentId) { alert("Penawaran dibatalkan."); },
-            onError: function(error) { alert("Gagal memproses biaya penawaran."); }
-          };
+        const callbacks = {
+          onReadyForServerApproval: function(paymentId) {
+            console.log("Bid payment ready for server approval:", paymentId);
+          },
+          onReadyForServerCompletion: async function(paymentId, txid) {
+            await processBidSubmission(bidAmount);
+          },
+          onCancel: function(paymentId) {
+            alert("Pembayaran Bid Fee dibatalkan.");
+          },
+          onError: function(error, payment) {
+            alert("Gagal membayar Bid Fee.");
+          }
+        };
 
-          await window.Pi.createPayment(paymentData, callbacks);
-        } else {
-          await executeBidUpdateInDatabase(selectedAuction.id, bidValue, authenticatedPiUser.username);
-        }
+        await window.Pi.createPayment(paymentData, callbacks);
       } catch (e) {
-        // Fallback untuk Testnet Sandbox
-        await executeBidUpdateInDatabase(selectedAuction.id, bidValue, authenticatedPiUser.username);
+        console.warn("Payment Exception (Fallback for Sandbox):", e);
+        await processBidSubmission(bidAmount);
       }
     }
 
-    async function executeBidUpdateInDatabase(auctionId, bidValue, username) {
+    async function processBidSubmission(bidAmount) {
+      if (!selectedAuction || !supabaseClient) return;
+
       try {
-        const { error } = await supabaseClient.from('auctions').update({
-          highest_bid: bidValue,
-          highest_bidder: username
-        }).eq('id', auctionId);
+        const { error } = await supabaseClient.from('auctions')
+          .update({
+            highest_bid: bidAmount,
+            highest_bidder: authenticatedPiUser.username
+          })
+          .eq('id', selectedAuction.id);
 
         if (error) throw error;
 
