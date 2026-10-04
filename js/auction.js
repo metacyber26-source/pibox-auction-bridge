@@ -1,8 +1,8 @@
 import { compressImage } from './compressor.js';
 
-// js/auction.js - Logika Lelang, Kompresi, & Pengiriman Data
+// js/auction.js - Logika Lelang, Kompresi, & Pengiriman Data Supabase
 export function initAuction() {
-    // 1. Logika untuk tombol Sertifikat
+    // 1. Tombol Sertifikat
     const btnCert = document.getElementById('btn-certificate');
     if (btnCert) {
         btnCert.addEventListener('click', () => {
@@ -10,7 +10,7 @@ export function initAuction() {
         });
     }
 
-    // 2. Logika Utama Pengunggahan dan Pelelangan Aset
+    // 2. Tombol / Form Rilis Aset Lelang
     const fileInput = document.getElementById('file-input');
     
     if (fileInput) {
@@ -26,23 +26,30 @@ export function initAuction() {
                 
                 console.log(`Ukuran setelah dikompres: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
                 
-                // Contoh pembuatan waktu berakhir lelang otomatis (misal: 24 jam dari sekarang)
+                // --- ATASI ERROR: BUAT WAKTU BERAKHIR LELANG (24 JAM KEDEPAN) ---
                 const now = new Date();
                 const endsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
-                // Pastikan variabel 'ends_at' dikirim bersama data ke Supabase Anda, contoh:
+                // CONTOH STRUKTUR PENGIRIMAN KE SUPABASE:
                 /*
-                const auctionData = {
-                    title: document.getElementById('title-input')?.value || "Aset Nusantara",
-                    image_url: file, // atau hasil upload URL Supabase Storage
-                    ends_at: endsAt // <-- Ini wajib diisi agar tidak error 'null constraint'
-                };
+                // Pastikan 'ends_at: endsAt' dimasukkan ke dalam objek .insert() Anda!
+                const { data, error } = await supabase
+                    .from('auctions')
+                    .insert([
+                        {
+                            title: document.getElementById('nft-title')?.value || "Aset Nusantara",
+                            image_url: file, // atau hasil upload storage URL Anda
+                            ends_at: endsAt   // <-- INI WAJIB ADA AGAR TIDAK ERROR NULL
+                        }
+                    ]);
+
+                if (error) throw error;
                 */
 
-                alert('Gambar siap dan parameter waktu lelang terpenuhi!');
+                alert('Gambar siap dan parameter waktu lelang (ends_at) telah diatur!');
 
             } catch (err) {
-                console.error("Gagal memproses lelang:", err);
+                console.error("Gagal merilis aset:", err);
                 alert("Gagal merilis aset: " + err.message);
             }
         });
