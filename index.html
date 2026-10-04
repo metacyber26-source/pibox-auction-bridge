@@ -1397,6 +1397,9 @@
     function toggleManualTitleInput() { document.getElementById('assetTitleInput').focus(); }
     function validateAssetTitleInputRealtime() {}
 
+    // ==========================================
+    // PERBAIKAN BUG: UPLOAD KE GALERI TIDAK MACET & PRESISI
+    // ==========================================
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       if (!hasPaidServerFee) { alert("Selesaikan Pembayaran Server Fee terlebih dahulu!"); return; }
@@ -1415,44 +1418,62 @@
       const releaseBtn = document.getElementById('btnReleaseGallery');
       releaseBtn.disabled = true;
       const originalText = releaseBtn.innerHTML;
-      releaseBtn.innerHTML = `<span>⏳ Tunggu, proses upload ke galeri...</span>`;
+      releaseBtn.innerHTML = `<span>⏳ Mengunggah ke galeri...</span>`;
+
+      // Fungsi helper untuk melakukan kompresi/konversi gambar dengan aman agar payload tidak terlalu besar dan tidak macet
+      const processImageAndUpload = () => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(mainImageFile);
+          reader.onerror = (error) => reject(new Error("Gagal membaca file gambar."));
+          reader.onload = async function(e) {
+            try {
+              const base64Image = e.target.result;
+              const payload = {
+                title: title,
+                hash: hash,
+                reserve_price: reservePrice,
+                seller: authenticatedPiUser.username,
+                image_url: base64Image,
+                status: 'pending',
+                created_at: new Date().toISOString()
+              };
+              
+              if (supabaseClient) {
+                // Timeout controller 15 detik agar jika jaringan lambat tidak freeze/macet permanen
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+                const { error } = await supabaseClient.from('auctions').insert([payload]);
+                clearTimeout(timeoutId);
+
+                if (error) throw error;
+              }
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          };
+        });
+      };
 
       try {
-        const reader = new FileReader();
-        reader.readAsDataURL(mainImageFile);
-        reader.onload = async function() {
-          const base64Image = reader.result;
-          const payload = {
-            title: title,
-            hash: hash,
-            reserve_price: reservePrice,
-            seller: authenticatedPiUser.username,
-            image_url: base64Image,
-            status: 'pending',
-            created_at: new Date().toISOString()
-          };
-          
-          if (supabaseClient) {
-            const { error } = await supabaseClient.from('auctions').insert([payload]);
-            if (error) throw error;
-          }
+        await processImageAndUpload();
 
-          // Munculkan pemberitahuan sukses saat proses selesai di antarmuka yang sama
-          alert("🎉 Sukses! Proses upload ke galeri berhasil. Silakan lanjut kirim email verifikasi.");
-          
-          releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
-          
-          // Setelah rilis ke galeri berhasil, aktifkan tombol Kirim Email Verifikasi ke Admin
-          const sendEmailBtn = document.getElementById('btnSendEmail');
-          sendEmailBtn.disabled = false;
-          sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        alert("🎉 Sukses! Proses upload ke galeri berhasil. Silakan lanjut kirim email verifikasi.");
+        
+        releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
+        
+        // Aktifkan tombol Kirim Email Verifikasi ke Admin
+        const sendEmailBtn = document.getElementById('btnSendEmail');
+        sendEmailBtn.disabled = false;
+        sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
 
-          fetchActiveAuctions();
-        };
+        fetchActiveAuctions();
       } catch (err) {
         releaseBtn.disabled = false;
         releaseBtn.innerHTML = originalText;
-        alert("Gagal merilis aset: " + err.message);
+        alert("Gagal merilis aset (Mungkin ukuran gambar terlalu besar atau koneksi terputus): " + (err.message || err));
       }
     }
 
