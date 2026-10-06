@@ -1440,28 +1440,65 @@
       const originalText = releaseBtn.innerHTML;
       releaseBtn.innerHTML = `<span>⏳ Tunggu, proses upload ke galeri...</span>`;
 
-            try {
-        const reader = new FileReader();
-        reader.readAsDataURL(mainImageFile);
-        reader.onload = async function() {
-          const base64Image = reader.result;
-          const payload = {
-            title: title,
-            hash: hash,
-            reserve_price: reservePrice,
-            seller: authenticatedPiUser.username,
-            image_url: base64Image,
-            status: 'pending',
-            created_at: new Date().toISOString()
-          };
-          
-          if (supabaseClient) {
-            const { error } = await supabaseClient.from('auctions').insert([payload]);
-            if (error) throw error;
-          }
+                  try {
+        // Fungsi Kompresi Aman (Tanpa Memblokir Sesi Autentikasi/Login)
+        const compressImageSafe = (file) => {
+          return new Promise((resolve) => {
+            const img = new Image();
+            const objectUrl = URL.createObjectURL(file);
+            
+            img.onload = () => {
+              URL.revokeObjectURL(objectUrl);
+              const maxWidth = 1080;
+              let width = img.width;
+              let height = img.height;
+              
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+              
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL('image/jpeg', 0.8));
+            };
 
-          // Munculkan pemberitahuan sukses saat proses selesai di antarmuka yang sama
-          alert("🎉 Sukses! Proses upload ke galeri berhasil. Silakan lanjut kirim email verifikasi.");
+            // Fallback: Jika kompresi gagal, gunakan FileReader biasa agar fungsi tidak stuck
+            img.onerror = () => {
+              URL.revokeObjectURL(objectUrl);
+              const fallbackReader = new FileReader();
+              fallbackReader.onload = () => resolve(fallbackReader.result);
+              fallbackReader.readAsDataURL(file);
+            };
+
+            img.src = objectUrl;
+          });
+        };
+
+        // Jalankan kompresi secara aman
+        const base64Image = await compressImageSafe(mainImageFile);
+
+        const payload = {
+          title: title,
+          hash: hash,
+          reserve_price: reservePrice,
+          seller: authenticatedPiUser.username,
+          image_url: base64Image,
+          status: 'pending',
+          created_at: new Date().toISOString()
+        };
+        
+        if (supabaseClient) {
+          const { error } = await supabaseClient.from('auctions').insert([payload]);
+          if (error) throw error;
+        }
+
+        // Munculkan pemberitahuan sukses saat proses selesai
+        alert("🎉 Sukses! Proses upload ke galeri berhasil. Silakan lanjut kirim email verifikasi.");
+
 
           
           releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
