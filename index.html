@@ -1078,7 +1078,74 @@
           fetchBuyersList();
           if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
         } else {
-          throw new Error("Respon data otentikasi Pi Network tidak lengkap.");
+    async function authenticatePiUser(isAuto = false) {
+      const statusEl = document.getElementById('userStatusDisplay');
+      const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+      const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+      
+      if (isAuthenticating) return;
+      if (authenticatedPiUser) {
+        if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
+        return;
+      }
+
+      // Memastikan referensi global Pi SDK tersinkronisasi sempurna
+      if (!window.Pi && typeof Pi !== 'undefined') {
+        window.Pi = Pi;
+      }
+
+      if (!window.Pi) {
+        if (!isAuto) alert("Pi SDK belum tersedia. Pastikan Anda membukanya di dalam Pi Browser.");
+        return;
+      }
+
+      isAuthenticating = true;
+      if (btnHeaderLogin) btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Authenticating...</span>`;
+
+      try {
+        // Eksekusi autentikasi aman tanpa memicu bentrokan re-initialization
+        const scopes = ['username', 'payments'];
+        
+        // Penanganan non-blocking transaksi menggantung agar otentikasi tetap berjalan lancar
+        const onIncompletePaymentFound = (payment) => {
+          console.warn("Incomplete payment detected during authentication:", payment);
+          if (payment && payment.identifier) {
+            fetch('/api/pi/complete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction ? payment.transaction.txid : '' })
+            }).catch(pErr => console.warn("Failed resolving pending payment:", pErr));
+          }
+        };
+
+        // Pemanggilan autentikasi Pi SDK secara terisolasi
+        const auth = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+        
+        if (auth && auth.user && auth.user.username) {
+          authenticatedPiUser = auth.user;
+          const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
+          
+          if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">${maskedName}</span>`;
+          
+          const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
+          const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+          
+          if (isAdmin) {
+            isBuyerApproved = true;
+            if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+            if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          } else {
+            if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+            await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+          }
+          
+          // Memperbarui UI & memuat data dependen secara asynchronous tanpa mengganggu thread utama
+          Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(e => console.error("Sync error:", e));
+
+          if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
+        } else {
+          throw new Error("Respon otentikasi Pi Network tidak valid atau dibatalkan pengguna.");
         }
       } catch (err) {
         console.error("Pi Auth Failed:", err);
@@ -1086,14 +1153,12 @@
           btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">${t('loginBtn')}</span>`;
         }
         if (!isAuto) {
-          alert("Gagal melakukan autentikasi Pi Network: " + (err.message || err.toString()));
+          alert("Gagal melakukan autentikasi Pi Network: " + (err.message || "Koneksi terputus/dibatalkan."));
         }
       } finally {
         isAuthenticating = false;
       }
     }
-
-
 
     async function checkBuyerStatusInDatabase(username) {
       if (!supabaseClient || !username) return;
