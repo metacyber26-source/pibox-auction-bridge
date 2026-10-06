@@ -1518,6 +1518,10 @@
         // Jalankan kompresi secara aman
         const base64Image = await compressImageSafe(mainImageFile);
 
+        // Hitung durasi berakhirnya lelang berdasarkan pengaturan durasi jadwal (default 24 jam)
+        const durationHours = (auctionScheduleState && auctionScheduleState.durationHours) ? parseInt(auctionScheduleState.durationHours, 10) : 24;
+        const calculatedEndsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+
         const payload = {
           title: title,
           hash: hash,
@@ -1525,8 +1529,10 @@
           seller: authenticatedPiUser.username,
           image_url: base64Image,
           status: 'pending',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          ends_at: calculatedEndsAt
         };
+
         
         if (supabaseClient) {
           const { error } = await supabaseClient.from('auctions').insert([payload]);
