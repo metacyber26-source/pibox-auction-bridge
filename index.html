@@ -1748,6 +1748,7 @@
       }
     }
 
+    // [KODE BARU - PERBAIKAN FITUR PENAWARAN (5 Pi, 10 Pi, 20 Pi, OTHER)]
     function openDetailModalWithData(auctionId) {
       selectedAuction = activeAuctionsList.find(a => a.id === auctionId);
       if (!selectedAuction) return;
@@ -1755,14 +1756,43 @@
       const content = document.getElementById('modalDetailContent');
       const title = SecureShield.sanitizeHTML(selectedAuction.title || 'Untitled');
       const seller = SecureShield.maskUsername(selectedAuction.seller || 'Anon');
-      const price = selectedAuction.highest_bid || selectedAuction.reserve_price || 0;
+      const price = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
       const status = selectedAuction.status || 'active';
 
       let bidActionSection = '';
       if (status !== 'active') {
         bidActionSection = `<div class="bg-amber-500/20 text-amber-400 p-2.5 rounded-xl text-center text-[11px] font-bold">⚠ Aset ini berstatus '${status}', belum dapat ditawar.</div>`;
       } else {
-        bidActionSection = `<button onclick="placeBidOnAuction('${selectedAuction.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl transition cursor-pointer shadow">${t('placeBidBtn')}</button>`;
+        const canBid5 = 5 > price;
+        const canBid10 = 10 > price;
+        const canBid20 = 20 > price;
+
+        bidActionSection = `
+          <div class="space-y-2 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
+            <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih / Masukkan Nominal Penawaran:</p>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button onclick="placeBidOnAuction('${selectedAuction.id}', 5)" ${!canBid5 ? 'disabled' : ''} class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer ${canBid5 ? 'bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40' : 'bg-gray-800 text-gray-600 border border-gray-700 cursor-not-allowed opacity-50'}">
+                5 Pi
+              </button>
+              <button onclick="placeBidOnAuction('${selectedAuction.id}', 10)" ${!canBid10 ? 'disabled' : ''} class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer ${canBid10 ? 'bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40' : 'bg-gray-800 text-gray-600 border border-gray-700 cursor-not-allowed opacity-50'}">
+                10 Pi
+              </button>
+              <button onclick="placeBidOnAuction('${selectedAuction.id}', 20)" ${!canBid20 ? 'disabled' : ''} class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer ${canBid20 ? 'bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40' : 'bg-gray-800 text-gray-600 border border-gray-700 cursor-not-allowed opacity-50'}">
+                20 Pi
+              </button>
+            </div>
+            
+            <div class="pt-1">
+              <label class="block text-[9px] text-gray-400 mb-1">Other (Input Manual > ${price} Pi):</label>
+              <div class="flex gap-2">
+                <input type="number" id="manualBidAmountInput" step="0.01" min="${(price + 0.01).toFixed(2)}" placeholder="> ${price}" class="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-yellow-500">
+                <button onclick="submitManualBid('${selectedAuction.id}', ${price})" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer shadow">
+                  Kirim
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
       }
 
       content.innerHTML = `
@@ -1777,21 +1807,70 @@
             <p class="text-gray-400">Status: <span class="text-white font-bold uppercase">${status}</span></p>
             <p class="text-[10px] text-gray-500 font-mono">Hash: ${selectedAuction.hash || '-'}</p>
           </div>
-          <div class="pt-2 flex gap-2">
-            ${bidActionSection}
-            <button onclick="closeDetailModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 py-2.5 px-4 rounded-xl transition cursor-pointer font-semibold">Close</button>
+          ${bidActionSection}
+          <div class="pt-1 flex justify-end">
+            <button onclick="closeDetailModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 py-2.5 rounded-xl transition cursor-pointer font-semibold">Close</button>
           </div>
         </div>
       `;
       document.getElementById('detailModal').classList.remove('hidden');
     }
 
-    async function placeBidOnAuction(auctionId) {
-      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
-      if (!isBuyerApproved && !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⚠️ Akun Anda belum disetujui sebagai pembeli aktif oleh Admin!");
+    function submitManualBid(auctionId, currentPrice) {
+      const inputEl = document.getElementById('manualBidAmountInput');
+      if (!inputEl) return;
+      const amount = parseFloat(inputEl.value);
+
+      if (isNaN(amount) || amount <= currentPrice) {
+        alert(`⚠️ Penawaran manual harus angka valid dan lebih tinggi dari harga saat ini (${currentPrice} Pi)!`);
         return;
       }
+      placeBidOnAuction(auctionId, amount);
+    }
+
+    async function placeBidOnAuction(auctionId, bidAmount) {
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      if (!isBuyerApproved && !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⚠️ Akun Anda belum disetujui sebagai pembeli aktif oleh Admin");
+        return;
+      }
+
+      const targetAuction = activeAuctionsList.find(a => a.id === auctionId);
+      if (!targetAuction) return;
+
+      const currentPrice = parseFloat(targetAuction.highest_bid || targetAuction.reserve_price || 0);
+      const parsedBidAmount = parseFloat(bidAmount);
+
+      if (isNaN(parsedBidAmount) || parsedBidAmount <= currentPrice) {
+        alert(`⚠️ Nominal penawaran (${parsedBidAmount} Pi) harus lebih besar dari harga terakhir (${currentPrice} Pi)!`);
+        return;
+      }
+
+      if (targetAuction.seller === authenticatedPiUser.username) {
+        alert("🚫 Anda tidak dapat menawar aset milik Anda sendiri!");
+        return;
+      }
+
+      try {
+        const payload = {
+          highest_bid: parsedBidAmount,
+          highest_bidder: authenticatedPiUser.username,
+          updated_at: new Date().toISOString()
+        };
+
+        if (supabaseClient) {
+          const { error } = await supabaseClient.from('auctions').update(payload).eq('id', auctionId);
+          if (error) throw error;
+        }
+
+        alert(`🎉 ${t('bidSuccessMsg')} Tawaran ${parsedBidAmount} Pi berhasil ditempatkan!`);
+        closeDetailModal();
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal mengirim penawaran: " + err.message);
+      }
+    }
+
 
       const current = activeAuctionsList.find(a => a.id === auctionId);
       if (!current) return;
