@@ -606,6 +606,7 @@
     let buyersList = [];
     let selectedAuction = null;
     let authenticatedPiUser = null;
+    let isAuthenticating = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
 
     let hasPaidServerFee = false;
@@ -967,7 +968,13 @@
       setupRealtimeSubscription();
       setInterval(updateTimers, 1000);
       setInterval(checkAuctionSchedule, 1000);
-      authenticatePiUser();
+      
+      // Auto login non-blocking
+      setTimeout(() => {
+        if (!authenticatedPiUser && window.Pi) {
+          authenticatePiUser(true);
+        }
+      }, 300);
     });
 
     function updateNetworkBannerUI() {
@@ -988,54 +995,64 @@
       }
     }
 
-        async function authenticatePiUser() {
+    async function authenticatePiUser(isAuto = false) {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
       const btnAdminSchedule = document.getElementById('btnAdminSchedule');
       
-      if (!window.Pi) {
-        alert("Pi SDK belum tersedia. Pastikan Anda membukanya di dalam Pi Browser.");
+      if (isAuthenticating) return;
+      if (authenticatedPiUser) {
+        if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
         return;
       }
 
+      if (!window.Pi) {
+        if (!isAuto) alert("Pi SDK belum tersedia. Pastikan Anda membukanya di dalam Pi Browser.");
+        return;
+      }
+
+      isAuthenticating = true;
+      if (btnHeaderLogin) btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Authenticating...</span>`;
+
       try {
         const scopes = ['username', 'payments'];
-        
-        // Fungsi callback untuk menangani pembayaran tertunda (mandatory Pi SDK)
         const onIncompletePaymentFound = (payment) => {
           console.log("Incomplete payment found:", payment);
         };
 
-        window.Pi.authenticate(scopes, onIncompletePaymentFound).then(auth => {
+        const auth = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+        
+        if (auth && auth.user) {
           authenticatedPiUser = auth.user;
+          const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
           
-          if (authenticatedPiUser) {
-            const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-            if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-            if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">${maskedName}</span>`;
-            
-            const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-            if (isAdmin) {
-              isBuyerApproved = true;
-              document.getElementById('buyerApprovalStatusText').innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-              if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-            } else {
-              if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-              checkBuyerStatusInDatabase(authenticatedPiUser.username);
-            }
-            
-            fetchActiveAuctions();
-            fetchBuyersList();
-            alert(`🎉 Berhasil Login sebagai @${maskedName}`);
+          if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">${maskedName}</span>`;
+          
+          const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+          if (isAdmin) {
+            isBuyerApproved = true;
+            document.getElementById('buyerApprovalStatusText').innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+            if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          } else {
+            if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+            checkBuyerStatusInDatabase(authenticatedPiUser.username);
           }
-        }).catch(err => {
-          console.error("Pi Auth Failed:", err);
-          alert("Gagal melakukan autentikasi Pi Network: " + (err.message || err));
-        });
-
+          
+          fetchActiveAuctions();
+          fetchBuyersList();
+          if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
+        } else {
+          throw new Error("Respon otentikasi Pi Network kosong.");
+        }
       } catch (err) {
-        console.error("Pi Authentication Error:", err);
-        alert("Terjadi kesalahan saat memproses login Pi.");
+        console.error("Pi Auth Failed:", err);
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>`;
+        if (!isAuto) {
+          alert("Gagal melakukan autentikasi Pi Network: " + (err.message || err));
+        }
+      } finally {
+        isAuthenticating = false;
       }
     }
 
@@ -1360,20 +1377,19 @@
       payBtn.innerText = "⏳ Memproses Pembayaran 0.2 Pi...";
 
       const finishPaymentSuccess = () => {
-  hasPaidServerFee = true;
-  payBtn.disabled = true;
-  payBtn.innerText = "✅ Biaya Server Terbayar";
-  
-  const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
-  releaseGalleryBtn.disabled = false;
-  releaseGalleryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        hasPaidServerFee = true;
+        payBtn.disabled = true;
+        payBtn.innerText = "✅ Biaya Server Terbayar";
+        
+        const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
+        releaseGalleryBtn.disabled = false;
+        releaseGalleryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
 
-  alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil! Mengalihkan ke proses rilis galeri...");
-  
-  // Menjalankan proses rilis ke galeri secara otomatis setelah bayar sukses
-  releaseToGalleryOnly();
-};
-
+        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil! Mengalihkan ke proses rilis galeri...");
+        
+        // Menjalankan proses rilis ke galeri secara otomatis setelah bayar sukses
+        releaseToGalleryOnly();
+      };
 
       const paymentData = {
         amount: 0.2,
@@ -1434,7 +1450,7 @@
       const originalText = releaseBtn.innerHTML;
       releaseBtn.innerHTML = `<span>⏳ Tunggu, proses upload ke galeri...</span>`;
 
-                  try {
+      try {
         // Fungsi Kompresi Aman (Tanpa Memblokir Sesi Autentikasi/Login)
         const compressImageSafe = (file) => {
           return new Promise((resolve) => {
@@ -1493,17 +1509,14 @@
         // Munculkan pemberitahuan sukses saat proses selesai
         alert("🎉 Sukses! Proses upload ke galeri berhasil. Silakan lanjut kirim email verifikasi.");
 
+        releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
+        
+        // Setelah rilis ke galeri berhasil, aktifkan tombol Kirim Email Verifikasi ke Admin
+        const sendEmailBtn = document.getElementById('btnSendEmail');
+        sendEmailBtn.disabled = false;
+        sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
 
-          
-          releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
-          
-          // Setelah rilis ke galeri berhasil, aktifkan tombol Kirim Email Verifikasi ke Admin
-          const sendEmailBtn = document.getElementById('btnSendEmail');
-          sendEmailBtn.disabled = false;
-          sendEmailBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-          fetchActiveAuctions();
-        };
+        fetchActiveAuctions();
       } catch (err) {
         releaseBtn.disabled = false;
         releaseBtn.innerHTML = originalText;
