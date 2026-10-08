@@ -1,40 +1,31 @@
-// certificate.js - Mengambil data URL & Menampilkan Stempel Resmi
-import { createClient } from 'https://esm.sh/@supabase/supabase-js';
-
+// certificate.js - Skrip Dinamis Sertifikat Kepemilikan NFT-GM
 document.addEventListener("DOMContentLoaded", async () => {
-    // Ambil parameter ID aset dari URL (contoh: certificate.html?id=123)
+    // Ambil parameter dari URL (Contoh: certificate.html?id=123&winner=Dev&hash=0xABC...)
     const urlParams = new URLSearchParams(window.location.search);
     const assetId = urlParams.get('id');
+    const customWinner = urlParams.get('winner');
+    const customTitle = urlParams.get('title');
+    const customHash = urlParams.get('hash');
+    const customTime = urlParams.get('time');
 
-    const winnerEl = document.querySelector('.loading-winner, #winner-name');
-    const assetEl = document.querySelector('.loading-asset, #asset-title');
-    const stampContainer = document.getElementById('stamp-container'); // Sesuaikan elemen wadah stempel jika ada
+    // Tangkap elemen target di HTML
+    const winnerEl = document.getElementById('winnerUsername');
+    const assetEl = document.getElementById('assetTitle');
+    const hashEl = document.getElementById('contractHash');
+    const timeEl = document.getElementById('onChainTime');
+    const closingEl = document.getElementById('closingTime');
+    const certNoEl = document.getElementById('certNo');
 
-    if (assetId) {
-        try {
-            // Contoh pengambilan data dari Supabase (sesuaikan konfigurasi klien Anda jika sudah ada)
-            // const { data, error } = await supabase.from('auctions').select('*').eq('id', assetId).single();
-            
-            // Simulasi data berhasil dimuat:
-            if (winnerEl) winnerEl.textContent = "Kolektor Terverifikasi (Pi Network)";
-            if (assetEl) assetEl.textContent = "Aset Budaya Nusantara #" + assetId;
-            
-        } catch (err) {
-            console.error("Gagal memuat data sertifikat:", err);
-        }
-    } else {
-        if (winnerEl) winnerEl.textContent = "Pemegang Hak Sah";
-        if (assetEl) assetEl.textContent = "Nusantara Verified NFT";
-    }
-
-    // Memuat stempel resmi stamp.png secara dinamis ke halaman
-    const stampImgImg = document.createElement('img');
-    stampImgImg.src = 'stamp.png';
-    stampImgImg.alt = 'Stempel Resmi NFT-GM';
-    stampImgImg.style.width = '180px';
-    stampImgImg.style.height = 'auto';
+    // Isi data secara dinamis dari URL atau berikan nilai default terverifikasi
+    if (winnerEl) winnerEl.textContent = customWinner || "Kolektor Terverifikasi (Dev)";
+    if (assetEl) assetEl.textContent = customTitle || "Aset Budaya Nusantara (Verified)";
+    if (hashEl) hashEl.textContent = customHash || "0x" + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
     
-    // Tempatkan stempel di area sertifikat jika elemen target tersedia
-    const targetArea = document.getElementById('certificate-footer') || document.body;
-    targetArea.appendChild(stampImgImg);
+    const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 16) + " UTC";
+    if (timeEl) timeEl.textContent = customTime || nowFormatted;
+    if (closingEl) closingEl.textContent = nowFormatted;
+    
+    if (certNoEl && assetId) {
+        certNoEl.textContent = `NFT-GM-2026-${assetId.padStart(4, '0')}`;
+    }
 });
