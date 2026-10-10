@@ -416,7 +416,7 @@
 
             <div class="flex gap-2 pt-1">
         <button onclick="closeCertModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition cursor-pointer font-semibold">Close</button>
-        <button id="btnDownloadCert" onclick="NFTGMCertificateModule.download('certCanvas', selectedAuction)" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">📥 Download Certificate (Admin/Dev Only)</button>
+        <button id="btnDownloadCert" onclick="NFTGMCertificateModule.download('certCanvas', selectedAuction)" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">📥 Download Certificate (Admin/Dev Only)(fast)</button>
       </div>
 
 
@@ -712,29 +712,30 @@
                     document.getElementById(modalId).classList.remove('hidden');
                 }
             },
-        download: function(canvasId, auctionData) {
-                // Validasi ketat hak akses Admin & Developer dengan memeriksa session aktif / localStorage fallback
-                const currentUser = window.authenticatedPiUser || authenticatedPiUser;
-                const usernameToCheck = currentUser ? currentUser.username : null;
-                const isAdminOrDev = usernameToCheck && ADMIN_USERNAMES.includes(usernameToCheck);
-
-                if (!isAdminOrDev) {
-                    alert("⛔ AKSES DITOLAK: Hanya Admin dan Developer yang memiliki hak otorisasi untuk mengunduh sertifikat resmi.");
-                    return;
-                }
-
-                const canvas = document.getElementById(canvasId);
-                if (!canvas) {
-                    alert("Canvas sertifikat belum siap.");
-                    return;
-                }
-
-                const link = document.createElement('a');
-                const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT';
-                link.download = `NFT-GM_Certificate_${fileId}.png`;
-                link.href = canvas.toDataURL('image/png', 1.0);
-                link.click();
+             download: function(canvasId, auctionData) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) {
+                alert("Canvas sertifikat belum siap. Silakan buka ulang sertifikat.");
+                return;
             }
+
+            // Proses unduhan kilat menggunakan Blob & Object URL untuk performa maksimal di mobile
+            canvas.toBlob(function(blob) {
+                if (!blob) {
+                    alert("Gagal memproses gambar sertifikat.");
+                    return;
+                }
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
+                link.download = `NFT-GM_Certificate_${fileId}.png`;
+                link.href = url;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }, 'image/png', 0.95);
+        }
         };
     })();
   </script>
