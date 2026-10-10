@@ -1,54 +1,40 @@
-/
-​certificate.js - Real-time Certificate Data Binding & Logic
-​Nusantara NFT Auction / NFT Global Market (NFT-GM)
-*/
-​document.addEventListener("DOMContentLoaded", () => {
-loadRealtimeCertificateData();
+/**
+ * certificate.js - Real-time Data Binding for NFT-GM Certificate
+ * Mengambil data secara real-time agar tidak salah aset.
+ */
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Mengambil data dari localStorage atau URL Query Parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Data Default / Cadangan jika belum ada parameter live
+    const defaultData = {
+        refNumber: "NFT-GM/AUC-CERT/" + new Date().getFullYear() + "/08821",
+        assetName: urlParams.get('asset') || localStorage.getItem('nft_active_asset') || "PiBox Genesis Badge #042",
+        txId: urlParams.get('txid') || localStorage.getItem('nft_active_txid') || "0x8f2a4c9e7b1a03d...5629",
+        onchainTime: urlParams.get('onchain') || localStorage.getItem('nft_active_onchain') || new Date().toLocaleString(),
+        closingPrice: urlParams.get('price') || localStorage.getItem('nft_active_price') || "314.159 Pi",
+        closingTime: urlParams.get('closing') || localStorage.getItem('nft_active_closing') || new Date().toLocaleString() + " WIB",
+        sellerUsername: urlParams.get('seller') || localStorage.getItem('nft_active_seller') || "@seller_pibox_official",
+        winnerUsername: urlParams.get('winner') || localStorage.getItem('nft_active_winner') || "@pioneer_winner_2026"
+    };
+
+    // Binding elemen DOM secara presisi
+    const refElem = document.getElementById("ref-number");
+    const assetElem = document.getElementById("asset-name");
+    const txElem = document.getElementById("tx-id");
+    const onchainElem = document.getElementById("onchain-time");
+    const priceElem = document.getElementById("closing-price");
+    const closingElem = document.getElementById("closing-time");
+    const sellerElem = document.getElementById("seller-username");
+    const winnerElem = document.getElementById("winner-username");
+
+    if (refElem) refElem.textContent = defaultData.refNumber;
+    if (assetElem) assetElem.textContent = defaultData.assetName;
+    if (txElem) txElem.textContent = defaultData.txId;
+    if (onchainElem) onchainElem.textContent = defaultData.onchainTime;
+    if (priceElem) priceElem.textContent = defaultData.closingPrice;
+    if (closingElem) closingElem.textContent = defaultData.closingTime;
+    if (sellerElem) sellerElem.textContent = defaultData.sellerUsername;
+    if (winnerElem) winnerElem.textContent = defaultData.winnerUsername;
 });
-​function loadRealtimeCertificateData() {
-try {
-// Retrieve real-time asset & auction data from localStorage or URL query parameters safely
-const urlParams = new URLSearchParams(window.location.search);
-const storageData = localStorage.getItem('nft_auction_certificate_data');
-​let certData = {};
-​if (storageData) {
-certData = JSON.parse(storageData);
-}
-​// Map real-time data or fallback to default sample values with high precision
-const refNo = urlParams.get('ref') || certData.refNo || NFT-GM/AUC-CERT/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${Math.floor(1000 + Math.random() * 9000)};
-const assetName = urlParams.get('asset') || certData.assetName || "PiBox Genesis Badge #042";
-const txId = urlParams.get('txid') || certData.txId || "0x8f2a4c9e7b1a03d...5629";
-const onChainTime = urlParams.get('onchain_time') || certData.onChainTime || formatCurrentDateTime();
-const closingPrice = urlParams.get('price') || certData.closingPrice || "314.159 Pi";
-const closingTime = urlParams.get('closing_time') || certData.closingTime || formatCurrentDateTime();
-const sellerUsername = urlParams.get('seller') || certData.sellerUsername || "@seller_pibox_official";
-const winnerUsername = urlParams.get('winner') || certData.winnerUsername || "@pioneer_winner_2026";
-​// DOM Element Injection with precise high accuracy
-document.getElementById("certRefNo").textContent = refNo;
-document.getElementById("assetName").textContent = assetName;
-document.getElementById("txId").textContent = txId;
-document.getElementById("onChainTime").textContent = onChainTime;
-document.getElementById("closingPrice").textContent = closingPrice;
-document.getElementById("closingTime").textContent = closingTime;
-document.getElementById("sellerUsername").textContent = sellerUsername;
-document.getElementById("winnerUsername").textContent = winnerUsername;
-​} catch (error) {
-console.error("Error loading real-time certificate data:", error);
-fallbackDefaultData();
-}
-}
-​function formatCurrentDateTime() {
-const now = new Date();
-const options = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-return now.toLocaleDateString('en-GB', options) + " WIB";
-}
-​function fallbackDefaultData() {
-document.getElementById("certRefNo").textContent = "NFT-GM/AUC-CERT/2026/10/8821";
-document.getElementById("assetName").textContent = "PiBox Genesis Badge #042";
-document.getElementById("txId").textContent = "0x8f2a4c9e7b1a03d...5629";
-document.getElementById("onChainTime").textContent = "24 September 2026 - 20:55:45 WIB";
-document.getElementById("closingPrice").textContent = "314.159 Pi";
-document.getElementById("closingTime").textContent = "24 September 2026 - 20:55:45 WIB";
-document.getElementById("sellerUsername").textContent = "@seller_pibox_official";
-document.getElementById("winnerUsername").textContent = "@pioneer_winner_2026";
-}
