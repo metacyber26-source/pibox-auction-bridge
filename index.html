@@ -414,10 +414,11 @@
         <canvas id="certCanvas" class="w-full h-auto max-h-[50vh] object-contain rounded shadow-lg"></canvas>
       </div>
 
-      <div class="flex gap-2 pt-1">
+            <div class="flex gap-2 pt-1">
         <button onclick="closeCertModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition cursor-pointer font-semibold">Close</button>
-        <button onclick="NFTGMCertificateModule.download('certCanvas', selectedAuction)" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">📥 Download Certificate</button>
+        <button onclick="NFTGMCertificateModule.download('certCanvas', selectedAuction)" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">📥 Download Certificate (Admin/Dev Only)</button>
       </div>
+
     </div>
   </div>
 
@@ -491,7 +492,7 @@
     </div>
   </div>
 
-  <!-- MODUL SERTIFIKAT ELEKTRONIK NFT-GM -->
+    <!-- MODUL SERTIFIKAT ELEKTRONIK NFT-GM -->
   <script>
     const NFTGMCertificateModule = (function() {
         function drawRoundedRect(ctx, x, y, width, height, radius) {
@@ -512,10 +513,13 @@
             ctx.closePath();
         }
 
-                function render(canvas, auctionData) {
+        function render(canvas, auctionData) {
             const ctx = canvas.getContext('2d');
-            canvas.width = 1123;
-            canvas.height = 794;
+            // Resolusi Retina 2x (2246 x 1588 piksel) untuk ketajaman maksimal saat dicetak / minting
+            const scale = 2;
+            canvas.width = 1123 * scale;
+            canvas.height = 794 * scale;
+            ctx.scale(scale, scale);
 
             // Background Terang Elegan & Cemerlang
             const bgGrad = ctx.createLinearGradient(0, 0, 1123, 794);
@@ -603,7 +607,7 @@
             ctx.font = 'bold 11px sans-serif';
             ctx.fillText('PIBOX SECURE BRIDGE V5.2', 570, 510);
 
-            // Footer Verifikasi & Area Tanda Tangan Manual (Kosong)
+            // Footer Verifikasi & Garis Bawah
             ctx.strokeStyle = '#cbd5e1';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -617,7 +621,7 @@
             ctx.fillText('SECURED BY NFT-GM QUANTUM-RESISTANT PROTOCOL', 75, 710);
             ctx.fillText('IMMUTABLE DECENTRALIZED RECORD • STATUS: VERIFIED', 75, 725);
 
-            // Area Tanda Tangan Manual di Kanan Bawah
+            // Area Tanda Tangan Manual (Kosong) di Kanan Bawah
             ctx.textAlign = 'center';
             ctx.strokeStyle = '#0284c7';
             ctx.lineWidth = 1;
@@ -634,7 +638,6 @@
             ctx.fillText('Authorized Executive & Technical Officer', 949, 730);
         }
 
-
         return {
             generate: function(canvasId, auctionData, modalId) {
                 const canvas = document.getElementById(canvasId);
@@ -645,18 +648,25 @@
                 }
             },
             download: function(canvasId, auctionData) {
+                // Keamanan Ketat: Hanya Admin & Developer yang diizinkan mengunduh sertifikat
+                if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+                    alert("⛔ AKSES DITOLAK: Hanya Admin dan Developer yang memiliki hak otorisasi untuk mengunduh sertifikat resmi.");
+                    return;
+                }
+
                 const canvas = document.getElementById(canvasId);
                 if (!canvas) return;
 
                 const link = document.createElement('a');
-                const fileId = auctionData && auctionData.id ? auctionData.id.substring(0,6) : 'NFT';
-                link.download = `NFT-GM_Certificate_${fileId}.jpg`;
-                link.href = canvas.toDataURL('image/jpeg', 1.0);
+                const fileId = auctionData && auctionData.id ? auctionData.id.substring(0,6).toUpperCase() : 'NFT';
+                link.download = `NFT-GM_Certificate_${fileId}.png`;
+                link.href = canvas.toDataURL('image/png', 1.0);
                 link.click();
             }
         };
     })();
   </script>
+
 
   <!-- SKRIP UTAMA & INTEGRASI LENGKAP -->
   <script>
