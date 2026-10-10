@@ -647,12 +647,24 @@
                     document.getElementById(modalId).classList.remove('hidden');
                 }
             },
-            download: function(canvasId, auctionData) {
-                // Keamanan Ketat: Hanya Admin & Developer yang diizinkan mengunduh sertifikat
+                download: function(canvasId, auctionData) {
+                // Proteksi Keamanan: Hanya Admin & Developer yang diizinkan mengunduh
                 if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
                     alert("⛔ AKSES DITOLAK: Hanya Admin dan Developer yang memiliki hak otorisasi untuk mengunduh sertifikat resmi.");
                     return;
                 }
+
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+
+                const link = document.createElement('a');
+                const fileId = auctionData && auctionData.id ? auctionData.id.substring(0,6).toUpperCase() : 'NFT';
+                // Mengunduh dalam format PNG resolusi tinggi
+                link.download = `NFT-GM_Certificate_${fileId}.png`;
+                link.href = canvas.toDataURL('image/png', 1.0);
+                link.click();
+            }
+
 
                 const canvas = document.getElementById(canvasId);
                 if (!canvas) return;
