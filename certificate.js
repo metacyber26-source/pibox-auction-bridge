@@ -1,30 +1,48 @@
-// certificate.js - Sinkronisasi Data Sertifikat NFT-GM
+// certificate.js - Mengisi Data Sertifikat Real-Time
 document.addEventListener("DOMContentLoaded", async () => {
+    // Ambil parameter dari URL (Contoh: certificate.html?id=123&title=...&seller=...&winner=...&price=...&hash=...)
     const urlParams = new URLSearchParams(window.location.search);
+    
     const assetId = urlParams.get('id');
-    const customWinner = urlParams.get('winner');
     const customTitle = urlParams.get('title');
     const customHash = urlParams.get('hash');
+    const customPrice = urlParams.get('price');
+    const customSeller = urlParams.get('seller');
+    const customWinner = urlParams.get('winner');
     const customTime = urlParams.get('time');
 
-    // Tangkap elemen di certificate.html
-    const winnerEl = document.getElementById('winnerUsername');
-    const assetEl = document.getElementById('assetTitle');
-    const hashEl = document.getElementById('contractHash');
-    const timeEl = document.getElementById('onChainTime');
-    const closingEl = document.getElementById('closingTime');
-    const certNoEl = document.getElementById('certNo');
+    // Tangkap Elemen DOM
+    const refNoEl = document.getElementById('refNo');
+    const assetTitleEl = document.getElementById('assetTitle');
+    const txHashEl = document.getElementById('txHash');
+    const onChainTimeEl = document.getElementById('onChainTime');
+    const closingPriceEl = document.getElementById('closingPrice');
+    const closingTimeEl = document.getElementById('closingTime');
+    const sellerUsernameEl = document.getElementById('sellerUsername');
+    const winnerUsernameEl = document.getElementById('winnerUsername');
 
-    // Set data dinamis
-    if (winnerEl) winnerEl.textContent = customWinner || "Kolektor Terverifikasi (Dev)";
-    if (assetEl) assetEl.textContent = customTitle || "Aset Budaya Nusantara (Verified)";
-    if (hashEl) hashEl.textContent = customHash || "0x659fdf82932eb943553c38b77533322f59a3bbe";
-    
-    const nowFormatted = "2026-10-10 03:51 UTC";
-    if (timeEl) timeEl.textContent = customTime || nowFormatted;
-    if (closingEl) closingEl.textContent = nowFormatted;
-    
-    if (certNoEl) {
-        certNoEl.textContent = `NFT-GM-2026-${assetId ? assetId.padStart(4, '0') : '0001'}`;
+    // Waktu Real-Time Sekarang
+    const nowUtc = new Date().toISOString().replace('T', ' ').substring(0, 19) + " UTC";
+
+    // Isi Data Secara Real-Time
+    if (refNoEl) {
+        const certId = assetId ? assetId.toString().substring(0, 6).toUpperCase() : '8821';
+        refNoEl.textContent = `NFT-GM/AUC-CERT/2026/10/${certId}`;
+    }
+
+    if (assetTitleEl) assetTitleEl.textContent = customTitle || "PiBox Genesis Badge #042";
+    if (txHashEl) txHashEl.textContent = customHash || "0x8f2a4c9e7b1a03d5629f12048573194729105629";
+    if (onChainTimeEl) onChainTimeEl.textContent = customTime || "10 October 2026 - 03:51:00 UTC";
+    if (closingPriceEl) closingPriceEl.textContent = customPrice ? `${customPrice} Pi` : "314.159 Pi";
+    if (closingTimeEl) closingTimeEl.textContent = customTime || nowUtc;
+
+    if (sellerUsernameEl) {
+        const formattedSeller = customSeller ? (customSeller.startsWith('@') ? customSeller : `@${customSeller}`) : "@seller_pibox_official";
+        sellerUsernameEl.textContent = formattedSeller;
+    }
+
+    if (winnerUsernameEl) {
+        const formattedWinner = customWinner ? (customWinner.startsWith('@') ? customWinner : `@${customWinner}`) : "@pioneer_winner_2026";
+        winnerUsernameEl.textContent = formattedWinner;
     }
 });
