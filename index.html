@@ -749,6 +749,17 @@
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
     const ADMIN_USERNAMES = ["Ful21", "Muhammadefendi123"];
 
+    // ==========================================
+    // INTEGRASI PIBOX & SISTEM MEMO OTOMATIS
+    // ==========================================
+    const MODE_TESTING_OVERRIDE = true; // Set true untuk Mode Uji Coba Bebas (Abaikan Jadwal)
+
+    function generateP2PPaymentMemo(auctionId, sellerUsername, buyerUsername, piboxAssetId) {
+      const cleanAuctionId = (auctionId || 'AUC').toString().substring(0, 8);
+      const cleanAssetId = (piboxAssetId || 'PBX').toString().substring(0, 8);
+      return `PIBOX-BUY#${cleanAuctionId}#${cleanAssetId}#FROM:${buyerUsername}#TO:${sellerUsername}`;
+    }
+
     let supabaseClient = null;
     let Pi = window.Pi || null;
     let activeAuctionsList = [];
@@ -767,12 +778,13 @@
     let currentP2PTarget = '';
 
     let auctionScheduleState = JSON.parse(localStorage.getItem('nusantara_auction_schedule')) || {
-      mode: '24h_open',
+      mode: 'testing_mode', // Default ke mode uji coba saat pengembangan
       startDate: '',
       startHour: '08:00',
       durationHours: 24
     };
     let isAuctionCurrentlyOpen = true;
+
     let userBiddedAssets = JSON.parse(localStorage.getItem('nusantara_user_bidded_assets')) || {};
 
     const translations = {
@@ -1286,19 +1298,30 @@
       closeScheduleModal();
     }
 
-    function checkAuctionSchedule() {
+      function checkAuctionSchedule() {
       const badge = document.getElementById('sessionStateBadge');
       if (!badge) return;
       const mode = auctionScheduleState.mode;
+
+      // Mode Uji Coba / Testing
+      if (mode === 'testing_mode' || MODE_TESTING_OVERRIDE) {
+        isAuctionCurrentlyOpen = true;
+        badge.innerText = "🧪 UJI COBA (SANDBOX ACTIVE)";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse";
+        return;
+      }
+
       if (mode === 'closed_now') {
         isAuctionCurrentlyOpen = false;
         badge.innerText = "🔴 LELANG DITUTUP";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
         return;
       }
+
       isAuctionCurrentlyOpen = true;
       badge.innerText = "BUKA LIVE 24/7";
     }
+
 
     async function handleBuyerRegistrationAction() {
       if (!authenticatedPiUser) {
