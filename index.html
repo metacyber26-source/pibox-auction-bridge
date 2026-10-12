@@ -416,13 +416,10 @@
       </div>
 
       <div class="flex gap-2">
-              <button onclick="openCertificateModalSafe()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer">
-                📜 Sertifikat
-              </button>
-              <button onclick="closeDetailModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold px-4 py-2 rounded-xl text-xs transition cursor-pointer">
-                Tutup
-              </button>
-            </div>
+        <button id="btnDownloadCert" onclick="handleSecureCertificateDownload()" class="hidden flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">📥 Download Certificate</button>
+        <button onclick="closeCertModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2.5 rounded-xl text-xs transition cursor-pointer">Tutup</button>
+      </div>
+
     </div>
   </div>
 
@@ -499,10 +496,7 @@
 
         <button type="button" onclick="closeCreateModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2 rounded-xl transition cursor-pointer">Cancel</button>
       </div>
-        <div>
-          <label class="block font-semibold text-gray-300 mb-1">5. PiBox Wallet / Username Penerima</label>
-          <input type="text" id="piboxWalletInput" placeholder="Masukkan Wallet / Username PiBox Anda" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
-        </div>
+
 
     </div>
   </div>
@@ -716,8 +710,6 @@
                 if (modalId) {
                     document.getElementById(modalId).classList.remove('hidden');
                 }
-            },
-
             },
             download: function(canvasId, auctionData) {
               const canvas = document.getElementById(canvasId);
@@ -1608,6 +1600,7 @@
       const mainImageFile = document.getElementById('imageFileInput').files[0];
       const title = document.getElementById('assetTitleInput').value.trim();
       const hash = document.getElementById('assetHashInput').value.trim();
+      const piboxWallet = document.getElementById('piboxWalletInput')?.value.trim() || '';
       const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
       const onChainTime = document.getElementById('onChainTimeInput').value || new Date().toISOString();
 
@@ -1664,6 +1657,7 @@
         const payload = {
           title: title,
           hash: hash,
+          pibox_wallet: piboxWallet,
           reserve_price: reservePrice,
           seller: authenticatedPiUser.username,
           image_url: base64Image,
@@ -1957,9 +1951,10 @@
 
             
             <div class="flex gap-2">
-              <button onclick="NFTGMCertificateModule.generate('certCanvas', selectedAuction, 'certModal')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer">
+              <button onclick="openCertificateModalSafe()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer">
                 📜 Sertifikat
               </button>
+
               <button onclick="closeDetailModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold px-4 py-2 rounded-xl text-xs transition cursor-pointer">
                 Tutup
               </button>
@@ -2213,6 +2208,18 @@
         return;
       }
       NFTGMCertificateModule.download('certCanvas', selectedAuction);
+    }
+
+        function openCertificateModalSafe() {
+      if (!selectedAuction) {
+        alert("Data lelang tidak ditemukan. Silakan buka ulang detail aset.");
+        return;
+      }
+      if (typeof NFTGMCertificateModule !== 'undefined' && NFTGMCertificateModule.generate) {
+        NFTGMCertificateModule.generate('certCanvas', selectedAuction, 'certModal');
+      } else {
+        alert("Modul sertifikat belum dimuat dengan benar.");
+      }
     }
 
   </script>
