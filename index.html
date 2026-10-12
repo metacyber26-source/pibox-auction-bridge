@@ -412,12 +412,12 @@
       </div>
 
       <div class="flex justify-center bg-black p-2 rounded-xl border border-gray-800 overflow-hidden">
-        <canvas id="certCanvas" class="w-full h-auto max-h-[50vh] object-contain rounded shadow-lg"></canvas>
+        <canvas id="certCanvas" class="w-auto h-auto max-w-[280px] max-h-[50vh] object-contain rounded shadow-lg"></canvas>
       </div>
 
       <div class="flex gap-2 pt-1">
-        <button onclick="closeCertModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition cursor-pointer font-semibold">Close</button>
-        <button id="btnDownloadCert" onclick="NFTGMCertificateModule.download('certCanvas', selectedAuction)" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">📥 Download Certificate (Admin/Dev Only)(fast)</button>
+        <button onclick="closeCertModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition cursor-pointer font-semibold" data-i18n="closeBtn">Tutup</button>
+        <button id="btnDownloadCert" onclick="handleSecureCertificateDownload()" class="hidden flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">📥 Download Certificate (Admin/Dev)</button>
       </div>
     </div>
   </div>
@@ -700,9 +700,20 @@
                 const canvas = document.getElementById(canvasId);
                 if (!canvas || !auctionData) return;
                 render(canvas, auctionData);
+                
+                // Validasi Ketat Hak Akses Tombol Download (Hanya Admin / Dev)
+                const downloadBtn = document.getElementById('btnDownloadCert');
+                if (downloadBtn && authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+                    downloadBtn.classList.remove('hidden');
+                } else if (downloadBtn) {
+                    downloadBtn.classList.add('hidden');
+                }
+
                 if (modalId) {
                     document.getElementById(modalId).classList.remove('hidden');
                 }
+            },
+
             },
             download: function(canvasId, auctionData) {
               const canvas = document.getElementById(canvasId);
@@ -2192,6 +2203,14 @@
         loadChatMessages();
       }
     }
+        function handleSecureCertificateDownload() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Fitur download sertifikat ini hanya dapat diakses oleh Admin dan Developer (Dev)!");
+        return;
+      }
+      NFTGMCertificateModule.download('certCanvas', selectedAuction);
+    }
+
   </script>
 </body>
 </html>
