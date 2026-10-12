@@ -2207,8 +2207,13 @@
         alert("⛔ Akses Ditolak: Fitur download sertifikat ini hanya dapat diakses oleh Admin dan Developer (Dev)!");
         return;
       }
-      NFTGMCertificateModule.download('certCanvas', selectedAuction);
+      if (typeof NFTGMCertificateModule !== 'undefined' && NFTGMCertificateModule.download) {
+        NFTGMCertificateModule.download('certCanvas', selectedAuction);
+      } else {
+        alert("Modul unduhan sertifikat belum siap.");
+      }
     }
+
 
         function openCertificateModalSafe() {
       if (!selectedAuction) {
@@ -2217,6 +2222,12 @@
       }
       if (typeof NFTGMCertificateModule !== 'undefined' && NFTGMCertificateModule.generate) {
         NFTGMCertificateModule.generate('certCanvas', selectedAuction, 'certModal');
+        
+        // Memastikan tombol download tampil jika user adalah Admin/Dev yang sah
+        const downloadBtn = document.getElementById('btnDownloadCert');
+        if (downloadBtn && authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+          downloadBtn.classList.remove('hidden');
+        }
       } else {
         alert("Modul sertifikat belum dimuat dengan benar.");
       }
