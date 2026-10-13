@@ -215,6 +215,21 @@
             console.error("Supabase Init Error:", e);
         }
 
+        // Fungsi pembantu untuk merender data ke elemen HTML secara dinamis & real-time
+        function updateCertificateUI(data) {
+            const shortId = data.id ? data.id.substring(0, 6).toUpperCase() : 'NFT-GM';
+            document.getElementById('ref-number').innerText = `NFT-GM/AUC-CERT/2026/10/${shortId}`;
+            document.getElementById('asset-name').innerText = data.title || 'Nusantara NFT Asset';
+            document.getElementById('tx-id').innerText = data.hash || '-';
+            document.getElementById('onchain-time').innerText = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
+            document.getElementById('closing-price').innerText = `${data.highest_bid || data.reserve_price || '0'} Pi`;
+            document.getElementById('closing-time').innerText = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
+            document.getElementById('seller-username').innerText = data.seller ? (data.seller.startsWith('@') ? data.seller : '@' + data.seller) : '-';
+            
+            const winner = data.highest_bidder || data.winner || 'Pioneer';
+            document.getElementById('winner-username').innerText = winner.startsWith('@') ? winner : '@' + winner;
+        }
+
         async function loadCertificateData() {
             const urlParams = new URLSearchParams(window.location.search);
             const assetId = urlParams.get('id');
@@ -240,17 +255,7 @@
                 if (error || !data) throw new Error("Data aset tidak ditemukan di database.");
 
                 currentAuctionData = data;
-                const shortId = data.id.substring(0, 6).toUpperCase();
-
-                // Mengisi data ke elemen HTML secara presisi
-                document.getElementById('ref-number').innerText = `NFT-GM/AUC-CERT/2026/10/${shortId}`;
-                document.getElementById('asset-name').innerText = data.title || 'Nusantara NFT Asset';
-                document.getElementById('tx-id').innerText = data.hash || '-';
-                document.getElementById('onchain-time').innerText = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
-                document.getElementById('closing-price').innerText = `${data.highest_bid || data.reserve_price || '0'} Pi`;
-                document.getElementById('closing-time').innerText = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
-                document.getElementById('seller-username').innerText = data.seller ? (data.seller.startsWith('@') ? data.seller : '@' + data.seller) : '-';
-                document.getElementById('winner-username').innerText = data.highest_bidder ? (data.highest_bidder.startsWith('@') ? data.highest_bidder : '@' + data.highest_bidder) : '-';
+                updateCertificateUI(data);
 
                 document.getElementById('statusMessage').innerText = "✅ Data Real-Time Terhubung ke Supabase!";
                 document.getElementById('statusMessage').style.color = "#34d399";
@@ -268,15 +273,7 @@
                     }, (payload) => {
                         const updated = payload.new;
                         currentAuctionData = updated;
-
-                        if (updated.title) document.getElementById('asset-name').innerText = updated.title;
-                        if (updated.hash) document.getElementById('tx-id').innerText = updated.hash;
-                        if (updated.highest_bid || updated.reserve_price) {
-                            document.getElementById('closing-price').innerText = `${updated.highest_bid || updated.reserve_price} Pi`;
-                        }
-                        if (updated.highest_bidder) {
-                            document.getElementById('winner-username').innerText = updated.highest_bidder.startsWith('@') ? updated.highest_bidder : '@' + updated.highest_bidder;
-                        }
+                        updateCertificateUI(updated);
                     })
                     .subscribe();
 
@@ -339,7 +336,7 @@
                 const fileName = `NFT-GM_Certificate_${fileId}.pdf`;
                 const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-                const shareText = `📜 *Sertifikat Resmi PDF NFT-GM*\n🔹 Aset: ${currentAuctionData.title}\n🔹 Ref ID: ${fileId}\n\n*Official Auction Winner Proof*`;
+                const shareText = `📜 *Sertifikat Resmi PDF NFT-GM*\n🔹 Aset: ${currentAuctionData.title}\n🔹 Pemenang: ${currentAuctionData.highest_bidder || currentAuctionData.winner || 'Pioneer'}\n🔹 Ref ID: ${fileId}\n\n*Official Auction Winner Proof*`;
 
                 if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
                     await navigator.share({
