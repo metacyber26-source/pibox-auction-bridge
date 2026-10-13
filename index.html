@@ -713,40 +713,52 @@
                     document.getElementById(modalId).classList.remove('hidden');
                 }
             },
-            download: function(canvasId, auctionData) {
+            
+          download: function(canvasId, auctionData) {
               try {
-                // Membuat temporary canvas murni berukuran dokumen lembar sertifikat asli (1123 x 1588 piksel)
+                // 1. Buat temporary canvas murni berukuran dokumen lembar sertifikat asli (1123 x 1588 piksel)
                 const exportCanvas = document.createElement('canvas');
                 exportCanvas.width = 1123;
                 exportCanvas.height = 1588;
                 const exportCtx = exportCanvas.getContext('2d');
 
-                // Render ulang konten sertifikat langsung ke kanvas ekspor agar bersih dan pas tanpa area luar
                 exportCtx.fillStyle = '#ffffff';
                 exportCtx.fillRect(0, 0, 1123, 1588);
 
-                // Memanggil ulang fungsi render internal jika tersedia, atau salin dari kanvas UI
                 render(exportCanvas, auctionData);
 
-                exportCanvas.toBlob(function(blob) {
-                    if (!blob) {
-                        alert("❌ Gagal memproses file unduhan sertifikat.");
-                        return;
-                    }
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
-                    link.download = `NFT-GM_Certificate_${fileId}.png`;
-                    link.href = url;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    setTimeout(() => URL.revokeObjectURL(url), 1000);
-                    
-                    alert("✅ Download Sertifikat Berhasil Disimpan!");
-                }, 'image/png', 0.95);
+                // 2. Konversi kanvas langsung ke Data URL Base64
+                const dataUrl = exportCanvas.toDataURL('image/png');
+
+                // 3. Buka jendela/tab baru berisi gambar murni agar bisa ditekan lama "Simpan Gambar" di Pi Browser
+                const imageWindow = window.open('', '_blank');
+                if (imageWindow) {
+                  imageWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                      <title>Sertifikat Resmi NFT-GM</title>
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                      <style>
+                        body { background: #0b0f17; color: white; text-align: center; font-family: sans-serif; padding: 10px; margin: 0; }
+                        img { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+                        .info { background: #1e293b; color: #fbbf24; padding: 10px; border-radius: 8px; font-size: 12px; margin-bottom: 12px; font-weight: bold; }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="info">💡 Tekan & Tahan (Long Press) pada gambar di bawah, lalu pilih "Simpan Gambar" / "Save Image".</div>
+                      <img src="${dataUrl}" alt="Sertifikat Official NFT-GM">
+                    </body>
+                    </html>
+                  `);
+                  imageWindow.document.close();
+                  alert("✅ Sertifikat berhasil dibuka di jendela baru! Tekan & tahan gambar untuk menyimpan ke Galeri HP.");
+                } else {
+                  // Fallback jika pop-up diblokir: Buka gambar di lokasi window saat ini
+                  window.location.href = dataUrl;
+                }
               } catch (err) {
-                alert("❌ Download Gagal: " + err.message);
+                alert("❌ Gagal memproses sertifikat: " + err.message);
               }
             }
 
