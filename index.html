@@ -727,23 +727,55 @@
 
                 render(exportCanvas, auctionData);
 
-                // 2. Konversi kanvas langsung ke format gambar Base64 Data URL
+                // 2. Konversi kanvas ke format gambar Base64 Data URL
                 const dataUrl = exportCanvas.toDataURL('image/png');
                 const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
 
-                // 3. Memicu download langsung melalui elemen anchor yang aman dari blokir frame
-                const link = document.createElement('a');
-                link.href = dataUrl;
-                link.download = `NFT-GM_Certificate_${fileId}.png`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-                alert("✅ Sertifikat berhasil diproses! Silakan periksa notifikasi atau folder Unduhan perangkat Anda.");
+                // 3. Render gambar langsung menggantikan isi jendela saat ini atau navigasikan halaman ke dataUrl
+                // Ini memastikan sistem browser mendeteksinya sebagai file gambar murni yang dapat diunduh/disimpan
+                const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
+                
+                if (isPiBrowser) {
+                  // Membuka halaman gambar murni di window aktif agar dapat disimpan secara manual dengan aman
+                  document.open();
+                  document.write(`
+                    <!DOCTYPE html>
+                    <html lang="id">
+                    <head>
+                      <meta charset="UTF-8">
+                      <title>Sertifikat Resmi NFT-GM</title>
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                      <style>
+                        body { background: #0b0f17; color: white; text-align: center; font-family: sans-serif; padding: 20px; margin: 0; }
+                        .banner { background: #1e293b; color: #fbbf24; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 15px; font-weight: bold; border: 1px solid #fbbf24/40; }
+                        img { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+                        .back-btn { display: inline-block; margin-top: 15px; background: #374151; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: bold; }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="banner">💡 <b>Tekan & Tahan (Long Press)</b> pada gambar sertifikat di bawah ini, lalu pilih <b>"Simpan Gambar" (Save Image)</b> untuk menyimpan langsung ke Galeri HP Anda!</div>
+                      <img src="${dataUrl}" alt="Sertifikat Official NFT-GM">
+                      <br>
+                      <a href="javascript:window.location.reload();" class="back-btn" onclick="history.back(); return false;">⬅ Kembali ke Aplikasi Lelang</a>
+                    </body>
+                    </html>
+                  `);
+                  document.close();
+                } else {
+                  // Standar browser biasa
+                  const link = document.createElement('a');
+                  link.href = dataUrl;
+                  link.download = `NFT-GM_Certificate_${fileId}.png`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  alert("✅ Unduhan sertifikat berhasil diproses!");
+                }
               } catch (err) {
                 alert("❌ Gagal memproses sertifikat: " + err.message);
               }
             }
+
 
         };
     })();
