@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nusantara NFT Auction Engine & NFT-GM Certificate</title>
+  <title>NFT GLOBAL MARKET NFT Auction Engine & NFT-GM Certificate</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- jsPDF Library untuk Ekspor Dokumen PDF Resmi -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
@@ -716,7 +719,13 @@
             
           sendToWhatsApp: function(canvasId, auctionData) {
               try {
-                // Render gambar sertifikat dalam resolusi HD murni (1123 x 1588 piksel) agar tidak pecah/blur saat dizoom
+                // Pastikan pustaka jsPDF sudah siap
+                if (typeof window.jspdf === 'undefined') {
+                  alert("❌ Modul PDF belum siap. Pastikan koneksi internet aktif.");
+                  return;
+                }
+
+                // 1. Render kanvas sertifikat dalam resolusi HD tinggi (1123 x 1588 piksel) agar tajam dan tidak pecah saat dizoom
                 const exportCanvas = document.createElement('canvas');
                 exportCanvas.width = 1123;
                 exportCanvas.height = 1588;
@@ -727,11 +736,64 @@
 
                 render(exportCanvas, auctionData);
 
-                exportCanvas.toBlob(async function(blob) {
-                  if (!blob) {
-                    alert("❌ Gagal merender gambar sertifikat.");
-                    return;
+                // 2. Konversi kanvas ke format gambar beresolusi tinggi
+                const imgData = exportCanvas.toDataURL('image/jpeg', 0.95);
+                const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
+                const fileName = `NFT-GM_Certificate_${fileId}.pdf`;
+
+                // 3. Buat dokumen PDF menggunakan jsPDF (Ukuran A4: 210mm x 297mm)
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                  orientation: 'portrait',
+                  unit: 'mm',
+                  format: 'a4'
+                });
+
+                // Menambahkan gambar sertifikat menutupi halaman A4 secara penuh dan presisi
+                pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+
+                // 4. Ubah file PDF menjadi Blob agar dapat dibagikan atau disimpan langsung
+                const pdfBlob = pdf.output('blob');
+                const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+                const assetName = auctionData && auctionData.title ? auctionData.title : 'Nusantara NFT';
+                const shareText = `📜 *Sertifikat Resmi PDF NFT-GM*\n🔹 Nama Aset: ${assetName}\n🔹 Ref ID: ${fileId}\n\n*Official Auction Winner Proof (PDF Document)*`;
+
+                // 5. Kirim file PDF langsung melalui Web Share API (pilih kontak WhatsApp)
+                async function triggerShare() {
+                  if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                    try {
+                      await navigator.share({
+                        title: 'Sertifikat Resmi PDF NFT-GM',
+                        text: shareText,
+                        files: [pdfFile],
+                      });
+                      return;
+                    } catch (err) {
+                      if (err.name === 'AbortError') return;
+                    }
                   }
+
+                  // Fallback jika direct share tidak didukung: Unduh file PDF otomatis ke perangkat
+                  const pdfUrl = URL.createObjectURL(pdfBlob);
+                  const link = document.createElement('a');
+                  link.href = pdfUrl;
+                  link.download = fileName;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
+
+                  alert("✅ File Sertifikat PDF Berhasil Diunduh! Anda dapat melampirkannya secara manual ke WhatsApp.");
+                }
+
+                triggerShare();
+
+              } catch (err) {
+                alert("❌ Gagal memproses dokumen PDF: " + err.message);
+              }
+            }
+
 
                   const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
                   const fileName = `NFT-GM_Certificate_${fileId}.png`;
