@@ -7,9 +7,6 @@
     
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- jsPDF & html2canvas untuk Ekspor PDF Bersih & Tidak Pecah -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         body {
@@ -17,7 +14,7 @@
             font-family: 'Times New Roman', Times, serif, Arial, sans-serif;
             color: #1a202c;
             margin: 0;
-            padding: 15px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -30,24 +27,24 @@
             max-width: 794px;
             background: #111827;
             border: 1px solid #374151;
-            padding: 12px 20px;
+            padding: 10px 20px;
             border-radius: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.5);
             box-sizing: border-box;
             font-family: sans-serif;
             position: sticky;
-            top: 10px;
+            top: 5px;
             z-index: 99;
         }
         .btn {
             background: #2563eb;
             color: white;
             border: none;
-            padding: 10px 16px;
+            padding: 8px 14px;
             border-radius: 8px;
             font-weight: bold;
             font-size: 13px;
@@ -59,27 +56,30 @@
         .btn-whatsapp:hover { background: #047857; }
         .status-msg { font-size: 12px; color: #fbbf24; }
 
-        /* Ukuran Presisi Rasio A4 (Lebar 794px x Tinggi 1123px) */
+        /* Ukuran Presisi Rasio A4 (Lebar 794px x Tinggi 1123px) - Pas 1 Halaman Murni */
         .certificate-wrapper {
             background: #ffffff;
             width: 794px;
-            min-height: 1123px;
-            padding: 50px;
+            height: 1123px;
+            max-height: 1123px;
+            padding: 40px 50px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             position: relative;
             overflow: hidden;
             box-sizing: border-box;
-            border: 12px solid transparent;
-            border-image: repeating-linear-gradient(45deg, #1e3a8a, #1e3a8a 10px, #3b82f6 10px, #3b82f6 20px) 12;
+            /* Bingkai dimasukkan rapi ke dalam area sertifikat */
+            border: 10px solid transparent;
+            border-image: repeating-linear-gradient(45deg, #1e3a8a, #1e3a8a 10px, #3b82f6 10px, #3b82f6 20px) 10;
         }
+
         .certificate-wrapper::before {
             content: "";
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 450px;
-            height: 450px;
+            width: 400px;
+            height: 400px;
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><circle cx="150" cy="150" r="140" fill="none" stroke="%231e3a8a" stroke-width="4" stroke-dasharray="6,4"/><circle cx="150" cy="150" r="125" fill="none" stroke="%231e3a8a" stroke-width="2"/><text x="150" y="45" font-size="18" font-weight="bold" fill="%231e3a8a" text-anchor="middle">NFT GLOBAL MARKET</text><text x="150" y="270" font-size="16" font-weight="bold" fill="%231e3a8a" text-anchor="middle">314-2025</text></svg>');
             background-repeat: no-repeat;
             background-position: center;
@@ -87,10 +87,12 @@
             pointer-events: none;
             z-index: 0;
         }
+
         .content-container {
             position: relative;
             z-index: 1;
         }
+
         .emboss-text {
             color: #1e3a8a;
             text-shadow: 1px 1px 0px #ffffff, -1px -1px 0px rgba(0,0,0,0.3);
@@ -98,24 +100,45 @@
             text-align: center;
             letter-spacing: 1px;
         }
-        .header-title { font-size: 22px; margin-bottom: 5px; }
-        .sub-header { font-size: 14px; margin-bottom: 25px; color: #4b5563; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
-        .cert-title { font-size: 26px; margin: 15px 0 25px 0; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; display: inline-block; }
-        .section-title { font-size: 15px; background: #e2e8f0; padding: 6px 12px; color: #1e3a8a; font-weight: bold; margin-top: 25px; margin-bottom: 12px; border-left: 4px solid #1e3a8a; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        td { padding: 6px 8px; font-size: 14px; }
+
+        .header-title { font-size: 20px; margin-bottom: 2px; }
+        .sub-header { font-size: 13px; margin-bottom: 15px; color: #4b5563; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
+        .cert-title { font-size: 24px; margin: 10px 0 15px 0; border-bottom: 2px solid #1e3a8a; padding-bottom: 6px; display: inline-block; }
+        .section-title { font-size: 14px; background: #e2e8f0; padding: 5px 10px; color: #1e3a8a; font-weight: bold; margin-top: 18px; margin-bottom: 8px; border-left: 4px solid #1e3a8a; }
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        td { padding: 4px 6px; font-size: 13px; }
         td.label { width: 38%; font-weight: bold; color: #374151; }
         td.separator { width: 3%; text-align: center; }
-        td.value { width: 59%; color: #111827; font-family: monospace; font-size: 15px; }
-        .footer-grid { display: flex; justify-content: space-between; margin-top: 50px; align-items: flex-end; }
-        .footer-box { text-align: center; width: 45%; font-size: 13px; color: #4b5563; }
-        .signature-area { height: 90px; border-bottom: 1px dashed #9ca3af; margin-bottom: 8px; }
-        .legal-notice { font-size: 11px; color: #6b7280; text-align: center; margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 10px; }
+        td.value { width: 59%; color: #111827; font-family: monospace; font-size: 14px; }
+        
+        .footer-grid { display: flex; justify-content: space-between; margin-top: 30px; align-items: flex-end; }
+        .footer-box { text-align: center; width: 45%; font-size: 12px; color: #4b5563; }
+        .signature-area { height: 70px; border-bottom: 1px dashed #9ca3af; margin-bottom: 5px; }
+        .legal-notice { font-size: 10px; color: #6b7280; text-align: center; margin-top: 25px; border-top: 1px solid #e5e7eb; padding-top: 8px; }
 
+        /* Pengaturan Cetak Murni 1 Halaman A4 */
         @media print {
-            body { background: white !important; padding: 0 !important; }
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+            body {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                height: 100vh;
+            }
             .action-bar { display: none !important; }
-            .certificate-wrapper { box-shadow: none !important; border: none !important; }
+            .certificate-wrapper {
+                box-shadow: none !important;
+                width: 794px !important;
+                height: 1123px !important;
+                max-height: 1123px !important;
+                margin: 0 !important;
+                page-break-after: avoid;
+                page-break-inside: avoid;
+            }
         }
     </style>
 </head>
@@ -130,17 +153,17 @@
         </div>
     </div>
 
-    <!-- Area Sertifikat Murni Ukuran A4 -->
+    <!-- Area Sertifikat Murni Ukuran A4 (Pas 1 Halaman) -->
     <div class="certificate-wrapper" id="certificateArea">
         <div class="content-container">
             <div style="text-align: center;">
                 <div class="emboss-text header-title">NFT GLOBAL MARKET (NFT-GM)</div>
                 <div class="sub-header">Certificate of Authenticity & Official Auction Winner Proof</div>
                 <h1 class="emboss-text cert-title">ELECTRONIC CERTIFICATE LETTER</h1>
-                <p style="font-size: 13px; color: #374151;">Ref Number: <span id="ref-number" style="font-family: monospace; font-weight: bold;">-</span></p>
+                <p style="font-size: 12px; color: #374151; margin: 0;">Ref Number: <span id="ref-number" style="font-family: monospace; font-weight: bold;">-</span></p>
             </div>
 
-            <p style="font-size: 13px; line-height: 1.6; text-align: justify; margin-top: 20px;">
+            <p style="font-size: 12px; line-height: 1.5; text-align: justify; margin-top: 12px;">
                 This is to certify legally and integrated within the PiBox Auction Bridge automated auction system, that the electronic auction transaction for the asset below has been officially closed and ownership has been transferred:
             </p>
 
@@ -189,17 +212,17 @@
 
             <div class="footer-grid">
                 <div class="footer-box">
-                    <p style="margin-bottom: 5px; font-weight: bold;">Automated System Verification</p>
+                    <p style="margin-bottom: 3px; font-weight: bold;">Automated System Verification</p>
                     <div class="signature-area" style="border: none; display: flex; align-items: center; justify-content: center;">
                         <span style="font-size: 11px; font-family: monospace; background: #e5e7eb; padding: 4px 8px; border-radius: 4px;">SYSTEM VERIFIED<br>Smart Contract Executed</span>
                     </div>
-                    <p style="font-size: 12px; font-weight: bold; color: #1e3a8a; margin: 0;">PiBox Auction Engine</p>
+                    <p style="font-size: 11px; font-weight: bold; color: #1e3a8a; margin: 0;">PiBox Auction Engine</p>
                 </div>
                 
                 <div class="footer-box">
-                    <p style="margin-bottom: 5px; font-weight: bold;">Head of NFT-GM</p>
+                    <p style="margin-bottom: 3px; font-weight: bold;">Head of NFT-GM</p>
                     <div class="signature-area"></div>
-                    <p style="font-size: 12px; font-weight: bold; color: #1e3a8a; margin: 0;">NFT Global Market<br><span style="font-size: 10px; font-weight: normal; color: #6b7280;">Official Seal - Est. 2026</span></p>
+                    <p style="font-size: 11px; font-weight: bold; color: #1e3a8a; margin: 0;">NFT Global Market<br><span style="font-size: 10px; font-weight: normal; color: #6b7280;">Official Seal - Est. 2026</span></p>
                 </div>
             </div>
 
@@ -230,14 +253,12 @@
             document.getElementById('asset-name').innerText = data.title || 'Nusantara NFT Asset';
             document.getElementById('tx-id').innerText = data.hash || '-';
             
-            // On-chain time secara presisi dari database
             const formattedTime = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
             document.getElementById('onchain-time').innerText = formattedTime;
             document.getElementById('closing-time').innerText = formattedTime;
 
             document.getElementById('closing-price').innerText = `${data.highest_bid || data.reserve_price || '0'} Pi`;
             
-            // Penjual & Username Pemenang Lelang (misal: Ful21 menjadi @Ful21)
             const seller = data.seller || 'seller_official';
             document.getElementById('seller-username').innerText = seller.startsWith('@') ? seller : '@' + seller;
 
@@ -260,7 +281,6 @@
             }
 
             try {
-                // Ambil data awal berdasarkan parameter ID dari Supabase
                 const { data, error } = await supabaseClient
                     .from('auctions')
                     .select('*')
@@ -275,7 +295,6 @@
                 document.getElementById('statusMessage').innerText = "✅ Real-Time Terhubung & Siap!";
                 document.getElementById('statusMessage').style.color = "#34d399";
 
-                // --- REAL-TIME SUBSCRIPTION SUPABASE ---
                 supabaseClient
                     .channel('cert-sync-' + assetId)
                     .on('postgres_changes', { 
