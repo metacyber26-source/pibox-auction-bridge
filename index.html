@@ -2300,7 +2300,27 @@
       }
     }
 
-        function openCertificateModalSafe() {
+        function triggerAggressiveRefresh() {
+      fetchActiveAuctions();
+      fetchBuyersList();
+      if (document.getElementById('chatModal') && !document.getElementById('chatModal').classList.contains('hidden')) {
+        loadChatMessages();
+      }
+    }
+
+    function handleSecureCertificateDownload() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Fitur ini hanya dapat diakses oleh Admin dan Developer (Dev)!");
+        return;
+      }
+      if (typeof NFTGMCertificateModule !== 'undefined' && NFTGMCertificateModule.sendToWhatsApp) {
+        NFTGMCertificateModule.sendToWhatsApp('certCanvas', selectedAuction);
+      } else {
+        alert("❌ Modul sertifikat belum siap.");
+      }
+    }
+
+    function openCertificateModalSafe() {
       if (!selectedAuction || !selectedAuction.id) {
         alert("Data lelang tidak ditemukan. Silakan buka ulang detail aset.");
         return;
@@ -2309,22 +2329,6 @@
       // Membuka halaman sertifikat eksternal dengan membawa parameter ID aset lelang secara dinamis
       window.open(`certificate.html?id=${selectedAuction.id}`, '_blank');
     }
-
-      if (typeof NFTGMCertificateModule !== 'undefined' && NFTGMCertificateModule.generate) {
-        NFTGMCertificateModule.generate('certCanvas', selectedAuction, 'certModal');
-        
-        // Memastikan tombol kirim PDF ke WhatsApp tampil khusus untuk Admin / Dev yang sah
-        const downloadBtn = document.getElementById('btnDownloadCert');
-        if (downloadBtn && authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-          downloadBtn.classList.remove('hidden');
-        } else if (downloadBtn) {
-          downloadBtn.classList.add('hidden');
-        }
-      } else {
-        alert("Modul sertifikat belum dimuat dengan benar.");
-      }
-    }
-
   </script>
 </body>
 </html>
