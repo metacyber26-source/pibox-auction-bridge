@@ -417,7 +417,7 @@
       </div>
 
       <div class="flex gap-2">
-        <button id="btnDownloadCert" onclick="handleSecureCertificateDownload()" class="hidden flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">📥 Download Certificate</button>
+        <button id="btnDownloadCert" onclick="handleSecureCertificateDownload()" class="hidden flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">💬 Kirim Sertifikat ke WA</button>
         <button onclick="closeCertModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2.5 rounded-xl text-xs transition cursor-pointer">Tutup</button>
       </div>
 
@@ -714,9 +714,9 @@
                 }
             },
             
-          download: function(canvasId, auctionData) {
+          sendToWhatsApp: function(canvasId, auctionData) {
               try {
-                // 1. Buat temporary canvas murni berukuran dokumen lembar sertifikat asli (1123 x 1588 piksel)
+                // Menggunakan resolusi tinggi HD murni (1123 x 1588 piksel) agar saat di-zoom tidak pecah/blur
                 const exportCanvas = document.createElement('canvas');
                 exportCanvas.width = 1123;
                 exportCanvas.height = 1588;
@@ -727,54 +727,75 @@
 
                 render(exportCanvas, auctionData);
 
-                // 2. Konversi kanvas ke format gambar Base64 Data URL
-                const dataUrl = exportCanvas.toDataURL('image/png');
-                const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
+                exportCanvas.toBlob(async function(blob) {
+                  if (!blob) {
+                    alert("❌ Gagal merender gambar sertifikat.");
+                    return;
+                  }
 
-                // 3. Render gambar langsung menggantikan isi jendela saat ini atau navigasikan halaman ke dataUrl
-                // Ini memastikan sistem browser mendeteksinya sebagai file gambar murni yang dapat diunduh/disimpan
-                const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
-                
-                if (isPiBrowser) {
-                  // Membuka halaman gambar murni di window aktif agar dapat disimpan secara manual dengan aman
-                  document.open();
-                  document.write(`
-                    <!DOCTYPE html>
-                    <html lang="id">
-                    <head>
-                      <meta charset="UTF-8">
-                      <title>Sertifikat Resmi NFT-GM</title>
-                      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                      <style>
-                        body { background: #0b0f17; color: white; text-align: center; font-family: sans-serif; padding: 20px; margin: 0; }
-                        .banner { background: #1e293b; color: #fbbf24; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 15px; font-weight: bold; border: 1px solid #fbbf24/40; }
-                        img { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-                        .back-btn { display: inline-block; margin-top: 15px; background: #374151; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: bold; }
-                      </style>
-                    </head>
-                    <body>
-                      <div class="banner">💡 <b>Tekan & Tahan (Long Press)</b> pada gambar sertifikat di bawah ini, lalu pilih <b>"Simpan Gambar" (Save Image)</b> untuk menyimpan langsung ke Galeri HP Anda!</div>
-                      <img src="${dataUrl}" alt="Sertifikat Official NFT-GM">
-                      <br>
-                      <a href="javascript:window.location.reload();" class="back-btn" onclick="history.back(); return false;">⬅ Kembali ke Aplikasi Lelang</a>
-                    </body>
-                    </html>
-                  `);
-                  document.close();
-                } else {
-                  // Standar browser biasa
-                  const link = document.createElement('a');
-                  link.href = dataUrl;
-                  link.download = `NFT-GM_Certificate_${fileId}.png`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  alert("✅ Unduhan sertifikat berhasil diproses!");
-                }
+                  const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
+                  const fileName = `NFT-GM_Certificate_${fileId}.png`;
+                  const file = new File([blob], fileName, { type: 'image/png' });
+
+                  const assetName = auctionData && auctionData.title ? auctionData.title : 'Nusantara NFT';
+                  const shareText = `📜 *Sertifikat Resmi NFT-GM*\n🔹 Nama Aset: ${assetName}\n🔹 Ref ID: ${fileId}\n\n*Status: System Verified & Official Auction Winner Proof*`;
+
+                  // Menggunakan Web Share API untuk langsung mengirim file gambar HD ke WhatsApp
+                  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                      await navigator.share({
+                        title: 'Sertifikat Resmi NFT-GM',
+                        text: shareText,
+                        files: [file],
+                      });
+                      return;
+                    } catch (err) {
+                      if (err.name !== 'AbortError') {
+                        console.warn("Share API fallback:", err);
+                      } else {
+                        return;
+                      }
+                    }
+                  }
+
+                  // Fallback jika perangkat tidak mendukung direct file sharing: buka gambar HD di tab baru untuk disimpan/dibagikan manual
+                  const dataUrl = exportCanvas.toDataURL('image/png');
+                  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+                  
+                  const shareWindow = window.open();
+                  if (shareWindow) {
+                    shareWindow.document.write(`
+                      <!DOCTYPE html>
+                      <html lang="id">
+                      <head>
+                        <meta charset="UTF-8">
+                        <title>Kirim Sertifikat ke WhatsApp</title>
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>
+                          body { background: #0b0f17; color: white; text-align: center; font-family: sans-serif; padding: 15px; margin: 0; }
+                          .banner { background: #065f46; color: #34d399; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; font-weight: bold; }
+                          img { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.8); margin-bottom: 15px; }
+                          .btn-wa { display: block; background: #25d366; color: white; font-weight: bold; padding: 12px; border-radius: 8px; text-decoration: none; font-size: 14px; }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="banner">✅ Sertifikat HD Siap Dikirim! Tekan & Tahan gambar di bawah untuk menyalin/membagikan langsung ke WhatsApp.</div>
+                        <img src="${dataUrl}" alt="Sertifikat HD">
+                        <a href="${waUrl}" target="_blank" class="btn-wa">💬 Buka Chat WhatsApp</a>
+                      </body>
+                      </html>
+                    `);
+                    shareWindow.document.close();
+                  } else {
+                    window.location.href = waUrl;
+                  }
+                }, 'image/png', 0.95);
+
               } catch (err) {
-                alert("❌ Gagal memproses sertifikat: " + err.message);
+                alert("❌ Gagal memproses pengiriman sertifikat: " + err.message);
               }
             }
+
 
 
         };
@@ -2276,15 +2297,16 @@
     }
         function handleSecureCertificateDownload() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⛔ Akses Ditolak: Fitur download sertifikat ini hanya dapat diakses oleh Admin dan Developer (Dev)!");
+        alert("⛔ Akses Ditolak: Fitur ini hanya dapat diakses oleh Admin dan Developer (Dev)!");
         return;
       }
-      if (typeof NFTGMCertificateModule !== 'undefined' && NFTGMCertificateModule.download) {
-        NFTGMCertificateModule.download('certCanvas', selectedAuction);
+      if (typeof NFTGMCertificateModule !== 'undefined' && NFTGMCertificateModule.sendToWhatsApp) {
+        NFTGMCertificateModule.sendToWhatsApp('certCanvas', selectedAuction);
       } else {
-        alert("❌ Modul unduhan sertifikat belum siap.");
+        alert("❌ Modul sertifikat belum siap.");
       }
     }
+
 
 
 
