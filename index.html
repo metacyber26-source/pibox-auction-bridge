@@ -1861,17 +1861,23 @@
       mainContent.innerHTML = html;
     }
 
-    async function adminToggleAuctionStatus(auctionId, targetStatus) {
+    async function adminToggleEventType(auctionId, targetType) {
       if (!supabaseClient) return;
       try {
-        const { error } = await supabaseClient.from('auctions').update({ status: targetStatus }).eq('id', auctionId);
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ nft_type: targetType })
+          .eq('id', auctionId);
+          
         if (error) throw error;
-        alert(`✅ Status berhasil diubah menjadi '${targetStatus}'!`);
+        alert(`✅ Tipe NFT berhasil diubah menjadi ${targetType === 'event' ? 'NFT EVENT' : 'NFT NON EVENT'}!`);
         fetchActiveAuctions();
       } catch (err) {
-        alert("Gagal mengubah status: " + err.message);
+        alert("Gagal mengubah tipe NFT: " + err.message);
       }
     }
+
+
 
     async function adminDeleteAuction(auctionId) {
       if (!confirm("Apakah Anda yakin ingin menghapus aset ini dari galeri?")) return;
