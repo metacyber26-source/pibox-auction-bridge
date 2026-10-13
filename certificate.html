@@ -200,7 +200,7 @@
         </div>
     </div>
 
-    <!-- SCRIPT UTAMA PENGAMBILAN DATA SUPABASE & KONVERSI PDF HD -->
+    <!-- SCRIPT UTAMA PENGAMBILAN DATA SUPABASE & REAL-TIME & KONVERSI PDF HD -->
     <script>
         const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
         const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
@@ -252,10 +252,33 @@
                 document.getElementById('seller-username').innerText = data.seller ? (data.seller.startsWith('@') ? data.seller : '@' + data.seller) : '-';
                 document.getElementById('winner-username').innerText = data.highest_bidder ? (data.highest_bidder.startsWith('@') ? data.highest_bidder : '@' + data.highest_bidder) : '-';
 
-                document.getElementById('statusMessage').innerText = "✅ Data Berhasil Dimuat dari Supabase!";
+                document.getElementById('statusMessage').innerText = "✅ Data Real-Time Terhubung ke Supabase!";
                 document.getElementById('statusMessage').style.color = "#34d399";
                 document.getElementById('btnDownload').style.display = "block";
                 document.getElementById('btnWa').style.display = "block";
+
+                // --- FITUR REAL-TIME SUBSCRIPTION SUPABASE ---
+                supabaseClient
+                    .channel('public:auctions:' + assetId)
+                    .on('postgres_changes', { 
+                        event: 'UPDATE', 
+                        schema: 'public', 
+                        table: 'auctions',
+                        filter: `id=eq.${assetId}` 
+                    }, (payload) => {
+                        const updated = payload.new;
+                        currentAuctionData = updated;
+
+                        if (updated.title) document.getElementById('asset-name').innerText = updated.title;
+                        if (updated.hash) document.getElementById('tx-id').innerText = updated.hash;
+                        if (updated.highest_bid || updated.reserve_price) {
+                            document.getElementById('closing-price').innerText = `${updated.highest_bid || updated.reserve_price} Pi`;
+                        }
+                        if (updated.highest_bidder) {
+                            document.getElementById('winner-username').innerText = updated.highest_bidder.startsWith('@') ? updated.highest_bidder : '@' + updated.highest_bidder;
+                        }
+                    })
+                    .subscribe();
 
             } catch (err) {
                 document.getElementById('statusMessage').innerText = "❌ Error: " + err.message;
