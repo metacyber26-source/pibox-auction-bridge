@@ -24,7 +24,7 @@
             min-height: 100vh;
         }
 
-        /* Bar Kontrol & Aksi (Tidak ikut tercetak dalam PDF) */
+        /* Bar Kontrol & Aksi (Sticky di atas agar mudah diklik di Chrome) */
         .action-bar {
             width: 100%;
             max-width: 794px;
@@ -39,6 +39,9 @@
             box-shadow: 0 5px 20px rgba(0,0,0,0.5);
             box-sizing: border-box;
             font-family: sans-serif;
+            position: sticky;
+            top: 10px;
+            z-index: 99;
         }
         .btn {
             background: #2563eb;
@@ -56,7 +59,7 @@
         .btn-whatsapp:hover { background: #047857; }
         .status-msg { font-size: 12px; color: #fbbf24; }
 
-        /* Ukuran Presisi Rasio A4 (Lebar 794px x Tinggi 1123px pada 96 DPI) */
+        /* Ukuran Presisi Rasio A4 (Lebar 794px x Tinggi 1123px) */
         .certificate-wrapper {
             background: #ffffff;
             width: 794px;
@@ -108,16 +111,22 @@
         .footer-box { text-align: center; width: 45%; font-size: 13px; color: #4b5563; }
         .signature-area { height: 90px; border-bottom: 1px dashed #9ca3af; margin-bottom: 8px; }
         .legal-notice { font-size: 11px; color: #6b7280; text-align: center; margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 10px; }
+
+        @media print {
+            body { background: white !important; padding: 0 !important; }
+            .action-bar { display: none !important; }
+            .certificate-wrapper { box-shadow: none !important; border: none !important; }
+        }
     </style>
 </head>
 <body>
 
-    <!-- Bar Kontrol & Aksi (Hanya tampil di browser, tidak ikut tercetak) -->
+    <!-- Bar Kontrol & Aksi -->
     <div class="action-bar">
-        <span id="statusMessage" class="status-msg">⏳ Menghubungkan ke Supabase...</span>
+        <span id="statusMessage" class="status-msg">⏳ Menghubungkan Real-Time...</span>
         <div style="display: flex; gap: 8px;">
-            <button onclick="downloadPDF()" class="btn" id="btnDownload" style="display:none;">📥 Download PDF</button>
-            <button onclick="shareWhatsApp()" class="btn btn-whatsapp" id="btnWa" style="display:none;">💬 Kirim WA</button>
+            <button onclick="window.print()" class="btn" style="background: #eab308; color: #000;">🖨️ Simpan / Cetak PDF</button>
+            <button onclick="shareWhatsApp()" class="btn btn-whatsapp">💬 Info WA</button>
         </div>
     </div>
 
@@ -200,7 +209,7 @@
         </div>
     </div>
 
-    <!-- SCRIPT UTAMA PENGAMBILAN DATA SUPABASE & REAL-TIME & KONVERSI PDF HD -->
+    <!-- SCRIPT UTAMA: SUPABASE, REAL-TIME & USERNAME PEMENANG -->
     <script>
         const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
         const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
@@ -215,17 +224,23 @@
             console.error("Supabase Init Error:", e);
         }
 
-        // Fungsi pembantu untuk merender data ke elemen HTML secara dinamis & real-time
         function updateCertificateUI(data) {
             const shortId = data.id ? data.id.substring(0, 6).toUpperCase() : 'NFT-GM';
             document.getElementById('ref-number').innerText = `NFT-GM/AUC-CERT/2026/10/${shortId}`;
             document.getElementById('asset-name').innerText = data.title || 'Nusantara NFT Asset';
             document.getElementById('tx-id').innerText = data.hash || '-';
-            document.getElementById('onchain-time').innerText = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
-            document.getElementById('closing-price').innerText = `${data.highest_bid || data.reserve_price || '0'} Pi`;
-            document.getElementById('closing-time').innerText = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
-            document.getElementById('seller-username').innerText = data.seller ? (data.seller.startsWith('@') ? data.seller : '@' + data.seller) : '-';
             
+            // On-chain time secara presisi dari database
+            const formattedTime = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
+            document.getElementById('onchain-time').innerText = formattedTime;
+            document.getElementById('closing-time').innerText = formattedTime;
+
+            document.getElementById('closing-price').innerText = `${data.highest_bid || data.reserve_price || '0'} Pi`;
+            
+            // Penjual & Username Pemenang Lelang (misal: Ful21 menjadi @Ful21)
+            const seller = data.seller || 'seller_official';
+            document.getElementById('seller-username').innerText = seller.startsWith('@') ? seller : '@' + seller;
+
             const winner = data.highest_bidder || data.winner || 'Pioneer';
             document.getElementById('winner-username').innerText = winner.startsWith('@') ? winner : '@' + winner;
         }
@@ -235,45 +250,42 @@
             const assetId = urlParams.get('id');
 
             if (!assetId) {
-                document.getElementById('statusMessage').innerText = "❌ ID Aset tidak ditemukan di URL. (Buka melalui tombol detail lelang)";
+                document.getElementById('statusMessage').innerText = "❌ ID Aset tidak ditemukan di URL.";
                 return;
             }
 
             if (!supabaseClient) {
-                document.getElementById('statusMessage').innerText = "❌ Gagal menginisialisasi Supabase client.";
+                document.getElementById('statusMessage').innerText = "❌ Gagal terhubung ke Database.";
                 return;
             }
 
             try {
-                // Mengambil data spesifik berdasarkan ID dari Supabase (Mendukung puluhan/ratusan aset secara dinamis)
+                // Ambil data awal berdasarkan parameter ID dari Supabase
                 const { data, error } = await supabaseClient
                     .from('auctions')
                     .select('*')
                     .eq('id', assetId)
                     .single();
 
-                if (error || !data) throw new Error("Data aset tidak ditemukan di database.");
+                if (error || !data) throw new Error("Data lelang tidak ditemukan.");
 
                 currentAuctionData = data;
                 updateCertificateUI(data);
 
-                document.getElementById('statusMessage').innerText = "✅ Data Real-Time Terhubung ke Supabase!";
+                document.getElementById('statusMessage').innerText = "✅ Real-Time Terhubung & Siap!";
                 document.getElementById('statusMessage').style.color = "#34d399";
-                document.getElementById('btnDownload').style.display = "block";
-                document.getElementById('btnWa').style.display = "block";
 
-                // --- FITUR REAL-TIME SUBSCRIPTION SUPABASE ---
+                // --- REAL-TIME SUBSCRIPTION SUPABASE ---
                 supabaseClient
-                    .channel('public:auctions:' + assetId)
+                    .channel('cert-sync-' + assetId)
                     .on('postgres_changes', { 
                         event: 'UPDATE', 
                         schema: 'public', 
                         table: 'auctions',
                         filter: `id=eq.${assetId}` 
                     }, (payload) => {
-                        const updated = payload.new;
-                        currentAuctionData = updated;
-                        updateCertificateUI(updated);
+                        currentAuctionData = payload.new;
+                        updateCertificateUI(payload.new);
                     })
                     .subscribe();
 
@@ -282,77 +294,16 @@
             }
         }
 
-        async function generateHDQuizPDFBlob() {
-            const element = document.getElementById('certificateArea');
+        function shareWhatsApp() {
+            const fileId = currentAuctionData ? currentAuctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
+            const assetTitle = currentAuctionData ? currentAuctionData.title : 'Nusantara NFT';
+            const winnerName = currentAuctionData ? (currentAuctionData.highest_bidder || currentAuctionData.winner || 'Pioneer') : '-';
+            const currentUrl = window.location.href;
+
+            const shareText = `📜 *Sertifikat Resmi NFT-GM*\n🔹 Aset: ${assetTitle}\n🔹 Pemenang: @${winnerName.replace('@','')}\n🔹 Ref ID: ${fileId}\n\n🔗 *Link Sertifikat Resmi:* \n${currentUrl}`;
             
-            // Render dengan scale: 3 untuk memastikan hasil teks & garis tajam HD murni (tidak pecah/blur saat dizoom)
-            const canvas = await html2canvas(element, {
-                scale: 3,
-                useCORS: true,
-                logging: false,
-                windowWidth: 794
-            });
-
-            const imgData = canvas.toDataURL('image/jpeg', 0.98);
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4'
-            });
-
-            // Masukkan gambar secara presisi menutupi halaman A4 ukuran 210mm x 297mm
-            pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-            return pdf.output('blob');
-        }
-
-        async function downloadPDF() {
-            try {
-                document.getElementById('statusMessage').innerText = "⏳ Sedang memproses PDF HD...";
-                const pdfBlob = await generateHDQuizPDFBlob();
-                const fileId = currentAuctionData ? currentAuctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
-                const fileName = `NFT-GM_Certificate_${fileId}.pdf`;
-
-                const pdfUrl = URL.createObjectURL(pdfBlob);
-                const link = document.createElement('a');
-                link.href = pdfUrl;
-                link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
-
-                document.getElementById('statusMessage').innerText = "✅ File PDF Berhasil Diunduh lewat Chrome!";
-            } catch (err) {
-                alert("Gagal mengunduh: " + err.message);
-            }
-        }
-
-        async function shareWhatsApp() {
-            try {
-                document.getElementById('statusMessage').innerText = "⏳ Mempersiapkan dokumen PDF...";
-                const pdfBlob = await generateHDQuizPDFBlob();
-                const fileId = currentAuctionData ? currentAuctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
-                const fileName = `NFT-GM_Certificate_${fileId}.pdf`;
-                const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-                const shareText = `📜 *Sertifikat Resmi PDF NFT-GM*\n🔹 Aset: ${currentAuctionData.title}\n🔹 Pemenang: ${currentAuctionData.highest_bidder || currentAuctionData.winner || 'Pioneer'}\n🔹 Ref ID: ${fileId}\n\n*Official Auction Winner Proof*`;
-
-                if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-                    await navigator.share({
-                        title: 'Sertifikat Resmi NFT-GM',
-                        text: shareText,
-                        files: [pdfFile],
-                    });
-                } else {
-                    downloadPDF();
-                    alert("📱 File PDF telah diunduh. Silakan lampirkan dokumen tersebut ke chat WhatsApp.");
-                }
-            } catch (err) {
-                if (err.name !== 'AbortError') {
-                    alert("Gagal membagikan: " + err.message);
-                }
-            }
+            const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+            window.open(waUrl, '_blank');
         }
 
         document.addEventListener("DOMContentLoaded", loadCertificateData);
