@@ -4,33 +4,71 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Certificate of Authenticity - NFT-GM</title>
-    <link rel="stylesheet" href="certificate.css">
+    
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- jsPDF & html2canvas untuk Ekspor PDF Bersih -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <style>
-        /* Desain Background Terang & Bingkai Batik/Ukiran (Point 1) */
         body {
-            background-color: #f4f6f9;
+            background-color: #0b0f17;
             font-family: 'Times New Roman', Times, serif, Arial, sans-serif;
             color: #1a202c;
             margin: 0;
-            padding: 20px;
+            padding: 15px;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
             min-height: 100vh;
         }
+
+        /* Tombol Aksi Melayang di Luar Sertifikat agar Tidak Ikut Tercetak di PDF */
+        .action-bar {
+            width: 100%;
+            max-width: 800px;
+            background: #111827;
+            border: 1px solid #374151;
+            padding: 12px 20px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+        }
+        .btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: sans-serif;
+        }
+        .btn:hover { background: #1d4ed8; }
+        .btn-whatsapp { background: #059669; }
+        .btn-whatsapp:hover { background: #047857; }
+        .status-msg { font-size: 12px; color: #fbbf24; font-family: sans-serif; }
+
+        /* Desain Sertifikat Utama */
         .certificate-wrapper {
             background: #ffffff;
             width: 100%;
             max-width: 800px;
             padding: 40px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             position: relative;
             overflow: hidden;
-            /* Bingkai Motif Batik / Ukiran CSS */
+            box-sizing: border-box;
             border: 12px solid transparent;
             border-image: repeating-linear-gradient(45deg, #1e3a8a, #1e3a8a 10px, #3b82f6 10px, #3b82f6 20px) 12;
         }
-        /* Watermark Stempel di Latar Belakang (Point 2) */
         .certificate-wrapper::before {
             content: "";
             position: absolute;
@@ -50,7 +88,6 @@
             position: relative;
             z-index: 1;
         }
-        /* Efek Emboss pada Tulisan (Point 2) */
         .emboss-text {
             color: #1e3a8a;
             text-shadow: 1px 1px 0px #ffffff, -1px -1px 0px rgba(0,0,0,0.3);
@@ -58,167 +95,245 @@
             text-align: center;
             letter-spacing: 1px;
         }
-        .header-title {
-            font-size: 22px;
-            margin-bottom: 5px;
-        }
-        .sub-header {
-            font-size: 14px;
-            margin-bottom: 25px;
-            color: #4b5563;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-        .cert-title {
-            font-size: 26px;
-            margin: 15px 0 25px 0;
-            border-bottom: 2px solid #1e3a8a;
-            padding-bottom: 8px;
-            display: inline-block;
-        }
-        .section-title {
-            font-size: 15px;
-            background: #e2e8f0;
-            padding: 6px 12px;
-            color: #1e3a8a;
-            font-weight: bold;
-            margin-top: 20px;
-            margin-bottom: 10px;
-            border-left: 4px solid #1e3a8a;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-        }
-        td {
-            padding: 6px 8px;
-            font-size: 14px;
-        }
-        td.label {
-            width: 38%;
-            font-weight: bold;
-            color: #374151;
-        }
-        td.separator {
-            width: 3%;
-            text-align: center;
-        }
-        td.value {
-            width: 59%;
-            color: #111827;
-            font-family: monospace;
-            font-size: 15px;
-        }
-        .footer-grid {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 40px;
-            align-items: flex-end;
-        }
-        .footer-box {
-            text-align: center;
-            width: 45%;
-            font-size: 13px;
-            color: #4b5563;
-        }
-        .signature-area {
-            height: 90px;
-            border-bottom: 1px dashed #9ca3af;
-            margin-bottom: 8px;
-        }
-        .legal-notice {
-            font-size: 11px;
-            color: #6b7280;
-            text-align: center;
-            margin-top: 30px;
-            border-top: 1px solid #e5e7eb;
-            padding-top: 10px;
-        }
+        .header-title { font-size: 22px; margin-bottom: 5px; }
+        .sub-header { font-size: 14px; margin-bottom: 25px; color: #4b5563; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
+        .cert-title { font-size: 26px; margin: 15px 0 25px 0; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; display: inline-block; }
+        .section-title { font-size: 15px; background: #e2e8f0; padding: 6px 12px; color: #1e3a8a; font-weight: bold; margin-top: 20px; margin-bottom: 10px; border-left: 4px solid #1e3a8a; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        td { padding: 6px 8px; font-size: 14px; }
+        td.label { width: 38%; font-weight: bold; color: #374151; }
+        td.separator { width: 3%; text-align: center; }
+        td.value { width: 59%; color: #111827; font-family: monospace; font-size: 15px; }
+        .footer-grid { display: flex; justify-content: space-between; margin-top: 40px; align-items: flex-end; }
+        .footer-box { text-align: center; width: 45%; font-size: 13px; color: #4b5563; }
+        .signature-area { height: 90px; border-bottom: 1px dashed #9ca3af; margin-bottom: 8px; }
+        .legal-notice { font-size: 11px; color: #6b7280; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="certificate-wrapper">
-    <div class="content-container">
-        <div style="text-align: center;">
-            <div class="emboss-text header-title">NFT GLOBAL MARKET (NFT-GM)</div>
-            <div class="sub-header">Certificate of Authenticity & Official Auction Winner Proof</div>
-            <h1 class="emboss-text cert-title">ELECTRONIC CERTIFICATE LETTER</h1>
-            <p style="font-size: 13px; color: #374151;">Ref Number: <span id="ref-number" style="font-family: monospace; font-weight: bold;">NFT-GM/AUC-CERT/2026/10/001</span></p>
-        </div>
-
-        <p style="font-size: 13px; line-height: 1.6; text-align: justify; margin-top: 20px;">
-            This is to certify legally and integrated within the PiBox Auction Bridge automated auction system, that the electronic auction transaction for the asset below has been officially closed and ownership has been transferred:
-        </p>
-
-        <div class="section-title">I. AUCTION ASSET DETAILS</div>
-        <table>
-            <tr>
-                <td class="label">Asset / NFT Name</td>
-                <td class="separator">:</td>
-                <td class="value" id="asset-name">Loading real-time asset...</td>
-            </tr>
-            <tr>
-                <td class="label">Transaction ID (TxID)</td>
-                <td class="separator">:</td>
-                <td class="value" id="tx-id">-</td>
-            </tr>
-            <tr>
-                <td class="label">On-chain Time</td>
-                <td class="separator">:</td>
-                <td class="value" id="onchain-time">-</td>
-            </tr>
-            <tr>
-                <td class="label">Auction Closing Price</td>
-                <td class="separator">:</td>
-                <td class="value" id="closing-price" style="color: #047857; font-weight: bold;">-</td>
-            </tr>
-            <tr>
-                <td class="label">Auction Closing Time</td>
-                <td class="separator">:</td>
-                <td class="value" id="closing-time">-</td>
-            </tr>
-        </table>
-
-        <div class="section-title">II. SELLER & AUCTION WINNER IDENTITY</div>
-        <table>
-            <tr>
-                <td class="label">Seller Username</td>
-                <td class="separator">:</td>
-                <td class="value" id="seller-username">-</td>
-            </tr>
-            <tr>
-                <td class="label">Winner Username</td>
-                <td class="separator">:</td>
-                <td class="value" id="winner-username">-</td>
-            </tr>
-        </table>
-
-        <div class="footer-grid">
-            <div class="footer-box">
-                <p style="margin-bottom: 5px; font-weight: bold;">Automated System Verification</p>
-                <div class="signature-area" style="border: none; display: flex; align-items: center; justify-content: center;">
-                    <span style="font-size: 11px; font-family: monospace; background: #e5e7eb; padding: 4px 8px; border-radius: 4px;">SYSTEM VERIFIED<br>Smart Contract Executed</span>
-                </div>
-                <p style="font-size: 12px; font-weight: bold; color: #1e3a8a; margin: 0;">PiBox Auction Engine</p>
-            </div>
-            
-            <div class="footer-box">
-                <p style="margin-bottom: 5px; font-weight: bold;">Head of NFT-GM</p>
-                <!-- Kolom tanda tangan dan stempel dikosongi sesuai permintaan -->
-                <div class="signature-area"></div>
-                <p style="font-size: 12px; font-weight: bold; color: #1e3a8a; margin: 0;">NFT Global Market<br><span style="font-size: 10px; font-weight: normal; color: #6b7280;">Official Seal - Est. 2026</span></p>
-            </div>
-        </div>
-
-        <div class="legal-notice">
-            This electronic certificate is automatically issued by the NFT-GM system and PiBox Auction Bridge as valid proof of ownership and transaction within the Pi Network ecosystem.
+    <!-- Bar Kontrol & Aksi (Tidak ikut tercetak dalam PDF sertifikat) -->
+    <div class="action-bar">
+        <span id="statusMessage" class="status-msg">⏳ Memuat data dari Supabase...</span>
+        <div style="display: flex; gap: 8px;">
+            <button onclick="downloadPDF()" class="btn" id="btnDownload" style="display:none;">📥 Download PDF</button>
+            <button onclick="shareWhatsApp()" class="btn btn-whatsapp" id="btnWa" style="display:none;">💬 Kirim WA</button>
         </div>
     </div>
-</div>
 
-<script src="certificate.js"></script>
+    <!-- Area Sertifikat yang Akan Dijadikan PDF Murni -->
+    <div class="certificate-wrapper" id="certificateArea">
+        <div class="content-container">
+            <div style="text-align: center;">
+                <div class="emboss-text header-title">NFT GLOBAL MARKET (NFT-GM)</div>
+                <div class="sub-header">Certificate of Authenticity & Official Auction Winner Proof</div>
+                <h1 class="emboss-text cert-title">ELECTRONIC CERTIFICATE LETTER</h1>
+                <p style="font-size: 13px; color: #374151;">Ref Number: <span id="ref-number" style="font-family: monospace; font-weight: bold;">-</span></p>
+            </div>
+
+            <p style="font-size: 13px; line-height: 1.6; text-align: justify; margin-top: 20px;">
+                This is to certify legally and integrated within the PiBox Auction Bridge automated auction system, that the electronic auction transaction for the asset below has been officially closed and ownership has been transferred:
+            </p>
+
+            <div class="section-title">I. AUCTION ASSET DETAILS</div>
+            <table>
+                <tr>
+                    <td class="label">Asset / NFT Name</td>
+                    <td class="separator">:</td>
+                    <td class="value" id="asset-name">-</td>
+                </tr>
+                <tr>
+                    <td class="label">Transaction ID (TxID)</td>
+                    <td class="separator">:</td>
+                    <td class="value" id="tx-id">-</td>
+                </tr>
+                <tr>
+                    <td class="label">On-chain Time</td>
+                    <td class="separator">:</td>
+                    <td class="value" id="onchain-time">-</td>
+                </tr>
+                <tr>
+                    <td class="label">Auction Closing Price</td>
+                    <td class="separator">:</td>
+                    <td class="value" id="closing-price" style="color: #047857; font-weight: bold;">-</td>
+                </tr>
+                <tr>
+                    <td class="label">Auction Closing Time</td>
+                    <td class="separator">:</td>
+                    <td class="value" id="closing-time">-</td>
+                </tr>
+            </table>
+
+            <div class="section-title">II. SELLER & AUCTION WINNER IDENTITY</div>
+            <table>
+                <tr>
+                    <td class="label">Seller Username</td>
+                    <td class="separator">:</td>
+                    <td class="value" id="seller-username">-</td>
+                </tr>
+                <tr>
+                    <td class="label">Winner Username</td>
+                    <td class="separator">:</td>
+                    <td class="value" id="winner-username">-</td>
+                </tr>
+            </table>
+
+            <div class="footer-grid">
+                <div class="footer-box">
+                    <p style="margin-bottom: 5px; font-weight: bold;">Automated System Verification</p>
+                    <div class="signature-area" style="border: none; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: 11px; font-family: monospace; background: #e5e7eb; padding: 4px 8px; border-radius: 4px;">SYSTEM VERIFIED<br>Smart Contract Executed</span>
+                    </div>
+                    <p style="font-size: 12px; font-weight: bold; color: #1e3a8a; margin: 0;">PiBox Auction Engine</p>
+                </div>
+                
+                <div class="footer-box">
+                    <p style="margin-bottom: 5px; font-weight: bold;">Head of NFT-GM</p>
+                    <div class="signature-area"></div>
+                    <p style="font-size: 12px; font-weight: bold; color: #1e3a8a; margin: 0;">NFT Global Market<br><span style="font-size: 10px; font-weight: normal; color: #6b7280;">Official Seal - Est. 2026</span></p>
+                </div>
+            </div>
+
+            <div class="legal-notice">
+                This electronic certificate is automatically issued by the NFT-GM system and PiBox Auction Bridge as valid proof of ownership and transaction within the Pi Network ecosystem.
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Pengambilan Data Supabase & Konversi PDF Bersih -->
+    <script>
+        const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
+        const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+        let supabaseClient = null;
+        let currentData = null;
+
+        try {
+            if (window.supabase) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        } catch (e) {
+            console.error("Supabase Init Error:", e);
+        }
+
+        async function loadCertificateData() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const assetId = urlParams.get('id');
+
+            if (!assetId) {
+                document.getElementById('statusMessageinnerText = "❌ ID Aset tidak ditemukan di URL.");
+                return;
+            }
+
+            if (!supabaseClient) {
+                document.getElementById('statusMessage').innerText = "❌ Gagal menginisialisasi database.";
+                return;
+            }
+
+            try {
+                // Mendukung banyak aset: mengambil data spesifik berdasarkan ID dari tabel Supabase secara dinamis
+                const { data, error } = await supabaseClient
+                    .from('auctions')
+                    .select('*')
+                    .eq('id', assetId)
+                    .single();
+
+                if (error || !data) throw new Error("Aset tidak ditemukan di database.");
+
+                currentData = data;
+                const shortId = data.id.substring(0, 6).toUpperCase();
+
+                // Isi elemen HTML sertifikat dengan data asli
+                document.getElementById('ref-number').innerText = `NFT-GM/AUC-CERT/2026/10/${shortId}`;
+                document.getElementById('asset-name').innerText = data.title || 'Nusantara NFT Asset';
+                document.getElementById('tx-id').innerText = data.hash || '-';
+                document.getElementById('onchain-time').innerText = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
+                document.getElementById('closing-price').innerText = `${data.highest_bid || data.reserve_price || '0'} Pi`;
+                document.getElementById('closing-time').innerText = data.created_at ? data.created_at.replace('T', ' ').substring(0, 19) + ' UTC' : '-';
+                document.getElementById('seller-username').innerText = data.seller ? (data.seller.startsWith('@') ? data.seller : '@' + data.seller) : '-';
+                document.getElementById('winner-username').innerText = data.highest_bidder ? (data.highest_bidder.startsWith('@') ? data.highest_bidder : '@' + data.highest_bidder) : '-';
+
+                document.getElementById('statusMessage').innerText = "✅ Sertifikat Siap Diunduh / Dikirim!";
+                document.getElementById('statusMessage').style.color = "#34d399";
+                document.getElementById('btnDownload').style.display = "block";
+                document.getElementById('btnWa').style.display = "block";
+
+            } catch (err) {
+                document.getElementById('statusMessage').innerText = "❌ Error: " + err.message;
+            }
+        }
+
+        async function generateCleanPDFBlob() {
+            const element = document.getElementById('certificateArea');
+            
+            // Render elemen HTML sertifikat secara presisi menggunakan html2canvas
+            const canvas = await html2canvas(element, {
+                scale: 2, // Kualitas HD agar tajam saat di-zoom
+                useCORS: true,
+                logging: false
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            // Masukkan gambar sertifikat secara penuh ke format halaman A4
+            pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+            return pdf.output('blob');
+        }
+
+        async function downloadPDF() {
+            try {
+                document.getElementById('statusMessage').innerText = "⏳ Sedang memproses PDF...";
+                const pdfBlob = await generateCleanPDFBlob();
+                const fileId = currentData ? currentData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
+                const fileName = `Certificate_${fileId}.pdf`;
+
+                const pdfUrl = URL.createObjectURL(pdfBlob);
+                const link = document.createElement('a');
+                link.href = pdfUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
+
+                document.getElementById('statusMessage').innerText = "✅ PDF Sertifikat Berhasil Diunduh!";
+            } catch (err) {
+                alert("Gagal mengunduh PDF: " + err.message);
+            }
+        }
+
+        async function shareWhatsApp() {
+            try {
+                const pdfBlob = await generateCleanPDFBlob();
+                const fileId = currentData ? currentData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
+                const fileName = `Certificate_${fileId}.pdf`;
+                const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+                const shareText = `📜 *Sertifikat Resmi NFT-GM*\n🔹 Aset: ${currentData.title}\n🔹 Ref ID: ${fileId}\n\n*Official Auction Winner Proof*`;
+
+                if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                    await navigator.share({
+                        title: 'Sertifikat Resmi NFT-GM',
+                        text: shareText,
+                        files: [pdfFile],
+                    });
+                } else {
+                    downloadPDF();
+                    alert("📱 File PDF sertifikat telah diunduh. Silakan lampirkan dokumen tersebut ke chat WhatsApp.");
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    alert("Gagal membagikan: " + err.message);
+                }
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", loadCertificateData);
+    </script>
 </body>
 </html>
