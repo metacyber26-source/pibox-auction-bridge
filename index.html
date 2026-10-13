@@ -714,12 +714,22 @@
                 }
             },
             download: function(canvasId, auctionData) {
-              const canvas = document.getElementById(canvasId);
-              if (!canvas) {
+              const sourceCanvas = document.getElementById(canvasId);
+              if (!sourceCanvas) {
                   alert("Canvas sertifikat belum siap. Silakan buka ulang sertifikat.");
                   return;
               }
-              canvas.toBlob(function(blob) {
+
+              // Membuat temporary canvas murni berukuran sertifikat asli (1123 x 1588) tanpa terpengaruh ukuran tampilan layar/CSS
+              const exportCanvas = document.createElement('canvas');
+              exportCanvas.width = 1123;
+              exportCanvas.height = 1588;
+              const exportCtx = exportCanvas.getContext('2d');
+              
+              // Menggambar ulang data kanvas asli dengan resolusi penuh murni lembar sertifikat
+              exportCtx.drawImage(sourceCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+              exportCanvas.toBlob(function(blob) {
                   if (!blob) {
                       alert("Gagal memproses gambar sertifikat.");
                       return;
