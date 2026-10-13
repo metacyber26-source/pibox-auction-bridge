@@ -756,7 +756,8 @@
 
                   // 2. Fallback: Jika perangkat/browser tidak mendukung file sharing langsung, tampilkan gambar HD dan tombol WhatsApp otomatis
                   const dataUrl = exportCanvas.toDataURL('image/png');
-                  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + "\n\n(Silakan lampirkan gambar sertifikat yang telah disiapkan)")}`;
+                  // Menggunakan skema protokol aplikasi whatsapp:// agar langsung memicu aplikasi WhatsApp di HP tanpa diblokir WebView
+                  const waAppUrl = `whatsapp://send?text=${encodeURIComponent(shareText + "\n\n(Silakan lampirkan gambar sertifikat HD yang telah disalin)")}`;
                   
                   const shareWindow = window.open();
                   if (shareWindow) {
@@ -775,15 +776,15 @@
                         </style>
                       </head>
                       <body>
-                        <div class="banner">📱 <b>Langkah Terakhir:</b><br>1. Tekan & Tahan gambar sertifikat di bawah lalu pilih <b>"Salin Gambar" (Copy Image)</b>.<br>2. Klik tombol hijau untuk membuka WhatsApp & pilih kontak tujuan.</div>
+                        <div class="banner">📱 <b>Cara Kirim Sertifikat ke WhatsApp:</b><br>1. Tekan & Tahan gambar sertifikat di bawah, lalu pilih <b>"Salin Gambar" (Copy Image)</b>.<br>2. Klik tombol hijau di bawah untuk membuka aplikasi WhatsApp dan pilih kontak tujuan.</div>
                         <img src="${dataUrl}" alt="Sertifikat HD">
-                        <a href="${waUrl}" target="_blank" class="btn-wa">💬 Buka WhatsApp & Pilih Kontak</a>
+                        <a href="${waAppUrl}" class="btn-wa">💬 Buka Aplikasi WhatsApp</a>
                       </body>
                       </html>
                     `);
                     shareWindow.document.close();
                   } else {
-                    window.location.href = waUrl;
+                    window.location.href = waAppUrl;
                   }
                 }, 'image/png', 0.95);
 
