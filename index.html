@@ -738,7 +738,7 @@
                 const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
                 const fileName = `NFT-GM_Certificate_${fileId}.pdf`;
 
-                // 2. Buat dokumen PDF menggunakan jsPDF
+                // 2. Buat dokumen PDF menggunakan jsPDF (Ukuran A4)
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF({
                   orientation: 'portrait',
@@ -747,53 +747,49 @@
                 });
 
                 pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-                
-                // 3. Konversi PDF ke format Data URI Base64 agar tembus batasan WebView Pi Browser
-                const pdfDataUri = pdf.output('datauristring');
-                const assetName = auctionData && auctionData.title ? auctionData.title : 'Nusantara NFT';
 
-                // 4. Buka halaman unduh/pratinjau khusus PDF di jendela baru agar Admin/Dev bisa langsung mengunduhnya dengan aman
-                const pdfWindow = window.open();
-                if (pdfWindow) {
-                  pdfWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html lang="id">
-                    <head>
-                      <meta charset="UTF-8">
-                      <title>Unduh Sertifikat PDF - NFT-GM</title>
-                      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                      <style>
-                        body { background: #0b0f17; color: white; text-align: center; font-family: sans-serif; padding: 20px; margin: 0; }
-                        .card { background: #111827; border: 1px solid #374151; padding: 20px; border-radius: 12px; max-width: 400px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-                        .info { color: #34d399; font-size: 14px; font-weight: bold; margin-bottom: 15px; line-height: 1.5; }
-                        .btn-download { display: block; width: 100%; background: #25d366; color: white; font-weight: bold; padding: 14px; border-radius: 10px; text-decoration: none; font-size: 15px; box-sizing: border-box; text-align: center; box-shadow: 0 4px 15px rgba(37,211,102,0.4); }
-                      </style>
-                    </head>
-                    <body>
-                      <div class="card">
-                        <div class="info">📄 Dokumen PDF Sertifikat Resmi untuk <b>${assetName}</b> telah siap diunduh!</div>
-                        <a href="${pdfDataUri}" download="${fileName}" class="btn-download">📥 Unduh File PDF Sekarang</a>
-                      </div>
-                    </body>
-                    </html>
-                  `);
-                  pdfWindow.document.close();
-                  alert("✅ Jendela unduhan PDF berhasil dibuka! Silakan klik tombol unduh di halaman tersebut.");
-                } else {
-                  // Fallback jika pop-up diblokir
+                // 3. Konversi PDF ke file Blob dan File object untuk dibagikan langsung
+                const pdfBlob = pdf.output('blob');
+                const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+                const assetName = auctionData && auctionData.title ? auctionData.title : 'Nusantara NFT';
+                const shareText = `📜 *Sertifikat Resmi PDF NFT-GM*\n🔹 Nama Aset: ${assetName}\n🔹 Ref ID: ${fileId}\n\n*Official Auction Winner Proof (PDF Document)*`;
+
+                async function processPDFShare() {
+                  // Coba gunakan Web Share API untuk langsung mengirim file PDF ke WhatsApp / Aplikasi Lain
+                  if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                    try {
+                      await navigator.share({
+                        title: 'Sertifikat Resmi PDF NFT-GM',
+                        text: shareText,
+                        files: [pdfFile],
+                      });
+                      return;
+                    } catch (err) {
+                      if (err.name === 'AbortError') return; // Dibatalkan oleh pengguna
+                    }
+                  }
+
+                  // Fallback langsung unduh file PDF ke perangkat secara aman dalam halaman yang sama
+                  const pdfUrl = URL.createObjectURL(pdfBlob);
                   const link = document.createElement('a');
-                  link.href = pdfDataUri;
+                  link.href = pdfUrl;
                   link.download = fileName;
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
-                  alert("✅ PDF berhasil diproses!");
+                  setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
+
+                  alert("✅ File Sertifikat PDF Berhasil Diunduh! Silakan lampirkan dokumen ke WhatsApp.");
                 }
+
+                processPDFShare();
 
               } catch (err) {
                 alert("❌ Gagal memproses dokumen PDF: " + err.message);
               }
             }
+
 
         };
     })();
