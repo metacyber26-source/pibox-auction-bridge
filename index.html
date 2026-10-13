@@ -716,7 +716,7 @@
             
           sendToWhatsApp: function(canvasId, auctionData) {
               try {
-                // Menggunakan resolusi tinggi HD murni (1123 x 1588 piksel) agar saat di-zoom tidak pecah/blur
+                // Render gambar sertifikat dalam resolusi HD murni (1123 x 1588 piksel) agar tidak pecah/blur saat dizoom
                 const exportCanvas = document.createElement('canvas');
                 exportCanvas.width = 1123;
                 exportCanvas.height = 1588;
@@ -740,7 +740,7 @@
                   const assetName = auctionData && auctionData.title ? auctionData.title : 'Nusantara NFT';
                   const shareText = `📜 *Sertifikat Resmi NFT-GM*\n🔹 Nama Aset: ${assetName}\n🔹 Ref ID: ${fileId}\n\n*Status: System Verified & Official Auction Winner Proof*`;
 
-                  // Menggunakan Web Share API untuk langsung mengirim file gambar HD ke WhatsApp
+                  // 1. Prioritaskan penggunaan Web Share API (Langsung memunculkan menu aplikasi termasuk WhatsApp dan pilih kontak)
                   if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     try {
                       await navigator.share({
@@ -750,17 +750,13 @@
                       });
                       return;
                     } catch (err) {
-                      if (err.name !== 'AbortError') {
-                        console.warn("Share API fallback:", err);
-                      } else {
-                        return;
-                      }
+                      if (err.name === 'AbortError') return; // User membatalkan share
                     }
                   }
 
-                  // Fallback jika perangkat tidak mendukung direct file sharing: buka gambar HD di tab baru untuk disimpan/dibagikan manual
+                  // 2. Fallback: Jika perangkat/browser tidak mendukung file sharing langsung, tampilkan gambar HD dan tombol WhatsApp otomatis
                   const dataUrl = exportCanvas.toDataURL('image/png');
-                  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+                  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + "\n\n(Silakan lampirkan gambar sertifikat yang telah disiapkan)")}`;
                   
                   const shareWindow = window.open();
                   if (shareWindow) {
@@ -773,15 +769,15 @@
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         <style>
                           body { background: #0b0f17; color: white; text-align: center; font-family: sans-serif; padding: 15px; margin: 0; }
-                          .banner { background: #065f46; color: #34d399; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; font-weight: bold; }
+                          .banner { background: #065f46; color: #34d399; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; font-weight: bold; line-height: 1.4; }
                           img { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.8); margin-bottom: 15px; }
-                          .btn-wa { display: block; background: #25d366; color: white; font-weight: bold; padding: 12px; border-radius: 8px; text-decoration: none; font-size: 14px; }
+                          .btn-wa { display: block; background: #25d366; color: white; font-weight: bold; padding: 14px; border-radius: 10px; text-decoration: none; font-size: 15px; margin-bottom: 10px; }
                         </style>
                       </head>
                       <body>
-                        <div class="banner">✅ Sertifikat HD Siap Dikirim! Tekan & Tahan gambar di bawah untuk menyalin/membagikan langsung ke WhatsApp.</div>
+                        <div class="banner">📱 <b>Langkah Terakhir:</b><br>1. Tekan & Tahan gambar sertifikat di bawah lalu pilih <b>"Salin Gambar" (Copy Image)</b>.<br>2. Klik tombol hijau untuk membuka WhatsApp & pilih kontak tujuan.</div>
                         <img src="${dataUrl}" alt="Sertifikat HD">
-                        <a href="${waUrl}" target="_blank" class="btn-wa">💬 Buka Chat WhatsApp</a>
+                        <a href="${waUrl}" target="_blank" class="btn-wa">💬 Buka WhatsApp & Pilih Kontak</a>
                       </body>
                       </html>
                     `);
@@ -795,9 +791,6 @@
                 alert("❌ Gagal memproses pengiriman sertifikat: " + err.message);
               }
             }
-
-
-
         };
     })();
   </script>
