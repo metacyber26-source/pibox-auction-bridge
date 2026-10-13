@@ -727,30 +727,49 @@
 
                 render(exportCanvas, auctionData);
 
-                // 2. Ubah kanvas menjadi Blob yang aman diunduh
-                exportCanvas.toBlob(function(blob) {
-                  if (!blob) {
-                    alert("❌ Gagal memproses file unduhan sertifikat.");
-                    return;
-                  }
+                // 2. Konversi kanvas langsung ke format gambar Base64 Data URL
+                const dataUrl = exportCanvas.toDataURL('image/png');
+                const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
 
-                  const url = URL.createObjectURL(blob);
+                // 3. Buka halaman interaktif khusus unduhan agar Admin/Dev dapat langsung menyimpan gambar
+                const downloadWindow = window.open();
+                if (downloadWindow) {
+                  downloadWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html lang="id">
+                    <head>
+                      <meta charset="UTF-8">
+                      <title>Unduh Sertifikat Resmi NFT-GM</title>
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                      <style>
+                        body { background: #0b0f17; color: #f3f4f6; text-align: center; font-family: sans-serif; padding: 20px; margin: 0; }
+                        .card { background: #111827; border: 1px solid #374151; padding: 15px; border-radius: 12px; max-width: 400px; margin: 0 auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+                        .info { color: #fbbf24; font-size: 13px; font-weight: bold; margin-bottom: 12px; line-height: 1.4; }
+                        img { width: 100%; height: auto; border-radius: 8px; border: 1px solid #4b5563; margin-bottom: 12px; }
+                        .btn { display: block; width: 100%; background: #eab308; color: #030712; font-weight: bold; padding: 12px; border-radius: 8px; text-decoration: none; font-size: 14px; box-sizing: border-box; }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="card">
+                        <div class="info">💡 Tekan tombol di bawah ATAU Tekan & Tahan (Long Press) pada gambar sertifikat untuk menyimpan ke Galeri HP!</div>
+                        <img src="${dataUrl}" alt="Sertifikat Official NFT-GM">
+                        <a href="${dataUrl}" download="NFT-GM_Certificate_${fileId}.png" class="btn">📥 Simpan File ke Perangkat</a>
+                      </div>
+                    </body>
+                    </html>
+                  `);
+                  downloadWindow.document.close();
+                  alert("✅ Jendela unduhan sertifikat berhasil dibuka! Silakan klik tombol simpan di halaman tersebut.");
+                } else {
+                  // Fallback otomatis jika pop-up diblokir oleh browser
                   const link = document.createElement('a');
-                  const fileId = auctionData && auctionData.id ? auctionData.id.substring(0, 6).toUpperCase() : 'NFT-GM';
-                  
-                  link.href = url;
+                  link.href = dataUrl;
                   link.download = `NFT-GM_Certificate_${fileId}.png`;
-                  
-                  // Menambahkan elemen link sementara ke dokumen untuk memicu download native Pi Browser
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
-
-                  setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-                  alert("✅ Download Sertifikat Berhasil Diproses! Silakan cek folder Unduhan/Downloads perangkat Anda.");
-                }, 'image/png', 0.95);
-
+                  alert("✅ Sertifikat berhasil di-generate!");
+                }
               } catch (err) {
                 alert("❌ Gagal memproses sertifikat: " + err.message);
               }
