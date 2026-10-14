@@ -1877,40 +1877,6 @@
         return;
       }
 
-      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-
-      let html = '<div class="grid grid-cols-1 gap-3">';
-      filteredAuctionsList.forEach(auction => {
-        const title = SecureShield.sanitizeHTML(auction.title || 'Untitled NFT');
-        const seller = SecureShield.maskUsername(auction.seller || 'Anonymous');
-        const price = auction.highest_bid || auction.reserve_price || 0;
-        const status = auction.status || 'active';
-        
-        let statusBadge = `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Active</span>`;
-        if (status === 'pending') statusBadge = `<span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Pending</span>`;
-        if (status === 'ended' || status === 'finished') statusBadge = `<span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Ended</span>`;
-        if (status === 'cancelled') statusBadge = `<span class="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[9px] font-bold">Cancelled</span>`;
-
-        const isEvent = auction.nft_type === 'event' || auction.is_event === true;
-        const eventBadgeText = isEvent ? '🔥 NFT EVENT' : '🛡️ NFT NON EVENT';
-        const eventBadgeClass = isEvent ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' : 'bg-gray-800 text-gray-400 border-gray-700';
-
-        let     function renderGallery() {
-      const mainContent = document.getElementById('mainContent');
-      if (!mainContent) return;
-
-      if (filteredAuctionsList.length === 0) {
-        mainContent.innerHTML = `
-          <div class="text-center py-16 space-y-3">
-            <p class="text-gray-500 text-xs">${t('emptyGallery')}</p>
-            <button onclick="handleOpenCreateModal()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow">
-              ${t('firstReleaseBtn')}
-            </button>
-          </div>
-        `;
-        return;
-      }
-
       // Validasi ketat Admin & Dev yang mencakup username aktif
       const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
 
@@ -1928,7 +1894,7 @@
 
         const isEvent = auction.nft_type === 'event' || auction.is_event === true;
 
-        adminActionControls = '';
+        let adminActionControls = '';
         if (isAdminOrDev) {
           const nextStatus = status === 'pending' ? 'active' : 'pending';
           const toggleStatusBtnText = status === 'pending' ? '🟢 Set Active' : '⏳ Set Pending';
@@ -1980,7 +1946,7 @@
       mainContent.innerHTML = html;
     }
 
-    // Fungsi handler tombol Set Active / Set Pending khusus Admin & Dev
+    // Pastikan fungsi handler status admin ini aktif
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("⛔ Akses Ditolak: Hanya Admin dan Developer (Dev) yang dapat merubah status ini!");
@@ -2000,6 +1966,7 @@
         alert("Gagal mengubah status aset: " + err.message);
       }
     }
+
 
                 <button onclick="adminToggleEventType('${auction.id}', '${nextEventType}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
                   ${toggleEventBtnText}
