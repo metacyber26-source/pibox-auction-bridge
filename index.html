@@ -2020,20 +2020,19 @@
           <!-- Area Gambar Dibagi Sama Besar: Main SS (Kiri) & Extra SS / Atributes (Kanan) -->
           <div class="grid grid-cols-2 gap-2">
             <div class="space-y-1">
-              <p class="text-[9px] text-gray-400 font-bold text-center">1. Main SS</p>
-              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center">
-                <img src="${mainImg}" class="w-full h-full object-contain">
+              <p class="text-[9px] text-gray-400 font-bold text-center">1. Main SS (Klik untuk Zoom)</p>
+              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center cursor-pointer group" onclick="openImageZoomModal('${mainImg}')">
+                <img src="${mainImg}" class="w-full h-full object-contain group-hover:scale-105 transition duration-200" title="Klik untuk memperbesar gambar">
               </div>
             </div>
             <div class="space-y-1">
-              <p class="text-[9px] text-gray-400 font-bold text-center">2. Extra SS / Atributes</p>
-              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-purple-500/40 flex items-center justify-center">
-                ${extraImg ? `<img src="${extraImg}" class="w-full h-full object-contain">` : `<div class="text-[10px] text-gray-500 text-center p-2">Tidak ada Extra SS</div>`}
+              <p class="text-[9px] text-gray-400 font-bold text-center">2. Extra SS (Klik untuk Zoom)</p>
+              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-purple-500/40 flex items-center justify-center cursor-pointer group">
+                ${extraImg ? `<img src="${extraImg}" class="w-full h-full object-contain group-hover:scale-105 transition duration-200" onclick="openImageZoomModal('${extraImg}')" title="Klik untuk memperbesar gambar">` : `<div class="text-[10px] text-gray-500 text-center p-2">Tidak ada Extra SS</div>`}
               </div>
             </div>
           </div>
 
-          
           <div>
             <h3 class="font-bold text-sm text-yellow-400">${title}</h3>
             <p class="text-[10px] text-gray-400 font-mono mt-0.5 break-all">Hash: ${selectedAuction.hash || '-'}</p>
@@ -2357,6 +2356,31 @@
       // Membuka halaman sertifikat eksternal dengan membawa parameter ID aset lelang secara dinamis
       window.open(`certificate.html?id=${selectedAuction.id}`, '_blank');
     }
+        function openImageZoomModal(imgSrc) {
+      if (!imgSrc) return;
+      let zoomModal = document.getElementById('imageZoomModal');
+      if (!zoomModal) {
+        zoomModal = document.createElement('div');
+        zoomModal.id = 'imageZoomModal';
+        zoomModal.className = 'fixed inset-0 bg-black/95 backdrop-blur-md hidden flex items-center justify-center p-2 z-[60] cursor-zoom-out';
+        zoomModal.onclick = closeImageZoomModal;
+        zoomModal.innerHTML = `
+          <div class="relative max-w-full max-h-full flex items-center justify-center p-2">
+            <button onclick="closeImageZoomModal()" class="absolute top-2 right-2 text-white bg-gray-800/85 hover:bg-gray-700 font-bold rounded-full w-8 h-8 flex items-center justify-center text-lg z-10">&times;</button>
+            <img id="zoomedImageElement" class="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl border border-gray-800">
+          </div>
+        `;
+        document.body.appendChild(zoomModal);
+      }
+      document.getElementById('zoomedImageElement').src = imgSrc;
+      zoomModal.classList.remove('hidden');
+    }
+
+    function closeImageZoomModal() {
+      const zoomModal = document.getElementById('imageZoomModal');
+      if (zoomModal) zoomModal.classList.add('hidden');
+    }
+
   </script>
 </body>
 </html>
