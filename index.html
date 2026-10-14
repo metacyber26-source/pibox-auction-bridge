@@ -1384,35 +1384,96 @@
       } catch (e) {}
     }
 
-    async function translateChatMessage(index, encodedText) {
-      const textSpan = document.getElementById(`msgText-${index}`);
-      if (!textSpan) return;
-      const originalText = decodeURIComponent(encodedText);
-      textSpan.innerText = "⏳ Translating...";
+    async function loadChatMessages() {
+  const box = document.getElementById('chatMessagesBox');
+  if (!supabaseClient) return;
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    await supabaseClient.from('chats').delete().lt('created_at', thirtyDaysAgo);
 
-      try {
-        let targetLang = currentLang || 'id';
-        if (targetLang === 'zh') targetLang = 'zh-CN';
-
-        const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(originalText)}&langpair=auto|${targetLang}`;
-        
-        const response = await fetch(apiUrl);
-        const data = await response.json();
-
-        if (data && data.responseData && data.responseData.translatedText) {
-          let translated = data.responseData.translatedText;
-          if (translated.includes("MYMEMORY WARNING")) {
-            textSpan.innerText = originalText;
-          } else {
-            textSpan.innerText = translated;
-          }
-        } else {
-          textSpan.innerText = originalText;
-        }
-      } catch (e) {
-        textSpan.innerText = originalText;
+    let query = supabaseClient.from('chats').select('*').order('created_at', { ascending: true });
+    if (currentChatRoom === 'forum') {
+      query = query.eq('room_type', 'forum');
+    } else {
+      if (!currentP2PTarget) { 
+        box.innerHTML = `<div class="text-center text-indigo-400 py-6">Pilih lawan chat P2P.</div>`; 
+        return; 
       }
+      query = query.eq('room_type', 'p2p').or(`and(sender.eq.${authenticatedPiUser.username},receiver.eq.${currentP2PTarget}),and(sender.eq.${currentP2PTarget},receiver.eq.${authenticatedPiUser.username})`);
     }
+    
+    const { data } = await query;
+    if (!data || data.length === 0) { 
+      box.innerHTML = `<div class="text-center text-gray-500 py-6">Belum ada pesan.</div>`; 
+      return; 
+    }
+    
+    let html = '';
+    data.forEach((msg, idx) => {
+      const isMe = authenticatedPiUser && msg.sender === authenticatedPiUser.username;
+      const maskedSender = SecureShield.maskUsername(msg.sender);
+      const sanitizedText = SecureShield.sanitizeHTML(msg.message);
+      
+      html += `<div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-0.5">
+        <span class="text-[9px] text-gray-400 font-bold">@${maskedSender}</span>
+        <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs flex flex-col gap-1.5 ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200'}">
+          <span id="msgText-${idx}">${sanitizedText}</span>
+          <div class="flex justify-between items-center pt-1 border-t border-black/10 text-[9px] gap-2">
+            <span class="opacity-60">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            <button onclick="copyChatMessage(\`${encodeURIComponent(msg.message)}\`, this)" class="underline opacity-80 hover:opacity-100 cursor-pointer flex items-center gap-1 font-bold">
+              📋 Salin
+            </button>
+          </div>
+        </div>
+      </div>`;
+    });
+    box.innerHTML = html;
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {}
+}
+
+// Fitur Salin / Copy Text ke Clipboard
+function copyChatMessage(encodedText, buttonEl) {
+  const originalText = decodeURIComponent(encodedText);
+  
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(originalText).then(() => {
+      showCopySuccess(buttonEl);
+    }).catch(() => {
+      fallbackCopyText(originalText, buttonEl);
+    });
+  } else {
+    fallbackCopyText(originalText, buttonEl);
+  }
+}
+
+function fallbackCopyText(text, buttonEl) {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.style.position = "fixed";
+  textArea.style.opacity = "0";
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  
+  try {
+    document.execCommand('copy');
+    showCopySuccess(buttonEl);
+  } catch (err) {
+    alert("Gagal menyalin pesan.");
+  }
+  document.body.removeChild(textArea);
+}
+
+function showCopySuccess(buttonEl) {
+  if (!buttonEl) return;
+  const originalHTML = buttonEl.innerHTML;
+  buttonEl.innerHTML = "✅ Tersalin!";
+  setTimeout(() => {
+    buttonEl.innerHTML = originalHTML;
+  }, 1500);
+}
+
 
     async function sendChatMessage() {
       if (!authenticatedPiUser) return;
