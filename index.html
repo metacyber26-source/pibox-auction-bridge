@@ -1759,20 +1759,29 @@
         };
 
         const base64Image = await compressImageSafe(mainImageFile);
+        
+        // Kompresi atau ambil file Extra SS jika diunggah
+        const extraImageFile = document.getElementById('extraSSInput')?.files[0];
+        let base64ExtraImage = '';
+        if (extraImageFile) {
+          base64ExtraImage = await compressImageSafe(extraImageFile);
+        }
+
         const durationHours = (auctionScheduleState && auctionScheduleState.durationHours) ? parseInt(auctionScheduleState.durationHours, 10) : 24;
         const calculatedEndsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
 
         const payload = {
           title: title,
           hash: hash,
-          pibox_wallet: piboxWallet,
           reserve_price: reservePrice,
           seller: authenticatedPiUser.username,
           image_url: base64Image,
+          extra_image_url: base64ExtraImage, // Menyimpan Extra SS ke database
           status: 'pending',
           created_at: new Date().toISOString(),
           ends_at: calculatedEndsAt
         };
+
 
         if (supabaseClient) {
           const { error } = await supabaseClient.from('auctions').insert([payload]);
@@ -2045,9 +2054,8 @@
 
       // Ambil gambar dari database secara tepat (Main SS di kiri, Extra SS / SS Tambahan di kanan)
       const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
-      
-      // Memeriksa berbagai kemungkinan nama kolom database untuk SS Tambahan / Extra SS
-      const extraImg = selectedAuction.extra_ss_url || selectedAuction.extra_image_url || selectedAuction.attributes_image_url || selectedAuction.extra_ss || '';
+      // Membaca extra_image_url dari payload Supabase
+      const extraImg = selectedAuction.extra_image_url || selectedAuction.extra_ss_url || selectedAuction.attributes_image_url || '';
 
       content.innerHTML = `
         <div class="space-y-3 text-xs">
