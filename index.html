@@ -2093,7 +2093,37 @@
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
     }
+    function openP2PMediatorChat(sellerUsername) {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+      
+      // Tutup modal detail aset terlebih dahulu
+      closeDetailModal();
+      
+      // Buka modal chat utama
+      const chatModal = document.getElementById('chatModal');
+      if (chatModal) chatModal.classList.remove('hidden');
+      
+      // Alihkan tab chat ke mode P2P secara otomatis
+      switchChatTab('p2p');
+      
+      // Set target P2P ke penjual barang tersebut
+      currentP2PTarget = sellerUsername;
+      
+      // Perbarui dropdown target P2P jika elemennya tersedia
+      const selectTarget = document.getElementById('p2pTargetUserSelect');
+      if (selectTarget) {
+        selectTarget.value = sellerUsername;
+      }
+      
+      // Muat pesan chat P2P dengan penjual (Admin/Dev dapat memantau sebagai mediator dalam room P2P ini)
+      loadChatMessages();
+    }
 
+    
     function submitManualBid(auctionId) {
       const input = document.getElementById('manualBidAmountInput');
       if (!input) return;
