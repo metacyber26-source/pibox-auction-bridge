@@ -1515,27 +1515,36 @@ function showCopySuccess(buttonEl) {
       if (!authenticatedPiUser) return;
       const input = document.getElementById('chatMessageInput');
       const text = input.value.trim();
-      if (!text) return;
+      
+      if (!text && !chatSelectedImageBase64) return;
 
-      if (SecureShield.checkProhibitedContent(text)) {
+      if (text && SecureShield.checkProhibitedContent(text)) {
         alert("🚫 Pesan Anda ditolak karena mengandung unsur konten terlarang, pornografi, atau kekerasan.");
         return;
       }
 
       if (currentChatRoom === 'p2p' && !currentP2PTarget) { alert("Pilih target P2P!"); return; }
+      
       const payload = {
         sender: authenticatedPiUser.username,
-        message: text,
+        message: text || '[Foto Bukti Pembayaran]',
         room_type: currentChatRoom,
         receiver: currentChatRoom === 'p2p' ? currentP2PTarget : null,
+        image_url: chatSelectedImageBase64 || null,
         created_at: new Date().toISOString()
       };
+      
       input.value = "";
+      clearChatImagePreview();
+      
       try {
         await supabaseClient.from('chats').insert([payload]);
         loadChatMessages();
-      } catch (e) {}
+      } catch (e) {
+        alert("Gagal mengirim pesan/gambar: " + e.message);
+      }
     }
+
 
     function openBuyersTableModal() {
       fetchBuyersList().then(() => {
