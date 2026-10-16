@@ -1514,7 +1514,7 @@ function showCopySuccess(buttonEl) {
     async function sendChatMessage() {
       if (!authenticatedPiUser) return;
       const input = document.getElementById('chatMessageInput');
-      const text = input.value.trim();
+      const text = input ? input.value.trim() : '';
       
       if (!text && !chatSelectedImageBase64) return;
 
@@ -1523,7 +1523,10 @@ function showCopySuccess(buttonEl) {
         return;
       }
 
-      if (currentChatRoom === 'p2p' && !currentP2PTarget) { alert("Pilih target P2P!"); return; }
+      if (currentChatRoom === 'p2p' && !currentP2PTarget) { 
+        alert("Pilih target P2P terlebih dahulu!"); 
+        return; 
+      }
       
       const payload = {
         sender: authenticatedPiUser.username,
@@ -1534,16 +1537,21 @@ function showCopySuccess(buttonEl) {
         created_at: new Date().toISOString()
       };
       
-      input.value = "";
+      // Kosongkan input dan hapus preview gambar segera setelah dikirim
+      if (input) input.value = "";
       clearChatImagePreview();
       
       try {
-        await supabaseClient.from('chats').insert([payload]);
-        loadChatMessages();
+        const { error } = await supabaseClient.from('chats').insert([payload]);
+        if (error) throw error;
+        
+        // Muat ulang pesan chat agar pesan baru langsung muncul di layar
+        await loadChatMessages();
       } catch (e) {
         alert("Gagal mengirim pesan/gambar: " + e.message);
       }
     }
+
 
 
     function openBuyersTableModal() {
