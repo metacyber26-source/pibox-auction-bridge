@@ -1270,6 +1270,15 @@
         authenticatePiUser();
         return;
       }
+
+      // Validasi status verifikasi pembeli
+      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      if (!isAdminOrDev && !isBuyerApproved) {
+        alert("⛔ Akses Ditolak: Status akun pembeli Anda masih 'Pending' atau belum terverifikasi oleh Admin. Silakan klik tombol 'Daftar Pembeli'.");
+        return;
+      }
+
+      }
       const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       if (isAdminOrDev) {
         openBuyersTableModal();
@@ -1517,14 +1526,16 @@ function showCopySuccess(buttonEl) {
       const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
       const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
-      if (filtered.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; return; }
+      if (filtered.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; return; }
       let html = '';
       filtered.forEach(b => {
         const isApproved = b.status === 'approved' || b.status === 'aktif' || b.status === 'active';
+        const winCount = b.win_count || 0;
         html += `<tr class="border-b border-gray-800">
           <td class="p-2 text-center">${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.id}">` : ''}</td>
           <td class="p-2 font-mono text-yellow-400">@${SecureShield.maskUsername(b.username)}</td>
           <td class="p-2"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
+          <td class="p-2 text-center text-emerald-400 font-bold">${winCount}x Menang</td>
           <td class="p-2 text-right space-x-1">
             ${isAdminOrDev ? `<button onclick="updateBuyerStatus('${b.id}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold">${isApproved ? 'Set Pending' : 'Aktifkan'}</button>
             <button onclick="deleteSingleBuyer('${b.id}')" class="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold">Hapus</button>` : ''}
@@ -1533,6 +1544,7 @@ function showCopySuccess(buttonEl) {
       });
       tbody.innerHTML = html;
     }
+
 
     function toggleSelectAllBuyers(master) {
       document.querySelectorAll('.buyer-checkbox').forEach(cb => cb.checked = master.checked);
