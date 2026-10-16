@@ -1278,27 +1278,39 @@
       }
       if (!supabaseClient) return;
       try {
-        const { data } = await supabaseClient.from('buyers').select('*').eq('username', authenticatedPiUser.username).single();
-        if (!data) {
-          await supabaseClient.from('buyers').insert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0 }]);
-          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi dari Admin/Dev.");
+        const { data: existingBuyer } = await supabaseClient
+          .from('buyers')
+          .select('*')
+          .eq('username', authenticatedPiUser.username)
+          .maybeSingle();
+
+        if (!existingBuyer) {
+          const { error } = await supabaseClient
+            .from('buyers')
+            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0 }], { onConflict: 'username' });
+          
+          if (error) throw error;
+          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
         } else {
-          alert(`⏳ Status pendaftaran Anda saat ini: ${data.status}`);
+          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${existingBuyer.status.toUpperCase()}`);
         }
         checkBuyerStatusInDatabase(authenticatedPiUser.username);
       } catch (err) {
-        alert("Gagal mendaftar: " + err.message);
+        alert("Gagal memproses pendaftaran: " + err.message);
       }
     }
+
 
 
     async function fetchBuyersList() {
       if (!supabaseClient) return;
       try {
-        const { data } = await supabaseClient.from('buyers').select('*').order('created_at', { ascending: false });
+        // Diurutkan secara otomatis dari A sampai Z berdasarkan username
+        const { data } = await supabaseClient.from('buyers').select('*').order('username', { ascending: true });
         buyersList = data || [];
       } catch(e) { buyersList = []; }
     }
+
 
     function openChatModal() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
