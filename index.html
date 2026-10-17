@@ -1405,21 +1405,20 @@
       const box = document.getElementById('chatMessagesBox');
       if (!supabaseClient) return;
       try {
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        await supabaseClient.from('chats').delete().lt('created_at', thirtyDaysAgo);
-
         let query = supabaseClient.from('chats').select('*').order('created_at', { ascending: true });
         if (currentChatRoom === 'forum') {
           query = query.eq('room_type', 'forum');
         } else {
           if (!currentP2PTarget) { 
-            box.innerHTML = `<div class="text-center text-indigo-400 py-6">Pilih lawan chat P2P.</div>`; 
+            box.innerHTML = `<div class="text-center text-indigo-400 py-6">Pilih lawan chat P2P terlebih dahulu.</div>`; 
             return; 
           }
           query = query.eq('room_type', 'p2p').or(`and(sender.eq.${authenticatedPiUser.username},receiver.eq.${currentP2PTarget}),and(sender.eq.${currentP2PTarget},receiver.eq.${authenticatedPiUser.username})`);
         }
         
-        const { data } = await query;
+        const { data, error } = await query;
+        if (error) throw error;
+
         if (!data || data.length === 0) { 
           box.innerHTML = `<div class="text-center text-gray-500 py-6">Belum ada pesan.</div>`; 
           return; 
