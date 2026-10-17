@@ -1752,7 +1752,9 @@
         const durationHours = (auctionScheduleState && auctionScheduleState.durationHours) ? parseInt(auctionScheduleState.durationHours, 10) : 24;
         const calculatedEndsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
 
-        const piboxWalletValue = document.getElementById('piboxWalletInput')?.value.trim() || authenticatedPiUser.username;
+        const rawSellerInput = document.getElementById('piboxWalletInput')?.value.trim() || authenticatedPiUser.username;
+        // Bersihkan tanda '@' jika admin menginputnya dengan '@' di depan
+        const finalSellerUsername = rawSellerInput.replace(/^@/, '');
         const transactionModeValue = document.getElementById('transactionModeInput')?.value || 'p2p';
 
         const payload = {
@@ -1761,8 +1763,8 @@
           description: description || '',
           hash: hash || '-',
           reserve_price: reservePrice,
-          seller: authenticatedPiUser.username,
-          pibox_wallet: piboxWalletValue || authenticatedPiUser.username,
+          seller: finalSellerUsername, // Penjual asli / pemilik barang yang terdaftar di galeri
+          pibox_wallet: finalSellerUsername,
           image_url: base64Image,
           extra_image_url: base64ExtraImage || '',
           transaction_mode: transactionModeValue || 'p2p',
@@ -1770,6 +1772,7 @@
           created_at: new Date().toISOString(),
           ends_at: calculatedEndsAt
         };
+
 
 
 
