@@ -505,7 +505,7 @@
           <input type="text" id="onChainTimeInput" value="-" placeholder="On-chain Time (Otomatis / ketik '-' jika kosong)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2.5 text-xs text-gray-300 font-mono focus:outline-none focus:border-yellow-500 transition">
         </div>
 
-        <!-- 7. Wallet / Username Penjual -->
+        <!-- 7. Wallet Pibox  Penjual -->
         <div>
           <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelSellerWallet">PiBox Wallet / Username Penjual</label>
           <input type="text" id="piboxWalletInput" placeholder="Masukkan Wallet PiBox Anda" data-i18n-placeholder="walletPlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
@@ -1996,6 +1996,27 @@
         fetchActiveAuctions();
       } catch (err) {
         alert("Gagal mengubah status aset: " + err.message);
+      }
+    }
+
+        async function adminToggleEventBadge(auctionId, currentEventState) {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Hanya Admin dan Developer (Dev) yang dapat mengatur Asset Event!");
+        return;
+      }
+      if (!supabaseClient) return;
+      try {
+        const newState = !currentEventState;
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ is_event: newState })
+          .eq('id', auctionId);
+          
+        if (error) throw error;
+        alert(newState ? "⭐ Aset berhasil ditandai sebagai ASSET EVENT!" : "❌ Tanda ASSET EVENT dicopot dari aset ini.");
+        fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal memperbarui status event: " + err.message);
       }
     }
 
