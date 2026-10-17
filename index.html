@@ -1929,10 +1929,14 @@
         const catBadgeText = getCategoryLabel(auction.category);
         const statusBadge = getStatusLabel(status);
 
+        const isEventActive = auction.is_event === true;
+        const eventBadgeHTML = isEventActive ? `<span class="bg-amber-500 text-gray-950 font-black px-2 py-0.5 rounded text-[9px] shadow-md border border-yellow-300 animate-pulse">⭐ ASSET EVENT</span>` : '';
+
         let adminActionControls = '';
         if (isAdminOrDev) {
           const nextStatus = status === 'pending' ? 'active' : 'pending';
           const toggleStatusBtnText = status === 'pending' ? t('btnSetActive') : t('btnSetPending');
+          const eventButtonText = isEventActive ? '❌ Hapus Event' : '⭐ Set Event';
 
           adminActionControls = `
             <div class="flex flex-col gap-1 pt-1 border-t border-gray-800 mt-1">
@@ -1940,13 +1944,17 @@
                 <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
                   ${toggleStatusBtnText}
                 </button>
-                <button onclick="adminDeleteAuction('${auction.id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
+                <button onclick="adminToggleEventBadge('${auction.id}', ${isEventActive})" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
+                  ${eventButtonText}
+                </button>
+                <button onclick="adminDeleteAuction('${auction.id}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
                   ${t('btnDeleteAsset')}
                 </button>
               </div>
             </div>
           `;
         }
+
 
         html += `
           <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2 hover:border-yellow-500/50 transition shadow-md">
