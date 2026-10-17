@@ -2152,10 +2152,17 @@
               </button>
             `}
 
+            ${(selectedAuction.is_event === true && authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username)) ? `
+              <button onclick="claimEventCertificate('${selectedAuction.id}')" class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-black py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg cursor-pointer animate-pulse border border-yellow-300">
+                🏆 Klaim Sertifikat Event (Admin / Dev Only)
+              </button>
+            ` : ''}
+
             <button onclick="closeDetailModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs transition cursor-pointer" data-i18n="cancelBtn">
               Tutup
             </button>
           </div>
+
         </div>
       `;
 
@@ -2165,6 +2172,94 @@
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
     }
+        function claimEventCertificate(auctionId) {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Fitur Klaim Sertifikat Event hanya dapat diakses oleh Admin & Developer!");
+        return;
+      }
+
+      const auction = activeAuctionsList.find(a => a.id === auctionId);
+      if (!auction) {
+        alert("Aset tidak ditemukan.");
+        return;
+      }
+
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert("Library jsPDF belum termuat dengan sempurna.");
+        return;
+      }
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4'
+        });
+
+        // Background & Border Dekorasi Sertifikat
+        doc.setFillColor(15, 23, 42); // Warna gelap mewah (slate-900)
+        doc.rect(0, 0, 297, 210, 'F');
+
+        doc.setDrawColor(234, 179, 8); // Garis emas (yellow-500)
+        doc.setLineWidth(1.5);
+        doc.rect(10, 10, 277, 190);
+        
+        doc.setDrawColor(59, 130, 246); // Garis biru aksen
+        doc.setLineWidth(0.5);
+        doc.rect(13, 13, 271, 184);
+
+        // Header Sertifikat
+        doc.setTextColor(234, 179, 8);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(24);
+        doc.text("SERTIFIKAT RESMI ASSET EVENT", 148, 30, { align: "center" });
+
+        doc.setTextColor(203, 213, 225);
+        doc.setFontSize(11);
+        doc.text("NFT GLOBAL MARKET & AUCTION ENGINE - OFFICIAL RECOGNITION", 148, 38, { align: "center" });
+
+        // Isi Deskripsi Sertifikat
+        doc.setFontSize(12);
+        doc.text("Sertifikat digital ini diberikan secara resmi kepada pemilik/kreator aset:", 148, 60, { align: "center" });
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(18);
+        doc.text(`@${auction.seller || 'Unknown'}`, 148, 72, { align: "center" });
+
+        doc.setTextColor(203, 213, 225);
+        doc.setFontSize(12);
+        doc.text("Atas kelulusan dan verifikasi sukses aset dalam program eksklusif Asset Event:", 148, 88, { align: "center" });
+
+        doc.setTextColor(234, 179, 8);
+        doc.setFontSize(16);
+        doc.text(`${auction.title || 'Untitled Asset'}`, 148, 100, { align: "center" });
+
+        // Detail Metadata
+        doc.setTextColor(148, 163, 184);
+        doc.setFontSize(10);
+        doc.text(`Kategori: ${auction.category || '-'} | Harga Reserve: ${auction.reserve_price || 0} Pi`, 148, 114, { align: "center" });
+        doc.text(`Kode Hash / Ref: ${auction.hash || '-'}`, 148, 122, { align: "center" });
+        doc.text(`Tanggal Validasi: ${new Date().toLocaleString()}`, 148, 130, { align: "center" });
+
+        // Tanda Tangan / Footer
+        doc.setDrawColor(100, 100, 100);
+        doc.line(80, 165, 130, 165);
+        doc.line(167, 165, 217, 165);
+
+        doc.setFontSize(10);
+        doc.setTextColor(203, 213, 225);
+        doc.text("Verifikator Admin", 105, 172, { align: "center" });
+        doc.text("Lead Developer (Dev)", 192, 172, { align: "center" });
+
+        // Simpan File PDF
+        doc.save(`Sertifikat-Event-${(auction.title || 'Asset').replace(/\s+/g, '_')}.pdf`);
+        alert("✅ Sertifikat Event berhasil diklaim dan diunduh dalam format PDF!");
+      } catch (err) {
+        alert("Gagal membuat sertifikat PDF: " + err.message);
+      }
+    }
+
     function openP2PMediatorChat(sellerUsername) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
