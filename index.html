@@ -2184,110 +2184,67 @@
         return;
       }
 
-      // Buat elemen Canvas sementara untuk menggambar sertifikat
-      const canvas = document.createElement('canvas');
-      canvas.width = 1200;
-      canvas.height = 800;
-      const ctx = canvas.getContext('2d');
+      // 1. Buat Link Sertifikat Resmi yang mengarah ke certificate.html
+      const certificateUrl = `https://pibox-auction-bridge.vercel.app/certificate.html?id=${auction.id}`;
+      
+      // 2. Susun Format Pesan Teks Sertifikat
+      const certText = `📜 *Sertifikat Resmi NFT-GM*\n` +
+                       `🔹 Aset: ${auction.title || 'Nusantara NFT'}\n` +
+                       `🔹 Pemenang: @${auction.highest_bidder || auction.seller || '-'}\n` +
+                       `🔹 Ref ID: ${auction.hash || 'NFT-GM'}\n\n` +
+                       `🔗 *Link Sertifikat Resmi:*\n` +
+                       `${certificateUrl}`;
 
-      // Background
-      ctx.fillStyle = "#0f172a";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Border Emas & Akses
-      ctx.strokeStyle = "#eab308";
-      ctx.lineWidth = 10;
-      ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
-
-      ctx.strokeStyle = "#3b82f6";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(45, 45, canvas.width - 90, canvas.height - 90);
-
-      // Header Text
-      ctx.fillStyle = "#eab308";
-      ctx.font = "bold 42px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("SERTIFIKAT RESMI ASSET EVENT", canvas.width / 2, 120);
-
-      ctx.fillStyle = "#cbd5e1";
-      ctx.font = "bold 20px sans-serif";
-      ctx.fillText("NFT GLOBAL MARKET & AUCTION ENGINE", canvas.width / 2, 160);
-
-      // Body Text
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "22px sans-serif";
-      ctx.fillText("Sertifikat digital ini diberikan secara resmi kepada:", canvas.width / 2, 250);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 38px sans-serif";
-      ctx.fillText(`@${auction.seller || 'Unknown'}`, canvas.width / 2, 310);
-
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "22px sans-serif";
-      ctx.fillText("Atas kelulusan verifikasi dalam program Asset Event:", canvas.width / 2, 380);
-
-      ctx.fillStyle = "#eab308";
-      ctx.font = "bold 32px sans-serif";
-      ctx.fillText(`"${auction.title || 'Untitled Asset'}"`, canvas.width / 2, 440);
-
-      // Metadata Detail
-      const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-      ctx.fillStyle = "#64748b";
-      ctx.font = "18px monospace";
-      ctx.fillText(`Harga Reserve: ${auction.reserve_price || 0} Pi | Kategori: ${auction.category || '-'}`, canvas.width / 2, 510);
-      ctx.fillText(`Kode Ref: ${auction.hash || '-'}`, canvas.width / 2, 540);
-      ctx.fillText(`Waktu Validasi: ${nowIso}`, canvas.width / 2, 570);
-
-      // Footer / Tanda Tangan
-      ctx.strokeStyle = "#475569";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(250, 680); ctx.lineTo(450, 680);
-      ctx.moveTo(750, 680); ctx.lineTo(950, 680);
-      ctx.stroke();
-
-      ctx.fillStyle = "#cbd5e1";
-      ctx.font = "20px sans-serif";
-      ctx.fillText("Verifikator Admin", 350, 710);
-      ctx.fillText("Lead Developer (Dev)", 850, 710);
-
-      // Konversi Gambar ke Data URL
-      const certificateImageData = canvas.toDataURL('image/png');
-
-      // Tampilkan Sertifikat dalam Modal Zoom / Preview
-      let certModal = document.getElementById('certPreviewModal');
-      if (!certModal) {
-        certModal = document.createElement('div');
-        certModal.id = 'certPreviewModal';
-        certModal.className = 'fixed inset-0 bg-black/90 backdrop-blur-md hidden flex flex-col items-center justify-center p-3 z-[70]';
-        document.body.appendChild(certModal);
+      // 3. Tampilkan Modal Link & Pratinjau Teks
+      let linkModal = document.getElementById('certLinkModal');
+      if (!linkModal) {
+        linkModal = document.createElement('div');
+        linkModal.id = 'certLinkModal';
+        linkModal.className = 'fixed inset-0 bg-black/90 backdrop-blur-md hidden flex flex-col items-center justify-center p-3 z-[70]';
+        document.body.appendChild(linkModal);
       }
 
-      certModal.innerHTML = `
-        <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-4 max-w-lg w-full flex flex-col gap-3 shadow-2xl">
+      linkModal.innerHTML = `
+        <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-4 max-w-sm w-full flex flex-col gap-3 shadow-2xl">
           <div class="flex justify-between items-center border-b border-gray-800 pb-2">
-            <h3 class="text-xs font-bold text-yellow-400">🏆 Sertifikat Event Terverifikasi</h3>
-            <button onclick="document.getElementById('certPreviewModal').classList.add('hidden')" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
+            <h3 class="text-xs font-bold text-yellow-400">📜 Sertifikat Resmi NFT-GM</h3>
+            <button onclick="document.getElementById('certLinkModal').classList.add('hidden')" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
           </div>
-          <div class="w-full rounded-xl overflow-hidden border border-gray-800 bg-black">
-            <img id="certImageElement" src="${certificateImageData}" class="w-full h-auto object-contain">
+          
+          <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 font-mono text-xs text-emerald-400 whitespace-pre-wrap break-all select-all">
+${certText}
           </div>
-          <div class="flex gap-2">
-            <a href="${certificateImageData}" download="Sertifikat-Event-${(auction.title || 'Asset').replace(/\s+/g, '_')}.png" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs text-center transition shadow">
-              📥 Simpan Gambar Sertifikat
+
+          <div class="flex flex-col gap-2 pt-1">
+            <button onclick="copyCertTextToClipboard(\`${encodeURIComponent(certText)}\`, this)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer">
+              📋 Salin Teks & Link Sertifikat
+            </button>
+
+            <a href="${certificateUrl}" target="_blank" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs text-center transition shadow">
+              🌐 Buka Halaman Certificate.html
             </a>
-            <button onclick="document.getElementById('certPreviewModal').classList.add('hidden')" class="bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold px-4 py-2.5 rounded-xl text-xs">
+
+            <button onclick="document.getElementById('certLinkModal').classList.add('hidden')" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs">
               Tutup
             </button>
           </div>
-          <p class="text-[9px] text-gray-400 text-center">Tekan lama gambar di atas jika ingin menyimpan manual melalui menu browser.</p>
         </div>
       `;
 
-      certModal.classList.remove('hidden');
+      linkModal.classList.remove('hidden');
     }
 
-
+    // Fungsi Tambahan untuk Salin Teks ke Clipboard
+    function copyCertTextToClipboard(encodedText, btnEl) {
+      const text = decodeURIComponent(encodedText);
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btnEl.innerText;
+        btnEl.innerText = "✅ Berhasil Disalin!";
+        setTimeout(() => { btnEl.innerText = originalText; }, 1500);
+      }).catch(() => {
+        alert("Gagal menyalin teks.");
+      });
+    }
 
     function openP2PMediatorChat(sellerUsername) {
       if (!authenticatedPiUser) {
