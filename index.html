@@ -1469,7 +1469,12 @@
     }
 
     async function sendChatMessage() {
-      if (!authenticatedPiUser) return;
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
       const input = document.getElementById('chatMessageInput');
       const text = input ? input.value.trim() : '';
       
@@ -1480,9 +1485,16 @@
         return;
       }
 
-      if (currentChatRoom === 'p2p' && !currentP2PTarget) { 
-        alert("Pilih target P2P terlebih dahulu!"); 
-        return; 
+      // Pastikan jika di room P2P, target diambil langsung dari select jika currentP2PTarget kosong
+      if (currentChatRoom === 'p2p') {
+        const selectTarget = document.getElementById('p2pTargetUserSelect');
+        if (selectTarget && selectTarget.value) {
+          currentP2PTarget = selectTarget.value;
+        }
+        if (!currentP2PTarget) { 
+          alert("Pilih target / lawan chat P2P terlebih dahulu melalui dropdown di atas!"); 
+          return; 
+        }
       }
       
       const payload = {
@@ -1493,6 +1505,7 @@
         image_url: chatSelectedImageBase64 || null,
         created_at: new Date().toISOString()
       };
+
       
       // Kosongkan input dan hapus preview gambar segera setelah dikirim
       if (input) input.value = "";
