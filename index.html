@@ -498,12 +498,25 @@
           ></textarea>
         </div>
 
-        <!-- 6. Hash / Kode Identifikasi & On-chain Time -->
+        <!-- 6. Kode Ref / Hash -->
         <div>
-          <label class="block font-semibold text-gray-300 mb-1" data-i18n="labelHashCode">Kode Ref / Hash & On-chain Time</label>
-          <input type="text" id="assetHashInput" placeholder="Hash/Kode Unik: GCVJ2EXX... (diisi '-' jika tidak ada)" data-i18n-placeholder="hashPlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition mb-2">
-          <input type="text" id="onChainTimeInput" value="-" placeholder="On-chain Time (Otomatis / ketik '-' jika kosong)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2.5 text-xs text-gray-300 font-mono focus:outline-none focus:border-yellow-500 transition">
+          <label class="block font-semibold text-gray-300 mb-1">Kode Ref / Hash</label>
+          <input type="text" id="assetHashInput" placeholder="Hash/Kode Unik: GCVJ2EXX... (diisi '-' jika tidak ada)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
         </div>
+
+        <!-- 6b. On-chain Time (Model Drop-down Pilihan) -->
+        <div>
+          <label class="block font-semibold text-gray-300 mb-1">On-chain Time</label>
+          <select id="onChainTimeInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 font-mono focus:outline-none focus:border-yellow-500 cursor-pointer">
+            <option value="-">- (Manual / Tanpa On-chain Time)</option>
+            <option value="2025-10-07 08:32:06">2025-10-07 08:32:06</option>
+            <option value="2026-06-29 10:37:32">2026-06-29 10:37:32</option>
+            <option value="2026-07-01 15:17:38">2026-07-01 15:17:38</option>
+            <option value="2026-09-26 10:01:46">2026-09-26 10:01:46</option>
+            <option value="2026-09-28 13:02:00">2026-09-28 13:02:00</option>
+          </select>
+        </div>
+
 
         <!-- 7. Pemisah Input: Akun Pembuat & PiBox Wallet Penjual Asli -->
         <div class="space-y-2 bg-gray-900/80 p-3 rounded-xl border border-gray-800">
@@ -1691,11 +1704,30 @@
           previewList.innerHTML = `<div class="relative w-16 h-16 rounded-lg overflow-hidden border border-purple-500/50 flex-shrink-0"><img src="${e.target.result}" class="w-full h-full object-cover"></div>`;
         };
         reader.readAsDataURL(file);
-        const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-        document.getElementById('onChainTimeInput').value = nowIso;
+        const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const timeSelect = document.getElementById('onChainTimeInput');
+        if (timeSelect) {
+          // Cek apakah opsi waktu saat ini sudah ada di dropdown, jika belum tambahkan secara dinamis
+          let optionExists = false;
+          for (let i = 0; i < timeSelect.options.length; i++) {
+            if (timeSelect.options[i].value === nowIso) {
+              optionExists = true;
+              break;
+            }
+          }
+          if (!optionExists) {
+            const newOpt = document.createElement('option');
+            newOpt.value = nowIso;
+            newOpt.text = nowIso + " (Auto Now)";
+            timeSelect.add(newOpt, timeSelect.options[1]);
+          }
+          timeSelect.value = nowIso;
+        }
+
         SecureShield.extractTitleBetweenDetailsAndDescription(file, function(extractedTitle) {
           if (extractedTitle) document.getElementById('assetTitleInput').value = extractedTitle;
         });
+
       }
     }
 
