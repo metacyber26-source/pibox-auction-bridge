@@ -1688,7 +1688,13 @@
 
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
-      if (!hasPaidServerFee) { alert("Selesaikan Pembayaran Server Fee terlebih dahulu!"); return; }
+      
+      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      // Jika bukan admin dan belum bayar server fee, maka cegah
+      if (!isAdminOrDev && !hasPaidServerFee) {
+        alert("Selesaikan Pembayaran Server Fee terlebih dahulu!");
+        return;
+      }
 
       const mainImageFile = document.getElementById('imageFileInput').files[0];
       const category = document.getElementById('assetCategoryInput').value;
