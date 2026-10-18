@@ -2227,150 +2227,94 @@
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
     }
-        // FUNGSI GENERATE BUKTI TERTULIS / LEGAL PROOF PDF (ENGLISH)
-    function generateLegalProofPDF(auctionId) {
+        // FUNGSI MODAL POPUP LEGAL PROOF (SERUPA FITUR SERTIFIKAT EVENT)
+    function openLegalProofModal(auctionId) {
       const auction = activeAuctionsList.find(a => a.id === auctionId);
       if (!auction) {
-        alert("Auction data not found.");
+        alert("Aset lelang tidak ditemukan.");
         return;
       }
-
-      if (!window.jspdf || !window.jspdf.jsPDF) {
-        alert("jsPDF library is not loaded properly.");
-        return;
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
 
       const issueTime = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
       const sellerUsername = auction.seller ? `@${auction.seller}` : '@Anonymous';
       const bidderUsername = auction.highest_bidder ? `@${auction.highest_bidder}` : 'N/A';
-      const assetCategory = (auction.category || 'GENERAL').toUpperCase();
       const assetTitle = auction.title || 'Untitled Asset';
       const assetPrice = `${auction.highest_bid || auction.reserve_price || 0} Pi`;
       const refHash = auction.hash && auction.hash !== '-' ? auction.hash : `PIBOX-HASH-${auction.id.substring(0, 8)}`;
 
-      // Border Styling
-      doc.setDrawColor(200, 160, 40);
-      doc.setLineWidth(1.5);
-      doc.rect(5, 5, 200, 287);
+      // Format Teks Bukti Tertulis / Legal Proof (Bahasa Inggris)
+      const legalText = 
+`========================================
+LEGAL PROOF OF ASSET LISTING & RELEASE
+NFT GLOBAL MARKET & AUCTION ENGINE
+========================================
 
-      doc.setDrawColor(30, 41, 59);
-      doc.setLineWidth(0.5);
-      doc.rect(8, 8, 194, 281);
+[1] REGISTERED ASSET DETAILS
+- Asset Name: ${assetTitle}
+- Category: ${(auction.category || 'GENERAL').toUpperCase()}
+- Listing Price: ${assetPrice}
+- Transaction Mode: ${(auction.transaction_mode || 'P2P').toUpperCase()}
+- Status: ${(auction.status || 'ACTIVE').toUpperCase()}
 
-      // Header Banner
-      doc.setFillColor(15, 23, 42);
-      doc.rect(8, 8, 194, 30, 'F');
+[2] VERIFIED IDENTITY & OWNERSHIP
+- Seller (Pi Username): ${sellerUsername}
+- Highest Bidder: ${bidderUsername}
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
-      doc.setTextColor(234, 179, 8);
-      doc.text("CERTIFICATE OF ASSET LISTING & RELEASE PROOF", 105, 20, { align: "center" });
+[3] INTERMEDIARY SAFE HARBOR STATEMENT
+The platform acts solely as an electronic intermediary (PPMSE) bridging P2P interactions. The seller (${sellerUsername}) bears full civil and criminal liability regarding ownership, authenticity, and legal compliance. The platform is indemnified from any third-party claims or dispute disputes.
 
-      doc.setFontSize(9);
-      doc.setTextColor(148, 163, 184);
-      doc.text("NFT GLOBAL MARKET & AUCTION ENGINE — SECURE CORE PROOF", 105, 27, { align: "center" });
+[4] DIGITAL VERIFICATION STAMP
+- Hash SHA-256: ${refHash}
+- Issued Timestamp: ${issueTime}
+- Authentication: Pi Network Secure Core
+========================================`;
 
-      // Document Metadata Block
-      doc.setFontSize(8);
-      doc.setTextColor(51, 65, 85);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Document Reference ID: ${refHash}`, 14, 45);
-      doc.text(`Generated On-Time (UTC): ${issueTime}`, 14, 50);
-      doc.text(`Platform Network: Pi Network (Mainnet/Testnet Bridge)`, 14, 55);
+      let legalModal = document.getElementById('legalProofModal');
+      if (!legalModal) {
+        legalModal = document.createElement('div');
+        legalModal.id = 'legalProofModal';
+        legalModal.className = 'fixed inset-0 bg-black/90 backdrop-blur-md hidden flex flex-col items-center justify-center p-3 z-[70]';
+        document.body.appendChild(legalModal);
+      }
 
-      doc.setDrawColor(226, 232, 240);
-      doc.line(14, 58, 196, 58);
+      legalModal.innerHTML = `
+        <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-4 max-w-sm w-full flex flex-col gap-3 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+          <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+            <h3 class="text-xs font-bold text-yellow-400">📄 Legal Proof (English)</h3>
+            <button onclick="document.getElementById('legalProofModal').classList.add('hidden')" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
+          </div>
+          
+          <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 font-mono text-[10px] text-emerald-400 whitespace-pre-wrap break-all select-all">
+${legalText}
+          </div>
 
-      // Section 1: Asset Information
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(15, 23, 42);
-      doc.text("1. REGISTERED ASSET DETAILS", 14, 67);
+          <div class="flex flex-col gap-2 pt-1">
+            <button onclick="copyLegalTextToClipboard(\`${encodeURIComponent(legalText)}\`, this)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer">
+              📋 Salin Teks Legal Proof
+            </button>
 
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      doc.text(`Asset Title / Name: ${assetTitle}`, 16, 75);
-      doc.text(`Category: ${assetCategory}`, 16, 82);
-      doc.text(`Current Listing Price: ${assetPrice}`, 16, 89);
-      doc.text(`Transaction Mode: ${(auction.transaction_mode || 'P2P').toUpperCase()}`, 16, 96);
-      doc.text(`Status: ${(auction.status || 'ACTIVE').toUpperCase()}`, 16, 103);
+            <button onclick="document.getElementById('legalProofModal').classList.add('hidden')" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs">
+              Tutup
+            </button>
+          </div>
+        </div>
+      `;
 
-      doc.setDrawColor(226, 232, 240);
-      doc.line(14, 108, 196, 108);
-
-      // Section 2: Identity Verification (Pi Network Username)
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(15, 23, 42);
-      doc.text("2. VERIFIED IDENTITY & OWNERSHIP DECLARATION", 14, 117);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      doc.text(`Seller / Release Party (Pi Username): ${sellerUsername}`, 16, 125);
-      doc.text(`Highest Bidder (Pi Username): ${bidderUsername}`, 16, 132);
-
-      // Section 3: Safe Harbor Legal Disclaimer
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(153, 27, 27);
-      doc.text("3. LEGAL DISCLAIMER & INTERMEDIARY SAFE HARBOR STATEMENT", 14, 143);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.setTextColor(71, 85, 105);
-
-      const disclaimerText = 
-        "This document serves as an electronic verification proof that the aforementioned asset/item was submitted " +
-        "and published on the NFT Global Market & Auction Engine. The platform acts solely as an intermediary (PPMSE) " +
-        "bridging peer-to-peer (P2P) interactions between buyers and sellers.\n\n" +
-        "LEGAL RESPONSIBILITY STATEMENT: The seller identified by Pi Network Username (" + sellerUsername + ") " +
-        "bears full civil and criminal liability under applicable jurisdiction regarding the legal ownership, authenticity, " +
-        "intellectual property rights, and physical/digital condition of the listed asset. The platform, its developers, " +
-        "and operators are expressly indemnified and held harmless from any liabilities, dispute claims, or damages " +
-        "arising from title defects, counterfeit items, or contractual breaches between transacting parties.";
-
-      const splitDisclaimer = doc.splitTextToSize(disclaimerText, 180);
-      doc.text(splitDisclaimer, 16, 151);
-
-      // Section 4: Digital Verification Seal & Signature
-      const sealY = 210;
-      doc.setDrawColor(200, 160, 40);
-      doc.setFillColor(254, 252, 232);
-      doc.roundedRect(14, sealY, 182, 55, 3, 3, 'FD');
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(161, 98, 7);
-      doc.text("DIGITAL VERIFICATION & TRUST SEAL", 20, sealY + 10);
-
-      doc.setFont("courier", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(15, 23, 42);
-      doc.text(`HASH SHA-256 STAMP: ${refHash}`, 20, sealY + 18);
-      doc.text(`ISSUED TIMESTAMP : ${issueTime}`, 20, sealY + 24);
-      doc.text(`AUTHENTICATED BY : Pi Network Auth Engine`, 20, sealY + 30);
-      doc.text(`PLATFORM SIGNATURE : DEV-SECURE-CORE-VERIFIED`, 20, sealY + 36);
-
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text("This document is cryptographically verified and generated directly from system data records.", 20, sealY + 46);
-
-      // Footer
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(148, 163, 184);
-      doc.text("Page 1 of 1 — Official Legal Proof Document", 105, 285, { align: "center" });
-
-      // Save PDF File
-      const cleanFileName = assetTitle.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-      doc.save(`Legal_Proof_${cleanFileName}_${Date.now()}.pdf`);
+      legalModal.classList.remove('hidden');
     }
+
+    function copyLegalTextToClipboard(encodedText, btnEl) {
+      const text = decodeURIComponent(encodedText);
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btnEl.innerText;
+        btnEl.innerText = "✅ Berhasil Disalin!";
+        setTimeout(() => { btnEl.innerText = originalText; }, 1500);
+      }).catch(() => {
+        alert("Gagal menyalin teks.");
+      });
+    }
+
+
 
     function claimEventCertificate(auctionId) {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
