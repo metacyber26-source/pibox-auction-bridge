@@ -2639,17 +2639,21 @@ ${certText}
     }
 
     async function executeDirectP2PPaymentToSeller(auctionId) {
-            const buyerCheckbox = document.getElementById('buyerLegalCheckbox');
-      if (buyerCheckbox && !buyerCheckbox.checked) {
-        alert("⚖️ Perlindungan Hukum: Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum pembeli sebelum melakukan pembayaran P2P.");
-        return;
-      }
-
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
+
+      const currentUsername = authenticatedPiUser.username;
+      const alreadyAgreed = isBuyerAlreadyAgreed(auctionId, currentUsername);
+      const buyerCheckbox = document.getElementById('buyerLegalCheckbox');
+
+      if (!alreadyAgreed && (!buyerCheckbox || !buyerCheckbox.checked)) {
+        alert("⚖️ Perlindungan Hukum: Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum pembeli sebelum melakukan pembayaran P2P.");
+        return;
+      }
+
 
       const auction = activeAuctionsList.find(a => a.id === auctionId);
       if (!auction) {
