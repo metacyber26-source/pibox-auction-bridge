@@ -1846,12 +1846,22 @@
         const durationHours = (auctionScheduleState && auctionScheduleState.durationHours) ? parseInt(auctionScheduleState.durationHours, 10) : 24;
         const calculatedEndsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
 
-        const rawSellerInput = document.getElementById('piboxWalletInput')?.value.trim() || authenticatedPiUser.username;
-        const finalSellerUsername = rawSellerInput.replace(/^@/, '');
+        const realSellerRaw = document.getElementById('realSellerUsernameInput')?.value.trim();
+        const piboxWalletRaw = document.getElementById('piboxWalletInput')?.value.trim();
+
+        if (!realSellerRaw || !piboxWalletRaw) {
+          alert("⚠️ Username Penjual Asli dan PiBox Wallet Penjual Asli wajib diisi!");
+          releaseBtn.disabled = false;
+          releaseBtn.innerHTML = originalText;
+          return;
+        }
+
+        const finalRealSeller = realSellerRaw.replace(/^@/, '');
+        const finalPiboxWallet = piboxWalletRaw.replace(/^@/, '');
         const transactionModeValue = document.getElementById('transactionModeInput')?.value || 'p2p';
 
         const sellerAgreedTime = new Date().toISOString();
-        const sellerSig = `SIG-SELLER-${finalSellerUsername}-${Date.now()}`;
+        const sellerSig = `SIG-SELLER-${finalRealSeller}-${Date.now()}`;
 
         const payload = {
           category: category || 'nft_art',
@@ -1859,8 +1869,8 @@
           description: description || '',
           hash: hash || '-',
           reserve_price: reservePrice,
-          seller: finalSellerUsername,
-          pibox_wallet: finalSellerUsername,
+          seller: finalRealSeller,
+          pibox_wallet: finalPiboxWallet,
           image_url: base64Image,
           extra_image_url: base64ExtraImage || '',
           transaction_mode: transactionModeValue || 'p2p',
@@ -1870,6 +1880,7 @@
           created_at: new Date().toISOString(),
           ends_at: calculatedEndsAt
         };
+
 
 
         if (supabaseClient) {
