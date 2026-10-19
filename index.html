@@ -2177,41 +2177,31 @@
       if (status !== 'active') {
         bidActionSection = `<div class="bg-amber-500/20 text-amber-400 p-2.5 rounded-xl text-center text-[11px] font-bold">⚠ Aset/barang ini berstatus '${status}', belum dapat ditawar.</div>`;
       } else {
-        const canBid5 = +5 > price;
-        const canBid10 = +10 > price;
-        const canBid20 = +20 > price;
+        // Hitung nominal harga otomatis berdasarkan harga terakhir (price + kenaikan)
+        const targetPrice5 = price + 5;
+        const targetPrice10 = price + 10;
+        const targetPrice20 = price + 20;
 
         bidActionSection = `
-          <div class="space-y-3 w-full bg-gray-900/90 p-3.5 rounded-xl border border-gray-800">
-            
-            ${(() => {
-              const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
-              const alreadyAgreed = isBuyerAlreadyAgreed(selectedAuction.id, currentUsername);
-              if (alreadyAgreed) {
-                return `
-                  <div class="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-2.5 text-[10px] text-emerald-300 flex items-center justify-between">
-                    <span>✅ Buyer Legal Agreement Verified (No need to re-check)</span>
-                    <span class="text-[9px] text-emerald-400 font-mono">Secured</span>
-                  </div>
-                `;
-              } else {
-                return `
-                  <div class="bg-red-950/30 border border-red-500/40 rounded-xl p-3 space-y-2 text-[10px] text-gray-300">
-                    <div class="font-bold text-red-400 flex items-center gap-1">
-                      <span>⚖️ BUYER LEGAL DISCLAIMER & OBLIGATION</span>
-                    </div>
-                    <p class="leading-relaxed text-gray-300">
-                      This platform acts solely as a technological intermediary facilitator. All legal liabilities regarding asset authenticity or transaction risks rest entirely upon the private seller and buyer.
-                    </p>
-                    <label class="flex items-start gap-2 cursor-pointer pt-1 border-t border-red-500/20">
-                      <input type="checkbox" id="buyerLegalCheckbox" class="mt-0.5 accent-yellow-500 cursor-pointer">
-                      <span class="text-white font-semibold">I have inspected the asset details, understood P2P risks, and fully release the platform from any legal claims.</span>
-                    </label>
-                  </div>
-                `;
-              }
-            })()}
-
+          <div class="space-y-2 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
+            <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal dari Harga Terakhir (${price} Pi):</p>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                <span>+5 Pi</span>
+                <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice5})</span>
+              </button>
+              <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                <span>+10 Pi</span>
+                <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice10})</span>
+              </button>
+              <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                <span>+20 Pi</span>
+                <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice20})</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }
 
 
             <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih / Masukkan Nominal Penawaran:</p>
