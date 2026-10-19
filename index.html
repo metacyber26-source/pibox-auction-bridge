@@ -1228,17 +1228,22 @@
         return;
       }
 
+      // Pastikan objek Pi terdeteksi dari SDK
       if (!window.Pi && typeof Pi !== 'undefined') {
         window.Pi = Pi;
       }
 
       if (!window.Pi) {
-        if (!isAuto) alert("Pi SDK belum tersedia. Pastikan Anda membukanya di dalam Pi Browser.");
+        if (!isAuto) {
+          alert("⚠️ Pi SDK belum tersedia.\nPastikan Anda membuka aplikasi ini langsung di dalam Pi Browser agar tombol Login berfungsi!");
+        }
         return;
       }
 
       isAuthenticating = true;
-      if (btnHeaderLogin) btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Authenticating...</span>`;
+      if (btnHeaderLogin) {
+        btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Authenticating...</span>`;
+      }
 
       try {
         const scopes = ['username', 'payments'];
@@ -1252,6 +1257,7 @@
           }
         };
 
+        // Panggil otentikasi Pi SDK
         const auth = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
         
         if (auth && auth.user && auth.user.username) {
@@ -1280,16 +1286,18 @@
           throw new Error("Respon otentikasi Pi Network tidak valid.");
         }
       } catch (err) {
+        // Pulihkan tampilan tombol jika gagal/dibatalkan
         if (btnHeaderLogin) {
           btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">${t('loginBtn')}</span>`;
         }
         if (!isAuto) {
-          alert("Gagal melakukan autentikasi Pi Network: " + (err.message || "Koneksi terputus."));
+          alert("Gagal melakukan autentikasi Pi Network: " + (err.message || "Koneksi terputus atau dibatalkan."));
         }
       } finally {
         isAuthenticating = false;
       }
     }
+
 
     async function checkBuyerStatusInDatabase(username) {
       if (!supabaseClient || !username) return;
