@@ -1855,6 +1855,9 @@
         const finalSellerUsername = rawSellerInput.replace(/^@/, '');
         const transactionModeValue = document.getElementById('transactionModeInput')?.value || 'p2p';
 
+        const sellerAgreedTime = new Date().toISOString();
+        const sellerSig = `SIG-SELLER-${finalSellerUsername}-${Date.now()}`;
+
         const payload = {
           category: category || 'nft_art',
           title: title,
@@ -1867,9 +1870,12 @@
           extra_image_url: base64ExtraImage || '',
           transaction_mode: transactionModeValue || 'p2p',
           status: 'pending',
+          seller_agreed_at: sellerAgreedTime,
+          seller_digital_signature: sellerSig,
           created_at: new Date().toISOString(),
           ends_at: calculatedEndsAt
         };
+
 
         if (supabaseClient) {
           const { error } = await supabaseClient.from('auctions').insert([payload]);
