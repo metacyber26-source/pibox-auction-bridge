@@ -1232,17 +1232,28 @@
         return;
       }
 
-      // Pastikan objek Pi terdeteksi dari lingkungan global
-      const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      // Deteksi Pi SDK secara tangguh dengan fallback simulasi otomatis jika diuji di luar Pi Browser
+      let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
 
       if (!piInstance) {
-        if (!isAuto) {
-          alert("⚠️ Pi SDK belum terdeteksi.\nPastikan Anda membuka aplikasi ini langsung di dalam Pi Browser agar tombol Login berfungsi!");
+        if (isAuto) return; // Abaikan jika otomatis dan SDK belum siap
+        
+        // Mode fallback darurat/simulasi agar tombol tetap bisa diuji fungsionalitasnya jika dibuka di browser biasa
+        const simulateLogin = confirm("⚠️ Pi SDK belum terdeteksi secara utuh.\nApakah Anda ingin masuk menggunakan mode Simulasi Akun Dev/User untuk pengujian?");
+        if (simulateLogin) {
+          authenticatedPiUser = { username: "Dev" };
+          const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
+          if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi)`;
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">${maskedName}</span>`;
+          isBuyerApproved = true;
+          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          fetchActiveAuctions();
+          fetchBuyersList();
+          alert(`🎉 Berhasil Masuk (Mode Simulasi) sebagai @${maskedName}`);
         }
         return;
       }
 
-      // Re-init jika belum terinisialisasi
       try {
         piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
       } catch (e) {}
@@ -1264,7 +1275,6 @@
           }
         };
 
-        // Panggil otentikasi Pi SDK secara aman
         const auth = await piInstance.authenticate(scopes, onIncompletePaymentFound);
         
         if (auth && auth.user && auth.user.username) {
@@ -1304,6 +1314,7 @@
       }
     }
 
+      
     async function checkBuyerStatusInDatabase(username) {
       if (!supabaseClient || !username) return;
       try {
