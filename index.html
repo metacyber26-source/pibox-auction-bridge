@@ -2319,11 +2319,78 @@
     }
         // FUNGSI MODAL POPUP LEGAL PROOF (SERUPA FITUR SERTIFIKAT EVENT)
     function openLegalProofModal(auctionId) {
-      const auction = activeAuctionsList.find(a => a.id === auctionId);
-      if (!auction) {
-        alert("Aset lelang tidak ditemukan.");
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Fitur Download Legal Proof hanya dapat diakses oleh Admin & Developer!");
         return;
       }
+
+      const auction = activeAuctionsList.find(a => a.id === auctionId);
+      if (!auction) {
+        alert("Aset tidak ditemukan.");
+        return;
+      }
+
+      // 1. Buat Link Halaman Legal Proof PDF Resmi
+      const legalProofUrl = `https://pibox-auction-bridge.vercel.app/legal-proof.html?id=${auction.id}`;
+      
+      // 2. Susun Format Pesan Teks Legal Proof
+      const legalText = `📄 *Legal Proof of Asset Release (English)*\n` +
+                        `🔹 Asset: ${auction.title || 'Nusantara Asset'}\n` +
+                        `🔹 Seller: @${auction.seller || '-'}\n` +
+                        `🔹 Ref ID: ${auction.hash || 'PIBOX-LEGAL'}\n\n` +
+                        `🔗 *Official PDF Link (Chrome Download):*\n` +
+                        `${legalProofUrl}`;
+
+      // 3. Tampilkan Modal Link & Pratinjau Teks
+      let legalModal = document.getElementById('legalProofModal');
+      if (!legalModal) {
+        legalModal = document.createElement('div');
+        legalModal.id = 'legalProofModal';
+        legalModal.className = 'fixed inset-0 bg-black/90 backdrop-blur-md hidden flex flex-col items-center justify-center p-3 z-[70]';
+        document.body.appendChild(legalModal);
+      }
+
+      legalModal.innerHTML = `
+        <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-4 max-w-sm w-full flex flex-col gap-3 shadow-2xl">
+          <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+            <h3 class="text-xs font-bold text-yellow-400">📄 Official Legal Proof (PDF)</h3>
+            <button onclick="document.getElementById('legalProofModal').classList.add('hidden')" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
+          </div>
+          
+          <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 font-mono text-xs text-emerald-400 whitespace-pre-wrap break-all select-all">
+${legalText}
+          </div>
+
+          <div class="flex flex-col gap-2 pt-1">
+            <button onclick="copyLegalTextToClipboard(\`${encodeURIComponent(legalText)}\`, this)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer">
+              📋 Salin Teks & Link Legal Proof
+            </button>
+
+            <a href="${legalProofUrl}" target="_blank" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs text-center transition shadow">
+              🌐 Buka & Download PDF di Chrome
+            </a>
+
+            <button onclick="document.getElementById('legalProofModal').classList.add('hidden')" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs">
+              Tutup
+            </button>
+          </div>
+        </div>
+      `;
+
+      legalModal.classList.remove('hidden');
+    }
+
+    function copyLegalTextToClipboard(encodedText, btnEl) {
+      const text = decodeURIComponent(encodedText);
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btnEl.innerText;
+        btnEl.innerText = "✅ Berhasil Disalin!";
+        setTimeout(() => { btnEl.innerText = originalText; }, 1500);
+      }).catch(() => {
+        alert("Gagal menyalin teks.");
+      });
+    }
+
 
       const issueTime = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
       const sellerUsername = auction.seller ? `@${auction.seller}` : '@Anonymous';
