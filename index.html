@@ -2272,11 +2272,28 @@
               💬 Chat P2P dengan Penjual & Admin Mediator
             </button>
 
-            ${(authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username)) ? `
-              <button onclick="openLegalProofModal('${selectedAuction.id}')" class="w-full bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold py-2.5 rounded-xl text-xs border border-yellow-500/30 transition flex items-center justify-center gap-1.5 shadow-lg cursor-pointer animate-pulse">
-                📄 Download Legal Proof (PDF English)
-              </button>
-            ` : ''}
+            ${(() => {
+              const isTestingMode = (auctionScheduleState.mode === 'testing_mode' || MODE_TESTING_OVERRIDE);
+              const isEnded = (selectedAuction.status === 'ended' || selectedAuction.status === 'finished' || selectedAuction.status === 'cancelled' || (selectedAuction.ends_at && new Date() > new Date(selectedAuction.ends_at)));
+              const canAccessLegal = isTestingMode || isEnded;
+
+              if (authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+                if (canAccessLegal) {
+                  return `
+                    <button onclick="openLegalProofModal('${selectedAuction.id}')" class="w-full bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold py-2.5 rounded-xl text-xs border border-yellow-500/30 transition flex items-center justify-center gap-1.5 shadow-lg cursor-pointer animate-pulse">
+                      📄 Download Legal Proof (PDF English)
+                    </button>
+                  `;
+                } else {
+                  return `
+                    <button disabled class="w-full bg-gray-900 text-gray-600 font-bold py-2.5 rounded-xl text-xs border border-gray-800 transition flex items-center justify-center gap-1.5 cursor-not-allowed opacity-50" title="Legal Proof akan aktif setelah sesi lelang berakhir">
+                      🔒 Legal Proof (Terkunci - Lelang Masih Berjalan)
+                    </button>
+                  `;
+                }
+              }
+              return '';
+            })()}
 
             ${(selectedAuction.is_event === true && authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username)) ? `
               <button onclick="claimEventCertificate('${selectedAuction.id}')" class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-black py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg cursor-pointer animate-pulse border border-yellow-300">
