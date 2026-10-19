@@ -2532,12 +2532,6 @@ ${certText}
     }
 
     async function placeBidOnAuction(auctionId, amount) {
-           const buyerCheckbox = document.getElementById('buyerLegalCheckbox');
-      if (buyerCheckbox && !buyerCheckbox.checked) {
-        alert("⚖️ Perlindungan Hukum: Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum pembeli sebelum melakukan penawaran.");
-        return;
-      }
-
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
@@ -2568,22 +2562,42 @@ ${certText}
         return;
       }
 
+      const currentUsername = authenticatedPiUser.username;
+      const alreadyAgreed = isBuyerAlreadyAgreed(auctionId, currentUsername);
+      const buyerCheckbox = document.getElementById('buyerLegalCheckbox');
+
+      if (!alreadyAgreed && (!buyerCheckbox || !buyerCheckbox.checked)) {
+        alert("⚖️ Perlindungan Hukum: Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum pembeli sebelum melakukan penawaran.");
+        return;
+      }
+
+      const buyerAgreedTime = new Date().toISOString();
+      const buyerSig = `SIG-BUYER-${currentUsername}-${Date.now()}`;
+
       const hasBiddedBefore = userBiddedAssets[auctionId] === true;
 
       const executeBidUpdate = async () => {
         try {
           if (supabaseClient) {
+            const updatePayload = {
+              highest_bid: amount,
+              highest_bidder: currentUsername
+            };
+
+            if (!alreadyAgreed) {
+              updatePayload.buyer_agreed_at = buyerAgreedTime;
+              updatePayload.buyer_digital_signature = buyerSig;
+            }
+
             const { error } = await supabaseClient
               .from('auctions')
-              .update({
-                highest_bid: amount,
-                highest_bidder: authenticatedPiUser.username
-              })
+              .update(updatePayload)
               .eq('id', auctionId);
 
             if (error) throw error;
           }
 
+          localStorage.setItem(getBuyerAgreementKey(auctionId, currentUsername), 'true');
           userBiddedAssets[auctionId] = true;
           localStorage.setItem('nusantara_user_bidded_assets', JSON.stringify(userBiddedAssets));
 
@@ -2595,6 +2609,8 @@ ${certText}
         }
       };
 
+
+      
       if (!hasBiddedBefore) {
         const paymentData = {
           amount: 1,
