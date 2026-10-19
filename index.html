@@ -2737,6 +2737,78 @@ ${certText}
       const zoomModal = document.getElementById('imageZoomModal');
       if (zoomModal) zoomModal.classList.add('hidden');
     }
+        async function generateAndDownloadLegalProofPDF(auctionId) {
+      const auction = activeAuctionsList.find(a => a.id === auctionId);
+      if (!auction) {
+        alert("Data lelang tidak ditemukan.");
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFillColor(11, 15, 23);
+      doc.rect(0, 0, 210, 297, "F");
+
+      doc.setTextColor(255, 215, 0);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("NFT GLOBAL MARKET & AUCTION ENGINE", 20, 20);
+
+      doc.setTextColor(200, 200, 200);
+      doc.setFontSize(10);
+      doc.text("Official Legal Proof of Asset Release & Transaction Certificate", 20, 28);
+
+      doc.setDrawColor(255, 215, 0);
+      doc.line(20, 35, 190, 35);
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.text("ASSET SPECIFICATIONS:", 20, 48);
+
+      doc.setFontSize(10);
+      doc.setTextColor(220, 220, 220);
+      doc.text(`- Asset Title / Name : ${auction.title || '-'}`, 25, 58);
+      doc.text(`- Category                : ${auction.category || '-'}`, 25, 66);
+      doc.text(`- Unique Ref Hash   : ${auction.hash || '-'}`, 25, 74);
+      doc.text(`- Reserve Price        : ${auction.reserve_price || 0} Pi`, 25, 82);
+      doc.text(`- Final / Highest Bid : ${auction.highest_bid || auction.reserve_price || 0} Pi`, 25, 90);
+      doc.text(`- Status                    : ${(auction.status || 'active').toUpperCase()}`, 25, 98);
+
+      doc.setFontSize(12);
+      doc.setTextColor(255, 215, 0);
+      doc.text("PARTIES INVOLVED:", 20, 112);
+
+      doc.setFontSize(10);
+      doc.setTextColor(220, 220, 220);
+      doc.text(`- Seller Username    : @${auction.seller || '-'}`, 25, 122);
+      doc.text(`- PiBox Wallet         : @${auction.pibox_wallet || auction.seller || '-'}`, 25, 130);
+      doc.text(`- Highest Bidder    : @${auction.highest_bidder || '-'}`, 25, 138);
+
+      doc.setFontSize(11);
+      doc.setTextColor(255, 90, 90);
+      doc.text("LEGAL DISCLAIMER & INTERMEDIARY NOTICE:", 20, 156);
+
+      doc.setFontSize(8.5);
+      doc.setTextColor(180, 180, 180);
+      const disclaimerText = 
+        "This platform acts solely as a technological intermediary facilitator for multi-asset auction listings. " +
+        "All legal liabilities, civil or criminal claims regarding asset authenticity, intellectual property rights, ownership validity, " +
+        "originality, or potential counterfeit goods rest entirely upon the private seller. The platform is fully released from any legal disputes.";
+      
+      const splitDisclaimer = doc.splitTextToSize(disclaimerText, 170);
+      doc.text(splitDisclaimer, 20, 164);
+
+      doc.setDrawColor(100, 100, 100);
+      doc.line(20, 220, 100, 220);
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text("Authorized Platform Mediator", 20, 226);
+      doc.text(`Generated Date: ${new Date().toUTCString()}`, 20, 234);
+
+      doc.save(`Legal-Proof-${auction.id}.pdf`);
+    }
+
   </script>
 </body>
 </html>
