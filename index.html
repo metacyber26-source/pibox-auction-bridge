@@ -2853,18 +2853,22 @@ ${certText}
         authenticatePiUser();
         return;
       }
+
+      // Validasi Apakah Rilis Aset Buka atau Tutup (120 menit sebelum/sesudah sesi lelang)
+      const releaseCheck = isAssetReleaseAllowed();
+      if (!releaseCheck.allowed) {
+        alert(releaseCheck.reason);
+        return;
+      }
+
       const creatorInput = document.getElementById('creatorAdminInput');
       if (creatorInput) creatorInput.value = authenticatedPiUser.username;
       
-      const realSellerInput = document.getElementById('realSellerUsernameInput');
       const walletInput = document.getElementById('piboxWalletInput');
-      
-      if (isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        if (realSellerInput) realSellerInput.value = "";
-        if (walletInput) walletInput.value = "";
-      } else {
-        if (realSellerInput) realSellerInput.value = authenticatedPiUser.username;
-        if (walletInput) walletInput.value = authenticatedPiUser.username;
+      if (walletInput && ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        walletInput.value = "";
+      } else if (walletInput) {
+        walletInput.value = authenticatedPiUser.username;
       }
 
       document.getElementById('createModal').classList.remove('hidden');
