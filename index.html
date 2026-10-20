@@ -306,17 +306,45 @@
 
         <div id="scheduledInputsContainer" class="space-y-3 bg-gray-900/80 p-3 rounded-xl border border-gray-800 hidden">
           <div>
-            <label class="block text-[10px] text-gray-400 font-semibold mb-1">1. Tanggal Buka Lelang:</label>
-            <input type="date" id="scheduleStartDateInput" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none">
+            <label class="block text-[10px] text-yellow-400 font-semibold mb-1">1. Tanggal Buka Lelang:</label>
+            <div class="grid grid-cols-3 gap-1.5">
+              <div>
+                <span class="block text-[9px] text-gray-400 mb-0.5">Tahun</span>
+                <select id="schedYear" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white focus:outline-none">
+                  <option value="2026" selected>2026</option>
+                  <option value="2027">2027</option>
+                </select>
+              </div>
+              <div>
+                <span class="block text-[9px] text-gray-400 mb-0.5">Bulan</span>
+                <select id="schedMonth" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white focus:outline-none">
+                  <option value="01">01 - Jan</option><option value="02">02 - Feb</option><option value="03">03 - Mar</option>
+                  <option value="04">04 - Apr</option><option value="05">05 - Mei</option><option value="06">06 - Jun</option>
+                  <option value="07">07 - Jul</option><option value="08">08 - Agu</option><option value="09">09 - Sep</option>
+                  <option value="10" selected>10 - Okt</option><option value="11">11 - Nov</option><option value="12">12 - Des</option>
+                </select>
+              </div>
+              <div>
+                <span class="block text-[9px] text-gray-400 mb-0.5">Tanggal</span>
+                <select id="schedDay" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white focus:outline-none">
+                  <script>
+                    for(let i=1; i<=31; i++) {
+                      let d = i < 10 ? '0'+i : i;
+                      document.write(`<option value="${d}">${d}</option>`);
+                    }
+                  </script>
+                </select>
+              </div>
+            </div>
           </div>
 
           <div>
-            <label class="block text-[10px] text-gray-400 font-semibold mb-1">2. Jam Buka Lelang:</label>
+            <label class="block text-[10px] text-yellow-400 font-semibold mb-1">2. Jam Buka Lelang:</label>
             <select id="scheduleStartHourSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none"></select>
           </div>
 
           <div>
-            <label class="block text-[10px] text-gray-400 font-semibold mb-1">3. Durasi Sesi Lelang:</label>
+            <label class="block text-[10px] text-yellow-400 font-semibold mb-1">3. Durasi Sesi Lelang:</label>
             <select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none">
               <option value="24">Sesi 24 Jam</option>
               <option value="12">Sesi 12 Jam</option>
@@ -324,7 +352,7 @@
             </select>
           </div>
         </div>
-      </div>
+
 
       <div class="flex gap-2 pt-2">
         <button onclick="closeScheduleModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer" data-i18n="cancelBtn">Batal</button>
@@ -1331,36 +1359,85 @@
         alert("Akses Ditolak: Hanya Admin dan Developer!");
         return;
       }
+      
+      // Load saved state to UI controls
+      if (auctionScheduleState) {
+        document.getElementById('scheduleModeSelect').value = auctionScheduleState.mode || 'testing_mode';
+        toggleScheduleInputVisibility();
+        
+        if (auctionScheduleState.startDate) {
+          const parts = auctionScheduleState.startDate.split('-');
+          if (parts.length === 3) {
+            document.getElementById('schedYear').value = parts[0];
+            document.getElementById('schedMonth').value = parts[1];
+            document.getElementById('schedDay').value = parts[2];
+          }
+        }
+        if (auctionScheduleState.startHour) {
+          document.getElementById('scheduleStartHourSelect').value = auctionScheduleState.startHour;
+        }
+        if (auctionScheduleState.durationHours) {
+          document.getElementById('scheduleDurationSelect').value = auctionScheduleState.durationHours;
+        }
+      }
+
       document.getElementById('scheduleModal').classList.remove('hidden');
-    }
-
-    function closeScheduleModal() {
-      document.getElementById('scheduleModal').classList.add('hidden');
-    }
-
-    function toggleScheduleInputVisibility() {
-      const mode = document.getElementById('scheduleModeSelect').value;
-      const container = document.getElementById('scheduledInputsContainer');
-      if (mode === 'scheduled') container.classList.remove('hidden');
-      else container.classList.add('hidden');
     }
 
     function saveAuctionScheduleSettings() {
       const mode = document.getElementById('scheduleModeSelect').value;
-      const startDate = document.getElementById('scheduleStartDateInput').value;
+      const y = document.getElementById('schedYear').value;
+      const m = document.getElementById('schedMonth').value;
+      const d = document.getElementById('schedDay').value;
+      const startDate = `${y}-${m}-${d}`;
       const startHour = document.getElementById('scheduleStartHourSelect').value;
       const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
 
       auctionScheduleState = { mode, startDate, startHour, durationHours };
       localStorage.setItem('nusantara_auction_schedule', JSON.stringify(auctionScheduleState));
-      alert("✅ Pengaturan Jadwal Lelang Disimpan!");
+      alert(`✅ Pengaturan Jadwal Lelang Disimpan!\nJadwal Buka: ${startDate} Jam ${startHour}`);
       closeScheduleModal();
+      checkAuctionSchedule();
+    }
+
+    // Fungsi Validasi Apakah Rilis Aset Sedang Buka/Tutup
+    function isAssetReleaseAllowed() {
+      const mode = auctionScheduleState.mode || 'testing_mode';
+      if (mode === 'testing_mode' || mode === '24h_open' || MODE_TESTING_OVERRIDE) {
+        return { allowed: true, reason: "" };
+      }
+
+      if (mode === 'closed_now') {
+        return { allowed: true, reason: "" };
+      }
+
+      if (mode === 'scheduled' && auctionScheduleState.startDate && auctionScheduleState.startHour) {
+        const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
+        const startTime = new Date(startDateTimeStr).getTime();
+        const durationMs = (parseInt(auctionScheduleState.durationHours, 10) || 24) * 60 * 60 * 1000;
+        const endTime = startTime + durationMs;
+
+        const ms120Min = 120 * 60 * 1000; // 120 menit dalam milidetik
+        const releaseBlockStart = startTime - ms120Min; // 120 menit sebelum lelang buka
+        const releaseBlockEnd = endTime + ms120Min;     // 120 menit setelah lelang tutup
+
+        const now = Date.now();
+
+        if (now >= releaseBlockStart && now <= releaseBlockEnd) {
+          return {
+            allowed: false,
+            reason: "⛔ Fitur Rilis Aset DITUTUP sementara (Non-Aktif mulai 120 menit sebelum lelang buka hingga 120 menit setelah lelang tutup)."
+          };
+        }
+      }
+
+      return { allowed: true, reason: "" };
     }
 
     function checkAuctionSchedule() {
       const badge = document.getElementById('sessionStateBadge');
       if (!badge) return;
-      const mode = auctionScheduleState.mode;
+      const mode = auctionScheduleState.mode || 'testing_mode';
 
       if (mode === 'testing_mode' || MODE_TESTING_OVERRIDE) {
         isAuctionCurrentlyOpen = true;
@@ -1369,15 +1446,49 @@
         return;
       }
 
+      if (mode === '24h_open') {
+        isAuctionCurrentlyOpen = true;
+        badge.innerText = "🟢 BUKA LIVE 24/7";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+        return;
+      }
+
       if (mode === 'closed_now') {
         isAuctionCurrentlyOpen = false;
-        badge.innerText = "🔴 LELANG DITUTUP";
+        badge.innerText = "🔴 LELANG DITUTUP MANUAL";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
         return;
       }
 
-      isAuctionCurrentlyOpen = true;
-      badge.innerText = "BUKA LIVE 24/7";
+      if (mode === 'scheduled') {
+        if (!auctionScheduleState.startDate || !auctionScheduleState.startHour) {
+          isAuctionCurrentlyOpen = false;
+          badge.innerText = "🔴 JADWAL BELUM DIATUR";
+          badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+          return;
+        }
+
+        const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
+        const startTime = new Date(startDateTimeStr).getTime();
+        const durationMs = (parseInt(auctionScheduleState.durationHours, 10) || 24) * 60 * 60 * 1000;
+        const endTime = startTime + durationMs;
+        const now = Date.now();
+
+        if (now < startTime) {
+          isAuctionCurrentlyOpen = false;
+          const diffMinutes = Math.ceil((startTime - now) / (1000 * 60));
+          badge.innerText = `⏳ LELANG DITUTUP (Buka ${auctionScheduleState.startDate} ${auctionScheduleState.startHour})`;
+          badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40";
+        } else if (now >= startTime && now <= endTime) {
+          isAuctionCurrentlyOpen = true;
+          badge.innerText = "🟢 SESI LELANG AKTIF (OPEN BIDDING)";
+          badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
+        } else {
+          isAuctionCurrentlyOpen = false;
+          badge.innerText = "🔴 SESI LELANG BERAKHIR";
+          badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+        }
+      }
     }
 
     async function handleBuyerRegistrationAction() {
