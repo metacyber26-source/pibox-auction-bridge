@@ -1331,6 +1331,19 @@
       }
       hourSelect.innerHTML = html;
     }
+    // Cek apakah user sudah setor deposit 100 Pi untuk lelang ini
+    async function checkUserDeposit(auctionId, username) {
+      if (!supabaseClient) return false;
+      const { data } = await supabaseClient
+        .from('auction_deposits')
+        .select('*')
+        .eq('auction_id', auctionId)
+        .eq('username', username)
+        .eq('status', 'locked')
+        .maybeSingle();
+        
+      return !!data; // Mengembalikan true jika sudah deposit
+    }
 
     function openScheduleModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
