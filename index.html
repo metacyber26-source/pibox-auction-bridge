@@ -2191,20 +2191,38 @@
       const statusFilter = document.getElementById('statusFilter')?.value || 'all';
       const categoryFilter = document.getElementById('categoryFilter')?.value || 'all';
 
+      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
+
       filteredAuctionsList = activeAuctionsList.filter(item => {
-        const matchesQuery = (item.title || '').toLowerCase().includes(query) || (item.description || '').toLowerCase().includes(query) || (item.hash || '').toLowerCase().includes(query) || (item.seller || '').toLowerCase().includes(query);
+        // --- LOGIKA HAK AKSES ASET PENDING ---
+        // Jika status aset 'pending', HANYA tampil untuk Admin, Dev, atau Penjual Aslinya sendiri
+        if (item.status === 'pending') {
+          const isRealSeller = currentUsername && item.seller === currentUsername;
+          if (!isAdminOrDev && !isRealSeller) {
+            return false; // Sembunyikan dari pembeli/user lain
+          }
+        }
+
+        // Pencarian teks (Nama, Deskripsi, Hash, Seller)
+        const matchesQuery = (item.title || '').toLowerCase().includes(query) || 
+                             (item.description || '').toLowerCase().includes(query) || 
+                             (item.hash || '').toLowerCase().includes(query) || 
+                             (item.seller || '').toLowerCase().includes(query);
         
         if (!matchesQuery) return false;
 
+        // Filter Kategori
         if (categoryFilter !== 'all' && item.category && item.category !== categoryFilter) {
           return false;
         }
 
+        // Filter Dropdown Status
         if (statusFilter === 'all') return true;
         if (statusFilter === 'active') return item.status === 'active';
         if (statusFilter === 'pending') return item.status === 'pending';
-        if (statusFilter === 'my_listings') return authenticatedPiUser && item.seller === authenticatedPiUser.username;
-        if (statusFilter === 'my_bids') return authenticatedPiUser && item.highest_bidder === authenticatedPiUser.username;
+        if (statusFilter === 'my_listings') return currentUsername && item.seller === currentUsername;
+        if (statusFilter === 'my_bids') return currentUsername && item.highest_bidder === currentUsername;
         if (statusFilter === 'ended') return item.status === 'ended' || item.status === 'finished';
         if (statusFilter === 'cancelled') return item.status === 'cancelled';
 
@@ -2213,85 +2231,6 @@
 
       renderGallery();
     }
-
-    function getCategoryLabel(catValue) {
-      const keyMap = {
-        'nft_art': 'catDigital',
-        'luxury_items': 'catLuxury',
-        'electronics': 'catElectronics',
-        'collectibles': 'catCollectibles',
-        'fashion_craft': 'catFashion',
-        'automotive': 'catAutomotive',
-        'property_land': 'catProperty',
-        'services_tech': 'catServices'
-      };
-      const key = keyMap[catValue];
-      if (key && translations[currentLang]?.[key]) {
-        return translations[currentLang][key];
-      }
-      return '📦 Umum';
-    }
-
-    function getStatusLabel(statusValue) {
-      if (statusValue === 'active') return `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[9px] font-bold">${t('activeStatus')}</span>`;
-      if (statusValue === 'pending') return `<span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-bold">${t('pendingStatus')}</span>`;
-      if (statusValue === 'ended' || statusValue === 'finished') return `<span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] font-bold">${t('finishedStatus')}</span>`;
-      if (statusValue === 'cancelled') return `<span class="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[9px] font-bold">${t('cancelledStatus')}</span>`;
-      return `<span class="bg-gray-500/20 text-gray-400 border border-gray-500/30 px-2 py-0.5 rounded text-[9px] font-bold">${statusValue}</span>`;
-    }
-
-    function renderGallery() {
-      const mainContent = document.getElementById('mainContent');
-      if (!mainContent) return;
-
-      if (filteredAuctionsList.length === 0) {
-        mainContent.innerHTML = `
-          <div class="text-center py-16 space-y-3">
-            <p class="text-gray-500 text-xs">${t('emptyGallery')}</p>
-            <button onclick="handleOpenCreateModal()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow">
-              ${t('firstReleaseBtn')}
-            </button>
-          </div>
-        `;
-        return;
-      }
-
-      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-
-      let html = '<div class="grid grid-cols-1 gap-3">';
-      filteredAuctionsList.forEach(auction => {
-        const title = SecureShield.sanitizeHTML(auction.title || 'Untitled');
-        const seller = SecureShield.maskUsername(auction.seller || 'Anonymous');
-        const price = auction.highest_bid || auction.reserve_price || 0;
-        const status = auction.status || 'active';
-        const catBadgeText = getCategoryLabel(auction.category);
-        const statusBadge = getStatusLabel(status);
-
-        const isEventActive = auction.is_event === true;
-        const eventBadgeHTML = isEventActive ? `<span class="bg-amber-500 text-gray-950 font-black px-2 py-0.5 rounded text-[9px] shadow-md border border-yellow-300 animate-pulse">⭐ ASSET EVENT</span>` : '';
-
-        let adminActionControls = '';
-        if (isAdminOrDev) {
-          const nextStatus = status === 'pending' ? 'active' : 'pending';
-          const toggleStatusBtnText = status === 'pending' ? t('btnSetActive') : t('btnSetPending');
-          const eventButtonText = isEventActive ? '❌ Hapus Event' : '⭐ Set Event';
-
-          adminActionControls = `
-            <div class="flex flex-col gap-1 pt-1 border-t border-gray-800 mt-1">
-              <div class="flex gap-1">
-                <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
-                  ${toggleStatusBtnText}
-                </button>
-                <button onclick="adminToggleEventBadge('${auction.id}', ${isEventActive})" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
-                  ${eventButtonText}
-                </button>
-                <button onclick="adminDeleteAuction('${auction.id}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-1 px-2 rounded text-[9px] transition cursor-pointer">
-                  ${t('btnDeleteAsset')}
-                </button>
-              </div>
-            </div>
-          `;
-        }
 
         html += `
           <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2 hover:border-yellow-500/50 transition shadow-md">
