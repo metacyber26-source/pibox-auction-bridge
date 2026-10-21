@@ -1,4 +1,4 @@
-⁸<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -410,23 +410,6 @@
       </div>
 
       <div class="overflow-x-auto border border-gray-800 rounded-xl">
-
-
-    function incrementUserBidCount(auctionId, username) {
-      const key = `bid_count_${auctionId}_${username}`;
-      const current = getUserBidCount(auctionId, username);
-      localStorage.setItem(key, current + 1);
-      return current + 1;
-    }
-
-    // Fungsi Hitung Biaya Progresif (Bid ke-5 = 2 Pi, ke-6 = 3 Pi, ke-7 = 4 Pi, dst)
-    function calculateProgressiveFee(bidNumber) {
-      if (bidNumber < 5) return 0;
-      return bidNumber - 3; // Ke-5 = 2 Pi, Ke-6 = 3 Pi, Ke-7 = 4 Pi ...
-    }
-
-
-      <div class="overflow-x-auto border border-gray-800 rounded-xl">
         <table class="w-full text-left text-[11px] text-gray-300">
           <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800">
             <tr>
@@ -437,8 +420,6 @@
               <th class="p-2 text-right" data-i18n="thAction">Aksi</th>
             </tr>
           </thead>
-
-
           <tbody id="buyersTableBody"></tbody>
         </table>
       </div>
@@ -521,7 +502,6 @@
           >
         </div>
 
-
         <!-- 5. Deskripsi & Spesifikasi Singkat (Maks 500 Karakter) -->
         <div>
           <div class="flex justify-between items-center mb-1">
@@ -574,12 +554,6 @@
               <span class="block text-[9px] text-gray-400 mb-0.5">Jam (Drop-down)</span>
               <select id="ocHour" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500">
                 <option value="00" selected>00</option>
-                <script>
-                  for(let i=0; i<24; i++) {
-                    let h = i < 10 ? '0'+i : i;
-                    document.write(`<option value="${h}">${h}</option>`);
-                  }
-                </script>
               </select>
             </div>
             <div>
@@ -592,7 +566,6 @@
             </div>
           </div>
         </div>
-
 
         <!-- 7. Pemisah Input: Akun Pembuat, Username Penjual Asli & PiBox Wallet Penjual Asli -->
         <div class="space-y-2 bg-gray-900/80 p-3 rounded-xl border border-gray-800">
@@ -609,7 +582,6 @@
             <input type="text" id="piboxWalletInput" placeholder="Contoh: GCVJ2EXX... / Wallet Address" class="w-full bg-gray-950 border border-yellow-500/40 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-yellow-500">
           </div>
         </div>
-
 
         <!-- 8. Reserve Price in Pi -->
         <div>
@@ -684,6 +656,14 @@
     let selectedAuction = null;
     let authenticatedPiUser = null;
     let isAuthenticating = false;
+    let isBuyerApproved = false;
+    let hasPaidServerFee = false;
+    let currentChatRoom = 'forum';
+    let currentP2PTarget = '';
+    let chatSelectedImageBase64 = '';
+    let userBiddedAssets = JSON.parse(localStorage.getItem('nusantara_user_bidded_assets') || '{}');
+    let auctionScheduleState = JSON.parse(localStorage.getItem('nusantara_auction_schedule') || '{"mode":"testing_mode"}');
+    let isAuctionCurrentlyOpen = true;
     let currentLang = localStorage.getItem('appLang') || 'id';
 
     // MILITARY-GRADE SECURITY & RATE LIMITING STATE
@@ -915,217 +895,8 @@
         btnDeleteAsset: "🗑 Purge Listing",
         loginFirstAlert: "Authentication required! Please log in via Pi Network.",
         fillAllAlert: "Validation error: Please complete all required fields."
-      },
-      zh: {
-        appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
-        appSubtitle: "PiBox 多资产拍卖桥 v5.2 + 安全核心",
-        networkModeLabel: "⚡ 网络模式:",
-        loginBtn: "登录",
-        scheduleBtn: "时间表",
-        releaseAssetBtn: "+ 上架资产/商品",
-        chatRoomBtn: "聊天室",
-        registerBuyerBtn: "📋 注册买家",
-        buyerStatusTitle: "买家权限状态",
-        buyerStatusPending: "等待管理员审核注册...",
-        buyerStatusApproved: "权限状态: 审核通过 (具备浏览与出价资格)",
-        auctionStatusLabel: "⏳ 拍卖状态:",
-        liveOpenBadge: "24/7 实时开放",
-        activeSellersLabel: "📦 活跃卖家",
-        activeBiddersLabel: "🔨 活跃竞拍者",
-        searchPlaceholder: "🔍 搜索资产、商品、房产...",
-        filterAll: "所有状态",
-        filterActive: "竞拍中",
-        filterPending: "⏳ 待审核",
-        filterMyListings: "📦 我的上架",
-        filterMyBids: "🔨 我的竞拍",
-        filterEnded: "已结束",
-        filterCancelled: "已取消",
-        catAll: "🌐 所有拍卖类别",
-        catDigital: "🎨 数字资产与NFT",
-        catLuxury: "💎 奢侈品 (手表、珠宝)",
-        catElectronics: "📱 电子产品与数码",
-        catCollectibles: "🏛️ 收藏品与古董",
-        catFashion: "👔 时尚与本地工艺",
-        catAutomotive: "🚗 汽车与车辆",
-        catProperty: "🏠 房产 (房屋、土地)",
-        catServices: "🛠️ 服务与租赁",
-        guideTitle: "📖 简易使用指南与发布流程",
-        guideHide: "▼ 隐藏指南",
-        guideShow: "▶ 显示指南",
-        guideReleaseTitle: "🚀 拍卖发布指南:",
-        guideReleaseStep1: "1. 选择类别 (数字、商品、房产、服务)。",
-        guideReleaseStep2: "2. 上传详情并支付 1 Pi 服务器费。",
-        guideReleaseStep3: "3. 发布至画廊并通过管理员邮件验证。",
-        guideBidTitle: "🔨 出价与聊天指南:",
-        guideBidStep1: "1. 对每个资产的首次出价支付 1 Pi。",
-        guideBidStep2: "2. 对同一资产的后续出价免费。",
-        guideBidStep3: "3. 在聊天室沟通 P2P 细节。",
-        loadingGallery: "正在加载拍卖画廊...",
-        emptyGallery: "暂无上架资产或商品。",
-        firstReleaseBtn: "+ 发布首个资产",
-        sellerLabel: "卖家",
-        guestUser: "身份: 访客 (未登录)",
-        piLoginBtn: "🔑 Pi 验证登录",
-        refreshBtn: "刷新数据",
-        modalDetailTitle: "资产/商品拍卖详情面板",
-        modalCreateTitle: "发布新拍卖项目",
-        quotaDisplayMsg: "每个账号最多可同时激活 3 个拍卖项目",
-        labelCategory: "选择目标拍卖类别",
-        labelMainPhoto: "主图片 / 凭证截图",
-        labelExtraPhoto: "附加凭证 / 规格说明",
-        labelTitle: "3. 资产 / 商品 / 服务名称",
-        titleInputPlaceholder: "请输入商品、房产或服务名称...",
-        labelDescription: "详细描述与规格说明",
-        descPlaceholder: "填写位置 (房产)、商品状况或服务详情 (最多 500 字)...",
-        labelReservePrice: "起拍保留价 (Pi 数量)",
-        pricePlaceholder: "例如: 150",
-        labelTxMode: "结算模式",
-        txModeP2P: "🤝 直连 P2P 交易 (直接付给卖家)",
-        txModeMarket: "🛒 平台托管 / 市场交易",
-        payServerFeeBtn: "💳 支付 1 Pi (服务器基础费)",
-        releaseGalleryBtn: "🚀 发布至画廊 (\"待审核状态\")",
-        sendEmailBtn: "📧 发送验证邮件给管理员",
-        cancelBtn: "取消",
-        closeBtn: "关闭",
-        placeBidBtn: "🔨 提交出价",
-        bidSuccessMsg: "🎉 您的出价已成功登记！",
-        chatModalTitle: "NFT Global Market 实时通讯中心",
-        chatModalSub: "选择讨论频道与直连 P2P 沟通",
-        chatTabForum: "🌐 公开论坛频道",
-        chatTabP2P: "🔒 密聊 P2P 频道 (买卖家)",
-        p2pSelectLabel: "选择 P2P 沟通对象:",
-        p2pSelectDefault: "-- 请选择用户 / 卖家 --",
-        p2pStartBtn: "发起会话",
-        chatLoading: "正在加载消息记录...",
-        chatInputPlaceholder: "在此处输入消息...",
-        chatSendBtn: "发送 🚀",
-        buyersModalTitle: "👥 竞拍者资质审核表",
-        buyersModalSub: "管理员/开发者专用访问控制面板。",
-        buyerSearchPlaceholder: "搜索用户身份...",
-        deleteBatchBtn: "🗑 批量删除选中项",
-        thUsername: "用户账号",
-        thStatus: "资质状态",
-        thAction: "管理操作",
-        scheduleModalTitle: "拍卖日程控制面板",
-        scheduleModalSub: "仅限管理员与开发者访问",
-        scheduleModeLabel: "当前系统运行模式:",
-        saveScheduleBtn: "💾 保存日程配置",
-        activeStatus: "竞拍中",
-        pendingStatus: "⏳ 待审核",
-        finishedStatus: "已成交",
-        cancelledStatus: "已作废",
-        btnSetPending: "⏳ 标记为待审核",
-        btnSetActive: "🟢 标记为激活",
-        btnDeleteAsset: "🗑 清除项目",
-        loginFirstAlert: "鉴权失败！请先通过 Pi Network 完成登录。",
-        fillAllAlert: "输入验证失败：请完整填写所有必填项。"
-      },
-      es: {
-        appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
-        appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
-        networkModeLabel: "⚡ MODO DE RED:",
-        loginBtn: "Iniciar Sesión",
-        scheduleBtn: "Horario",
-        releaseAssetBtn: "+ Registrar Activo/Artículo",
-        chatRoomBtn: "Sala de Chat",
-        registerBuyerBtn: "📋 Registrar Comprador",
-        buyerStatusTitle: "Estado de Acceso del Comprador",
-        buyerStatusPending: "Esperando Verificación de Registro del Admin...",
-        buyerStatusApproved: "Estado de Acceso: Verificado (Autorizado para Ofertar)",
-        auctionStatusLabel: "⏳ ESTADO DE SUBASTA:",
-        liveOpenBadge: "ABIERTO 24/7 EN VIVO",
-        activeSellersLabel: "📦 Vendedores Activos",
-        activeBiddersLabel: "🔨 Postores Activos",
-        searchPlaceholder: "🔍 Buscar activo, bienes, inmuebles...",
-        filterAll: "Todos los Estados",
-        filterActive: "Activo",
-        filterPending: "⏳ Pendiente",
-        filterMyListings: "📦 Mis Publicaciones",
-        filterMyBids: "🔨 Mis Ofertas",
-        filterEnded: "Completado",
-        filterCancelled: "Cancelado",
-        catAll: "🌐 Todas las Categorías",
-        catDigital: "🎨 Activos Digitales y NFTs",
-        catLuxury: "💎 Artículos de Lujo (Relojes, Joyas)",
-        catElectronics: "📱 Electrónica y Dispositivos",
-        catCollectibles: "🏛️ Coleccionables y Antigüedades",
-        catFashion: "👔 Moda y Artesanías Locales",
-        catAutomotive: "🚗 Vehículos y Automoción",
-        catProperty: "🏠 Bienes Raíces e Inmuebles",
-        catServices: "🛠️ Servicios Profesionales y Alquileres",
-        guideTitle: "📖 Guía de Protocolo de Operación y Publicación",
-        guideHide: "▼ Contraer Guía",
-        guideShow: "▶ Expandir Guía",
-        guideReleaseTitle: "🚀 Protocolo de Publicación de Subastas:",
-        guideReleaseStep1: "1. Seleccione categoría (Digital, Físico, Inmueble, Servicio).",
-        guideReleaseStep2: "2. Cargue especificaciones y pague 1 Pi de tarifa de servidor.",
-        guideReleaseStep3: "3. Publique en galería y finalice verificación vía correo de admin.",
-        guideBidTitle: "🔨 Protocolo de Ofertas y Negociación:",
-        guideBidStep1: "1. Remita 1 Pi por tarifa de oferta inicial por activo.",
-        guideBidStep2: "2. Las ofertas subsecuentes sobre el mismo activo son GRATUITAS.",
-        guideBidStep3: "3. Canal P2P directo disponible en la Sala de Chat.",
-        loadingGallery: "Cargando Galería de Subastas...",
-        emptyGallery: "No hay publicaciones activas actualmente.",
-        firstReleaseBtn: "+ Crear Primera Publicación",
-        sellerLabel: "Vendedor",
-        guestUser: "Identidad: Invitado (No Autenticado)",
-        piLoginBtn: "🔑 Autenticar Pi",
-        refreshBtn: "Actualizar Datos",
-        modalDetailTitle: "Panel de Subasta y Detalles del Activo",
-        modalCreateTitle: "Registro de Nuevo Protocolo de Subasta",
-        quotaDisplayMsg: "Límite: Máximo 3 Publicaciones Activas Por Cuenta",
-        labelCategory: "Seleccionar Categoría de Destino",
-        labelMainPhoto: "Captura / Multimedia Principal",
-        labelExtraPhoto: "Multimedia Adicional / Especificaciones",
-        labelTitle: "3. Nombre de Identificación del Activo",
-        titleInputPlaceholder: "Ingrese título del artículo, dirección o servicio...",
-        labelDescription: "Resumen Técnico y Especificaciones",
-        descPlaceholder: "Escriba ubicación, condición o condiciones (Máx 500 caracteres)...",
-        labelReservePrice: "Precio de Reserva (Oferta Inicial en Pi)",
-        pricePlaceholder: "ejemplo: 150",
-        labelTxMode: "Protocolo de Liquidación",
-        txModeP2P: "🤝 Liquidez P2P Directa (Vendedor Directo)",
-        txModeMarket: "🛒 Liquidez en Plataforma / Mercado",
-        payServerFeeBtn: "💳 Pagar 1 Pi Tarifa de Infraestructura",
-        releaseGalleryBtn: "🚀 Publicar en Galería (\"Estado Pendiente\")",
-        sendEmailBtn: "📧 Despachar Correo de Verificación al Admin",
-        cancelBtn: "Cancelar",
-        closeBtn: "Cerrar",
-        placeBidBtn: "🔨 Enviar Oferta",
-        bidSuccessMsg: "🎉 ¡Oferta registrada y enviada con éxito!",
-        chatModalTitle: "Centro de Comunicaciones NFT Global Market",
-        chatModalSub: "Canales Directos P2P y Negociaciones con Contrapartes",
-        chatTabForum: "🌐 Canal del Foro Público",
-        chatTabP2P: "🔒 Canal Cifrado P2P (Comprador-Vendedor)",
-        p2pSelectLabel: "Seleccionar Vendedor / Contraparte:",
-        p2pSelectDefault: "-- Seleccionar Contraparte --",
-        p2pStartBtn: "Iniciar Sesión",
-        chatLoading: "Cargando mensajes...",
-        chatInputPlaceholder: "Escriba su mensaje aquí...",
-        chatSendBtn: "Transmitir 🚀",
-        buyersModalTitle: "👥 Tabla de Verificación de Postores Registrados",
-        buyersModalSub: "Panel de control administrativo para acceso.",
-        buyerSearchPlaceholder: "Filtrar identidad...",
-        deleteBatchBtn: "🗑 Eliminar Seleccionados",
-        thUsername: "Identidad de Cuenta",
-        thStatus: "Estado de Acceso",
-        thAction: "Acción Administrativa",
-        scheduleModalTitle: "Panel de Configuración de Horarios",
-        scheduleModalSub: "Exclusivo para Admin y Desarrolladores",
-        scheduleModeLabel: "Estado de Sesión de Subasta:",
-        saveScheduleBtn: "💾 Guardar Configuración",
-        activeStatus: "Activo",
-        pendingStatus: "⏳ Pendiente (Esperando Verificación)",
-        finishedStatus: "Completado",
-        cancelledStatus: "Cancelado",
-        btnSetPending: "⏳ Marcar Pendiente",
-        btnSetActive: "🟢 Marcar Activo",
-        btnDeleteAsset: "🗑 Eliminar Publicación",
-        loginFirstAlert: "¡Error de autenticación! Por favor inicie sesión con Pi Network.",
-        fillAllAlert: "Error de validación: Complete todos los campos requeridos."
       }
     };
-
 
     function t(key) {
       return translations[currentLang]?.[key] || translations['id']?.[key] || key;
@@ -1173,9 +944,8 @@
     } catch (e) {
       console.error("Supabase Init Error:", e);
     }
-    // Fungsi untuk memvalidasi simbol terlarang dan menghitung karakter nama aset
+
     function validateAndCountTitle(el) {
-      // Menghapus simbol terlarang seperti < > { } [ ] \ ^ ` ~ | * $ %
       const cleanValue = el.value.replace(/[<>{}\[\]\\^`~|*$%]/g, '');
       if (el.value !== cleanValue) {
         el.value = cleanValue;
@@ -1193,7 +963,6 @@
       }
     }
 
-    // Inisialisasi Pi SDK secara teratur dan tahan banting
     function initPiSDK() {
       const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
       if (piInstance && typeof piInstance.init === 'function') {
@@ -1245,7 +1014,6 @@
       }
     }
 
-    // Helper Anti-Spam & Biaya Progresif
     function getUserBidCount(auctionId, username) {
       const key = `bid_count_${auctionId}_${username}`;
       return parseInt(localStorage.getItem(key) || '0', 10);
@@ -1260,10 +1028,9 @@
 
     function calculateProgressiveFee(bidNumber) {
       if (bidNumber < 5) return 0;
-      return bidNumber - 3; // Ke-5 = 2 Pi, Ke-6 = 3 Pi, Ke-7 = 4 Pi, dst
+      return bidNumber - 3;
     }
 
-    // Fungsi Utama Autentikasi Pi User yang Bersih & Anti-Duplikat
     async function authenticatePiUser(isAuto = false) {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
@@ -1287,13 +1054,8 @@
         await new Promise(r => setTimeout(r, 200));
       }
 
-      // Fallback Otomatis Mode Simulasi Dev jika dibuka di luar Pi Browser
       if (!piInstance) {
         isAuthenticating = false;
-        if (btnHeaderLogin) {
-          btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>`;
-        }
-        
         authenticatedPiUser = { username: "Dev" };
         const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
         if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aktif)`;
@@ -1327,14 +1089,15 @@
         const auth = await piInstance.authenticate(scopes, onIncompletePaymentFound);
         
         if (auth && auth.user && auth.user.username) {
-          authenticatedPiUser = auth.user;
-          const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
+          const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
+          authenticatedPiUser = { username: cleanUsername };
+          const maskedName = SecureShield.maskUsername(cleanUsername);
           
           if (statusEl) statusEl.innerText = `User: ${maskedName}`;
           if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
           
           const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
-          const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+          const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
           
           if (isAdmin) {
             isBuyerApproved = true;
@@ -1342,7 +1105,7 @@
             if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
           } else {
             if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-            await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+            await checkBuyerStatusInDatabase(cleanUsername);
           }
           
           Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
@@ -1354,7 +1117,7 @@
       } catch (err) {
         authenticatedPiUser = { username: "Dev" };
         const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-        if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi)`;
+        if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
         if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
         isBuyerApproved = true;
         if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
@@ -1362,61 +1125,12 @@
         await checkBuyerStatusInDatabase(authenticatedPiUser.username);
         Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
         
-        if (!isAuto) alert(`⚠️ Autentikasi Pi SDK dibatalkan/gagal. Dialihkan ke Mode Simulasi Dev.`);
+        if (!isAuto) alert(`⚠️ Autentikasi Pi SDK memuat mode aman offline/simulasi.`);
       } finally {
         isAuthenticating = false;
       }
     }
 
-    const auth = await piInstance.authenticate(scopes, onIncompletePaymentFound);
-    
-    if (auth && auth.user && auth.user.username) {
-      const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
-      authenticatedPiUser = { username: cleanUsername };
-      const maskedName = SecureShield.maskUsername(cleanUsername);
-      
-      if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-      if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-      
-      const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
-      const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
-      
-      if (isAdmin) {
-        isBuyerApproved = true;
-        if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-      } else {
-        if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-        await checkBuyerStatusInDatabase(cleanUsername);
-      }
-      
-      Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-
-      if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
-    } else {
-      throw new Error("Respon otentikasi Pi Network tidak valid.");
-    }
-  } catch (err) {
-    // Fallback otomatis jika terjadi kendala pada Pi SDK runtime
-    authenticatedPiUser = { username: "Dev" };
-    const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-    if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
-    if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-    isBuyerApproved = true;
-    if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-    
-    await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-    Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-    
-    if (!isAuto) alert(`⚠️ Autentikasi Pi SDK memuat mode aman offline/simulasi.`);
-  } finally {
-    isAuthenticating = false;
-  }
-}
-
-
-          
-    // Fungsi untuk melakukan pembayaran deposit jaminan lelang 100 Pi
     async function payAuctionDeposit() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1447,12 +1161,10 @@
             },
             onCancel: () => { alert("Pembayaran deposit dibatalkan."); },
             onError: () => { 
-              // Fallback Simulasi Sandbox sukses
               updateUserDepositBalance(username, depositAmount, 'deposit', memoText);
             }
           });
         } else {
-          // Simulasi jika Pi SDK tidak aktif
           await updateUserDepositBalance(username, depositAmount, 'deposit', memoText);
         }
       } catch (err) {
@@ -1460,18 +1172,15 @@
       }
     }
 
-    // Memperbarui saldo deposit di database Supabase dan mengecek ambang batas 50 Pi
     async function updateUserDepositBalance(username, amount, type, memo) {
       if (!supabaseClient) return;
       try {
-        // Ambil data buyer saat ini
         let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
         
         let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
         let newBalance = type === 'deposit' ? currentBalance + amount : currentBalance - amount;
         if (newBalance < 0) newBalance = 0;
 
-        // Jika saldo < 50 Pi, status otomatis menjadi 'pending'
         let newStatus = newBalance < 50 ? 'pending' : (buyer ? buyer.status : 'pending');
 
         if (!buyer) {
@@ -1490,7 +1199,6 @@
       }
     }
 
-    // Fungsi Pengajuan Klaim Penarikan Dana Jaminan (Jika Kalah)
     async function requestDepositWithdrawal() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1509,7 +1217,6 @@
 
         const currentBal = parseFloat(buyer.deposit_balance);
         
-        // Cek apakah pengguna pernah menawar >= 3 kali (Terindikasi aktivitas bidding/spam)
         let hasMultiBids = false;
         for (let key in localStorage) {
           if (key.startsWith(`bid_count_`) && key.endsWith(`_${username}`)) {
@@ -1524,7 +1231,7 @@
         let penaltyFee = 0;
 
         if (hasMultiBids) {
-          penaltyFee = currentBal * 0.25; // Potongan 25% untuk penawar aktif/spam
+          penaltyFee = currentBal * 0.25;
           refundAmount = currentBal - penaltyFee;
         }
 
@@ -1535,7 +1242,6 @@
         const confirmWithdraw = confirm(confirmMsg);
         if (!confirmWithdraw) return;
 
-        // Reset saldo & set status ke pending
         await supabaseClient.from('buyers').update({ deposit_balance: 0.00, status: 'pending' }).eq('username', username);
         await supabaseClient.from('auction_deposits_log').insert([
           { username: username, amount: refundAmount, type: 'withdraw', memo: `Withdrawal by ${username} (Penalty: ${penaltyFee} Pi)` }
@@ -1549,8 +1255,6 @@
       }
     }
 
-
-      
     async function checkBuyerStatusInDatabase(username) {
       if (!supabaseClient || !username) return;
       try {
@@ -1579,7 +1283,7 @@
       }
       hourSelect.innerHTML = html;
     }
-    // Cek apakah user sudah setor deposit 100 Pi untuk lelang ini
+
     async function checkUserDeposit(auctionId, username) {
       if (!supabaseClient) return false;
       const { data } = await supabaseClient
@@ -1590,7 +1294,7 @@
         .eq('status', 'locked')
         .maybeSingle();
         
-      return !!data; // Mengembalikan true jika sudah deposit
+      return !!data;
     }
 
     function openScheduleModal() {
@@ -1946,8 +1650,6 @@
       tbody.innerHTML = html;
     }
 
-
-
     function toggleSelectAllBuyers(master) {
       document.querySelectorAll('.buyer-checkbox').forEach(cb => cb.checked = master.checked);
     }
@@ -2148,8 +1850,6 @@
           ends_at: calculatedEndsAt
         };
 
-
-
         if (supabaseClient) {
           const { error } = await supabaseClient.from('auctions').insert([payload]);
           if (error) throw error;
@@ -2239,6 +1939,20 @@
       if (biddersEl) biddersEl.innerText = `${biddersSet.size} User`;
     }
 
+    function getCategoryLabel(catKey) {
+      const keyMap = {
+        nft_art: 'catDigital',
+        luxury_items: 'catLuxury',
+        electronics: 'catElectronics',
+        collectibles: 'catCollectibles',
+        fashion_craft: 'catFashion',
+        automotive: 'catAutomotive',
+        property_land: 'catProperty',
+        services_tech: 'catServices'
+      };
+      return t(keyMap[catKey] || 'catDigital');
+    }
+
     function filterGallery() {
       const query = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
       const statusFilter = document.getElementById('statusFilter')?.value || 'all';
@@ -2248,16 +1962,13 @@
       const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
 
       filteredAuctionsList = activeAuctionsList.filter(item => {
-        // --- LOGIKA HAK AKSES ASET PENDING ---
-        // Jika status aset 'pending', HANYA tampil untuk Admin, Dev, atau Penjual Aslinya sendiri
         if (item.status === 'pending') {
           const isRealSeller = currentUsername && item.seller === currentUsername;
           if (!isAdminOrDev && !isRealSeller) {
-            return false; // Sembunyikan dari pembeli/user lain
+            return false;
           }
         }
 
-        // Pencarian teks (Nama, Deskripsi, Hash, Seller)
         const matchesQuery = (item.title || '').toLowerCase().includes(query) || 
                              (item.description || '').toLowerCase().includes(query) || 
                              (item.hash || '').toLowerCase().includes(query) || 
@@ -2265,12 +1976,10 @@
         
         if (!matchesQuery) return false;
 
-        // Filter Kategori
         if (categoryFilter !== 'all' && item.category && item.category !== categoryFilter) {
           return false;
         }
 
-        // Filter Dropdown Status
         if (statusFilter === 'all') return true;
         if (statusFilter === 'active') return item.status === 'active';
         if (statusFilter === 'pending') return item.status === 'pending';
@@ -2284,6 +1993,60 @@
 
       renderGallery();
     }
+
+    function renderGallery() {
+      const mainContent = document.getElementById('mainContent');
+      if (!mainContent) return;
+
+      if (filteredAuctionsList.length === 0) {
+        mainContent.innerHTML = `
+          <div class="text-center py-12 space-y-3">
+            <p class="text-gray-500 text-xs">${t('emptyGallery')}</p>
+            <button onclick="handleOpenCreateModal()" class="bg-yellow-500 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs shadow-lg hover:bg-yellow-400 transition">
+              ${t('firstReleaseBtn')}
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
+
+      let html = '<div class="grid grid-cols-1 gap-3">';
+      filteredAuctionsList.forEach(auction => {
+        const title = SecureShield.sanitizeHTML(auction.title || 'Untitled');
+        const seller = SecureShield.maskUsername(auction.seller || 'Anon');
+        const price = parseFloat(auction.highest_bid || auction.reserve_price || 0);
+        const catBadgeText = getCategoryLabel(auction.category);
+
+        let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">${t('activeStatus')}</span>`;
+        if (auction.status === 'pending') {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">${t('pendingStatus')}</span>`;
+        } else if (auction.status === 'finished' || auction.status === 'ended') {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-800 text-gray-400">${t('finishedStatus')}</span>`;
+        } else if (auction.status === 'cancelled') {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400">${t('cancelledStatus')}</span>`;
+        }
+
+        const eventBadgeHTML = auction.is_event ? `<span class="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">EVENT</span>` : '';
+
+        let adminActionControls = '';
+        if (isAdminOrDev) {
+          adminActionControls = `
+            <div class="flex gap-1 pt-1 border-t border-gray-800/80 mt-1 justify-end">
+              <button onclick="adminToggleAuctionStatus('${auction.id}', '${auction.status === 'active' ? 'pending' : 'active'}')" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold">
+                ${auction.status === 'active' ? t('btnSetPending') : t('btnSetActive')}
+              </button>
+              <button onclick="adminToggleEventBadge('${auction.id}', ${!!auction.is_event})" class="text-[9px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 px-2 py-0.5 rounded font-bold">
+                ⭐ Event
+              </button>
+              <button onclick="adminDeleteAuction('${auction.id}')" class="text-[9px] bg-red-900/60 hover:bg-red-800 text-red-200 px-2 py-0.5 rounded font-bold">
+                ${t('btnDeleteAsset')}
+              </button>
+            </div>
+          `;
+        }
 
         html += `
           <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2 hover:border-yellow-500/50 transition shadow-md">
@@ -2389,7 +2152,6 @@
       if (status !== 'active') {
         bidActionSection = `<div class="bg-amber-500/20 text-amber-400 p-2.5 rounded-xl text-center text-[11px] font-bold">⚠ Aset/barang ini berstatus '${status}', belum dapat ditawar.</div>`;
       } else {
-        // Hitung nominal harga otomatis berdasarkan harga terakhir (price + kenaikan)
         const targetPrice5 = price + 5;
         const targetPrice10 = price + 10;
         const targetPrice20 = price + 20;
@@ -2414,7 +2176,6 @@
           </div>
         `;
       }
-
 
       const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
       const extraImg = selectedAuction.extra_image_url || selectedAuction.extra_ss_url || '';
@@ -2452,7 +2213,7 @@
               Pastikan Anda memeriksa kelengkapan fisik, dokumen kepemilikan (seperti BPKB/STNK untuk Otomotif, Sertifikat untuk Properti, atau keaslian untuk Barang Mewah/Antik) langsung dengan penjual melalui Chat Room P2P sebelum melakukan pembayaran. Platform tidak bertanggung jawab atas sengketa luar jaringan.
             </p>
           </div>
-          <!-- Kotak Centang Persetujuan Hukum Pembeli -->
+          
           <div class="bg-red-950/30 border border-red-500/40 rounded-xl p-2.5 space-y-1.5 text-[10px] text-gray-300">
             <label class="flex items-start gap-2 cursor-pointer">
               <input type="checkbox" id="buyerLegalCheckbox" class="mt-0.5 accent-yellow-500 cursor-pointer">
@@ -2469,11 +2230,6 @@
               <span class="text-gray-400">PiBox Wallet Penjual:</span>
               <span class="text-white font-mono text-[10px] truncate max-w-[180px]" title="${selectedAuction.pibox_wallet || '-'}">${selectedAuction.pibox_wallet || '-'}</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-gray-400">Harga Penawaran Tertinggi:</span>
-              <span class="text-emerald-400 font-bold">${price} Pi</span>
-            </div>
-
             <div class="flex justify-between">
               <span class="text-gray-400">Harga Penawaran Tertinggi:</span>
               <span class="text-emerald-400 font-bold">${price} Pi</span>
@@ -2604,9 +2360,7 @@ ${legalText}
       legalModal.classList.remove('hidden');
     }
 
-
-    
-        function copyLegalTextToClipboard(encodedText, btnEl) {
+    function copyLegalTextToClipboard(encodedText, btnEl) {
       const text = decodeURIComponent(encodedText);
       navigator.clipboard.writeText(text).then(() => {
         const originalText = btnEl.innerText;
@@ -2711,17 +2465,6 @@ ${certText}
       loadChatMessages();
     }
 
-    function submitManualBid(auctionId) {
-      const input = document.getElementById('manualBidAmountInput');
-      if (!input) return;
-      const amount = parseFloat(input.value);
-      if (isNaN(amount) || amount <= 0) {
-        alert("Masukkan nominal penawaran yang valid!");
-        return;
-      }
-      placeBidOnAuction(auctionId, amount);
-    }
-
     async function placeBidOnAuction(auctionId, amount) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -2756,11 +2499,17 @@ ${certText}
         return;
       }
 
-      // Hitung urutan penawaran user pada aset ini
+      const alreadyAgreed = isBuyerAlreadyAgreed(auctionId, username);
+      const buyerCheckbox = document.getElementById('buyerLegalCheckbox');
+
+      if (!alreadyAgreed && (!buyerCheckbox || !buyerCheckbox.checked)) {
+        alert("⚖️ Perlindungan Hukum: Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum pembeli sebelum melakukan penawaran.");
+        return;
+      }
+
       const currentBidCount = getUserBidCount(auctionId, username);
       const nextBidNumber = currentBidCount + 1;
 
-      // --- 1. POP-UP PERINGATAN BAHASA INGGRIS Sejak Penawaran ke-3 ---
       if (nextBidNumber >= 3) {
         const warningMsg = 
           `⚠️ ANTI-SPAM & BIDDING WARNING (Bid #${nextBidNumber})\n\n` +
@@ -2778,24 +2527,36 @@ ${certText}
         }
       }
 
-      // --- 2. HITUNG BIAYA PROGRESIF (Penawaran Ke-5 ke atas) ---
       const progressiveFee = calculateProgressiveFee(nextBidNumber);
+      const buyerAgreedTime = new Date().toISOString();
+      const buyerSig = `SIG-BUYER-${username}-${Date.now()}`;
 
       const executeBidProcess = async () => {
         try {
-          // Potong biaya progresif dari saldo deposit jika ada
           if (progressiveFee > 0) {
             await updateUserDepositBalance(username, progressiveFee, 'withdraw', `Progressive bid fee #${nextBidNumber} on auction ${auctionId}`);
           }
 
           if (supabaseClient) {
-            await supabaseClient.from('auctions').update({
+            const updatePayload = {
               highest_bid: amount,
               highest_bidder: username
-            }).eq('id', auctionId);
+            };
+
+            if (!alreadyAgreed) {
+              updatePayload.buyer_agreed_at = buyerAgreedTime;
+              updatePayload.buyer_digital_signature = buyerSig;
+            }
+
+            const { error } = await supabaseClient.from('auctions').update(updatePayload).eq('id', auctionId);
+            if (error) throw error;
           }
 
+          localStorage.setItem(getBuyerAgreementKey(auctionId, username), 'true');
+          userBiddedAssets[auctionId] = true;
+          localStorage.setItem('nusantara_user_bidded_assets', JSON.stringify(userBiddedAssets));
           incrementUserBidCount(auctionId, username);
+
           alert(progressiveFee > 0 ? `🎉 Bid #${nextBidNumber} placed successfully! (Progressive Fee: ${progressiveFee} Pi deducted)` : t('bidSuccessMsg'));
           closeDetailModal();
           fetchActiveAuctions();
@@ -2804,9 +2565,7 @@ ${certText}
         }
       };
 
-      // Tanyakan pembayaran Pi SDK jika Bid ke-1 atau memiliki biaya progresif
       if (nextBidNumber === 1) {
-        // Penawaran Pertama = Bayar 1 Pi
         const paymentData = {
           amount: 1,
           memo: `First Bid Fee - @${username}`,
@@ -2825,109 +2584,7 @@ ${certText}
           } else { executeBidProcess(); }
         } catch (e) { executeBidProcess(); }
       } else {
-        // Penawaran ke-2, ke-3, ke-4 gratis (kecuali biaya progresif saldo di ke-5+)
         executeBidProcess();
-      }
-    }
-
-      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      if (!isAdminOrDev && !isBuyerApproved) {
-        alert("⛔ Akses Penawaran Ditolak: Status akun pembeli Anda masih 'Pending' atau belum didaftarkan. Harap klik tombol 'Daftar Pembeli' dan tunggu persetujuan Admin/Dev.");
-        return;
-      }
-
-      if (!isAuctionCurrentlyOpen) {
-        alert("🔴 Lelang saat ini sedang ditutup.");
-        return;
-      }
-
-      const auction = activeAuctionsList.find(a => a.id === auctionId);
-      if (!auction) return;
-
-      if (auction.seller === authenticatedPiUser.username) {
-        alert("🚫 Anda dilarang menawar aset milik Anda sendiri!");
-        return;
-      }
-
-      const currentHighest = parseFloat(auction.highest_bid || auction.reserve_price || 0);
-      if (amount <= currentHighest) {
-        alert(`Penawaran harus lebih tinggi dari ${currentHighest} Pi!`);
-        return;
-      }
-
-      const currentUsername = authenticatedPiUser.username;
-      const alreadyAgreed = isBuyerAlreadyAgreed(auctionId, currentUsername);
-      const buyerCheckbox = document.getElementById('buyerLegalCheckbox');
-
-      if (!alreadyAgreed && (!buyerCheckbox || !buyerCheckbox.checked)) {
-        alert("⚖️ Perlindungan Hukum: Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum pembeli sebelum melakukan penawaran.");
-        return;
-      }
-
-      const buyerAgreedTime = new Date().toISOString();
-      const buyerSig = `SIG-BUYER-${currentUsername}-${Date.now()}`;
-
-      const hasBiddedBefore = userBiddedAssets[auctionId] === true;
-
-      const executeBidUpdate = async () => {
-        try {
-          if (supabaseClient) {
-            const updatePayload = {
-              highest_bid: amount,
-              highest_bidder: currentUsername
-            };
-
-            if (!alreadyAgreed) {
-              updatePayload.buyer_agreed_at = buyerAgreedTime;
-              updatePayload.buyer_digital_signature = buyerSig;
-            }
-
-            const { error } = await supabaseClient
-              .from('auctions')
-              .update(updatePayload)
-              .eq('id', auctionId);
-
-            if (error) throw error;
-          }
-
-          localStorage.setItem(getBuyerAgreementKey(auctionId, currentUsername), 'true');
-          userBiddedAssets[auctionId] = true;
-          localStorage.setItem('nusantara_user_bidded_assets', JSON.stringify(userBiddedAssets));
-
-          alert(t('bidSuccessMsg'));
-          closeDetailModal();
-          fetchActiveAuctions();
-        } catch (err) {
-          alert("Gagal mengirim penawaran: " + err.message);
-        }
-      };
-
-
-      
-      if (!hasBiddedBefore) {
-        const paymentData = {
-          amount: 1,
-          memo: `Bid Fee (First Bid) - @${authenticatedPiUser.username}`,
-          metadata: { type: 'bid_fee', auctionId, username: authenticatedPiUser.username }
-        };
-
-        try {
-          const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-          if (piInstance && typeof piInstance.createPayment === 'function') {
-            piInstance.createPayment(paymentData, {
-              onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
-              onReadyForServerCompletion: async (pid, txid) => { await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); executeBidUpdate(); },
-              onCancel: () => {},
-              onError: () => { executeBidUpdate(); }
-            });
-          } else {
-            executeBidUpdate();
-          }
-        } catch (e) {
-          executeBidUpdate();
-        }
-      } else {
-        executeBidUpdate();
       }
     }
 
@@ -2946,7 +2603,6 @@ ${certText}
         alert("⚖️ Perlindungan Hukum: Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum pembeli sebelum melakukan pembayaran P2P.");
         return;
       }
-
 
       const auction = activeAuctionsList.find(a => a.id === auctionId);
       if (!auction) {
@@ -2978,7 +2634,6 @@ ${certText}
           piboxHash: auction.hash
         }
       };
-
 
       try {
         const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
@@ -3055,7 +2710,8 @@ ${certText}
       const realSellerInput = document.getElementById('realSellerUsernameInput');
       const walletInput = document.getElementById('piboxWalletInput');
       
-      if (isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      if (isAdminOrDev) {
         if (realSellerInput) realSellerInput.value = "";
         if (walletInput) walletInput.value = "";
       } else {
@@ -3066,7 +2722,6 @@ ${certText}
       document.getElementById('createModal').classList.remove('hidden');
     }
 
-
     function closeCreateModal() {
       document.getElementById('createModal').classList.add('hidden');
     }
@@ -3076,12 +2731,11 @@ ${certText}
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       try {
-        // Mencegah lonjakan query database bersamaan saat puluhan ribu user login (Debounced Fetch)
         const debouncedFetch = () => {
           clearTimeout(realtimeDebounceTimer);
           realtimeDebounceTimer = setTimeout(() => {
             fetchActiveAuctions();
-          }, 1000); // Jeda 1 detik agar server Supabase tidak overload
+          }, 1000);
         };
 
         supabaseClient
@@ -3108,7 +2762,6 @@ ${certText}
         console.warn("Realtime warning:", e);
       }
     }
-
 
     function updateTimers() {}
 
@@ -3144,7 +2797,8 @@ ${certText}
       const zoomModal = document.getElementById('imageZoomModal');
       if (zoomModal) zoomModal.classList.add('hidden');
     }
-        async function generateAndDownloadLegalProofPDF(auctionId) {
+
+    async function generateAndDownloadLegalProofPDF(auctionId) {
       const auction = activeAuctionsList.find(a => a.id === auctionId);
       if (!auction) {
         alert("Data lelang tidak ditemukan.");
@@ -3215,6 +2869,7 @@ ${certText}
 
       doc.save(`Legal-Proof-${auction.id}.pdf`);
     }
+
     function getBuyerAgreementKey(auctionId, username) {
       return `buyer_agreed_${auctionId}_${username}`;
     }
@@ -3223,7 +2878,6 @@ ${certText}
       if (!username) return false;
       return localStorage.getItem(getBuyerAgreementKey(auctionId, username)) === 'true';
     }
-
   </script>
 </body>
 </html>
