@@ -1420,25 +1420,52 @@
       try {
         const { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
         if (!buyer || parseFloat(buyer.deposit_balance || 0) <= 0) {
-          alert("Saldo jaminan Anda kosong.");
+          alert("Your deposit balance is zero.");
           return;
         }
 
         const currentBal = parseFloat(buyer.deposit_balance);
-        const confirmWithdraw = confirm(`Pengajuan penarikan dana jaminan sebesar ${currentBal} Pi akan dikirim ke Admin.\nSaldo Anda akan ditarik dan status akses akan menjadi 'Pending'. Lanjutkan?`);
+        
+        // Cek apakah pengguna pernah menawar >= 3 kali (Terindikasi aktivitas bidding/spam)
+        let hasMultiBids = false;
+        for (let key in localStorage) {
+          if (key.startsWith(`bid_count_`) && key.endsWith(`_${username}`)) {
+            if (parseInt(localStorage.getItem(key) || '0', 10) >= 3) {
+              hasMultiBids = true;
+              break;
+            }
+          }
+        }
+
+        let refundAmount = currentBal;
+        let penaltyFee = 0;
+
+        if (hasMultiBids) {
+          penaltyFee = currentBal * 0.25; // Potongan 25% untuk penawar aktif/spam
+          refundAmount = currentBal - penaltyFee;
+        }
+
+        const confirmMsg = hasMultiBids 
+          ? `⚠️ ANTI-SPAM PENALTY APPLIED\n\nDue to multiple bidding activities (3+ bids), a 25% cancellation penalty (${penaltyFee.toFixed(2)} Pi) will be deducted.\n\nNet Amount to Withdraw: ${refundAmount.toFixed(2)} Pi.\nYour status will revert to 'Pending'. Proceed?`
+          : `Withdrawal Request:\nAmount: ${currentBal} Pi.\nYour status will revert to 'Pending'. Proceed?`;
+
+        const confirmWithdraw = confirm(confirmMsg);
         if (!confirmWithdraw) return;
 
-        // Kurangi saldo menjadi 0 dan set status ke pending karena < 50 Pi
+        // Reset saldo & set status ke pending
         await supabaseClient.from('buyers').update({ deposit_balance: 0.00, status: 'pending' }).eq('username', username);
-        await supabaseClient.from('auction_deposits_log').insert([{ username: username, amount: currentBal, type: 'withdraw', memo: `Klaim penarikan dana jaminan oleh ${username}` }]);
+        await supabaseClient.from('auction_deposits_log').insert([
+          { username: username, amount: refundAmount, type: 'withdraw', memo: `Withdrawal by ${username} (Penalty: ${penaltyFee} Pi)` }
+        ]);
 
-        alert("📤 Pengajuan klaim penarikan dana jaminan berhasil dikirim. Saldo telah dikembalikan melalui jaringan Pi dan status akun menjadi Pending.");
+        alert(`📤 Claim submitted! Net refunded amount: ${refundAmount.toFixed(2)} Pi. (Penalty: ${penaltyFee.toFixed(2)} Pi). Status set to Pending.`);
         checkBuyerStatusInDatabase(username);
         if (typeof renderBuyersTable === 'function') renderBuyersTable();
       } catch (e) {
-        alert("Gagal memproses klaim penarikan: " + e.message);
+        alert("Failed to process withdrawal claim: " + e.message);
       }
     }
+
 
       
     async function checkBuyerStatusInDatabase(username) {
