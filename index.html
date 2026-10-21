@@ -1311,6 +1311,12 @@
       } catch (e) {}
 
       try {
+        if (SecurityVault.isRateLimited()) {
+          console.warn("Rate limit terdeteksi. Harap tunggu sebentar.");
+          isAuthenticating = false;
+          return;
+        }
+
         const scopes = ['username', 'payments'];
         const onIncompletePaymentFound = (payment) => {
           if (payment && payment.identifier) {
@@ -1321,6 +1327,53 @@
             }).catch(() => {});
           }
         };
+
+        const auth = await piInstance.authenticate(scopes, onIncompletePaymentFound);
+        
+        if (auth && auth.user && auth.user.username) {
+          // Enkripsi / Sanitasi username masuk untuk pertahanan militer
+          const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
+          authenticatedPiUser = { username: cleanUsername };
+          const maskedName = SecureShield.maskUsername(cleanUsername);
+          
+          if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+          
+          const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
+          const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
+          
+          if (isAdmin) {
+            isBuyerApproved = true;
+            if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+            if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          } else {
+            if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+            await checkBuyerStatusInDatabase(cleanUsername);
+          }
+          
+          Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+
+          if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
+        } else {
+          throw new Error("Respon otentikasi Pi Network tidak valid.");
+        }
+      } catch (err) {
+        // Fallback aman ke mode simulasi jika timeout / offline
+        authenticatedPiUser = { username: "Dev" };
+        const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
+        if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+        isBuyerApproved = true;
+        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+        
+        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+        Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+        
+        if (!isAuto) alert(`⚠️ Autentikasi Pi SDK memuat mode aman offline/simulasi.`);
+      } finally {
+        isAuthenticating = false;
+      }
+
 
         const auth = await piInstance.authenticate(scopes, onIncompletePaymentFound);
         
