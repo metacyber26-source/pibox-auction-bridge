@@ -1963,14 +1963,17 @@
 
       const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
       const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
-
-      filteredAuctionsList = activeAuctionsList.filter(item => {
-        if (item.status === 'pending') {
-          const isRealSeller = currentUsername && item.seller === currentUsername;
+filteredAuctionsList = activeAuctionsList.filter(item => {
+        if (item.status === 'pending' || item.status === 'PENDING') {
+          const cleanItemSeller = (item.seller || '').trim().toLowerCase();
+          const cleanCurrentUsr = currentUsername.trim().toLowerCase();
+          const isRealSeller = cleanCurrentUsr && cleanItemSeller === cleanCurrentUsr;
+          
           if (!isAdminOrDev && !isRealSeller) {
             return false;
           }
         }
+
 
         const matchesQuery = (item.title || '').toLowerCase().includes(query) || 
                              (item.description || '').toLowerCase().includes(query) || 
