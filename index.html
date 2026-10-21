@@ -2092,18 +2092,29 @@
       }
       if (!supabaseClient) return;
       try {
+        // Normalisasi status ke format database ('active' atau 'pending')
+        const normalizedStatus = (targetStatus === 'aktif' || targetStatus === 'active') ? 'active' : 'pending';
+        
         const { error } = await supabaseClient
           .from('auctions')
-          .update({ status: targetStatus })
+          .update({ status: normalizedStatus })
           .eq('id', auctionId);
           
         if (error) throw error;
-        alert(`✅ Status aset berhasil diubah menjadi '${targetStatus.toUpperCase()}'!`);
-        fetchActiveAuctions();
+        
+        // Update langsung pada array lokal agar UI merespons seketika tanpa jeda fetch
+        const targetAuction = activeAuctionsList.find(a => a.id === auctionId);
+        if (targetAuction) {
+          targetAuction.status = normalizedStatus;
+        }
+
+        alert(`✅ Status aset berhasil diubah menjadi '${normalizedStatus.toUpperCase()}'!`);
+        filterGallery();
       } catch (err) {
         alert("Gagal mengubah status aset: " + err.message);
       }
     }
+
 
     async function adminToggleEventBadge(auctionId, currentEventState) {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
