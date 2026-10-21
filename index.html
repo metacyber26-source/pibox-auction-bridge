@@ -241,8 +241,8 @@
         <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
           <p class="font-bold text-emerald-400 mb-1" data-i18n="guideBidTitle">🔨 Panduan Penawaran & Chat:</p>
           <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
-            <li data-i18n="guideBidStep1">Bayar 1 Pi pada penawaran pertama tiap aset.</li>
-            <li data-i18n="guideBidStep2">Penawaran berikutnya pada aset yang sama GRATIS.</li>
+            <li data-i18n="guideBidStep1">Bayar 0.2 Pi pada penawaran pertama tiap aset.</li>
+            <li data-i18n="guideBidStep2">Penawaran berikutnya pada aset yang sama GRATIS (Kecuali terdeteksi spam).</li>
             <li data-i18n="guideBidStep3">Komunikasi detail P2P di Room Chat.</li>
           </ol>
         </div>
@@ -401,7 +401,7 @@
         <!-- Tombol Tambahan: Bayar Jaminan & Klaim Penarikan -->
         <div class="flex gap-2">
           <button onclick="payAuctionDeposit()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition shadow cursor-pointer">
-            💳 Bayar Jaminan 100 Pi
+            💳 Top Up Jaminan 35 Pi
           </button>
           <button onclick="requestDepositWithdrawal()" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition shadow cursor-pointer">
             📥 Klaim Penarikan Jaminan
@@ -669,7 +669,7 @@
     // MILITARY-GRADE SECURITY & RATE LIMITING STATE
     const SecurityVault = {
       lastRequestTime: 0,
-      rateLimitInterval: 500, // Minimal jeda 500ms antar aksi sensitif untuk cegah bot/spam DDoS
+      rateLimitInterval: 500,
       isRateLimited: function() {
         const now = Date.now();
         if (now - this.lastRequestTime < this.rateLimitInterval) {
@@ -729,8 +729,8 @@
         guideReleaseStep2: "2. Unggah detail & bayar biaya server 1 Pi.",
         guideReleaseStep3: "3. Rilis ke galeri dan verifikasi via email admin.",
         guideBidTitle: "🔨 Panduan Penawaran & Chat:",
-        guideBidStep1: "1. Bayar 1 Pi pada penawaran pertama tiap aset.",
-        guideBidStep2: "2. Penawaran berikutnya pada aset yang sama GRATIS.",
+        guideBidStep1: "1. Bayar 0.2 Pi pada penawaran pertama tiap aset.",
+        guideBidStep2: "2. Penawaran berikutnya pada aset yang sama GRATIS (Kecuali terdeteksi spam).",
         guideBidStep3: "3. Komunikasi detail P2P di Room Chat.",
         loadingGallery: "Memuat Galeri Lelang...",
         emptyGallery: "Belum ada aset atau barang yang ditawarkan.",
@@ -833,8 +833,8 @@
         guideReleaseStep2: "2. Upload credentials & execute 1 Pi server fee payment.",
         guideReleaseStep3: "3. Publish to gallery and finalize admin email verification.",
         guideBidTitle: "🔨 Bidding & Communication Protocol:",
-        guideBidStep1: "1. Remit 1 Pi nominal fee for initial bid per asset.",
-        guideBidStep2: "2. Subsequent bidding iterations on same asset are WAIVED.",
+        guideBidStep1: "1. Remit 0.2 Pi nominal fee for initial bid per asset.",
+        guideBidStep2: "2. Subsequent bidding iterations on same asset are WAIVED (Unless flagged as spam).",
         guideBidStep3: "3. Direct P2P negotiation available in Chat Room.",
         loadingGallery: "Initializing Auction Gallery...",
         emptyGallery: "No active listings currently registered.",
@@ -1026,9 +1026,24 @@
       return current + 1;
     }
 
-    function calculateProgressiveFee(bidNumber) {
-      if (bidNumber < 5) return 0;
-      return bidNumber - 3;
+    // Perhitungan Biaya Berdasarkan Aturan Baru:
+    // Penawaran 1: 0.2 Pi
+    // Penawaran 2-4: 0 Pi (Kecuali mencurigakan)
+    // Penawaran 4 & 5: Diberi peringatan (handled di fungsi utama)
+    // Penawaran 6: 0.4 Pi
+    // Penawaran 7: 0.8 Pi
+    // Penawaran 8: 1.6 Pi, dst (kelipatan 2 kali dari sebelumnya mulai bid ke-6)
+    function calculateSuspiciousFee(bidNumber) {
+      if (bidNumber === 1) return 0.2;
+      if (bidNumber >= 6) {
+        // Bid 6 = 0.4, Bid 7 = 0.8, Bid 8 = 1.6, dst.
+        let fee = 0.4;
+        for (let i = 6; i < bidNumber; i++) {
+          fee *= 2;
+        }
+        return fee;
+      }
+      return 0;
     }
 
     async function authenticatePiUser(isAuto = false) {
@@ -1139,8 +1154,8 @@
       }
 
       const username = authenticatedPiUser.username;
-      const depositAmount = 100.00;
-      const memoText = `Pembayaran jaminan lelang dari ${username}`;
+      const depositAmount = 35.00; // Diperbarui menjadi 35 Pi
+      const memoText = `Top up jaminan lelang 35 pi dari ${username}`;
 
       const paymentData = {
         amount: depositAmount,
@@ -1159,7 +1174,7 @@
               await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
               await updateUserDepositBalance(username, depositAmount, 'deposit', memoText);
             },
-            onCancel: () => { alert("Pembayaran deposit dibatalkan."); },
+            onCancel: () => { alert("Top up jaminan dibatalkan."); },
             onError: () => { 
               updateUserDepositBalance(username, depositAmount, 'deposit', memoText);
             }
@@ -1168,7 +1183,7 @@
           await updateUserDepositBalance(username, depositAmount, 'deposit', memoText);
         }
       } catch (err) {
-        alert("Gagal memproses deposit: " + err.message);
+        alert("Gagal memproses Top Up jaminan: " + err.message);
       }
     }
 
@@ -1181,7 +1196,7 @@
         let newBalance = type === 'deposit' ? currentBalance + amount : currentBalance - amount;
         if (newBalance < 0) newBalance = 0;
 
-        let newStatus = newBalance < 50 ? 'pending' : (buyer ? buyer.status : 'pending');
+        let newStatus = newBalance < 35 ? 'pending' : (buyer ? buyer.status : 'pending');
 
         if (!buyer) {
           await supabaseClient.from('buyers').insert([{ username: username, deposit_balance: newBalance, status: newStatus, win_count: 0 }]);
@@ -1211,7 +1226,7 @@
       try {
         const { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
         if (!buyer || parseFloat(buyer.deposit_balance || 0) <= 0) {
-          alert("Your deposit balance is zero.");
+          alert("Saldo jaminan Anda kosong.");
           return;
         }
 
@@ -1236,22 +1251,22 @@
         }
 
         const confirmMsg = hasMultiBids 
-          ? `⚠️ ANTI-SPAM PENALTY APPLIED\n\nDue to multiple bidding activities (3+ bids), a 25% cancellation penalty (${penaltyFee.toFixed(2)} Pi) will be deducted.\n\nNet Amount to Withdraw: ${refundAmount.toFixed(2)} Pi.\nYour status will revert to 'Pending'. Proceed?`
-          : `Withdrawal Request:\nAmount: ${currentBal} Pi.\nYour status will revert to 'Pending'. Proceed?`;
+          ? `⚠️ PENALTI ANTI-SPAM\n\nTerdapat aktivitas penawaran berulang, denda pembatalan 25% (${penaltyFee.toFixed(2)} Pi) akan dipotong.\n\nJumlah Pengembalian: ${refundAmount.toFixed(2)} Pi.\nStatus Anda akan kembali menjadi 'Pending'. Lanjutkan?`
+          : `Permintaan Penarikan Jaminan:\nJumlah: ${currentBal} Pi.\nStatus Anda akan kembali menjadi 'Pending'. Lanjutkan?`;
 
         const confirmWithdraw = confirm(confirmMsg);
         if (!confirmWithdraw) return;
 
         await supabaseClient.from('buyers').update({ deposit_balance: 0.00, status: 'pending' }).eq('username', username);
         await supabaseClient.from('auction_deposits_log').insert([
-          { username: username, amount: refundAmount, type: 'withdraw', memo: `Withdrawal by ${username} (Penalty: ${penaltyFee} Pi)` }
+          { username: username, amount: refundAmount, type: 'withdraw', memo: `Penarikan oleh ${username} (Penalti: ${penaltyFee} Pi)` }
         ]);
 
-        alert(`📤 Claim submitted! Net refunded amount: ${refundAmount.toFixed(2)} Pi. (Penalty: ${penaltyFee.toFixed(2)} Pi). Status set to Pending.`);
+        alert(`📤 Klaim berhasil! Jumlah dikembalikan: ${refundAmount.toFixed(2)} Pi. Status diatur ke Pending.`);
         checkBuyerStatusInDatabase(username);
         if (typeof renderBuyersTable === 'function') renderBuyersTable();
       } catch (e) {
-        alert("Failed to process withdrawal claim: " + e.message);
+        alert("Gagal memproses klaim penarikan: " + e.message);
       }
     }
 
@@ -1282,19 +1297,6 @@
         html += `<option value="${hStr}">${hStr} WIB</option>`;
       }
       hourSelect.innerHTML = html;
-    }
-
-    async function checkUserDeposit(auctionId, username) {
-      if (!supabaseClient) return false;
-      const { data } = await supabaseClient
-        .from('auction_deposits')
-        .select('*')
-        .eq('auction_id', auctionId)
-        .eq('username', username)
-        .eq('status', 'locked')
-        .maybeSingle();
-        
-      return !!data;
     }
 
     function openScheduleModal() {
@@ -2035,7 +2037,7 @@
         if (isAdminOrDev) {
           adminActionControls = `
             <div class="flex gap-1 pt-1 border-t border-gray-800/80 mt-1 justify-end">
-              <button onclick="adminToggleAuctionStatus('${auction.id}', '${auction.status === 'active' ? 'pending' : 'active'}')" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold">
+              <button onclick="adminToggleAuctionStatus('${auction.id}', '${auction.status === 'active' ? 'pending' : 'active'})" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold">
                 ${auction.status === 'active' ? t('btnSetPending') : t('btnSetActive')}
               </button>
               <button onclick="adminToggleEventBadge('${auction.id}', ${!!auction.is_event})" class="text-[9px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 px-2 py-0.5 rounded font-bold">
@@ -2476,12 +2478,12 @@ ${certText}
       const isAdminOrDev = ADMIN_USERNAMES.includes(username);
 
       if (!isAdminOrDev && !isBuyerApproved) {
-        alert("⛔ Access Denied: Your account status is Pending. Deposit guarantee required.");
+        alert("⛔ Akses Ditolak: Status akun Anda masih Pending. Harap lakukan Top Up Jaminan minimal 35 Pi.");
         return;
       }
 
       if (!isAuctionCurrentlyOpen) {
-        alert("🔴 Auction is currently closed.");
+        alert("🔴 Lelang sedang ditutup.");
         return;
       }
 
@@ -2489,13 +2491,13 @@ ${certText}
       if (!auction) return;
 
       if (auction.seller === username) {
-        alert("🚫 Anti-Spam Protection: You cannot bid on your own listed asset!");
+        alert("🚫 Anti-Spam Protection: Anda tidak dapat menawar aset milik Anda sendiri!");
         return;
       }
 
       const currentHighest = parseFloat(auction.highest_bid || auction.reserve_price || 0);
       if (amount <= currentHighest) {
-        alert(`Bid offer must be higher than ${currentHighest} Pi!`);
+        alert(`Nilai tawaran harus lebih tinggi dari ${currentHighest} Pi!`);
         return;
       }
 
@@ -2510,33 +2512,27 @@ ${certText}
       const currentBidCount = getUserBidCount(auctionId, username);
       const nextBidNumber = currentBidCount + 1;
 
-      if (nextBidNumber >= 3) {
-        const warningMsg = 
-          `⚠️ ANTI-SPAM & BIDDING WARNING (Bid #${nextBidNumber})\n\n` +
-          `Notice for user @${username}:\n` +
-          `• You are placing multiple bids on this asset.\n` +
-          `• 100% Guarantee Deposit WILL BE LOCKED if you win this auction.\n` +
-          `• Defaulters/Fake bidders who fail to execute P2P payment will FORFEIT 100% of their locked deposit.\n` +
-          `• If you stop bidding now, a 25% cancellation penalty applies upon deposit withdrawal.\n\n` +
-          `Are you sure you want to proceed with this serious purchase offer?`;
-
-        const userConfirmed = confirm(warningMsg);
-        if (!userConfirmed) {
-          alert("Bid submission cancelled. You have exited the bidding for this asset.");
-          return;
-        }
+      // Logika Peringatan pada Penawaran ke-4 dan ke-5
+      if (nextBidNumber === 4 || nextBidNumber === 5) {
+        alert(`⚠️ PERINGATAN PENDETEKSIAN AKTIVITAS (${nextBidNumber}x Penawaran)\n\nAkun Anda terpantau sering melakukan penawaran berulang pada aset ini. Harap pastikan Anda memiliki keseriusan penuh untuk membeli.`);
       }
 
-      const progressiveFee = calculateProgressiveFee(nextBidNumber);
+      // Hitung biaya berdasarkan aturan baru
+      // Bid #1 = 0.2 Pi
+      // Bid #2-#5 = 0 Pi (kecuali ada ketentuan lain)
+      // Bid #6 = 0.4 Pi, Bid #7 = 0.8 Pi, Bid #8 = 1.6 Pi, dst.
+      let requiredBidFee = 0;
+      if (nextBidNumber === 1) {
+        requiredBidFee = 0.2;
+      } else if (nextBidNumber >= 6) {
+        requiredBidFee = calculateSuspiciousFee(nextBidNumber);
+      }
+
       const buyerAgreedTime = new Date().toISOString();
       const buyerSig = `SIG-BUYER-${username}-${Date.now()}`;
 
       const executeBidProcess = async () => {
         try {
-          if (progressiveFee > 0) {
-            await updateUserDepositBalance(username, progressiveFee, 'withdraw', `Progressive bid fee #${nextBidNumber} on auction ${auctionId}`);
-          }
-
           if (supabaseClient) {
             const updatePayload = {
               highest_bid: amount,
@@ -2557,19 +2553,20 @@ ${certText}
           localStorage.setItem('nusantara_user_bidded_assets', JSON.stringify(userBiddedAssets));
           incrementUserBidCount(auctionId, username);
 
-          alert(progressiveFee > 0 ? `🎉 Bid #${nextBidNumber} placed successfully! (Progressive Fee: ${progressiveFee} Pi deducted)` : t('bidSuccessMsg'));
+          alert(requiredBidFee > 0 ? `🎉 Penawaran #${nextBidNumber} berhasil dikirim! (Biaya ${requiredBidFee} Pi telah dibayar via Pi SDK)` : t('bidSuccessMsg'));
           closeDetailModal();
           fetchActiveAuctions();
         } catch (err) {
-          alert("Failed to submit bid: " + err.message);
+          alert("Gagal mengirim penawaran: " + err.message);
         }
       };
 
-      if (nextBidNumber === 1) {
+      // Eksekusi pembayaran langsung pakai Pi SDK jika ada biaya yang harus dibayar
+      if (requiredBidFee > 0) {
         const paymentData = {
-          amount: 1,
-          memo: `First Bid Fee - @${username}`,
-          metadata: { type: 'bid_fee', auctionId, username }
+          amount: requiredBidFee,
+          memo: `Bid Fee #${nextBidNumber} - @${username}`,
+          metadata: { type: 'bid_fee', auctionId, username, bidNumber: nextBidNumber }
         };
 
         try {
@@ -2578,11 +2575,15 @@ ${certText}
             piInstance.createPayment(paymentData, {
               onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
               onReadyForServerCompletion: async (pid, txid) => { await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); executeBidProcess(); },
-              onCancel: () => {},
+              onCancel: () => { alert("Pembayaran biaya penawaran dibatalkan."); },
               onError: () => { executeBidProcess(); }
             });
-          } else { executeBidProcess(); }
-        } catch (e) { executeBidProcess(); }
+          } else { 
+            executeBidProcess(); 
+          }
+        } catch (e) { 
+          executeBidProcess(); 
+        }
       } else {
         executeBidProcess();
       }
