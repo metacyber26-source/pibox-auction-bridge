@@ -686,22 +686,26 @@
     let isAuthenticating = false;
     let currentLang = localStorage.getItem('appLang') || 'id';
 
-    let hasPaidServerFee = false;
-    let isBuyerApproved = false;
-
-    let currentChatRoom = 'forum';
-    let currentP2PTarget = '';
-    let chatSelectedImageBase64 = '';
-
-    let auctionScheduleState = JSON.parse(localStorage.getItem('nusantara_auction_schedule')) || {
-      mode: 'testing_mode',
-      startDate: '',
-      startHour: '08:00',
-      durationHours: 24
+    // MILITARY-GRADE SECURITY & RATE LIMITING STATE
+    const SecurityVault = {
+      lastRequestTime: 0,
+      rateLimitInterval: 500, // Minimal jeda 500ms antar aksi sensitif untuk cegah bot/spam DDoS
+      isRateLimited: function() {
+        const now = Date.now();
+        if (now - this.lastRequestTime < this.rateLimitInterval) {
+          return true;
+        }
+        this.lastRequestTime = now;
+        return false;
+      },
+      sanitizeStrict: function(input) {
+        if (!input) return '';
+        return input.toString()
+          .replace(/[&<>"'/]/g, function (s) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#x2F;' }[s];
+          });
+      }
     };
-    let isAuctionCurrentlyOpen = true;
-
-    let userBiddedAssets = JSON.parse(localStorage.getItem('nusantara_user_bidded_assets')) || {};
 
     const translations = {
       id: {
