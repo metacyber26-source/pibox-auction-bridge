@@ -3075,18 +3075,32 @@ ${certText}
       document.getElementById('createModal').classList.add('hidden');
     }
 
+    let realtimeDebounceTimer = null;
+
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       try {
-        supabaseClient
-          .channel('public:auctions')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
+        // Mencegah lonjakan query database bersamaan saat puluhan ribu user login (Debounced Fetch)
+        const debouncedFetch = () => {
+          clearTimeout(realtimeDebounceTimer);
+          realtimeDebounceTimer = setTimeout(() => {
             fetchActiveAuctions();
-          })
-          .subscribe();
+          }, 1000); // Jeda 1 detik agar server Supabase tidak overload
+        };
 
         supabaseClient
-          .channel('public:chats')
+          .channel('public-cluster-auctions')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
+            debouncedFetch();
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log("🔒 Terkoneksi aman dengan Edge Realtime Cluster.");
+            }
+          });
+
+        supabaseClient
+          .channel('public-cluster-chats')
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, () => {
             const chatModal = document.getElementById('chatModal');
             if (chatModal && !chatModal.classList.contains('hidden')) {
@@ -3094,8 +3108,11 @@ ${certText}
             }
           })
           .subscribe();
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Realtime warning:", e);
+      }
     }
+
 
     function updateTimers() {}
 
