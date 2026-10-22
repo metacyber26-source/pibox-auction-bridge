@@ -1358,11 +1358,23 @@
         modeSelect.value = auctionScheduleState.mode;
         toggleScheduleInputVisibility();
       }
+      
+      // Memecah kembali tanggal tersimpan ke kolom Tahun, Bulan, Tanggal
       if (auctionScheduleState.startDate) {
-        document.getElementById('scheduleStartDateInput').value = auctionScheduleState.startDate;
+        const parts = auctionScheduleState.startDate.split('-');
+        if (parts.length === 3) {
+          const yearEl = document.getElementById('schedYear');
+          const monthEl = document.getElementById('schedMonth');
+          const dayEl = document.getElementById('schedDay');
+          if (yearEl) yearEl.value = parts[0];
+          if (monthEl) monthEl.value = parts[1];
+          if (dayEl) dayEl.value = parts[2];
+        }
       }
+
       if (auctionScheduleState.startHour) {
-        document.getElementById('scheduleStartHourSelect').value = auctionScheduleState.startHour;
+        const hourEl = document.getElementById('scheduleStartHourSelect');
+        if (hourEl) hourEl.value = auctionScheduleState.startHour;
       }
       document.getElementById('scheduleModal').classList.remove('hidden');
     }
@@ -1380,7 +1392,13 @@
 
     function saveAuctionScheduleSettings() {
       const mode = document.getElementById('scheduleModeSelect').value;
-      const startDate = document.getElementById('scheduleStartDateInput').value;
+      
+      // Menggabungkan input Tahun, Bulan, dan Tanggal menjadi format 'YYYY-MM-DD'
+      const y = document.getElementById('schedYear')?.value || '2026';
+      const m = document.getElementById('schedMonth')?.value || '01';
+      const d = (document.getElementById('schedDay')?.value || '1').padStart(2, '0');
+      const startDate = `${y}-${m}-${d}`;
+
       const startHour = document.getElementById('scheduleStartHourSelect').value;
       const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
 
