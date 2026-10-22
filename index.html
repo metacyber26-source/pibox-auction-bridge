@@ -224,7 +224,6 @@
     </div>
 
     <!-- Tombol Khusus Laporan Bulanan On-Chain (Admin / Dev) -->
-    <!-- 👉 TARUH DI SINI: Tombol Khusus Laporan Bulanan On-Chain (Admin / Dev) -->
     <div id="adminMonthlyReportPanel" class="hidden p-2 bg-gray-950 border-b border-gray-800 flex justify-between items-center px-3">
       <span class="text-[10px] text-purple-400 font-bold">📊 Rekap On-Chain Bulanan</span>
       <button onclick="openMonthlyReportModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] px-3 py-1 rounded-lg transition shadow cursor-pointer">
@@ -277,7 +276,7 @@
           </select>
         </div>
 
-        <!-- Input Tanggal Buka Lelang (Diperbaiki menjadi format Tanggal/Bulan/Tahun terstruktur) -->
+        <!-- Input Tanggal Buka Lelang -->
         <div id="scheduledInputsContainer" class="space-y-3 bg-gray-900/80 p-3 rounded-xl border border-gray-800 hidden">
           <div>
             <label class="block text-[10px] text-gray-400 font-semibold mb-1">1. Tanggal Buka Lelang:</label>
@@ -301,7 +300,6 @@
               </div>
             </div>
           </div>
-
 
           <div>
             <label class="block text-[10px] text-gray-400 font-semibold mb-1">2. Jam Buka Lelang:</label>
@@ -440,7 +438,6 @@
             <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl transition shadow cursor-pointer" data-i18n="deleteBatchBtn">🗑 Hapus Terpilih</button>
           </div>
         </div>
-        <!-- Tombol Tambahan: Bayar Jaminan & Klaim Penarikan -->
         <div class="flex gap-2">
           <button onclick="payAuctionDeposit()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition shadow cursor-pointer">
             💳 Top Up Jaminan 35 Pi
@@ -544,7 +541,7 @@
           >
         </div>
 
-        <!-- 5. Deskripsi & Spesifikasi Singkat (Maks 500 Karakter) -->
+        <!-- 5. Deskripsi & Spesifikasi Singkat -->
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="block font-semibold text-gray-300" data-i18n="labelDescription">Deskripsi & Spesifikasi Singkat</label>
@@ -567,7 +564,7 @@
           <input type="text" id="assetHashInput" placeholder="Hash/Kode Unik: GCVJ2EXX... (diisi '-' jika tidak ada)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
         </div>
 
-        <!-- 6b. PERBAIKAN 1: On-chain Time Terstruktur dengan Drop-down Jam yang Berfungsi Sempurna -->
+        <!-- On-chain Time Terstruktur -->
         <div class="bg-gray-900/80 p-3 rounded-xl border border-gray-800 space-y-2">
           <label class="block font-semibold text-yellow-400 text-[11px]">On-chain Time (Sesuai SS Detail Aset):</label>
           
@@ -607,7 +604,7 @@
           </div>
         </div>
 
-        <!-- 7. Pemisah Input: Akun Pembuat, Username Penjual Asli & PiBox Wallet Penjual Asli -->
+        <!-- Pemisah Input: Akun Pembuat, Username Penjual Asli & PiBox Wallet -->
         <div class="space-y-2 bg-gray-900/80 p-3 rounded-xl border border-gray-800">
           <div>
             <label class="block font-semibold text-gray-300 mb-1 text-[11px]">Akun Pembuat Listing (Admin/Dev):</label>
@@ -702,7 +699,9 @@
     let currentP2PTarget = '';
     let chatSelectedImageBase64 = '';
     let userBiddedAssets = JSON.parse(localStorage.getItem('nusantara_user_bidded_assets') || '{}');
-    let auctionScheduleState = JSON.parse(localStorage.getItem('nusantara_auction_schedule') || '{"mode":"testing_mode"}');
+    
+    // 👉 VARIABEL & SINKRONISASI REAL-TIME JADWAL LELANG
+    let auctionScheduleState = { mode: "testing_mode" };
     let isAuctionCurrentlyOpen = true;
     let currentLang = localStorage.getItem('appLang') || 'id';
 
@@ -760,17 +759,6 @@
         catAutomotive: "🚗 Otomotif & Kendaraan",
         catProperty: "🏠 Properti & Real Estate (Rumah, Tanah)",
         catServices: "🛠️ Jasa, Layanan & Sewa",
-        guideTitle: "📖 Panduan Singkat Penggunaan & Rilis Lelang",
-        guideHide: "▼ Sembunyikan",
-        guideShow: "▶ Tampilkan Panduan",
-        guideReleaseTitle: "🚀 Panduan Rilis Lelang:",
-        guideReleaseStep1: "1. Pilih kategori (Digital, Barang, Properti, Jasa).",
-        guideReleaseStep2: "2. Unggah detail & bayar biaya server 0.2 Pi.",
-        guideReleaseStep3: "3. Rilis ke galeri dan verifikasi via email admin.",
-        guideBidTitle: "🔨 Panduan Penawaran & Chat:",
-        guideBidStep1: "1. Bayar 0.2 Pi pada penawaran pertama tiap aset.",
-        guideBidStep2: "2. Penawaran berikutnya pada aset yang sama GRATIS (Kecuali terdeteksi spam).",
-        guideBidStep3: "3. Komunikasi detail P2P di Room Chat.",
         loadingGallery: "Memuat Galeri Lelang...",
         emptyGallery: "Belum ada aset atau barang yang ditawarkan.",
         firstReleaseBtn: "+ Rilis Aset Pertama",
@@ -864,17 +852,6 @@
         catAutomotive: "🚗 Vehicles & Automotive",
         catProperty: "🏠 Real Estate & Property",
         catServices: "🛠️ Professional Services & Rentals",
-        guideTitle: "📖 Quick Operating & Listing Protocol Guide",
-        guideHide: "▼ Collapse Guide",
-        guideShow: "▶ Expand Guide",
-        guideReleaseTitle: "🚀 Asset Listing Protocol:",
-        guideReleaseStep1: "1. Select asset category (Digital, Physical, Property, Service).",
-        guideReleaseStep2: "2. Upload credentials & execute 0.2 Pi server fee payment.",
-        guideReleaseStep3: "3. Publish to gallery and finalize admin email verification.",
-        guideBidTitle: "🔨 Bidding & Communication Protocol:",
-        guideBidStep1: "1. Remit 0.2 Pi nominal fee for initial bid per asset.",
-        guideBidStep2: "2. Subsequent bidding iterations on same asset are WAIVED (Unless flagged as spam).",
-        guideBidStep3: "3. Direct P2P negotiation available in Chat Room.",
         loadingGallery: "Initializing Auction Gallery...",
         emptyGallery: "No active listings currently registered.",
         firstReleaseBtn: "+ Create First Listing",
@@ -1019,10 +996,11 @@
       document.getElementById('langSelector').value = currentLang;
       applyTranslations();
       populateHourDropdownOptions();
-      populateOnChainHourOptions(); // PERBAIKAN 1: Inisialisasi Jam On-Chain
+      populateOnChainHourOptions();
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
+      fetchAndListenAuctionSchedule(); // 👉 SINKRONISASI JADWAL REAL-TIME
       setInterval(updateTimers, 1000);
       setInterval(checkAuctionSchedule, 1000);
       
@@ -1036,7 +1014,35 @@
       }, 500);
     });
 
-    // PERBAIKAN 1: Fungsi populator untuk jam on-chain
+    // 👉 FUNGSI FETCH & REALTIME LISTENER JADWAL LELANG
+    async function fetchAndListenAuctionSchedule() {
+      if (!supabaseClient) return;
+      try {
+        const { data } = await supabaseClient
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'auction_schedule')
+          .maybeSingle();
+          
+        if (data && data.value) {
+          auctionScheduleState = data.value;
+          checkAuctionSchedule();
+        }
+      } catch (e) {
+        console.error("Gagal memuat jadwal:", e);
+      }
+
+      supabaseClient
+        .channel('public-cluster-settings')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', filter: 'key=eq.auction_schedule' }, (payload) => {
+          if (payload.new && payload.new.value) {
+            auctionScheduleState = payload.new.value;
+            checkAuctionSchedule();
+          }
+        })
+        .subscribe();
+    }
+
     function populateOnChainHourOptions() {
       const ocHourSelect = document.getElementById('ocHour');
       if (!ocHourSelect) return;
@@ -1052,18 +1058,6 @@
       const badge = document.getElementById('networkModeBadge');
       if (!badge) return;
       badge.innerText = IS_TESTNET ? "TESTNET" : "MAINNET";
-    }
-
-    function toggleGuidePanel() {
-      const body = document.getElementById('guideContentBody');
-      const icon = document.getElementById('guideToggleIcon');
-      if (body.classList.contains('hidden')) {
-        body.classList.remove('hidden');
-        icon.innerText = translations[currentLang]?.guideHide || "▼ Sembunyikan";
-      } else {
-        body.classList.add('hidden');
-        icon.innerText = "▶ Tampilkan Panduan";
-      }
     }
 
     function getUserBidCount(auctionId, username) {
@@ -1359,7 +1353,6 @@
         toggleScheduleInputVisibility();
       }
       
-      // Memecah kembali tanggal tersimpan ke kolom Tahun, Bulan, Tanggal
       if (auctionScheduleState.startDate) {
         const parts = auctionScheduleState.startDate.split('-');
         if (parts.length === 3) {
@@ -1390,23 +1383,40 @@
       else container.classList.add('hidden');
     }
 
-    function saveAuctionScheduleSettings() {
+    // 👉 FUNGSI PENYIMPANAN JADWAL KE SUPABASE SECARA REAL-TIME
+    async function saveAuctionScheduleSettings() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("Akses Ditolak: Hanya Admin dan Developer!");
+        return;
+      }
+
       const mode = document.getElementById('scheduleModeSelect').value;
-      
-      // Menggabungkan input Tahun, Bulan, dan Tanggal menjadi format 'YYYY-MM-DD'
       const y = document.getElementById('schedYear')?.value || '2026';
       const m = document.getElementById('schedMonth')?.value || '01';
       const d = (document.getElementById('schedDay')?.value || '1').padStart(2, '0');
       const startDate = `${y}-${m}-${d}`;
-
       const startHour = document.getElementById('scheduleStartHourSelect').value;
       const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
 
-      auctionScheduleState = { mode, startDate, startHour, durationHours };
-      localStorage.setItem('nusantara_auction_schedule', JSON.stringify(auctionScheduleState));
-      alert("✅ Pengaturan Jadwal Lelang Disimpan & Diberlakukan!");
-      closeScheduleModal();
-      checkAuctionSchedule();
+      const newSchedule = { mode, startDate, startHour, durationHours };
+
+      if (!supabaseClient) {
+        alert("Supabase belum terhubung.");
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient
+          .from('app_settings')
+          .upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }]);
+
+        if (error) throw error;
+
+        alert("✅ Pengaturan Jadwal Lelang Disimpan & Disinkronkan Secara Real-time!");
+        closeScheduleModal();
+      } catch (err) {
+        alert("Gagal menyimpan jadwal ke database: " + err.message);
+      }
     }
 
     function checkAuctionSchedule() {
@@ -1464,14 +1474,13 @@
       }
     }
 
-    // FUNGSI BARU 4: Fitur Laporan Bulanan On-Chain Time
     function openMonthlyReportModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("⛔ Akses Ditolak: Hanya Admin & Developer!");
         return;
       }
       const now = new Date();
-      const defaultMonth = now.toISOString().slice(0, 7); // Format 'YYYY-MM'
+      const defaultMonth = now.toISOString().slice(0, 7);
       const monthInput = document.getElementById('reportMonthInput');
       if (monthInput) monthInput.value = defaultMonth;
 
@@ -1908,7 +1917,7 @@
       };
 
       const paymentData = {
-        amount: 0.2, // Diubah menjadi 0.2 Pi
+        amount: 0.2,
         memo: `Auction Engine Server Fee - @${authenticatedPiUser.username}`,
         metadata: { type: 'server_fee', username: authenticatedPiUser.username }
       };
@@ -1925,7 +1934,6 @@
         } else { finishPaymentSuccess(); }
       } catch (err) { finishPaymentSuccess(); }
     }
-
 
     function handleExtraSSUpload(input) {
       const previewList = document.getElementById('extraSSPreviewList');
@@ -2242,7 +2250,6 @@
 
         const eventBadgeHTML = auction.is_event ? `<span class="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">EVENT</span>` : '';
 
-        // PERBAIKAN 2: Tombol merubah status aset berfungsi optimal
         let adminActionControls = '';
         if (isAdminOrDev) {
           const nextStatus = auction.status === 'active' ? 'pending' : 'active';
@@ -2296,7 +2303,6 @@
       mainContent.innerHTML = html;
     }
 
-    // PERBAIKAN 2: Fungsi penanganan perubahan status aktif/pending yang diperbaiki
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("⛔ Akses Ditolak: Hanya Admin dan Developer (Dev) yang dapat merubah status ini!");
@@ -2599,15 +2605,15 @@ ${legalText}
         alert("⛔ Akses Ditolak: Fitur Klaim Sertifikat Event hanya dapat diakses oleh Admin & Developer!");
         return;
       }
-// Validasi: Larangan menawar aset sendiri
-if (auction.seller === username || auction.seller === authenticatedPiUser?.username) {
-  alert("🚫 Anti-Spam Protection: Anda tidak dapat menawar aset milik Anda sendiri!");
-  return;
-}
 
       const auction = activeAuctionsList.find(a => a.id === auctionId);
       if (!auction) {
         alert("Aset tidak ditemukan.");
+        return;
+      }
+
+      if (auction.seller === authenticatedPiUser?.username) {
+        alert("🚫 Anti-Spam Protection: Anda tidak dapat menawar aset milik Anda sendiri!");
         return;
       }
 
@@ -2720,10 +2726,6 @@ ${certText}
         alert("🚫 Anti-Spam Protection: Anda tidak dapat menawar aset milik Anda sendiri!");
         return;
       }
-if (auction.seller === username) {
-  alert("🚫 Anti-Spam Protection: Anda tidak dapat menawar aset milik Anda sendiri!");
-  return;
-}
 
       const currentHighest = parseFloat(auction.highest_bid || auction.reserve_price || 0);
       if (amount <= currentHighest) {
