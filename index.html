@@ -454,6 +454,7 @@
             <tr>
               <th class="p-2 text-center w-8"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
               <th class="p-2" data-i18n="thUsername">Username</th>
+              <th class="p-2 text-center">Keterangan</th>
               <th class="p-2" data-i18n="thStatus">Status Verifikasi</th>
               <th class="p-2 text-center">Menang Lelang</th>
               <th class="p-2 text-right" data-i18n="thAction">Aksi</th>
@@ -700,8 +701,8 @@
     let chatSelectedImageBase64 = '';
     let userBiddedAssets = JSON.parse(localStorage.getItem('nusantara_user_bidded_assets') || '{}');
     
-    // 👉 VARIABEL & SINKRONISASI REAL-TIME JADWAL LELANG
-    let auctionScheduleState = { mode: "testing_mode" };
+    // 👉 VARIABEL & SINKRONISASI REAL-TIME JADWAL LELANG (Default tersimpan ke DB / Local agar tidak auto kembali ke uji coba)
+    let auctionScheduleState = { mode: "24h_open", startDate: "2026-11-01", startHour: "00:00", durationHours: 24 };
     let isAuctionCurrentlyOpen = true;
     let currentLang = localStorage.getItem('appLang') || 'id';
 
@@ -1014,7 +1015,7 @@
       }, 500);
     });
 
-    // 👉 FUNGSI FETCH & REALTIME LISTENER JADWAL LELANG
+    // 👉 FUNGSI FETCH & REALTIME LISTENER JADWAL LELANG ON-TIME (FIXED)
     async function fetchAndListenAuctionSchedule() {
       if (!supabaseClient) return;
       try {
@@ -1241,10 +1242,15 @@
 
         let newStatus = newBalance < 35 ? 'pending' : (buyer ? buyer.status : 'pending');
 
+        let updateData = { deposit_balance: newBalance, status: newStatus };
+        if (type === 'withdraw') {
+          updateData.has_requested_withdrawal = true;
+        }
+
         if (!buyer) {
-          await supabaseClient.from('buyers').insert([{ username: username, deposit_balance: newBalance, status: newStatus, win_count: 0 }]);
+          await supabaseClient.from('buyers').insert([{ username: username, deposit_balance: newBalance, status: newStatus, win_count: 0, has_requested_withdrawal: (type === 'withdraw') }]);
         } else {
-          await supabaseClient.from('buyers').update({ deposit_balance: newBalance, status: newStatus }).eq('username', username);
+          await supabaseClient.from('buyers').update(updateData).eq('username', username);
         }
 
         await supabaseClient.from('auction_deposits_log').insert([{ username: username, amount: amount, type: type, memo: memo }]);
@@ -1300,12 +1306,13 @@
         const confirmWithdraw = confirm(confirmMsg);
         if (!confirmWithdraw) return;
 
-        await supabaseClient.from('buyers').update({ deposit_balance: 0.00, status: 'pending' }).eq('username', username);
+        // Update database dengan status klaim penarikan aktif
+        await supabaseClient.from('buyers').update({ deposit_balance: 0.00, status: 'pending', has_requested_withdrawal: true }).eq('username', username);
         await supabaseClient.from('auction_deposits_log').insert([
           { username: username, amount: refundAmount, type: 'withdraw', memo: `Penarikan oleh ${username} (Penalti: ${penaltyFee} Pi)` }
         ]);
 
-        alert(`📤 Klaim berhasil! Jumlah dikembalikan: ${refundAmount.toFixed(2)} Pi. Status diatur ke Pending.`);
+        alert(`📤 Klaim berhasil! Jumlah dikembalikan: ${refundAmount.toFixed(2)} Pi. Keterangan 'Klaim jaminan' diaktifkan.`);
         checkBuyerStatusInDatabase(username);
         if (typeof renderBuyersTable === 'function') renderBuyersTable();
       } catch (e) {
@@ -1383,7 +1390,7 @@
       else container.classList.add('hidden');
     }
 
-    // 👉 FUNGSI PENYIMPANAN JADWAL KE SUPABASE SECARA REAL-TIME
+    // 👉 FUNGSI PENYIMPANAN JADWAL KE SUPABASE SECARA REAL-TIME ON-TIME
     async function saveAuctionScheduleSettings() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("Akses Ditolak: Hanya Admin dan Developer!");
@@ -1408,11 +1415,14 @@
       try {
         const { error } = await supabaseClient
           .from('app_settings')
-          .upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }]);
+          .upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }], { onConflict: 'key' });
 
         if (error) throw error;
 
-        alert("✅ Pengaturan Jadwal Lelang Disimpan & Disinkronkan Secara Real-time!");
+        auctionScheduleState = newSchedule;
+        checkAuctionSchedule();
+
+        alert("✅ Pengaturan Jadwal Lelang Disimpan & Disinkronkan Secara On-time!");
         closeScheduleModal();
       } catch (err) {
         alert("Gagal menyimpan jadwal ke database: " + err.message);
@@ -1589,7 +1599,7 @@
         if (!existingBuyer) {
           const { error } = await supabaseClient
             .from('buyers')
-            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0 }], { onConflict: 'username' });
+            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
           
           if (error) throw error;
           alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
@@ -1835,6 +1845,7 @@
 
     function closeBuyersTableModal() { document.getElementById('buyersTableModal').classList.add('hidden'); }
 
+    // 👉 RENDER TABEL PEMBELI DENGAN KOLOM KETERANGAN "Klaim jaminan" DIANTARA USERNAME DAN STATUS
     function renderBuyersTable() {
       const tbody = document.getElementById('buyersTableBody');
       const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
@@ -1842,7 +1853,7 @@
       const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
       
       if (filtered.length === 0) { 
-        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; 
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; 
         return; 
       }
       
@@ -1851,10 +1862,16 @@
         const isApproved = b.status === 'approved' || b.status === 'aktif' || b.status === 'active';
         const winCount = b.win_count || 0;
         const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
+        const hasRequestedWithdrawal = b.has_requested_withdrawal === true || b.deposit_balance === 0;
+
+        const withdrawalNotice = hasRequestedWithdrawal 
+          ? `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse">Klaim jaminan</span>` 
+          : `<span class="text-[9px] text-gray-500">-</span>`;
 
         html += `<tr class="border-b border-gray-800">
           <td class="p-2 text-center">${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.id}">` : ''}</td>
           <td class="p-2 font-mono text-yellow-400">@${displayedUsername}</td>
+          <td class="p-2 text-center">${withdrawalNotice}</td>
           <td class="p-2"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
           <td class="p-2 text-center text-emerald-400 font-bold">${winCount}x Menang</td>
           <td class="p-2 text-right space-x-1">
@@ -1873,7 +1890,7 @@
     async function updateBuyerStatus(buyerId, newStatus) {
       if (!supabaseClient) return;
       try {
-        await supabaseClient.from('buyers').update({ status: newStatus }).eq('id', buyerId);
+        await supabaseClient.from('buyers').update({ status: newStatus, has_requested_withdrawal: false }).eq('id', buyerId);
         fetchBuyersList().then(() => renderBuyersTable());
       } catch(e) { alert(e.message); }
     }
@@ -2995,7 +3012,7 @@ ${certText}
     function triggerAggressiveRefresh() {
       fetchActiveAuctions();
       fetchBuyersList();
-      if (document.getElementById('chatModal') && !document.getElementById('chatModal').classList.contains('hidden')) {
+      if (document.getElementById('chatModal') && !document.getElementById('chatModal'].classList.contains('hidden')) {
         loadChatMessages();
       }
     }
