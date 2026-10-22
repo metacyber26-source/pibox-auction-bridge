@@ -286,7 +286,7 @@
       <div class="space-y-3 text-xs">
         <div>
           <label class="block text-gray-300 font-semibold mb-1" data-i18n="scheduleModeLabel">Status Mode Sesi Lelang Saat Ini:</label>
-          <select id="scheduleModeSelect" onchange="toggleScheduleInputVisibility()" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-purple-500">
+          <select id="scheduleModeSelect" onchange="toggleScheduleInputVisibility()" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-purple-500 cursor-pointer">
             <option value="testing_mode">🧪 Mode Uji Coba / Sandbox (Bebas Tes Kapan Saja)</option>
             <option value="24h_open">🟢 Selalu Buka 24/7 (Tanpa Batas Jadwal)</option>
             <option value="scheduled">⏳ Menggunakan Jadwal Buka & Sesi 24 Jam</option>
@@ -549,11 +549,10 @@
             </div>
           </div>
 
-
           <div class="grid grid-cols-3 gap-1.5 pt-1">
             <div>
               <span class="block text-[9px] text-gray-400 mb-0.5">Jam (Drop-down)</span>
-              <select id="ocHour" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500">
+              <select id="ocHour" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500 cursor-pointer">
                 <option value="00" selected>00</option>
               </select>
             </div>
@@ -642,7 +641,8 @@
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
     const ADMIN_USERNAMES = ["Ful21", "Muhammadefendi123", "s9t9munah", "SIREP74"];
 
-    const MODE_TESTING_OVERRIDE = true; 
+    // Diubah ke false agar sistem murni membaca pilihan mode dari localStorage / modal jadwal
+    const MODE_TESTING_OVERRIDE = false; 
 
     function generateP2PPaymentMemo(auctionId, sellerUsername, buyerUsername, piboxAssetId) {
       const cleanAuctionId = (auctionId || 'AUC').toString().substring(0, 8);
@@ -667,7 +667,6 @@
     let isAuctionCurrentlyOpen = true;
     let currentLang = localStorage.getItem('appLang') || 'id';
 
-    // MILITARY-GRADE SECURITY & RATE LIMITING STATE
     const SecurityVault = {
       lastRequestTime: 0,
       rateLimitInterval: 500,
@@ -1027,17 +1026,9 @@
       return current + 1;
     }
 
-    // Perhitungan Biaya Berdasarkan Aturan Baru:
-    // Penawaran 1: 0.2 Pi
-    // Penawaran 2-4: 0 Pi (Kecuali mencurigakan)
-    // Penawaran 4 & 5: Diberi peringatan (handled di fungsi utama)
-    // Penawaran 6: 0.4 Pi
-    // Penawaran 7: 0.8 Pi
-    // Penawaran 8: 1.6 Pi, dst (kelipatan 2 kali dari sebelumnya mulai bid ke-6)
     function calculateSuspiciousFee(bidNumber) {
       if (bidNumber === 1) return 0.2;
       if (bidNumber >= 6) {
-        // Bid 6 = 0.4, Bid 7 = 0.8, Bid 8 = 1.6, dst.
         let fee = 0.4;
         for (let i = 6; i < bidNumber; i++) {
           fee *= 2;
@@ -1155,7 +1146,7 @@
       }
 
       const username = authenticatedPiUser.username;
-      const depositAmount = 35.00; // Diperbarui menjadi 35 Pi
+      const depositAmount = 35.00;
       const memoText = `Top up jaminan lelang 35 pi dari ${username}`;
 
       const paymentData = {
@@ -1305,6 +1296,12 @@
         alert("Akses Ditolak: Hanya Admin dan Developer!");
         return;
       }
+      // Sinkronkan UI modal dengan state yang tersimpan saat dibuka
+      const modeSelect = document.getElementById('scheduleModeSelect');
+      if (modeSelect && auctionScheduleState.mode) {
+        modeSelect.value = auctionScheduleState.mode;
+        toggleScheduleInputVisibility();
+      }
       document.getElementById('scheduleModal').classList.remove('hidden');
     }
 
@@ -1327,8 +1324,9 @@
 
       auctionScheduleState = { mode, startDate, startHour, durationHours };
       localStorage.setItem('nusantara_auction_schedule', JSON.stringify(auctionScheduleState));
-      alert("✅ Pengaturan Jadwal Lelang Disimpan!");
+      alert("✅ Pengaturan Jadwal Lelang Disimpan & Diberlakukan!");
       closeScheduleModal();
+      checkAuctionSchedule();
     }
 
     function checkAuctionSchedule() {
@@ -1336,10 +1334,17 @@
       if (!badge) return;
       const mode = auctionScheduleState.mode;
 
-      if (mode === 'testing_mode' || MODE_TESTING_OVERRIDE) {
+      if (mode === 'testing_mode') {
         isAuctionCurrentlyOpen = true;
         badge.innerText = "🧪 UJI COBA (SANDBOX ACTIVE)";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse";
+        return;
+      }
+
+      if (mode === '24h_open') {
+        isAuctionCurrentlyOpen = true;
+        badge.innerText = "BUKA LIVE 24/7";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
         return;
       }
 
@@ -1350,8 +1355,34 @@
         return;
       }
 
-      isAuctionCurrentlyOpen = true;
-      badge.innerText = "BUKA LIVE 24/7";
+      if (mode === 'scheduled') {
+        // Logika Pemeriksaan Mode 3 (Jadwal Terstruktur)
+        if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
+          const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
+          const startTime = new Date(startDateTimeStr).getTime();
+          const durationMs = (auctionScheduleState.durationHours || 24) * 60 * 60 * 1000;
+          const endTime = startTime + durationMs;
+          const now = new Date().getTime();
+
+          if (now < startTime) {
+            isAuctionCurrentlyOpen = false;
+            badge.innerText = `⏳ AKAN DIBUKA: ${auctionScheduleState.startDate} ${auctionScheduleState.startHour}`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
+          } else if (now >= startTime && now <= endTime) {
+            isAuctionCurrentlyOpen = true;
+            badge.innerText = "⏳ SESI TERJADWAL AKTIF";
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
+          } else {
+            isAuctionCurrentlyOpen = false;
+            badge.innerText = "🏁 SESI TERJADWAL SELESAI";
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
+          }
+        } else {
+          isAuctionCurrentlyOpen = true;
+          badge.innerText = "⏳ TERJADWAL (BELUM DISET DETAILNYA)";
+          badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400";
+        }
+      }
     }
 
     async function handleBuyerRegistrationAction() {
@@ -1963,7 +1994,8 @@
 
       const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
       const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
-filteredAuctionsList = activeAuctionsList.filter(item => {
+
+      filteredAuctionsList = activeAuctionsList.filter(item => {
         if (item.status === 'pending' || item.status === 'PENDING') {
           const cleanItemSeller = (item.seller || '').trim().toLowerCase();
           const cleanCurrentUsr = currentUsername.trim().toLowerCase();
@@ -1973,7 +2005,6 @@ filteredAuctionsList = activeAuctionsList.filter(item => {
             return false;
           }
         }
-
 
         const matchesQuery = (item.title || '').toLowerCase().includes(query) || 
                              (item.description || '').toLowerCase().includes(query) || 
@@ -2041,13 +2072,13 @@ filteredAuctionsList = activeAuctionsList.filter(item => {
         if (isAdminOrDev) {
           adminActionControls = `
             <div class="flex gap-1 pt-1 border-t border-gray-800/80 mt-1 justify-end">
-              <button onclick="adminToggleAuctionStatus('${auction.id}', '${auction.status === 'active' ? 'pending' : 'active'})" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold">
+              <button onclick="adminToggleAuctionStatus('${auction.id}', '${auction.status === 'active' ? 'pending' : 'active'})" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold cursor-pointer">
                 ${auction.status === 'active' ? t('btnSetPending') : t('btnSetActive')}
               </button>
-              <button onclick="adminToggleEventBadge('${auction.id}', ${!!auction.is_event})" class="text-[9px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 px-2 py-0.5 rounded font-bold">
+              <button onclick="adminToggleEventBadge('${auction.id}', ${!!auction.is_event})" class="text-[9px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 px-2 py-0.5 rounded font-bold cursor-pointer">
                 ⭐ Event
               </button>
-              <button onclick="adminDeleteAuction('${auction.id}')" class="text-[9px] bg-red-900/60 hover:bg-red-800 text-red-200 px-2 py-0.5 rounded font-bold">
+              <button onclick="adminDeleteAuction('${auction.id}')" class="text-[9px] bg-red-900/60 hover:bg-red-800 text-red-200 px-2 py-0.5 rounded font-bold cursor-pointer">
                 ${t('btnDeleteAsset')}
               </button>
             </div>
@@ -2095,7 +2126,6 @@ filteredAuctionsList = activeAuctionsList.filter(item => {
       }
       if (!supabaseClient) return;
       try {
-        // Normalisasi status ke format database ('active' atau 'pending')
         const normalizedStatus = (targetStatus === 'aktif' || targetStatus === 'active') ? 'active' : 'pending';
         
         const { error } = await supabaseClient
@@ -2105,7 +2135,6 @@ filteredAuctionsList = activeAuctionsList.filter(item => {
           
         if (error) throw error;
         
-        // Update langsung pada array lokal agar UI merespons seketika tanpa jeda fetch
         const targetAuction = activeAuctionsList.find(a => a.id === auctionId);
         if (targetAuction) {
           targetAuction.status = normalizedStatus;
@@ -2117,7 +2146,6 @@ filteredAuctionsList = activeAuctionsList.filter(item => {
         alert("Gagal mengubah status aset: " + err.message);
       }
     }
-
 
     async function adminToggleEventBadge(auctionId, currentEventState) {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
@@ -2275,7 +2303,7 @@ filteredAuctionsList = activeAuctionsList.filter(item => {
             </button>
 
             ${(() => {
-              const isTestingMode = (auctionScheduleState.mode === 'testing_mode' || MODE_TESTING_OVERRIDE);
+              const isTestingMode = (auctionScheduleState.mode === 'testing_mode');
               const isEnded = (selectedAuction.status === 'ended' || selectedAuction.status === 'finished' || selectedAuction.status === 'cancelled' || (selectedAuction.ends_at && new Date() > new Date(selectedAuction.ends_at)));
               const canAccessLegal = isTestingMode || isEnded;
 
@@ -2527,15 +2555,10 @@ ${certText}
       const currentBidCount = getUserBidCount(auctionId, username);
       const nextBidNumber = currentBidCount + 1;
 
-      // Logika Peringatan pada Penawaran ke-4 dan ke-5
       if (nextBidNumber === 4 || nextBidNumber === 5) {
         alert(`⚠️ PERINGATAN PENDETEKSIAN AKTIVITAS (${nextBidNumber}x Penawaran)\n\nAkun Anda terpantau sering melakukan penawaran berulang pada aset ini. Harap pastikan Anda memiliki keseriusan penuh untuk membeli.`);
       }
 
-      // Hitung biaya berdasarkan aturan baru
-      // Bid #1 = 0.2 Pi
-      // Bid #2-#5 = 0 Pi (kecuali ada ketentuan lain)
-      // Bid #6 = 0.4 Pi, Bid #7 = 0.8 Pi, Bid #8 = 1.6 Pi, dst.
       let requiredBidFee = 0;
       if (nextBidNumber === 1) {
         requiredBidFee = 0.2;
@@ -2576,7 +2599,6 @@ ${certText}
         }
       };
 
-      // Eksekusi pembayaran langsung pakai Pi SDK jika ada biaya yang harus dibayar
       if (requiredBidFee > 0) {
         const paymentData = {
           amount: requiredBidFee,
@@ -2812,78 +2834,6 @@ ${certText}
     function closeImageZoomModal() {
       const zoomModal = document.getElementById('imageZoomModal');
       if (zoomModal) zoomModal.classList.add('hidden');
-    }
-
-    async function generateAndDownloadLegalProofPDF(auctionId) {
-      const auction = activeAuctionsList.find(a => a.id === auctionId);
-      if (!auction) {
-        alert("Data lelang tidak ditemukan.");
-        return;
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      doc.setFillColor(11, 15, 23);
-      doc.rect(0, 0, 210, 297, "F");
-
-      doc.setTextColor(255, 215, 0);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
-      doc.text("NFT GLOBAL MARKET & AUCTION ENGINE", 20, 20);
-
-      doc.setTextColor(200, 200, 200);
-      doc.setFontSize(10);
-      doc.text("Official Legal Proof of Asset Release & Transaction Certificate", 20, 28);
-
-      doc.setDrawColor(255, 215, 0);
-      doc.line(20, 35, 190, 35);
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
-      doc.text("ASSET SPECIFICATIONS:", 20, 48);
-
-      doc.setFontSize(10);
-      doc.setTextColor(220, 220, 220);
-      doc.text(`- Asset Title / Name : ${auction.title || '-'}`, 25, 58);
-      doc.text(`- Category                : ${auction.category || '-'}`, 25, 66);
-      doc.text(`- Unique Ref Hash   : ${auction.hash || '-'}`, 25, 74);
-      doc.text(`- Reserve Price        : ${auction.reserve_price || 0} Pi`, 25, 82);
-      doc.text(`- Final / Highest Bid : ${auction.highest_bid || auction.reserve_price || 0} Pi`, 25, 90);
-      doc.text(`- Status                    : ${(auction.status || 'active').toUpperCase()}`, 25, 98);
-
-      doc.setFontSize(12);
-      doc.setTextColor(255, 215, 0);
-      doc.text("PARTIES INVOLVED:", 20, 112);
-
-      doc.setFontSize(10);
-      doc.setTextColor(220, 220, 220);
-      doc.text(`- Real Seller Identity : @${auction.seller || '-'}`, 25, 122);
-      doc.text(`- PiBox Wallet Address : ${auction.pibox_wallet || '-'}`, 25, 130);
-      doc.text(`- Highest Bidder       : @${auction.highest_bidder || '-'}`, 25, 138);
-
-      doc.setFontSize(11);
-      doc.setTextColor(255, 90, 90);
-      doc.text("LEGAL DISCLAIMER & INTERMEDIARY NOTICE:", 20, 156);
-
-      doc.setFontSize(8.5);
-      doc.setTextColor(180, 180, 180);
-      const disclaimerText = 
-        "This platform acts solely as a technological intermediary facilitator for multi-asset auction listings. " +
-        "All legal liabilities, civil or criminal claims regarding asset authenticity, intellectual property rights, ownership validity, " +
-        "originality, or potential counterfeit goods rest entirely upon the private seller. The platform is fully released from any legal disputes.";
-      
-      const splitDisclaimer = doc.splitTextToSize(disclaimerText, 170);
-      doc.text(splitDisclaimer, 20, 164);
-
-      doc.setDrawColor(100, 100, 100);
-      doc.line(20, 220, 100, 220);
-      doc.setFontSize(9);
-      doc.setTextColor(150, 150, 150);
-      doc.text("Authorized Platform Mediator", 20, 226);
-      doc.text(`Generated Date: ${new Date().toUTCString()}`, 20, 234);
-
-      doc.save(`Legal-Proof-${auction.id}.pdf`);
     }
 
     function getBuyerAgreementKey(auctionId, username) {
