@@ -223,30 +223,12 @@
       </select>
     </div>
 
-    <!-- Panduan Singkat Awal -->
-    <div id="welcomeGuidePanel" class="p-3 bg-gradient-to-b from-gray-950 to-gray-900 border-b border-gray-800 space-y-2 text-[11px]">
-      <div class="flex items-center justify-between cursor-pointer" onclick="toggleGuidePanel()">
-        <span class="font-bold text-yellow-400 flex items-center gap-1.5" data-i18n="guideTitle">📖 Panduan Singkat Penggunaan & Rilis Lelang</span>
-        <span id="guideToggleIcon" class="text-gray-400 text-xs" data-i18n="guideHide">▼ Sembunyikan</span>
-      </div>
-      <div id="guideContentBody" class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-gray-300 text-[10px]">
-        <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
-          <p class="font-bold text-yellow-400 mb-1" data-i18n="guideReleaseTitle">🚀 Panduan Rilis Lelang:</p>
-          <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
-            <li data-i18n="guideReleaseStep1">Pilih kategori (Digital, Barang, Properti, Jasa).</li>
-            <li data-i18n="guideReleaseStep2">Unggah detail & bayar biaya server 1 Pi.</li>
-            <li data-i18n="guideReleaseStep3">Rilis ke galeri dan verifikasi via email admin.</li>
-          </ol>
-        </div>
-        <div class="bg-gray-900/90 p-2 rounded-lg border border-gray-800">
-          <p class="font-bold text-emerald-400 mb-1" data-i18n="guideBidTitle">🔨 Panduan Penawaran & Chat:</p>
-          <ol class="list-decimal list-inside space-y-0.5 text-gray-300">
-            <li data-i18n="guideBidStep1">Bayar 0.2 Pi pada penawaran pertama tiap aset.</li>
-            <li data-i18n="guideBidStep2">Penawaran berikutnya pada aset yang sama GRATIS (Kecuali terdeteksi spam).</li>
-            <li data-i18n="guideBidStep3">Komunikasi detail P2P di Room Chat.</li>
-          </ol>
-        </div>
-      </div>
+    <!-- Tombol Khusus Laporan Bulanan On-Chain (Admin / Dev) -->
+    <div id="adminMonthlyReportPanel" class="hidden p-2 bg-gray-950 border-b border-gray-800 flex justify-between items-center px-3">
+      <span class="text-[10px] text-purple-400 font-bold">📊 Rekap On-Chain Bulanan</span>
+      <button onclick="openMonthlyReportModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] px-3 py-1 rounded-lg transition shadow cursor-pointer">
+        📥 Unduh / Share Laporan
+      </button>
     </div>
 
     <!-- Galeri Content -->
@@ -294,20 +276,21 @@
           </select>
         </div>
 
+        <!-- PERBAIKAN 3: Input Tanggal Buka Lelang diaktifkan interaksinya -->
         <div id="scheduledInputsContainer" class="space-y-3 bg-gray-900/80 p-3 rounded-xl border border-gray-800 hidden">
           <div>
             <label class="block text-[10px] text-gray-400 font-semibold mb-1">1. Tanggal Buka Lelang:</label>
-            <input type="date" id="scheduleStartDateInput" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none">
+            <input type="date" id="scheduleStartDateInput" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer relative z-30">
           </div>
 
           <div>
             <label class="block text-[10px] text-gray-400 font-semibold mb-1">2. Jam Buka Lelang:</label>
-            <select id="scheduleStartHourSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none"></select>
+            <select id="scheduleStartHourSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none cursor-pointer relative z-30"></select>
           </div>
 
           <div>
             <label class="block text-[10px] text-gray-400 font-semibold mb-1">3. Durasi Sesi Lelang:</label>
-            <select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none">
+            <select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none cursor-pointer relative z-30">
               <option value="24">Sesi 24 Jam</option>
               <option value="12">Sesi 12 Jam</option>
               <option value="48">Sesi 48 Jam</option>
@@ -319,6 +302,45 @@
       <div class="flex gap-2 pt-2">
         <button onclick="closeScheduleModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer" data-i18n="cancelBtn">Batal</button>
         <button onclick="saveAuctionScheduleSettings()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs py-2.5 rounded-xl transition cursor-pointer shadow-lg" data-i18n="saveScheduleBtn">💾 Simpan Jadwal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: LAPORAN BULANAN ON-CHAIN TIME -->
+  <div id="monthlyReportModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-purple-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-purple-400 text-lg">📊</span>
+          <div>
+            <h2 class="text-xs font-bold text-purple-400 uppercase tracking-wider">Rekapitulasi Laporan Bulanan On-Chain</h2>
+            <p class="text-[9px] text-gray-400">Unduh & Share Laporan Data On-Time</p>
+          </div>
+        </div>
+        <button onclick="closeMonthlyReportModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1">Pilih Bulan Laporan:</label>
+          <input type="month" id="reportMonthInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-purple-500" onchange="generateMonthlyReportData()">
+        </div>
+
+        <div id="reportSummaryBox" class="bg-gray-900 border border-gray-800 rounded-xl p-3 font-mono text-[11px] text-gray-300 space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar">
+          <p class="text-center text-gray-500 py-4">Memuat data rekapitulasi...</p>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2 pt-2">
+        <button onclick="copyMonthlyReportText(this)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer">
+          📋 Salin Laporan ke Clipboard
+        </button>
+        <button onclick="downloadMonthlyReportAsHTML()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer">
+          🌐 Download File Laporan (Chrome HTML)
+        </button>
+        <button onclick="closeMonthlyReportModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs">
+          Tutup
+        </button>
       </div>
     </div>
   </div>
@@ -525,7 +547,7 @@
           <input type="text" id="assetHashInput" placeholder="Hash/Kode Unik: GCVJ2EXX... (diisi '-' jika tidak ada)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
         </div>
 
-        <!-- 6b. On-chain Time Terstruktur -->
+        <!-- 6b. PERBAIKAN 1: On-chain Time Terstruktur dengan Drop-down Jam yang Berfungsi Sempurna -->
         <div class="bg-gray-900/80 p-3 rounded-xl border border-gray-800 space-y-2">
           <label class="block font-semibold text-yellow-400 text-[11px]">On-chain Time (Sesuai SS Detail Aset):</label>
           
@@ -552,9 +574,7 @@
           <div class="grid grid-cols-3 gap-1.5 pt-1">
             <div>
               <span class="block text-[9px] text-gray-400 mb-0.5">Jam (Drop-down)</span>
-              <select id="ocHour" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500 cursor-pointer">
-                <option value="00" selected>00</option>
-              </select>
+              <select id="ocHour" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500 cursor-pointer relative z-30"></select>
             </div>
             <div>
               <span class="block text-[9px] text-gray-400 mb-0.5">Menit (Manual)</span>
@@ -641,7 +661,6 @@
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
     const ADMIN_USERNAMES = ["Ful21", "Muhammadefendi123", "s9t9munah", "SIREP74"];
 
-    // Diubah ke false agar sistem murni membaca pilihan mode dari localStorage / modal jadwal
     const MODE_TESTING_OVERRIDE = false; 
 
     function generateP2PPaymentMemo(auctionId, sellerUsername, buyerUsername, piboxAssetId) {
@@ -980,6 +999,7 @@
       document.getElementById('langSelector').value = currentLang;
       applyTranslations();
       populateHourDropdownOptions();
+      populateOnChainHourOptions(); // PERBAIKAN 1: Inisialisasi Jam On-Chain
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
@@ -995,6 +1015,18 @@
         }
       }, 500);
     });
+
+    // PERBAIKAN 1: Fungsi populator untuk jam on-chain
+    function populateOnChainHourOptions() {
+      const ocHourSelect = document.getElementById('ocHour');
+      if (!ocHourSelect) return;
+      let html = '';
+      for (let h = 0; h < 24; h++) {
+        const hStr = h.toString().padStart(2, '0');
+        html += `<option value="${hStr}" ${h === 0 ? 'selected' : ''}>${hStr}</option>`;
+      }
+      ocHourSelect.innerHTML = html;
+    }
 
     function updateNetworkBannerUI() {
       const badge = document.getElementById('networkModeBadge');
@@ -1042,6 +1074,7 @@
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
       const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+      const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
       
       if (isAuthenticating) return;
       if (authenticatedPiUser) {
@@ -1069,6 +1102,7 @@
         if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
         isBuyerApproved = true;
         if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
         
         await checkBuyerStatusInDatabase(authenticatedPiUser.username);
         Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
@@ -1110,8 +1144,10 @@
             isBuyerApproved = true;
             if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
             if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+            if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
           } else {
             if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+            if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
             await checkBuyerStatusInDatabase(cleanUsername);
           }
           
@@ -1128,6 +1164,7 @@
         if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
         isBuyerApproved = true;
         if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
         
         await checkBuyerStatusInDatabase(authenticatedPiUser.username);
         Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
@@ -1296,11 +1333,16 @@
         alert("Akses Ditolak: Hanya Admin dan Developer!");
         return;
       }
-      // Sinkronkan UI modal dengan state yang tersimpan saat dibuka
       const modeSelect = document.getElementById('scheduleModeSelect');
       if (modeSelect && auctionScheduleState.mode) {
         modeSelect.value = auctionScheduleState.mode;
         toggleScheduleInputVisibility();
+      }
+      if (auctionScheduleState.startDate) {
+        document.getElementById('scheduleStartDateInput').value = auctionScheduleState.startDate;
+      }
+      if (auctionScheduleState.startHour) {
+        document.getElementById('scheduleStartHourSelect').value = auctionScheduleState.startHour;
       }
       document.getElementById('scheduleModal').classList.remove('hidden');
     }
@@ -1356,7 +1398,6 @@
       }
 
       if (mode === 'scheduled') {
-        // Logika Pemeriksaan Mode 3 (Jadwal Terstruktur)
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
           const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
           const startTime = new Date(startDateTimeStr).getTime();
@@ -1383,6 +1424,100 @@
           badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400";
         }
       }
+    }
+
+    // FUNGSI BARU 4: Fitur Laporan Bulanan On-Chain Time
+    function openMonthlyReportModal() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Hanya Admin & Developer!");
+        return;
+      }
+      const now = new Date();
+      const defaultMonth = now.toISOString().slice(0, 7); // Format 'YYYY-MM'
+      const monthInput = document.getElementById('reportMonthInput');
+      if (monthInput) monthInput.value = defaultMonth;
+
+      generateMonthlyReportData();
+      document.getElementById('monthlyReportModal').classList.remove('hidden');
+    }
+
+    function closeMonthlyReportModal() {
+      document.getElementById('monthlyReportModal').classList.add('hidden');
+    }
+
+    function generateMonthlyReportData() {
+      const monthVal = document.getElementById('reportMonthInput')?.value || new Date().toISOString().slice(0, 7);
+      const summaryBox = document.getElementById('reportSummaryBox');
+      if (!summaryBox) return;
+
+      const filtered = activeAuctionsList.filter(item => {
+        const itemDate = item.created_at ? item.created_at.slice(0, 7) : '';
+        return itemDate === monthVal;
+      });
+
+      let reportText = `📊 **REKAPITULASI BULANAN ON-CHAIN TIME**\n`;
+      reportText += `📅 Periode Bulan: ${monthVal}\n`;
+      reportText += `📦 Total Aset Terdaftar: ${filtered.length}\n`;
+      reportText += `----------------------------------------\n`;
+
+      if (filtered.length === 0) {
+        reportText += `(Tidak ada data aset pada periode ini)\n`;
+      } else {
+        filtered.forEach((ast, idx) => {
+          reportText += `${idx + 1}. [${ast.status?.toUpperCase()}] ${ast.title}\n`;
+          reportText += `   - Seller: @${ast.seller || '-'}\n`;
+          reportText += `   - Price: ${ast.highest_bid || ast.reserve_price || 0} Pi\n`;
+          reportText += `   - Created/On-Chain: ${new Date(ast.created_at).toLocaleString()}\n`;
+        });
+      }
+
+      summaryBox.innerText = reportText;
+      window.currentMonthlyReportText = reportText;
+    }
+
+    function copyMonthlyReportText(btnEl) {
+      const text = window.currentMonthlyReportText || '';
+      if (!text) { alert("Tidak ada data laporan."); return; }
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btnEl.innerText;
+        btnEl.innerText = "✅ Berhasil Disalin!";
+        setTimeout(() => { btnEl.innerText = orig; }, 1500);
+      }).catch(() => { alert("Gagal menyalin rekapitulasi."); });
+    }
+
+    function downloadMonthlyReportAsHTML() {
+      const text = window.currentMonthlyReportText || 'Laporan Kosong';
+      const monthVal = document.getElementById('reportMonthInput')?.value || 'report';
+      
+      const htmlContent = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Laporan Bulanan On-Chain - ${monthVal}</title>
+  <style>
+    body { font-family: monospace; background: #0b0f17; color: #f3f4f6; padding: 20px; }
+    .card { background: #111827; border: 1px solid #374151; padding: 20px; border-radius: 10px; max-width: 600px; margin: auto; }
+    h2 { color: #eab308; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>📄 NFT-GM OFFICIAL MONTHLY REPORT</h2>
+    <pre style="white-space: pre-wrap;">${text}</pre>
+    <p style="font-size: 10px; color: #9ca3af; margin-top: 20px;">Generated securely via PiBox Auction Bridge Engine</p>
+  </div>
+</body>
+</html>`;
+
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Monthly-OnChain-Report-${monthVal}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     async function handleBuyerRegistrationAction() {
@@ -2068,12 +2203,15 @@
 
         const eventBadgeHTML = auction.is_event ? `<span class="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">EVENT</span>` : '';
 
+        // PERBAIKAN 2: Tombol merubah status aset berfungsi optimal
         let adminActionControls = '';
         if (isAdminOrDev) {
+          const nextStatus = auction.status === 'active' ? 'pending' : 'active';
+          const btnLabel = auction.status === 'active' ? t('btnSetPending') : t('btnSetActive');
           adminActionControls = `
             <div class="flex gap-1 pt-1 border-t border-gray-800/80 mt-1 justify-end">
-              <button onclick="adminToggleAuctionStatus('${auction.id}', '${auction.status === 'active' ? 'pending' : 'active'})" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold cursor-pointer">
-                ${auction.status === 'active' ? t('btnSetPending') : t('btnSetActive')}
+              <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold cursor-pointer">
+                ${btnLabel}
               </button>
               <button onclick="adminToggleEventBadge('${auction.id}', ${!!auction.is_event})" class="text-[9px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 px-2 py-0.5 rounded font-bold cursor-pointer">
                 ⭐ Event
@@ -2119,6 +2257,7 @@
       mainContent.innerHTML = html;
     }
 
+    // PERBAIKAN 2: Fungsi penanganan perubahan status aktif/pending yang diperbaiki
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("⛔ Akses Ditolak: Hanya Admin dan Developer (Dev) yang dapat merubah status ini!");
@@ -2141,7 +2280,7 @@
         }
 
         alert(`✅ Status aset berhasil diubah menjadi '${normalizedStatus.toUpperCase()}'!`);
-        filterGallery();
+        fetchActiveAuctions();
       } catch (err) {
         alert("Gagal mengubah status aset: " + err.message);
       }
