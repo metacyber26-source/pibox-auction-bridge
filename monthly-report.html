@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rekapitulasi Laporan Bulanan On-Chain - NFT Global Market</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      background-color: #0b0f17;
+      color: #f3f4f6;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+  </style>
+</head>
+<body class="p-4 sm:p-8 flex flex-col items-center min-h-screen">
+
+  <div class="w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden p-5 space-y-6">
+    
+    <!-- Header -->
+    <div class="flex justify-between items-center border-b border-gray-800 pb-4">
+      <div>
+        <h1 class="text-base sm:text-lg font-bold text-yellow-400">📊 Laporan Rekapitulasi Bulanan On-Chain</h1>
+        <p class="text-[11px] text-gray-400">Filter Ketat: Tanggal 01 00:00:00 s.d. Tanggal 31 23:59:59</p>
+      </div>
+      <a href="index.html" class="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold px-3 py-1.5 rounded-xl transition">
+        ← Kembali ke Market
+      </a>
+    </div>
+
+    <!-- Filter Bulan & Tombol Generate -->
+    <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div class="w-full sm:w-auto flex-1">
+        <label class="block text-xs text-gray-400 font-semibold mb-1">Pilih Bulan Laporan:</label>
+        <input type="month" id="filterMonthInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-yellow-500 font-mono">
+      </div>
+      <div class="w-full sm:w-auto flex items-end">
+        <button onclick="fetchAndGenerateReport()" class="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-5 py-2.5 rounded-xl text-xs transition shadow cursor-pointer">
+          🔍 Generate Laporan
+        </button>
+      </div>
+    </div>
+
+    <!-- Kontainer Hasil Rekapitulasi -->
+    <div id="reportResultContainer" class="space-y-4 hidden">
+      
+      <!-- Kartu Ringkasan Metrik Utama -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+        <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
+          <p class="text-[10px] text-gray-400">Total Aset (Aktif+Carry)</p>
+          <p id="statTotalAssets" class="text-base font-bold text-yellow-400">0</p>
+        </div>
+        <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
+          <p class="text-[10px] text-gray-400">Jumlah Pembeli</p>
+          <p id="statTotalBuyers" class="text-base font-bold text-blue-400">0</p>
+        </div>
+        <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
+          <p class="text-[10px] text-gray-400">Transaksi Sukses</p>
+          <p id="statSuccessTx" class="text-base font-bold text-emerald-400">0</p>
+        </div>
+        <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
+          <p class="text-[10px] text-gray-400">Total Keuangan Pi</p>
+          <p id="statTotalPi" class="text-base font-bold text-purple-400">0 Pi</p>
+        </div>
+      </div>
+
+      <!-- Detail Teks Laporan & Keuangan -->
+      <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 space-y-3">
+        <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider border-b border-gray-800 pb-2">Detail Rinci & Keuangan On-Chain</h3>
+        <div id="reportDetailText" class="font-mono text-[11px] text-gray-300 whitespace-pre-wrap max-h-80 overflow-y-auto custom-scrollbar p-2 bg-gray-900 rounded-lg">
+          Memuat data...
+        </div>
+      </div>
+
+      <!-- Tombol Aksi Ekspor -->
+      <div class="flex flex-col sm:flex-row gap-2 pt-2">
+        <button onclick="copyReportText()" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer">
+          📋 Salin Laporan ke Clipboard
+        </button>
+        <button onclick="downloadReportHTML()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer">
+          🌐 Download Laporan (HTML Format)
+        </button>
+      </div>
+
+    </div>
+
+    <div id="reportLoadingState" class="text-center py-12 text-gray-500 text-xs">
+      Silakan pilih bulan dan klik "Generate Laporan" untuk memuat data on-chain.
+    </div>
+
+  </div>
+
+  <!-- Script Supabase & Generator Logika -->
+  <script>
+    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
+    const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+    let supabaseClient = null;
+
+    try {
+      if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    } catch (e) {
+      console.error("Supabase Init Error:", e);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const now = new Date();
+      const currentMonthStr = now.toISOString().slice(0, 7); // 'YYYY-MM'
+      document.getElementById('filterMonthInput').value = currentMonthStr;
+      fetchAndGenerateReport();
+    });
+
+    async function fetchAndGenerateReport() {
+      if (!supabaseClient) {
+        alert("Koneksi Supabase belum siap.");
+        return;
+      }
+
+      const monthVal = document.getElementById('filterMonthInput').value;
+      if (!monthVal) {
+        alert("Pilih bulan terlebih dahulu.");
+        return;
+      }
+
+      // Rentang waktu fix: Tanggal 01 00:00:00 s.d. Tanggal Akhir Bulan 23:59:59
+      const [year, month] = monthVal.split('-');
+      const startDate = `${year}-${month}-01T00:00:00.000Z`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${month}-${lastDay}T23:59:59.999Z`;
+
+      document.getElementById('reportLoadingState').classList.remove('hidden');
+      document.getElementById('reportLoadingState').innerText = "Mengambil data on-chain secara presisi dari Supabase...";
+      document.getElementById('reportResultContainer').classList.add('hidden');
+
+      try {
+        // Ambil data aset dengan batasan akhir bulan
+        const { data: auctions, error: auctionErr } = await supabaseClient
+          .from('auctions')
+          .select('*')
+          .lte('created_at', endDate);
+
+        if (auctionErr) throw auctionErr;
+
+        // Ambil data pembeli terdaftar
+        const { data: buyers, error: buyerErr } = await supabaseClient
+          .from('buyers')
+          .select('*');
+
+        if (buyerErr) throw buyerErr;
+
+        // Menyaring aset: Dirilis pada bulan ini ATAU aset bulan lalu yang statusnya masih aktif/pending (carry-over)
+        const relevantAuctions = (auctions || []).filter(item => {
+          const createdDate = new Date(item.created_at);
+          const isCreatedThisMonth = createdDate >= new Date(startDate) && createdDate <= new Date(endDate);
+          const isPendingOrActive = item.status === 'active' || item.status === 'pending';
+          return isCreatedThisMonth || isPendingOrActive;
+        });
+
+        let totalReleased = relevantAuctions.length;
+        let successTransactions = 0;
+        let totalPiVolume = 0;
+
+        relevantAuctions.forEach(item => {
+          const isFinished = item.status === 'finished' || item.status === 'ended';
+          if (isFinished || item.highest_bidder) {
+            successTransactions++;
+            totalPiVolume += parseFloat(item.highest_bid || item.reserve_price || 0);
+          }
+        });
+
+        const totalBuyersCount = (buyers || []).length;
+
+        // Menyusun format teks laporan lengkap
+        let reportStr = `========================================\n`;
+        reportStr += `📊 REKAPITULASI BULANAN ON-CHAIN TIME\n`;
+        reportStr += `========================================\n`;
+        reportStr += `📅 Periode Rekap    : ${monthVal} (01 00:00:00 s.d. ${lastDay} 23:59:59)\n`;
+        reportStr += `📦 Total Aset Dirilis : ${totalReleased} Aset (Termasuk carry-over bulan lalu)\n`;
+        reportStr += `👥 Total Pembeli    : ${totalBuyersCount} Akun Terdaftar\n`;
+        reportStr += `🛒 Transaksi Sukses : ${successTransactions} Aset Telah Berhasil Terjual\n`;
+        reportStr += `💰 Keuangan (Pi)    : ${totalPiVolume.toFixed(2)} Pi (Total Volume Transaksi)\n`;
+        reportStr += `----------------------------------------\n\n`;
+        reportStr += `📋 RINCIAN DATA ASET & KEUANGAN:\n`;
+
+        if (relevantAuctions.length === 0) {
+          reportStr += `(Tidak ada data aset pada periode ini)\n`;
+        } else {
+          relevantAuctions.forEach((item, idx) => {
+            const startPrice = item.reserve_price || 0;
+            const finalPrice = item.highest_bid || item.reserve_price || 0;
+            const statusLabel = (item.status || 'active').toUpperCase();
+            const buyerInfo = item.highest_bidder ? `@${item.highest_bidder}` : 'Belum ada pembeli';
+
+            reportStr += `${idx + 1}. [${statusLabel}] ${item.title}\n`;
+            reportStr += `   - Seller      : @${item.seller || '-'}\n`;
+            reportStr += `   - Harga Awal  : ${startPrice} Pi\n`;
+            reportStr += `   - Harga Akhir : ${finalPrice} Pi\n`;
+            reportStr += `   - Pembeli     : ${buyerInfo}\n`;
+            reportStr += `   - On-Chain    : ${new Date(item.created_at).toLocaleString()}\n\n`;
+          });
+        }
+
+        // Menampilkan hasil ke elemen HTML
+        document.getElementById('statTotalAssets').innerText = totalReleased;
+        document.getElementById('statTotalBuyers').innerText = totalBuyersCount;
+        document.getElementById('statSuccessTx').innerText = successTransactions;
+        document.getElementById('statTotalPi').innerText = `${totalPiVolume.toFixed(2)} Pi`;
+        document.getElementById('reportDetailText').innerText = reportStr;
+
+        window.generatedReportText = reportStr;
+
+        document.getElementById('reportLoadingState').classList.add('hidden');
+        document.getElementById('reportResultContainer').classList.remove('hidden');
+
+      } catch (err) {
+        document.getElementById('reportLoadingState').innerText = "Gagal memuat data laporan: " + err.message;
+      }
+    }
+
+    function copyReportText() {
+      const text = window.generatedReportText || '';
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("✅ Laporan berhasil disalin ke clipboard!");
+      });
+    }
+
+    function downloadReportHTML() {
+      const text = window.generatedReportText || '';
+      const monthVal = document.getElementById('filterMonthInput').value || 'report';
+      const blob = new Blob([`<pre style="font-family:monospace; background:#0b0f17; color:#f3f4f6; padding:20px;">${text}</pre>`], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Monthly-Report-${monthVal}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
