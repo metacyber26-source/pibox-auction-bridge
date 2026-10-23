@@ -3003,15 +3003,27 @@
           ${bidActionSection}
 
           <div class="flex flex-col gap-2 pt-2">
-            ${(selectedAuction.transaction_mode === 'p2p' && !isAuctionCurrentlyOpen && (status === 'finished' || status === 'ended')) ? `
-              <button onclick="executeDirectP2PPaymentToSeller('${selectedAuction.id}')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg cursor-pointer">
-                🤝 Bayar Langsung Direct P2P ke Seller (@${selectedAuction.pibox_wallet || selectedAuction.seller})
-              </button>
-            ` : `
-              <button disabled class="w-full bg-gray-800 text-gray-500 font-bold py-2.5 rounded-xl text-xs transition cursor-not-allowed opacity-60 flex items-center justify-center gap-1.5 shadow-inner" title="Tombol P2P terkunci selama sesi lelang global / waktu lelang masih berlangsung">
-                🔒 Bayar P2P (Nonaktif Selama Lelang Berlangsung)
-              </button>
-            `}
+            ${(() => {
+              const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+              const isWinnerUser = (currentUsr && (selectedAuction.highest_bidder === currentUsr || selectedAuction.seller === currentUsr));
+              // Status 4 (Lelang selesai) atau setelah ikut lelang, P2P aktif khusus pemenang/penjual
+              const isP2PActiveState = (currentAuctionStatusCode === 4 && isWinnerUser);
+
+              if (isP2PActiveState) {
+                return `
+                  <button onclick="executeDirectP2PPaymentToSeller('${selectedAuction.id}')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg cursor-pointer">
+                    🤝 Bayar Langsung Direct P2P ke Seller (@${selectedAuction.pibox_wallet || selectedAuction.seller})
+                  </button>
+                `;
+              } else {
+                return `
+                  <button disabled class="w-full bg-gray-800 text-gray-500 font-bold py-2.5 rounded-xl text-xs transition cursor-not-allowed opacity-60 flex items-center justify-center gap-1.5 shadow-inner" title="Bayar P2P hanya aktif setelah lelang selesai (Status 4) bagi akun pemenang/peserta lelang sah">
+                    🔒 Bayar P2P (Non-Aktif / Khusus Pemenang Lelang Selesai)
+                  </button>
+                `;
+              }
+            })()}
+
 
 
 
