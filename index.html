@@ -1751,11 +1751,30 @@
         alert("Akses Ditolak: Hanya Admin dan Developer!");
         return;
       }
+      
       const modeSelect = document.getElementById('scheduleModeSelect');
+      const devOnlyOptions = document.querySelectorAll('.dev-only-mode');
+      
+      // Hanya izinkan akun 'Ful21' atau Dev yang bisa melihat opsi uji coba mode 1, 2, dan 4
+      const isMasterDev = (authenticatedPiUser.username === "Ful21" || authenticatedPiUser.username === "Dev");
+      
+      devOnlyOptions.forEach(opt => {
+        if (isMasterDev) {
+          opt.classList.remove('hidden');
+        } else {
+          opt.classList.add('hidden');
+        }
+      });
+
       if (modeSelect && auctionScheduleState.mode) {
+        // Jika bukan master dev dan mode saat ini bukan 'scheduled', paksa ke 'scheduled'
+        if (!isMasterDev && auctionScheduleState.mode !== 'scheduled') {
+          auctionScheduleState.mode = 'scheduled';
+        }
         modeSelect.value = auctionScheduleState.mode;
         toggleScheduleInputVisibility();
       }
+
       
       if (auctionScheduleState.startDate) {
         const parts = auctionScheduleState.startDate.split('-');
