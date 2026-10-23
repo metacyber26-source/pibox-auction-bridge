@@ -2701,6 +2701,19 @@
           }
         }
 
+        // Logika Status 3: 60 menit sebelum sesi lelang aktif (Status 2 akhir menuju Status 3), list aset/barang non-aktif kecuali pemenang
+        if (currentAuctionStatusCode === 2 || currentAuctionStatusCode === 3) {
+          // Cek apakah item ini sudah dimenangkan oleh user saat ini
+          const isWinnerOrOwner = (currentUsername && (item.highest_bidder === currentUsername || item.seller === currentUsername));
+          // Sesuai aturan: Mulai 60 menit sebelum sesi lelang aktif / saat aktif, list barang umum non-aktif, kecuali punya akun pemenang/penjual terkait
+          // (Kecuali Admin/Dev yang tetap bisa memantau)
+          if (!isAdminOrDev && !isWinnerOrOwner && currentAuctionStatusCode === 3) {
+            // Status 3: list aset/barang non-aktif secara umum untuk publik non-pemenang
+            return false;
+          }
+        }
+
+
         const matchesQuery = (item.title || '').toLowerCase().includes(query) || 
                              (item.description || '').toLowerCase().includes(query) || 
                              (item.hash || '').toLowerCase().includes(query) || 
