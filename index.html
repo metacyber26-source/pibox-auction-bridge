@@ -1907,25 +1907,52 @@
         return itemDate === monthVal;
       });
 
-      let reportText = `📊 **REKAPITULASI BULANAN ON-CHAIN TIME**\n`;
+      let totalDevWalletIncome = 0;
+      let externalP2PCount = 0;
+      let externalP2PVolume = 0;
+
+      filtered.forEach(ast => {
+        const price = parseFloat(ast.highest_bid || ast.reserve_price || 0);
+        if (ast.status === 'finished' || ast.status === 'ended') {
+          // Jika menggunakan gateway wallet dev / melalui platform
+          if (ast.pibox_wallet === "GD52XTI2BXBRUQR227L4LQNO55NKTB5QO2PQMHNKVBSVGST2U5C2S4LD" || !ast.pibox_wallet) {
+            totalDevWalletIncome += price;
+          } else {
+            // P2P murni antara penjual dan pembeli (tidak melalui wallet dev)
+            externalP2PCount++;
+            externalP2PVolume += price;
+          }
+        }
+      });
+
+      let reportText = `📊 **REKAP KEUANGAN & ON-CHAIN BULANAN**\n`;
       reportText += `📅 Periode Bulan: ${monthVal}\n`;
-      reportText += `📦 Total Aset Terdaftar: ${filtered.length}\n`;
       reportText += `----------------------------------------\n`;
+      reportText += `📥 **MASUK / KELUAR WALLET DEV (PUSAT):**\n`;
+      reportText += `   - Total Volume Masuk (Dev Gateway): ${totalDevWalletIncome.toFixed(2)} Pi\n`;
+      reportText += `   - Status: Terkunci & Tercatat Otomatis\n\n`;
+      reportText += `🤝 **TRANSAKSI P2P EXTERNAL (Non-Wallet Dev):**\n`;
+      reportText += `   - Jumlah Transaksi P2P Murni: ${externalP2PCount} Aset\n`;
+      reportText += `   - Total Volume P2P Mandiri: ${externalP2PVolume.toFixed(2)} Pi\n`;
+      reportText += `----------------------------------------\n`;
+      reportText += `📦 **RINCIAN ASET PERIODE INI (${filtered.length}):**\n`;
 
       if (filtered.length === 0) {
         reportText += `(Tidak ada data aset pada periode ini)\n`;
       } else {
         filtered.forEach((ast, idx) => {
+          const isDevWallet = (!ast.pibox_wallet || ast.pibox_wallet.startsWith("GD52XTI"));
           reportText += `${idx + 1}. [${ast.status?.toUpperCase()}] ${ast.title}\n`;
           reportText += `   - Seller: @${ast.seller || '-'}\n`;
-          reportText += `   - Price: ${ast.highest_bid || ast.reserve_price || 0} Pi\n`;
-          reportText += `   - Created/On-Chain: ${new Date(ast.created_at).toLocaleString()}\n`;
+          reportText += `   - Jalur: ${isDevWallet ? '⚡ Wallet Dev (Pusat)' : '🤝 P2P Murni Eksternal'}\n`;
+          reportText += `   - Harga: ${ast.highest_bid || ast.reserve_price || 0} Pi\n`;
         });
       }
 
       summaryBox.innerText = reportText;
       window.currentMonthlyReportText = reportText;
     }
+
 
     function copyMonthlyReportText(btnEl) {
       const text = window.currentMonthlyReportText || '';
