@@ -1845,6 +1845,8 @@
       }
     }
 
+    let currentAuctionStatusCode = 1; // 1: Belum dijadwalkan, 2: Dibuka (Hitung mundur), 3: Berlangsung, 4: Selesai
+
     function checkAuctionSchedule() {
       const badge = document.getElementById('sessionStateBadge');
       if (!badge) return;
@@ -1852,6 +1854,7 @@
 
       if (mode === 'testing_mode') {
         isAuctionCurrentlyOpen = true;
+        currentAuctionStatusCode = 3;
         badge.innerText = "🧪 UJI COBA (SANDBOX ACTIVE)";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse";
         return;
@@ -1859,6 +1862,7 @@
 
       if (mode === '24h_open') {
         isAuctionCurrentlyOpen = true;
+        currentAuctionStatusCode = 3;
         badge.innerText = "BUKA LIVE 24/7";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
         return;
@@ -1866,6 +1870,7 @@
 
       if (mode === 'closed_now') {
         isAuctionCurrentlyOpen = false;
+        currentAuctionStatusCode = 1;
         badge.innerText = "🔴 LELANG DITUTUP";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
         return;
@@ -1875,30 +1880,60 @@
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
           const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
           const startTime = new Date(startDateTimeStr).getTime();
+          const preStartTime = startTime - (60 * 60 * 1000); // 60 menit sebelum sesi lelang aktif (Status 2 / 3 transisi)
           const durationMs = (auctionScheduleState.durationHours || 24) * 60 * 60 * 1000;
           const endTime = startTime + durationMs;
+          const postEndTime = endTime + (3 * 60 * 60 * 1000); // Setelah 3x 60 menit (3 jam) selesai, kembali ke status 1
           const now = new Date().getTime();
 
-          if (now < startTime) {
+          if (now < preStartTime) {
+            // Status 1: Belum dijadwalkan
             isAuctionCurrentlyOpen = false;
-            badge.innerText = `⏳ AKAN DIBUKA: ${auctionScheduleState.startDate} ${auctionScheduleState.startHour}`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
+            currentAuctionStatusCode = 1;
+            badge.innerText = `⏳ BELUM DIJADWALKAN (Buka: ${auctionScheduleState.startDate})`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
+          } else if (now >= preStartTime && now < startTime) {
+            // Status 2: Lelang dibuka (hitungan mundur menuju jam mulai)
+            isAuctionCurrentlyOpen = false;
+            currentAuctionStatusCode = 2;
+            const diffSec = Math.floor((startTime - now) / 1000);
+            const m = Math.floor(diffSec / 60);
+            const s = diffSec % 60;
+            badge.innerText = `⏳ LELANG DIBUKA (Mulai dalam ${m}m ${s}s)`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse";
           } else if (now >= startTime && now <= endTime) {
+            // Status 3: Lelang sedang berlangsung/aktif (hitungan mundur durasi)
             isAuctionCurrentlyOpen = true;
-            badge.innerText = "⏳ SESI TERJADWAL AKTIF";
+            currentAuctionStatusCode = 3;
+            const diffSec = Math.floor((endTime - now) / 1000);
+            const h = Math.floor(diffSec / 3600);
+            const m = Math.floor((diffSec % 3600) / 60);
+            badge.innerText = `🔥 AKTIF BERLANGSUNG (${h}j ${m}m lagi)`;
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
-          } else {
+          } else if (now > endTime && now <= postEndTime) {
+            // Status 4: Lelang telah selesai (masa tenggang 3x60 menit sebelum reset ke status 1)
             isAuctionCurrentlyOpen = false;
-            badge.innerText = "🏁 SESI TERJADWAL SELESAI";
+            currentAuctionStatusCode = 4;
+            const resetSec = Math.floor((postEndTime - now) / 1000);
+            const rm = Math.floor(resetSec / 60);
+            badge.innerText = `🏁 SELESAI (Reset ke Status 1 dalam ${rm}m)`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40";
+          } else {
+            // Kembali ke Status 1 setelah 3x60 menit berakhir
+            isAuctionCurrentlyOpen = false;
+            currentAuctionStatusCode = 1;
+            badge.innerText = `⏳ BELUM DIJADWALKAN (Reset)`;
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
           }
         } else {
           isAuctionCurrentlyOpen = true;
-          badge.innerText = "⏳ TERJADWAL (BELUM DISET DETAILNYA)";
+          currentAuctionStatusCode = 3;
+          badge.innerText = "⏳ TERJADWAL (AKTIF)";
           badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400";
         }
       }
     }
+
 
     function openMonthlyReportModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
