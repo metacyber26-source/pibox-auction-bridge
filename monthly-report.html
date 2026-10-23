@@ -30,7 +30,7 @@
     <div class="flex justify-between items-center border-b border-gray-800 pb-4">
       <div>
         <h1 class="text-base sm:text-lg font-bold text-yellow-400">📊 Laporan Rekapitulasi Bulanan On-Chain</h1>
-        <p class="text-[11px] text-gray-400">Filter Ketat: Tanggal 01 00:00:00 s.d. Tanggal 31 23:59:59</p>
+        <p class="text-[11px] text-gray-400">Filter Ketat: Tanggal 01 00:00:00 s.d. Tanggal Akhir Bulan 23:59:59</p>
       </div>
       <a href="index.html" class="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold px-3 py-1.5 rounded-xl transition">
         ← Kembali ke Market
@@ -64,8 +64,8 @@
           <p id="statTotalBuyers" class="text-base font-bold text-blue-400">0</p>
         </div>
         <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
-          <p class="text-[10px] text-gray-400">Transaksi Sukses</p>
-          <p id="statSuccessTx" class="text-base font-bold text-emerald-400">0</p>
+          <p class="text-[10px] text-gray-400">Pemenang Lelang</p>
+          <p id="statWinningBuyers" class="text-base font-bold text-emerald-400">0</p>
         </div>
         <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
           <p class="text-[10px] text-gray-400">Total Keuangan Pi</p>
@@ -132,7 +132,7 @@
         return;
       }
 
-      // Rentang waktu fix: Tanggal 01 00:00:00 s.d. Tanggal Akhir Bulan 23:59:59
+      // Rentang waktu presisi tinggi: Tanggal 01 00:00:00.000 s.d. Tanggal Akhir Bulan 23:59:59.999
       const [year, month] = monthVal.split('-');
       const startDate = `${year}-${month}-01T00:00:00.000Z`;
       const lastDay = new Date(year, month, 0).getDate();
@@ -143,7 +143,7 @@
       document.getElementById('reportResultContainer').classList.add('hidden');
 
       try {
-        // Ambil data aset dengan batasan akhir bulan
+        // Ambil data aset dengan batasan lte (lebih kecil sama dengan akhir bulan)
         const { data: auctions, error: auctionErr } = await supabaseClient
           .from('auctions')
           .select('*')
@@ -158,7 +158,7 @@
 
         if (buyerErr) throw buyerErr;
 
-        // Menyaring aset: Dirilis pada bulan ini ATAU aset bulan lalu yang statusnya masih aktif/pending (carry-over)
+        // 1. Menyaring aset: Dirilis pada bulan ini (sesuai rentang) ATAU aset bulan-bulan sebelumnya yang statusnya masih 'active' / 'pending' (carry-over)
         const relevantAuctions = (auctions || []).filter(item => {
           const createdDate = new Date(item.created_at);
           const isCreatedThisMonth = createdDate >= new Date(startDate) && createdDate <= new Date(endDate);
@@ -166,29 +166,36 @@
           return isCreatedThisMonth || isPendingOrActive;
         });
 
-        let totalReleased = relevantAuctions.length;
-        let successTransactions = 0;
+        let totalAssetsCount = relevantAuctions.length;
+        let successFoundBuyerCount = 0;
         let totalPiVolume = 0;
+        const winningBiddersSet = new Set();
 
         relevantAuctions.forEach(item => {
           const isFinished = item.status === 'finished' || item.status === 'ended';
+          // Aset yang berhasil menemukan pembeli / terjual / ada penawar tertinggi
           if (isFinished || item.highest_bidder) {
-            successTransactions++;
+            successFoundBuyerCount++;
             totalPiVolume += parseFloat(item.highest_bid || item.reserve_price || 0);
+            if (item.highest_bidder) {
+              winningBiddersSet.add(item.highest_bidder);
+            }
           }
         });
 
         const totalBuyersCount = (buyers || []).length;
+        const winningBuyersCount = winningBiddersSet.size;
 
-        // Menyusun format teks laporan lengkap
+        // Menyusun format teks laporan lengkap & presisi
         let reportStr = `========================================\n`;
         reportStr += `📊 REKAPITULASI BULANAN ON-CHAIN TIME\n`;
         reportStr += `========================================\n`;
-        reportStr += `📅 Periode Rekap    : ${monthVal} (01 00:00:00 s.d. ${lastDay} 23:59:59)\n`;
-        reportStr += `📦 Total Aset Dirilis : ${totalReleased} Aset (Termasuk carry-over bulan lalu)\n`;
-        reportStr += `👥 Total Pembeli    : ${totalBuyersCount} Akun Terdaftar\n`;
-        reportStr += `🛒 Transaksi Sukses : ${successTransactions} Aset Telah Berhasil Terjual\n`;
-        reportStr += `💰 Keuangan (Pi)    : ${totalPiVolume.toFixed(2)} Pi (Total Volume Transaksi)\n`;
+        reportStr += `📅 Periode Rekap        : ${monthVal} (01 00:00:00 s.d. ${lastDay} 23:59:59)\n`;
+        reportStr += `📦 Total Aset Terdaftar : ${totalAssetsCount} Aset (Termasuk carry-over bulan lalu)\n`;
+        reportStr += `🛒 Aset Dapat Pembeli   : ${successFoundBuyerCount} Aset Berhasil Terjual\n`;
+        reportStr += `👥 Total Akun Pembeli   : ${totalBuyersCount} Pembeli Terdaftar\n`;
+        reportStr += `🏆 Pemenang Lelang      : ${winningBuyersCount} Pembeli Unik Menang Lelang\n`;
+        reportStr += `💰 Keuangan (Pi)        : ${totalPiVolume.toFixed(2)} Pi (Total Volume Transaksi)\n`;
         reportStr += `----------------------------------------\n\n`;
         reportStr += `📋 RINCIAN DATA ASET & KEUANGAN:\n`;
 
@@ -210,10 +217,10 @@
           });
         }
 
-        // Menampilkan hasil ke elemen HTML
-        document.getElementById('statTotalAssets').innerText = totalReleased;
+        // Menampilkan hasil ke elemen HTML UI
+        document.getElementById('statTotalAssets').innerText = totalAssetsCount;
         document.getElementById('statTotalBuyers').innerText = totalBuyersCount;
-        document.getElementById('statSuccessTx').innerText = successTransactions;
+        document.getElementById('statWinningBuyers').innerText = winningBuyersCount;
         document.getElementById('statTotalPi').innerText = `${totalPiVolume.toFixed(2)} Pi`;
         document.getElementById('reportDetailText').innerText = reportStr;
 
