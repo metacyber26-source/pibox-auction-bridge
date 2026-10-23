@@ -2904,8 +2904,11 @@
       const categoryLabel = getCategoryLabel(selectedAuction.category);
 
       let bidActionSection = '';
-      if (status !== 'active') {
-        bidActionSection = `<div class="bg-amber-500/20 text-amber-400 p-2.5 rounded-xl text-center text-[11px] font-bold">⚠ Aset/barang ini berstatus '${status}', belum dapat ditawar.</div>`;
+      // Logika Penawaran: Aktif HANYA pada Status 3 (Lelang sedang berlangsung/aktif). Status 1, 2, dan 4 penawaran non-aktif.
+      const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
+
+      if (!isBiddingAllowed) {
+        bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">🔒 Penawaran Non-Aktif (Hanya aktif saat Sesi Lelang Berlangsung / Status 3).</div>`;
       } else {
         const targetPrice5 = price + 5;
         const targetPrice10 = price + 10;
@@ -2931,6 +2934,7 @@
           </div>
         `;
       }
+
 
       const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
       const extraImg = selectedAuction.extra_image_url || selectedAuction.extra_ss_url || '';
