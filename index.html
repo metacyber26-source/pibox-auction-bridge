@@ -2904,11 +2904,16 @@
       const categoryLabel = getCategoryLabel(selectedAuction.category);
 
       let bidActionSection = '';
-      // Logika Penawaran: Aktif HANYA pada Status 3 (Lelang sedang berlangsung/aktif). Status 1, 2, dan 4 penawaran non-aktif.
+      // Penawaran HANYA aktif pada Tahap 3 (Lelang sedang berlangsung / aktif)
       const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
 
       if (!isBiddingAllowed) {
-        bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">🔒 Penawaran Non-Aktif (Hanya aktif saat Sesi Lelang Berlangsung / Status 3).</div>`;
+        let statusMsg = "🔒 Penawaran non-aktif (Hanya aktif saat lelang berlangsung / Tahap 3).";
+        if (currentAuctionStatusCode === 1) statusMsg = "⏳ Belum ada jadwal lelang.";
+        if (currentAuctionStatusCode === 2) statusMsg = "📅 Lelang dijadwalkan (Belum dimulai).";
+        if (currentAuctionStatusCode === 4) statusMsg = "🏁 Lelang telah berakhir / selesai.";
+
+        bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">${statusMsg}</div>`;
       } else {
         const targetPrice5 = price + 5;
         const targetPrice10 = price + 10;
@@ -2934,6 +2939,7 @@
           </div>
         `;
       }
+
 
 
       const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
