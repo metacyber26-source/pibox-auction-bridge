@@ -1880,26 +1880,22 @@
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
           const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
           const startTime = new Date(startDateTimeStr).getTime();
-          const preStartTime = startTime - (60 * 60 * 1000); // 60 menit sebelum sesi lelang aktif
+          const preStartTime = startTime - (60 * 60 * 1000); 
           const durationMs = (auctionScheduleState.durationHours || 24) * 60 * 60 * 1000;
           const endTime = startTime + durationMs;
-          const postEndTime = endTime + (3 * 60 * 60 * 1000); // Masa tenggang 3 jam sebelum reset
           const now = new Date().getTime();
 
           if (now < preStartTime) {
-            // Tahap 1: Belum ada jadwal / belum ada rencana buka lelang
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 1;
             badge.innerText = `⏳ Belum Ada Jadwal`;
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
           } else if (now >= preStartTime && now < startTime) {
-            // Tahap 2: Lelang dijadwalkan / rencana buka lelang (Tampil biasa tanpa hitung mundur)
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 2;
             badge.innerText = `📅 Lelang Dijadwalkan: ${auctionScheduleState.startDate} ${auctionScheduleState.startHour}`;
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
           } else if (now >= startTime && now <= endTime) {
-            // Tahap 3: Lelang sedang berlangsung / aktif (Tampilkan sisa waktu / hitung mundur)
             isAuctionCurrentlyOpen = true;
             currentAuctionStatusCode = 3;
             const diffSec = Math.floor((endTime - now) / 1000);
@@ -1909,7 +1905,6 @@
             badge.innerText = `🔥 Berlangsung (Tutup dalam: ${h}j ${m}m ${s}d)`;
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
           } else {
-            // Tahap 4: Lelang berakhir / tutup / selesai
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 4;
             badge.innerText = `🏁 Lelang Berakhir / Selesai`;
@@ -1918,7 +1913,7 @@
         }
       }
     }
-  }
+
 
     function openMonthlyReportModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
