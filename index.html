@@ -2410,15 +2410,23 @@
       } catch(e) { alert(e.message); }
     }
 
-    async function deleteSelectedBuyers() {
-      const selected = Array.from(document.querySelectorAll('.buyer-checkbox:checked')).map(cb => cb.value);
-      if (selected.length === 0) return;
-      if (!confirm(`Hapus ${selected.length} pembeli terpilih?`)) return;
+    async function deleteSingleBuyer(identifier) {
+      if (!confirm("Hapus pembeli ini?")) return;
+      if (!supabaseClient) return;
       try {
-        for (const id of selected) { await supabaseClient.from('buyers').delete().eq('id', id); }
-        fetchBuyersList().then(() => renderBuyersTable());
-      } catch(e) { alert(e.message); }
+        // Coba hapus berdasarkan ID atau Username jika ID gagal
+        let { error } = await supabaseClient.from('buyers').delete().eq('id', identifier);
+        if (error) {
+          await supabaseClient.from('buyers').delete().eq('username', identifier);
+        }
+        await fetchBuyersList();
+        renderBuyersTable();
+        alert("✅ Data pembeli berhasil dihapus.");
+      } catch(e) { 
+        alert("Gagal menghapus pembeli: " + e.message); 
+      }
     }
+
 
     async function payServerFeeAndProceed() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
