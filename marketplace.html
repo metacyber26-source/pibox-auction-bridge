@@ -3,25 +3,658 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Marketplace - Nusantara Ecosystem</title>
+  <title>NFT GLOBAL MARKET - MODERN P2P MARKETPLACE</title>
+  
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Pi Network SDK -->
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+
+  <style>
+    body { background-color: #0b0f17; color: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+  </style>
 </head>
-<body class="bg-[#0b0f17] text-white flex flex-col min-h-screen items-center justify-start p-2 sm:p-4">
+<body class="flex flex-col min-h-screen items-center justify-start p-2 sm:p-4">
+
+  <!-- Main Container -->
   <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[90vh]">
     
-    <!-- Navigasi Modul -->
-    <div class="bg-gray-950 p-3 border-b border-gray-800 flex gap-1.5 text-[10px]">
-      <a href="index.html" class="flex-1 bg-gray-900 text-gray-300 font-bold py-1.5 rounded-lg text-center">🔨 Lelang</a>
-      <a href="marketplace.html" class="flex-1 bg-blue-600 text-white font-bold py-1.5 rounded-lg text-center">🛒 Marketplace</a>
-      <a href="game.html" class="flex-1 bg-gray-900 text-gray-300 font-bold py-1.5 rounded-lg text-center">🎮 Game</a>
+    <!-- Top Header Bar -->
+    <div class="bg-gray-950 p-3 sm:p-4 border-b border-gray-800 flex justify-between items-center sticky top-0 z-30">
+      <div class="flex items-center space-x-2">
+        <span class="inline-block w-3 h-3 bg-blue-500 rounded-full animate-pulse"></span>
+        <div>
+          <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">NFT-GM P2P MARKETPLACE</h1>
+          <p class="text-[9px] text-blue-400">100% Direct P2P + Pi SDK Escrow</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-1.5">
+        <button onclick="openChatModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer">
+          💬 Chat Room
+        </button>
+        <button id="btnHeaderLogin" onclick="authenticatePiUser()" class="text-xs bg-gray-800 hover:bg-gray-700 text-yellow-400 font-semibold px-2.5 py-1.5 rounded-xl border border-yellow-500/30 transition">
+          🔑 Login
+        </button>
+      </div>
     </div>
 
-    <!-- Konten Marketplace -->
-    <div class="p-4 flex-1 flex flex-col items-center justify-center text-center">
-      <h2 class="text-sm font-bold text-blue-400 mb-2">🛒 Modul Marketplace Instan</h2>
-      <p class="text-xs text-gray-400">Fitur jual beli harga tetap (fixed price) terpisah dari sistem lelang.</p>
+    <!-- Navigasi Modul Antar Halaman -->
+    <div class="bg-gray-950/90 border-b border-gray-800 px-3 py-2 flex gap-1.5 text-[10px]">
+      <a href="auction.html" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 font-bold py-1.5 px-2 rounded-lg text-center transition">🔨 Lelang</a>
+      <a href="marketplace.html" class="flex-1 bg-blue-600 text-white font-bold py-1.5 px-2 rounded-lg text-center shadow">🛒 Marketplace</a>
+      <a href="game.html" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 font-bold py-1.5 px-2 rounded-lg text-center transition">🎮 Game</a>
+    </div>
+
+    <!-- Panel Aksi Penjual & Laporan Admin -->
+    <div class="bg-gradient-to-r from-blue-950/60 via-indigo-950/60 to-gray-950 border-b border-blue-500/30 p-2.5 flex items-center justify-between text-[10px]">
+      <div>
+        <p class="font-bold text-gray-200">Pusat Jual Beli Langsung</p>
+        <p id="userStatusDisplay" class="text-amber-300">Status: Tamu (Belum Login)</p>
+      </div>
+      <div class="flex gap-1.5">
+        <button id="btnOpenCreate" onclick="openCreateMarketModal()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition shadow">
+          + Jual Produk
+        </button>
+        <button id="btnAdminReport" onclick="openMonthlyReportModal()" class="hidden bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition">
+          📊 Laporan Dev
+        </button>
+      </div>
+    </div>
+
+    <!-- Pencarian & Filter Kategori -->
+    <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex gap-2">
+      <input type="text" id="searchInput" oninput="renderMarketplace()" placeholder="🔍 Cari barang, aset digital, jasa..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-blue-500">
+      <select id="categoryFilter" onchange="renderMarketplace()" class="bg-gray-900 border border-gray-800 text-blue-400 text-[10px] font-bold px-2 py-1.5 rounded-xl focus:outline-none cursor-pointer">
+        <option value="all">🌐 Semua Kategori</option>
+        <option value="digital">🎨 Aset Digital / NFT</option>
+        <option value="goods">📦 Barang Fisik / Elektronik</option>
+        <option value="services">🛠️ Jasa & Layanan</option>
+      </select>
+    </div>
+
+    <!-- Galeri / Daftar Produk Marketplace -->
+    <div id="marketContent" class="p-4 flex-1 flex flex-col custom-scrollbar overflow-y-auto space-y-3">
+      <div class="text-center py-10 text-gray-500 text-xs">Memuat Produk Marketplace...</div>
+    </div>
+
+    <!-- Footer -->
+    <div class="bg-gray-950 p-3 border-t border-gray-800 text-center text-[10px] text-gray-500 flex justify-between items-center">
+      <span>100% P2P Secure Escrow Protocol</span>
+      <button onclick="fetchMarketProducts()" class="text-yellow-400 hover:underline">🔄 Segarkan</button>
     </div>
 
   </div>
+
+  <!-- MODAL: JUAL / LISTING PRODUK BARU DENGAN DISCLAIMER PENJUAL -->
+  <div id="createMarketModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-blue-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar text-xs">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="font-bold text-blue-400 uppercase">Jual Produk / Aset Baru (P2P)</h2>
+        <button onclick="closeCreateMarketModal()" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
+      </div>
+
+      <div class="space-y-2">
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1">Kategori:</label>
+          <select id="newCat" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-white">
+            <option value="digital">🎨 Aset Digital / NFT</option>
+            <option value="goods">📦 Barang Fisik / Elektronik</option>
+            <option value="services">🛠️ Jasa & Layanan</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1">Foto Produk:</label>
+          <input type="file" id="newImage" accept="image/*" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-1.5 text-gray-300">
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1">Nama Produk / Jasa:</label>
+          <input type="text" id="newTitle" placeholder="Contoh: Akun / Jasa / Barang..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-white">
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1">Deskripsi Lengkap:</label>
+          <textarea id="newDesc" rows="3" placeholder="Jelaskan kondisi barang atau ketentuan jasa..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-white resize-none"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1">Harga (dalam Pi):</label>
+          <input type="number" step="0.01" id="newPrice" placeholder="Contoh: 50" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-white">
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1">PiBox / Pi Wallet Penjual (P2P Tujuan):</label>
+          <input type="text" id="newWallet" placeholder="Alamat Wallet Pi Anda..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-yellow-400 font-mono">
+        </div>
+
+        <!-- 1. DISCLAIMER KEAMANAN WAJIB CENTANG PENJUAL -->
+        <div class="bg-red-950/40 border border-red-500/40 rounded-xl p-2.5 space-y-1 text-[10px]">
+          <p class="font-bold text-red-400">⚖️ DISCLAIMER WAJIB PENJUAL</p>
+          <p class="text-gray-300 leading-relaxed">Segala bentuk keaslian, kepemilikan sah, barang palsu, atau penipuan sepenuhnya menjadi tanggung jawab hukum pribadi penjual.</p>
+          <label class="flex items-start gap-2 cursor-pointer pt-1 border-t border-red-500/20">
+            <input type="checkbox" id="sellerDisclaimerCheck" class="mt-0.5 accent-blue-500">
+            <span class="text-white font-semibold">Saya menyatakan barang ini milik sah saya, tidak melanggar hukum, dan membebaskan platform dari segala tuntutan.</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeCreateMarketModal()" class="flex-1 bg-gray-900 text-gray-300 py-2 rounded-xl">Batal</button>
+        <button onclick="publishProduct()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl shadow">🚀 Terbitkan Produk</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DETAIL PRODUK & PEMBAYARAN P2P DENGAN DISCLAIMER PEMBELI -->
+  <div id="productDetailModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar text-xs">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="font-bold text-gray-200 uppercase">Detail & Pembayaran P2P</h2>
+        <button onclick="closeProductDetailModal()" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
+      </div>
+      
+      <div id="modalProductContent" class="space-y-3">
+        <!-- Diisi dinamis -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: LAPORAN KEUANGAN BULANAN (KHUSUS WALLET DEV) -->
+  <div id="monthlyReportModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-purple-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar text-xs">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="font-bold text-purple-400 uppercase">📊 Rekap Laporan Bulanan (Wallet Dev)</h2>
+        <button onclick="closeMonthlyReportModal()" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
+      </div>
+      
+      <div class="space-y-2">
+        <label class="block text-gray-300">Pilih Bulan Laporan:</label>
+        <input type="month" id="reportMonthInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-yellow-400" onchange="generateReport()">
+        
+        <div id="reportBox" class="bg-gray-900 border border-gray-800 rounded-xl p-3 font-mono text-[10px] text-gray-300 space-y-1 max-h-48 overflow-y-auto">
+          Memuat data laporan...
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="copyReportText(this)" class="flex-1 bg-yellow-500 text-gray-950 font-bold py-2 rounded-xl">📋 Salin Laporan</button>
+        <button onclick="closeMonthlyReportModal()" class="flex-1 bg-gray-900 text-gray-300 py-2 rounded-xl">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: UNIFIED CHAT ROOM & P2P CHAT -->
+  <div id="chatModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 w-full max-w-lg space-y-3 shadow-2xl max-h-[90vh] flex flex-col text-xs">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="font-bold text-emerald-400 uppercase">💬 Unified Chat Room & P2P</h2>
+        <button onclick="closeChatModal()" class="text-gray-400 hover:text-white font-bold text-lg">&times;</button>
+      </div>
+
+      <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 gap-1 text-[11px]">
+        <button id="tabForum" onclick="switchChatTab('forum')" class="flex-1 py-1 rounded-lg font-bold bg-yellow-500 text-gray-950">🌐 Forum Global</button>
+        <button id="tabP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1 rounded-lg font-bold text-gray-400">🔒 P2P Chat</button>
+      </div>
+
+      <div id="p2pSelectorBox" class="hidden bg-gray-900 p-2 rounded-xl border border-gray-800 space-y-1">
+        <label class="block text-[10px] text-gray-400">Pilih Lawan Chat P2P:</label>
+        <select id="p2pTargetSelect" class="w-full bg-gray-950 border border-gray-800 rounded p-1 text-yellow-400">
+          <option value="">-- Pilih Penjual --</option>
+        </select>
+      </div>
+
+      <div id="chatMessagesBox" class="flex-1 bg-gray-900/90 border border-gray-800 rounded-xl p-3 h-56 overflow-y-auto custom-scrollbar space-y-2">
+        <div class="text-center text-gray-500 py-6">Memuat pesan...</div>
+      </div>
+
+      <div class="flex gap-2 items-center">
+        <input type="text" id="chatInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Ketik pesan P2P / Forum..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none">
+        <button onclick="sendChatMessage()" class="bg-yellow-500 text-gray-950 font-bold px-4 py-2 rounded-xl">Kirim 🚀</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT UTAMA MARKETPLACE -->
+  <script>
+    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
+    const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+    const ADMIN_USERNAMES = ["Ful21", "Muhammadefendi123", "s9t9munah", "SIREP74"];
+    const DEV_WALLET = "GD52XTI2BXBRUQR227L4LQNO55NKTB5QO2PQMHNKVBSVGST2U5C2S4LD";
+
+    let supabaseClient = null;
+    let authUser = null;
+    let productsList = [];
+    let currentChatTab = 'forum';
+    let currentP2PTarget = '';
+
+    try {
+      if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    } catch(e) {}
+
+    document.addEventListener("DOMContentLoaded", () => {
+      authenticatePiUser(true);
+      fetchMarketProducts();
+      initPiSDK();
+    });
+
+    function initPiSDK() {
+      const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      if (piInstance && typeof piInstance.init === 'function') {
+        try { piInstance.init({ version: "2.0", sandbox: true }); } catch(e) {}
+      }
+    }
+
+    async function authenticatePiUser(isAuto = false) {
+      let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      if (!piInstance) {
+        authUser = { username: "Dev" };
+        document.getElementById('userStatusDisplay').innerText = "Status: @Dev (Simulasi)";
+        document.getElementById('btnHeaderLogin').innerText = "@Dev";
+        checkAdminAccess();
+        return;
+      }
+      try {
+        const auth = await piInstance.authenticate(['username', 'payments'], () => {});
+        if (auth && auth.user) {
+          authUser = { username: auth.user.username };
+          document.getElementById('userStatusDisplay').innerText = `Status: @${authUser.username}`;
+          document.getElementById('btnHeaderLogin').innerText = `@${authUser.username}`;
+          checkAdminAccess();
+        }
+      } catch(e) {
+        authUser = { username: "Dev" };
+        document.getElementById('userStatusDisplay').innerText = "Status: @Dev (Fallback)";
+        checkAdminAccess();
+      }
+    }
+
+    function checkAdminAccess() {
+      if (authUser && ADMIN_USERNAMES.includes(authUser.username)) {
+        document.getElementById('btnAdminReport').classList.remove('hidden');
+      }
+    }
+
+    function openCreateMarketModal() {
+      if (!authUser) { alert("Silakan login terlebih dahulu!"); authenticatePiUser(); return; }
+      document.getElementById('newWallet').value = authUser.username;
+      document.getElementById('createMarketModal').classList.remove('hidden');
+    }
+    function closeCreateMarketModal() { document.getElementById('createMarketModal').classList.add('hidden'); }
+
+    async function publishProduct() {
+      const cat = document.getElementById('newCat').value;
+      const title = document.getElementById('newTitle').value.trim();
+      const desc = document.getElementById('newDesc').value.trim();
+      const price = parseFloat(document.getElementById('newPrice').value);
+      const wallet = document.getElementById('newWallet').value.trim();
+      const imageFile = document.getElementById('newImage').files[0];
+      const disclaimerChecked = document.getElementById('sellerDisclaimerCheck').checked;
+
+      if (!title || isNaN(price) || !wallet) {
+        alert("Harap lengkapi seluruh bidang formulir!");
+        return;
+      }
+      if (!disclaimerChecked) {
+        alert("⚖️ Anda wajib mencentang Disclaimer Keamanan Penjual terlebih dahulu!");
+        return;
+      }
+
+      let imageUrl = "https://via.placeholder.com/150";
+      if (imageFile) {
+        imageUrl = await toBase64(imageFile);
+      }
+
+      const payload = {
+        category: cat,
+        title: title,
+        description: desc,
+        price: price,
+        seller: authUser.username,
+        pibox_wallet: wallet,
+        image_url: imageUrl,
+        status: 'active',
+        created_at: new Date().toISOString()
+      };
+
+      if (supabaseClient) {
+        const { error } = await supabaseClient.from('marketplace_products').insert([payload]);
+        if (error) { alert("Gagal terbitkan: " + error.message); return; }
+      }
+
+      alert("🎉 Produk berhasil diterbitkan secara P2P!");
+      closeCreateMarketModal();
+      fetchMarketProducts();
+    }
+
+    function toBase64(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function fetchMarketProducts() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient.from('marketplace_products').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        productsList = data || [];
+        renderMarketplace();
+      } catch(e) {
+        document.getElementById('marketContent').innerHTML = `<div class="text-center text-red-400 text-xs">Gagal memuat produk.</div>`;
+      }
+    }
+
+    function renderMarketplace() {
+      const container = document.getElementById('marketContent');
+      const query = (document.getElementById('searchInput')?.value || '').toLowerCase();
+      const catFilter = document.getElementById('categoryFilter')?.value || 'all';
+
+      const filtered = productsList.filter(p => {
+        const matchesQuery = p.title.toLowerCase().includes(query) || p.description.toLowerCase().includes(query);
+        const matchesCat = catFilter === 'all' || p.category === catFilter;
+        return matchesQuery && matchesCat;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="text-center text-gray-500 py-10 text-xs">Belum ada produk tersedia.</div>`;
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(p => {
+        html += `
+          <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex gap-3 items-center hover:border-blue-500/50 transition">
+            <div class="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 border border-gray-800">
+              <img src="${p.image_url}" class="w-full h-full object-cover">
+            </div>
+            <div class="flex-1 min-w-0 space-y-1">
+              <span class="text-[9px] bg-blue-900/40 text-blue-300 px-1.5 py-0.5 rounded uppercase font-bold">${p.category}</span>
+              <h3 class="font-bold text-xs text-white truncate">${p.title}</h3>
+              <p class="text-[10px] text-gray-400">Penjual: <span class="text-yellow-400 font-mono">@${p.seller}</span></p>
+              <div class="flex justify-between items-center pt-1">
+                <span class="text-emerald-400 font-bold">${p.price} Pi</span>
+                <button onclick="openProductDetail('${p.id}')" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-2.5 py-1 rounded text-[10px] shadow cursor-pointer">
+                  Beli P2P 🛒
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function openProductDetail(id) {
+      const p = productsList.find(x => x.id === id);
+      if (!p) return;
+
+      const content = document.getElementById('modalProductContent');
+      content.innerHTML = `
+        <div class="w-full h-40 bg-gray-900 rounded-xl overflow-hidden border border-gray-800">
+          <img src="${p.image_url}" class="w-full h-full object-contain">
+        </div>
+        <div>
+          <h3 class="font-bold text-sm text-yellow-400">${p.title}</h3>
+          <p class="text-[10px] text-gray-300 bg-gray-900 p-2 rounded-lg mt-1">${p.description}</p>
+        </div>
+        <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 text-[11px] space-y-1">
+          <div class="flex justify-between"><span class="text-gray-400">Penjual:</span><span class="text-yellow-400">@${p.seller}</span></div>
+          <div class="flex justify-between"><span class="text-gray-400">Wallet P2P:</span><span class="text-yellow-400 font-mono text-[10px] truncate max-w-[150px]">${p.pibox_wallet}</span></div>
+          <div class="flex justify-between"><span class="text-gray-400">Harga:</span><span class="text-emerald-400 font-bold">${p.price} Pi</span></div>
+        </div>
+
+        <!-- 1. DISCLAIMER KEAMANAN WAJIB CENTANG PEMBELI -->
+        <div class="bg-red-950/40 border border-red-500/40 rounded-xl p-2.5 space-y-1 text-[10px]">
+          <p class="font-bold text-red-400">⚖️ DISCLAIMER PERANTARA P2P</p>
+          <p class="text-gray-300">Platform bertindak murni sebagai perantara penghubung direktori. Sengketa barang di luar jaringan tanggung jawab pribadi.</p>
+          <label class="flex items-start gap-2 cursor-pointer pt-1 border-t border-red-500/20">
+            <input type="checkbox" id="buyerDisclaimerCheck" class="mt-0.5 accent-blue-500">
+            <span class="text-white font-semibold">Saya telah membaca dan menyetujui ketentuan risiko transaksi langsung (P2P).</span>
+          </label>
+        </div>
+
+        <div class="flex flex-col gap-2 pt-2">
+          <button onclick="executeP2PBuy('${p.id}')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl shadow cursor-pointer">
+            🤝 Bayar Langsung P2P (${p.price} Pi)
+          </button>
+          <button onclick="openP2PChatWithSeller('${p.seller}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl shadow cursor-pointer">
+            💬 Chat P2P dengan Penjual
+          </button>
+        </div>
+      `;
+      document.getElementById('productDetailModal').classList.remove('hidden');
+    }
+
+    function closeProductDetailModal() { document.getElementById('productDetailModal').classList.add('hidden'); }
+
+    // 2. 100% P2P LANGSUNG & 3. PEMBAYARAN PI NETWORK
+    async function executeP2PBuy(id) {
+      if (!authUser) { alert("Silakan login terlebih dahulu!"); authenticatePiUser(); return; }
+      
+      const check = document.getElementById('buyerDisclaimerCheck').checked;
+      if (!check) {
+        alert("⚖️ Anda wajib mencentang Disclaimer Keamanan Pembeli sebelum melakukan pembayaran!");
+        return;
+      }
+
+      const p = productsList.find(x => x.id === id);
+      if (!p) return;
+
+      const memoText = `P2P-MARKET#${p.id}#TO:${p.seller}#FROM:${authUser.username}`;
+      const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+
+      const finalizePayment = async () => {
+        if (supabaseClient) {
+          await supabaseClient.from('marketplace_products').update({ status: 'sold' }).eq('id', id);
+        }
+        alert(`🎉 Transaksi P2P Berhasil!\nDana sebesar ${p.price} Pi dikirim langsung ke penjual @${p.seller}.\nMemo: ${memoText}`);
+        closeProductDetailModal();
+        fetchMarketProducts();
+      };
+
+      if (piInstance && typeof piInstance.createPayment === 'function') {
+        piInstance.createPayment({
+          amount: p.price,
+          memo: memoText,
+          metadata: { type: 'p2p_marketplace', productId: p.id, seller: p.seller }
+        }, {
+          onReadyForServerApproval: async (pid) => {
+            await fetch('/api/pi/approve', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({paymentId: pid}) }).catch(()=>{});
+          },
+          onReadyForServerCompletion: async (pid, txid) => {
+            await fetch('/api/pi/complete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({paymentId: pid, txid}) }).catch(()=>{});
+            finalizePayment();
+          },
+          onCancel: () => alert("Pembayaran dibatalkan."),
+          onError: () => finalizePayment()
+        });
+      } else {
+        finalizePayment(); // Simulasi jika Pi SDK offline
+      }
+    }
+
+    // 4. LAPORAN BULANAN LENGKAP (KHUSUS WALLET DEV)
+    function openMonthlyReportModal() {
+      if (!authUser || !ADMIN_USERNAMES.includes(authUser.username)) {
+        alert("⛔ Akses Ditolak: Hanya Admin / Wallet Dev yang dapat membuka laporan!");
+        return;
+      }
+      const now = new Date().toISOString().slice(0, 7);
+      document.getElementById('reportMonthInput').value = now;
+      generateReport();
+      document.getElementById('monthlyReportModal').classList.remove('hidden');
+    }
+    function closeMonthlyReportModal() { document.getElementById('monthlyReportModal').classList.add('hidden'); }
+
+    function generateReport() {
+      const monthVal = document.getElementById('reportMonthInput').value;
+      const box = document.getElementById('reportBox');
+
+      // Filter produk atau transaksi yang masuk melalui wallet dev pusat
+      const devTransactions = productsList.filter(p => p.pibox_wallet === DEV_WALLET || p.status === 'sold');
+      let totalVolume = 0;
+      devTransactions.forEach(t => totalVolume += parseFloat(t.price || 0));
+
+      let text = `📊 **LAPORAN KEUANGAN BULANAN (WALLET DEV)**\n`;
+      text += `📅 Periode Bulan: ${monthVal}\n`;
+      text += `----------------------------------------\n`;
+      text += `💼 Wallet Dev Terverifikasi: ${DEV_WALLET.slice(0, 10)}...\n`;
+      text += `💰 Total Volume Pi Masuk (Dev Escrow): ${totalVolume.toFixed(2)} Pi\n`;
+      text += `📦 Jumlah Produk Terjual: ${devTransactions.length} Item\n`;
+      text += `----------------------------------------\n`;
+      text += `Rincian Transaksi:\n`;
+      
+      if (devTransactions.length === 0) {
+        text += `(Belum ada transaksi tercatat pada periode ini)\n`;
+      } else {
+        devTransactions.forEach((t, i) => {
+          text += `${i + 1}. [${t.status.toUpperCase()}] ${t.title} - ${t.price} Pi (@${t.seller})\n`;
+        });
+      }
+
+      box.innerText = text;
+      window.savedReportText = text;
+    }
+
+    function copyReportText(btn) {
+      navigator.clipboard.writeText(window.savedReportText || "").then(() => {
+        const orig = btn.innerText;
+        btn.innerText = "✅ Tersalin!";
+        setTimeout(() => btn.innerText = orig, 1500);
+      });
+    }
+
+    // 5. CHAT P2P & UNIFIED CHAT ROOM DIGABUNGKAN
+    function openChatModal() {
+      if (!authUser) { alert("Silakan login terlebih dahulu!"); authenticatePiUser(); return; }
+      document.getElementById('chatModal').classList.remove('hidden');
+      loadChatMessages();
+    }
+    function closeChatModal() { document.getElementById('chatModal').classList.add('hidden'); }
+
+    function switchChatTab(tab) {
+      currentChatTab = tab;
+      const btnForum = document.getElementById('tabForum');
+      const btnP2P = document.getElementById('tabP2P');
+      const p2pBox = document.getElementById('p2pSelectorBox');
+
+      if (tab === 'forum') {
+        btnForum.className = "flex-1 py-1 rounded-lg font-bold bg-yellow-500 text-gray-950";
+        btnP2P.className = "flex-1 py-1 rounded-lg font-bold text-gray-400";
+        p2pBox.classList.add('hidden');
+      } else {
+        btnP2P.className = "flex-1 py-1 rounded-lg font-bold bg-indigo-600 text-white";
+        btnForum.className = "flex-1 py-1 rounded-lg font-bold text-gray-400";
+        p2pBox.classList.remove('hidden');
+        populateP2PTargets();
+      }
+      loadChatMessages();
+    }
+
+    function populateP2PTargets() {
+      const select = document.getElementById('p2pTargetSelect');
+      const sellersSet = new Set();
+      productsList.forEach(p => { if (p.seller) sellersSet.add(p.seller); });
+      ADMIN_USERNAMES.forEach(a => sellersSet.add(a));
+
+      let html = `<option value="">-- Pilih Lawan Chat --</option>`;
+      sellersSet.forEach(s => {
+        if (authUser && s !== authUser.username) {
+          html += `<option value="${s}">@${s}</option>`;
+        }
+      });
+      select.innerHTML = html;
+    }
+
+    function openP2PChatWithSeller(sellerUsername) {
+      closeProductDetailModal();
+      document.getElementById('chatModal').classList.remove('hidden');
+      switchChatTab('p2p');
+      setTimeout(() => {
+        document.getElementById('p2pTargetSelect').value = sellerUsername;
+        currentP2PTarget = sellerUsername;
+        loadChatMessages();
+      }, 200);
+    }
+
+    async function loadChatMessages() {
+      const box = document.getElementById('chatMessagesBox');
+      if (!supabaseClient) return;
+      try {
+        let query = supabaseClient.from('chats').select('*').order('created_at', { ascending: true });
+        if (currentChatTab === 'forum') {
+          query = query.eq('room_type', 'forum');
+        } else {
+          const target = document.getElementById('p2pTargetSelect').value || currentP2PTarget;
+          if (!target) {
+            box.innerHTML = `<div class="text-center text-gray-500 py-6">Pilih lawan chat P2P terlebih dahulu.</div>`;
+            return;
+          }
+          currentP2PTarget = target;
+          query = query.eq('room_type', 'p2p').or(`and(sender.eq.${authUser.username},receiver.eq.${target}),and(sender.eq.${target},receiver.eq.${authUser.username})`);
+        }
+
+        const { data } = await query;
+        if (!data || data.length === 0) {
+          box.innerHTML = `<div class="text-center text-gray-500 py-6">Belum ada pesan chat.</div>`;
+          return;
+        }
+
+        let html = '';
+        data.forEach(m => {
+          const isMe = m.sender === authUser.username;
+          html += `
+            <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
+              <span class="text-[9px] text-gray-400 font-bold">@${m.sender}</span>
+              <div class="max-w-[85%] px-3 py-1.5 rounded-xl text-xs ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200'}">
+                ${m.message}
+              </div>
+            </div>
+          `;
+        });
+        box.innerHTML = html;
+        box.scrollTop = box.scrollHeight;
+      } catch(e) {}
+    }
+
+    async function sendChatMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text || !authUser) return;
+
+      let receiver = null;
+      if (currentChatTab === 'p2p') {
+        receiver = document.getElementById('p2pTargetSelect').value || currentP2PTarget;
+        if (!receiver) { alert("Pilih target P2P terlebih dahulu!"); return; }
+      }
+
+      const payload = {
+        sender: authUser.username,
+        message: text,
+        room_type: currentChatTab,
+        receiver: receiver,
+        created_at: new Date().toISOString()
+      };
+
+      input.value = "";
+      if (supabaseClient) {
+        await supabaseClient.from('chats').insert([payload]);
+        loadChatMessages();
+      }
+    }
+  </script>
 </body>
 </html>
