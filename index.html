@@ -1370,7 +1370,6 @@
       populateHourDropdownOptions();
       populateOnChainHourOptions();
       
-      // Eksekusi pengambilan galeri dan jadwal secara langsung agar cepat dimuat
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
@@ -1380,15 +1379,24 @@
       
       initPiSDK();
 
-      // Cek sesi yang tersimpan di memori lokal agar status login langsung pulih
       const savedUser = localStorage.getItem('pi_session_user');
       if (savedUser) {
         authenticatedPiUser = { username: savedUser };
         const statusEl = document.getElementById('userStatusDisplay');
         const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+        const maskedName = SecureShield.maskUsername(savedUser);
         if (statusEl) statusEl.innerText = `User: @${savedUser}`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${savedUser}</span>`;
-        checkBuyerStatusInDatabase(savedUser);
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+        
+        if (ADMIN_USERNAMES.includes(savedUser)) {
+          isBuyerApproved = true;
+          const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+          const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+        } else {
+          checkBuyerStatusInDatabase(savedUser);
+        }
       }
 
       setTimeout(() => {
@@ -1396,8 +1404,9 @@
         if (!authenticatedPiUser && piInstance) {
           authenticatePiUser(true);
         }
-      }, 500);
+      }, 1000);
     });
+
 
     async function fetchAndListenAuctionSchedule() {
       if (!supabaseClient) return;
