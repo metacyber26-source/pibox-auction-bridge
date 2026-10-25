@@ -2796,8 +2796,17 @@
 
         let adminActionControls = '';
         if (isAdminOrDev) {
-          const nextStatus = auction.status === 'active' ? 'pending' : 'active';
-          const btnLabel = auction.status === 'active' ? t('btnSetPending') : t('btnSetActive');
+          // Jika status aktif -> ubah ke ended/pending; jika ended/pending -> kembalikan ke active (aktif lagi jika belum terbeli)
+        let nextStatus = 'active';
+        let btnLabel = '🟢 Set Active';
+        if (auction.status === 'active') {
+          nextStatus = 'ended';
+          btnLabel = '🏁 Set Selesai';
+        } else if (auction.status === 'ended' || auction.status === 'finished' || auction.status === 'pending') {
+          nextStatus = 'active';
+          btnLabel = '🟢 Set Active';
+        }
+
           adminActionControls = `
             <div class="flex gap-1 pt-1 border-t border-gray-800/80 mt-1 justify-end">
               <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold cursor-pointer">
