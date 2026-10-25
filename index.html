@@ -3392,21 +3392,33 @@ ${certText}
           const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
           if (piInstance && typeof piInstance.createPayment === 'function') {
             piInstance.createPayment(paymentData, {
-              onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
-              onReadyForServerCompletion: async (pid, txid) => { await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); executeBidProcess(); },
-              onCancel: () => { alert("Pembayaran biaya penawaran dibatalkan."); },
-              onError: () => { executeBidProcess(); }
+              onReadyForServerApproval: async (pid) => { 
+                console.log("Payment Ready for Server Approval:", pid);
+                await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); 
+              },
+              onReadyForServerCompletion: async (pid, txid) => { 
+                console.log("Payment Completed:", pid, txid);
+                await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); 
+                executeBidProcess(); 
+              },
+              onCancel: (pid) => { 
+                alert("Pembayaran biaya penawaran dibatalkan."); 
+              },
+              onError: (error, payment) => { 
+                console.error("Pi Payment Error:", error, payment);
+                alert("Gagal memproses pembayaran Pi SDK: " + (error.message || error)); 
+              }
             });
           } else { 
-            executeBidProcess(); 
+            alert("Pi SDK tidak tersedia di browser ini. Harap buka melalui Pi Browser resmi.");
           }
         } catch (e) { 
-          executeBidProcess(); 
+          alert("Error pada inisialisasi pembayaran Pi: " + e.message);
         }
       } else {
         executeBidProcess();
       }
-    }
+
 
     async function executeDirectP2PPaymentToSeller(auctionId) {
       if (!authenticatedPiUser) {
