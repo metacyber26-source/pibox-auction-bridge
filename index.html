@@ -1363,12 +1363,14 @@
       }
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", async () => {
       updateNetworkBannerUI();
       document.getElementById('langSelector').value = currentLang;
       applyTranslations();
       populateHourDropdownOptions();
       populateOnChainHourOptions();
+      
+      // Eksekusi pengambilan galeri dan jadwal secara langsung agar cepat
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
@@ -1377,6 +1379,17 @@
       setInterval(checkAuctionSchedule, 1000);
       
       initPiSDK();
+
+      // Cek sesi yang tersimpan di memori lokal
+      const savedUser = localStorage.getItem('pi_session_user');
+      if (savedUser) {
+        authenticatedPiUser = { username: savedUser };
+        const statusEl = document.getElementById('userStatusDisplay');
+        const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+        if (statusEl) statusEl.innerText = `User: @${savedUser}`;
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${savedUser}</span>`;
+        checkBuyerStatusInDatabase(savedUser);
+      }
 
       setTimeout(() => {
         const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
