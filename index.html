@@ -1486,23 +1486,19 @@
       }
 
       let piInstance = null;
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < 30; i++) {
         piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
         if (piInstance) break;
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 250));
       }
 
       if (!piInstance) {
         isAuthenticating = false;
-        // Fallback aman agar galeri tetap termuat jika dibuka di luar Pi Browser
         const savedUser = localStorage.getItem('pi_session_user');
-        if (savedUser) {
-          authenticatedPiUser = { username: savedUser };
-        } else {
-          authenticatedPiUser = { username: "Dev" };
-        }
+        authenticatedPiUser = { username: savedUser || "Dev" };
         const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-        if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aktif)`;
+        
+        if (statusEl) statusEl.innerText = `User: @${authenticatedPiUser.username}`;
         if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
         isBuyerApproved = true;
         if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
@@ -1510,14 +1506,14 @@
         
         await checkBuyerStatusInDatabase(authenticatedPiUser.username);
         await Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-        
-        if (!isAuto) alert(`🎉 Berhasil Masuk Otomatis (Mode Simulasi Dev) sebagai @${maskedName}`);
         return;
       }
 
       try {
         piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Pi Init Warning:", e);
+      }
 
       try {
         const scopes = ['username', 'payments'];
@@ -1541,7 +1537,7 @@
           const maskedName = SecureShield.maskUsername(cleanUsername);
           
           if (statusEl) statusEl.innerText = `User: @${cleanUsername}`;
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${cleanUsername}</span>`;
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
           
           const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
           const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
@@ -1558,30 +1554,20 @@
           }
           
           await Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-
-          if (!isAuto) alert(`🎉 Berhasil Login sebagai @${cleanUsername}`);
+          if (!isAuto) alert(`🎉 Berhasil Login Pi Network sebagai @${cleanUsername}`);
         } else {
           throw new Error("Respon otentikasi Pi Network tidak valid.");
         }
       } catch (err) {
-        console.warn("Autentikasi Pi SDK Gagal / Mode Browser Biasa:", err);
-        const savedUser = localStorage.getItem('pi_session_user');
-        if (savedUser) {
-          authenticatedPiUser = { username: savedUser };
-          if (statusEl) statusEl.innerText = `User: @${savedUser}`;
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${savedUser}</span>`;
-          await checkBuyerStatusInDatabase(savedUser);
-        } else {
-          authenticatedPiUser = { username: "Dev" };
-          if (statusEl) statusEl.innerText = `User: Dev (Mode Simulasi)`;
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@Dev</span>`;
-        }
-        await fetchActiveAuctions();
-        await fetchBuyersList();
+        console.warn("Autentikasi Pi SDK Gagal:", err);
+        isAuthenticating = false;
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn">Login</span>`;
+        if (!isAuto) alert("Gagal terhubung ke Pi SDK. Pastikan Anda membuka tautan ini di dalam aplikasi Pi Browser.");
       } finally {
         isAuthenticating = false;
       }
     }
+
 
     async function payAuctionDeposit() {
       if (!authenticatedPiUser) {
