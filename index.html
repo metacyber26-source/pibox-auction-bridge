@@ -1370,7 +1370,7 @@
       populateHourDropdownOptions();
       populateOnChainHourOptions();
       
-      // Eksekusi pengambilan galeri dan jadwal secara langsung agar cepat
+      // Eksekusi pengambilan galeri dan jadwal secara langsung agar cepat dimuat
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
@@ -1494,7 +1494,13 @@
 
       if (!piInstance) {
         isAuthenticating = false;
-        authenticatedPiUser = { username: "Dev" };
+        // Fallback aman agar galeri tetap termuat jika dibuka di luar Pi Browser
+        const savedUser = localStorage.getItem('pi_session_user');
+        if (savedUser) {
+          authenticatedPiUser = { username: savedUser };
+        } else {
+          authenticatedPiUser = { username: "Dev" };
+        }
         const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
         if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aktif)`;
         if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
@@ -1503,7 +1509,7 @@
         if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
         
         await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-        Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+        await Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
         
         if (!isAuto) alert(`🎉 Berhasil Masuk Otomatis (Mode Simulasi Dev) sebagai @${maskedName}`);
         return;
@@ -1530,7 +1536,7 @@
         if (auth && auth.user && auth.user.username) {
           const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
           authenticatedPiUser = { username: cleanUsername };
-          localStorage.setItem('pi_session_user', cleanUsername); // Simpan sesi lokal
+          localStorage.setItem('pi_session_user', cleanUsername);
           
           const maskedName = SecureShield.maskUsername(cleanUsername);
           
@@ -1559,8 +1565,6 @@
         }
       } catch (err) {
         console.warn("Autentikasi Pi SDK Gagal / Mode Browser Biasa:", err);
-        
-        // Cek apakah ada memori sesi pengguna sebelumnya di localStorage
         const savedUser = localStorage.getItem('pi_session_user');
         if (savedUser) {
           authenticatedPiUser = { username: savedUser };
@@ -1568,15 +1572,16 @@
           if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${savedUser}</span>`;
           await checkBuyerStatusInDatabase(savedUser);
         } else {
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn">Login</span>`;
-          if (!isAuto) alert("Gagal terhubung ke Pi Network SDK. Pastikan Anda membuka aplikasi melalui Pi Browser!");
+          authenticatedPiUser = { username: "Dev" };
+          if (statusEl) statusEl.innerText = `User: Dev (Mode Simulasi)`;
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@Dev</span>`;
         }
         await fetchActiveAuctions();
+        await fetchBuyersList();
       } finally {
         isAuthenticating = false;
       }
-
-
+    }
 
     async function payAuctionDeposit() {
       if (!authenticatedPiUser) {
@@ -1651,7 +1656,6 @@
       }
     }
 
-    // 👉 FITUR: KLAIM PENARIKAN JAMINAN DENGAN MUNCULKAN POP-UP BUKTI DEPOSIT, USERNAME, WALLET
     function requestDepositWithdrawal() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1785,8 +1789,6 @@
       
       const modeSelect = document.getElementById('scheduleModeSelect');
       const devOnlyOptions = document.querySelectorAll('.dev-only-mode');
-      
-      // Hanya izinkan akun 'Ful21' atau Dev yang bisa melihat opsi uji coba mode 1, 2, dan 4
       const isMasterDev = (authenticatedPiUser.username === "Ful21" || authenticatedPiUser.username === "Dev");
       
       devOnlyOptions.forEach(opt => {
@@ -1798,14 +1800,12 @@
       });
 
       if (modeSelect && auctionScheduleState.mode) {
-        // Jika bukan master dev dan mode saat ini bukan 'scheduled', paksa ke 'scheduled'
         if (!isMasterDev && auctionScheduleState.mode !== 'scheduled') {
           auctionScheduleState.mode = 'scheduled';
         }
         modeSelect.value = auctionScheduleState.mode;
         toggleScheduleInputVisibility();
       }
-
       
       if (auctionScheduleState.startDate) {
         const parts = auctionScheduleState.startDate.split('-');
@@ -1875,7 +1875,7 @@
       }
     }
 
-    let currentAuctionStatusCode = 1; // 1: Belum dijadwalkan, 2: Dibuka (Hitung mundur), 3: Berlangsung, 4: Selesai
+    let currentAuctionStatusCode = 1;
 
     function checkAuctionSchedule() {
       const badge = document.getElementById('sessionStateBadge');
@@ -1944,13 +1944,11 @@
       }
     }
 
-
     function openMonthlyReportModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("⛔ Akses Ditolak: Hanya Admin & Developer!");
         return;
       }
-
 
       const now = new Date();
       const defaultMonth = now.toISOString().slice(0, 7);
@@ -1970,17 +1968,14 @@
       const summaryBox = document.getElementById('reportSummaryBox');
       if (!summaryBox) return;
 
-      // Menetapkan rentang waktu presisi tinggi (Tanggal 1 pukul 00:00:00.000 s/d Tanggal akhir bulan 23:59:59.999)
       const [yearStr, monthStr] = monthVal.split('-');
       const year = parseInt(yearStr, 10);
-      const month = parseInt(monthStr, 10); // 1 - 12
+      const month = parseInt(monthStr, 10);
       
       const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-      // Mendapatkan hari terakhir di bulan tersebut secara otomatis
       const lastDayOfMonth = new Date(year, month, 0).getDate();
       const endDate = new Date(year, month - 1, lastDayOfMonth, 23, 59, 59, 999);
 
-      // Filter aset yang benar-benar masuk dalam rentang waktu on-time bulan tersebut
       const filtered = activeAuctionsList.filter(item => {
         if (!item.created_at) return false;
         const itemTime = new Date(item.created_at).getTime();
@@ -1993,9 +1988,7 @@
 
       filtered.forEach(ast => {
         const price = parseFloat(ast.highest_bid || ast.reserve_price || 0);
-        // Status selesai atau aktif dalam periode bersangkutan
         if (ast.status === 'finished' || ast.status === 'ended' || ast.status === 'active') {
-          // Cek apakah menggunakan wallet dev pusat
           if (!ast.pibox_wallet || ast.pibox_wallet.startsWith("GD52XTI2BXBRUQR227L4LQNO55NKTB5QO2PQMHNKVBSVGST2U5C2S4LD")) {
             totalDevWalletIncome += price;
           } else {
@@ -2034,7 +2027,6 @@
       summaryBox.innerText = reportText;
       window.currentMonthlyReportText = reportText;
     }
-
 
     function copyMonthlyReportText(btnEl) {
       const text = window.currentMonthlyReportText || '';
@@ -2132,7 +2124,6 @@
 
     function closeChatModal() { document.getElementById('chatModal').classList.add('hidden'); }
 
-    // 👉 FITUR: TAMBAH CHAT ADMIN DI CHAT ROOM
     function switchChatTab(roomType) {
       currentChatRoom = roomType;
       const btnForum = document.getElementById('tabBtnForum');
@@ -2140,7 +2131,6 @@
       const btnP2P = document.getElementById('tabBtnP2P');
       const selectorContainer = document.getElementById('p2pTargetSelectorContainer');
 
-      // Reset style
       btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
       btnAdmin.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
       btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
@@ -2150,7 +2140,6 @@
         btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer";
       } else if (roomType === 'admin') {
         btnAdmin.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-purple-600 text-white cursor-pointer";
-        // Otomatis pilih admin utama pertama sebagai target chat admin
         currentP2PTarget = ADMIN_USERNAMES[0];
       } else {
         btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-indigo-600 text-white cursor-pointer";
@@ -2221,7 +2210,6 @@
         if (currentChatRoom === 'forum') {
           query = query.eq('room_type', 'forum');
         } else {
-          // Room P2P atau Hubungi Admin menggunakan tipe p2p / target khusus admin
           if (!currentP2PTarget && currentChatRoom === 'p2p') { 
             box.innerHTML = `<div class="text-center text-indigo-400 py-6">Pilih lawan chat P2P terlebih dahulu.</div>`; 
             return; 
@@ -2375,7 +2363,6 @@
       });
     }
 
-
     function closeBuyersTableModal() { document.getElementById('buyersTableModal').classList.add('hidden'); }
 
     function renderBuyersTable() {
@@ -2461,8 +2448,6 @@
       }
     }
 
-
-
     async function payServerFeeAndProceed() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       const payBtn = document.getElementById('btnPayServerFee');
@@ -2475,16 +2460,13 @@
         payBtn.classList.add('opacity-50');
         payBtn.innerText = "✅ 1. Biaya Server Terbayar";
         
-        // Langsung buka langkah 2 secara instan
         const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
         if (releaseGalleryBtn) {
           releaseGalleryBtn.disabled = false;
           releaseGalleryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-          releaseGalleryBtn.classList.add('animate-pulse'); // Indikator siap diklik cepat
+          releaseGalleryBtn.classList.add('animate-pulse');
         }
       };
-
-
 
       const paymentData = {
         amount: 0.2,
@@ -2562,7 +2544,7 @@
             
             img.onload = () => {
               URL.revokeObjectURL(objectUrl);
-              const maxWidth = 720; // Dioptimalkan lebih ringan untuk perangkat mobile
+              const maxWidth = 720;
               let width = img.width;
               let height = img.height;
               
@@ -2576,8 +2558,8 @@
               canvas.height = height;
               const ctx = canvas.getContext('2d');
               ctx.drawImage(img, 0, 0, width, height);
-              resolve(canvas.toDataURL('image/jpeg', 0.65)); // Kompresi diperkuat agar ukuran file kecil & cepat dimuat
-
+              resolve(canvas.toDataURL('image/jpeg', 0.65));
+            };
 
             img.onerror = () => {
               URL.revokeObjectURL(objectUrl);
@@ -2645,7 +2627,6 @@
         releaseBtn.classList.add('opacity-50');
         releaseBtn.innerHTML = `<span>✅ 2. Berhasil Dirilis ke Galeri</span>`;
         
-        // Langsung buka langkah 3 secara instan tanpa jeda
         const sendEmailBtn = document.getElementById('btnSendEmail');
         if (sendEmailBtn) {
           sendEmailBtn.disabled = false;
@@ -2763,18 +2744,12 @@
           }
         }
 
-        // Logika Status 3: 60 menit sebelum sesi lelang aktif (Status 2 akhir menuju Status 3), list aset/barang non-aktif kecuali pemenang
         if (currentAuctionStatusCode === 2 || currentAuctionStatusCode === 3) {
-          // Cek apakah item ini sudah dimenangkan oleh user saat ini
           const isWinnerOrOwner = (currentUsername && (item.highest_bidder === currentUsername || item.seller === currentUsername));
-          // Sesuai aturan: Mulai 60 menit sebelum sesi lelang aktif / saat aktif, list barang umum non-aktif, kecuali punya akun pemenang/penjual terkait
-          // (Kecuali Admin/Dev yang tetap bisa memantau)
           if (!isAdminOrDev && !isWinnerOrOwner && currentAuctionStatusCode === 3) {
-            // Status 3: list aset/barang non-aktif secara umum untuk publik non-pemenang
             return false;
           }
         }
-
 
         const matchesQuery = (item.title || '').toLowerCase().includes(query) || 
                              (item.description || '').toLowerCase().includes(query) || 
@@ -2827,10 +2802,9 @@
         const price = parseFloat(auction.highest_bid || auction.reserve_price || 0);
         const catBadgeText = getCategoryLabel(auction.category);
 
-        // Pengecekan otomatis jika waktu ends_at terlewati dan belum adahighest_bidder / belum terjual
         let currentStatus = auction.status;
         if (currentStatus === 'active' && auction.ends_at && new Date().getTime() > new Date(auction.ends_at).getTime()) {
-          currentStatus = 'ended'; // Berubah otomatis jadi selesai jika waktu habis
+          currentStatus = 'ended';
         }
 
         let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">${t('activeStatus')}</span>`;
@@ -2842,21 +2816,19 @@
           statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400">${t('cancelledStatus')}</span>`;
         }
 
-
         const eventBadgeHTML = auction.is_event ? `<span class="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">EVENT</span>` : '';
 
         let adminActionControls = '';
         if (isAdminOrDev) {
-          // Jika status aktif -> ubah ke ended/pending; jika ended/pending -> kembalikan ke active (aktif lagi jika belum terbeli)
-        let nextStatus = 'active';
-        let btnLabel = '🟢 Set Active';
-        if (auction.status === 'active') {
-          nextStatus = 'ended';
-          btnLabel = '🏁 Set Selesai';
-        } else if (auction.status === 'ended' || auction.status === 'finished' || auction.status === 'pending') {
-          nextStatus = 'active';
-          btnLabel = '🟢 Set Active';
-        }
+          let nextStatus = 'active';
+          let btnLabel = '🟢 Set Active';
+          if (auction.status === 'active') {
+            nextStatus = 'ended';
+            btnLabel = '🏁 Set Selesai';
+          } else if (auction.status === 'ended' || auction.status === 'finished' || auction.status === 'pending') {
+            nextStatus = 'active';
+            btnLabel = '🟢 Set Active';
+          }
 
           adminActionControls = `
             <div class="flex gap-1 pt-1 border-t border-gray-800/80 mt-1 justify-end">
@@ -2982,7 +2954,6 @@
       const categoryLabel = getCategoryLabel(selectedAuction.category);
 
       let bidActionSection = '';
-      // Penawaran HANYA aktif pada Tahap 3 (Lelang sedang berlangsung / aktif)
       const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
 
       if (!isBiddingAllowed) {
@@ -3017,8 +2988,6 @@
           </div>
         `;
       }
-
-
 
       const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
       const extraImg = selectedAuction.extra_image_url || selectedAuction.extra_ss_url || '';
@@ -3090,7 +3059,6 @@
             ${(() => {
               const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
               const isWinnerUser = (currentUsr && (selectedAuction.highest_bidder === currentUsr || selectedAuction.seller === currentUsr));
-              // Status 4 (Lelang selesai) atau setelah ikut lelang, P2P aktif khusus pemenang/penjual
               const isP2PActiveState = (currentAuctionStatusCode === 4 && isWinnerUser);
 
               if (isP2PActiveState) {
@@ -3107,9 +3075,6 @@
                 `;
               }
             })()}
-
-
-
 
             <button onclick="openP2PMediatorChat('${selectedAuction.seller}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg cursor-pointer">
               💬 Chat P2P dengan Penjual & Admin Mediator
@@ -3317,7 +3282,6 @@ ${certText}
       if (chatModal) chatModal.classList.remove('hidden');
       
       switchChatTab('p2p');
-      
       currentP2PTarget = sellerUsername;
       
       const selectTarget = document.getElementById('p2pTargetUserSelect');
@@ -3468,11 +3432,8 @@ ${certText}
 
       const winningPrice = parseFloat(auction.highest_bid || auction.reserve_price || 0);
       const sellerName = auction.seller;
-      
-      // KUNCI PUSAT: Dialihkan ke Wallet Dev
       const LOCKED_DEV_WALLET = "GD52XTI2BXBRUQR227L4LQNO55NKTB5QO2PQMHNKVBSVGST2U5C2S4LD";
       const sellerWallet = LOCKED_DEV_WALLET; 
-      
       const buyerName = authenticatedPiUser.username;
 
       if (sellerName === buyerName) {
@@ -3494,7 +3455,6 @@ ${certText}
           piboxHash: auction.hash
         }
       };
-
 
       try {
         const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
@@ -3568,7 +3528,6 @@ ${certText}
       const creatorInput = document.getElementById('creatorAdminInput');
       if (creatorInput) creatorInput.value = authenticatedPiUser.username;
       
-      // Reset urutan tombol secara ketat (Wajib urut: Bayar -> Rilis -> Email)
       hasPaidServerFee = false;
       const payBtn = document.getElementById('btnPayServerFee');
       if (payBtn) { payBtn.disabled = false; payBtn.classList.remove('opacity-50'); payBtn.innerText = "💳 Bayar 0.2 Pi (Biaya Server)"; }
@@ -3581,7 +3540,6 @@ ${certText}
 
       document.getElementById('createModal').classList.remove('hidden');
     }
-
 
     function closeCreateModal() {
       document.getElementById('createModal').classList.add('hidden');
