@@ -1517,10 +1517,12 @@
         if (auth && auth.user && auth.user.username) {
           const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
           authenticatedPiUser = { username: cleanUsername };
+          localStorage.setItem('pi_session_user', cleanUsername); // Simpan sesi lokal agar login tidak hilang
+          
           const maskedName = SecureShield.maskUsername(cleanUsername);
           
-          if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+          if (statusEl) statusEl.innerText = `User: @${cleanUsername}`;
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${cleanUsername}</span>`;
           
           const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
           const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
@@ -1536,29 +1538,31 @@
             await checkBuyerStatusInDatabase(cleanUsername);
           }
           
-          Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+          await Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
 
-          if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
+          if (!isAuto) alert(`🎉 Berhasil Login sebagai @${cleanUsername}`);
         } else {
           throw new Error("Respon otentikasi Pi Network tidak valid.");
         }
       } catch (err) {
-        authenticatedPiUser = { username: "Dev" };
-        const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-        if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-        isBuyerApproved = true;
-        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+        console.warn("Autentikasi Pi SDK Gagal / Mode Browser Biasa:", err);
         
-        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-        Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-        
-        if (!isAuto) alert(`⚠️ Autentikasi Pi SDK memuat mode aman offline/simulasi.`);
+        // Cek apakah ada memori sesi pengguna sebelumnya
+        const savedUser = localStorage.getItem('pi_session_user');
+        if (savedUser) {
+          authenticatedPiUser = { username: savedUser };
+          if (statusEl) statusEl.innerText = `User: @${savedUser}`;
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${savedUser}</span>`;
+          await checkBuyerStatusInDatabase(savedUser);
+        } else {
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn">Login</span>`;
+          if (!isAuto) alert("Gagal terhubung ke Pi Network SDK. Pastikan Anda membuka aplikasi melalui Pi Browser!");
+        }
+        await fetchActiveAuctions();
       } finally {
         isAuthenticating = false;
       }
-    }
+
 
     async function payAuctionDeposit() {
       if (!authenticatedPiUser) {
