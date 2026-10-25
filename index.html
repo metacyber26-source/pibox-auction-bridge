@@ -2776,14 +2776,21 @@
         const price = parseFloat(auction.highest_bid || auction.reserve_price || 0);
         const catBadgeText = getCategoryLabel(auction.category);
 
+        // Pengecekan otomatis jika waktu ends_at terlewati dan belum adahighest_bidder / belum terjual
+        let currentStatus = auction.status;
+        if (currentStatus === 'active' && auction.ends_at && new Date().getTime() > new Date(auction.ends_at).getTime()) {
+          currentStatus = 'ended'; // Berubah otomatis jadi selesai jika waktu habis
+        }
+
         let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">${t('activeStatus')}</span>`;
-        if (auction.status === 'pending') {
+        if (currentStatus === 'pending') {
           statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">${t('pendingStatus')}</span>`;
-        } else if (auction.status === 'finished' || auction.status === 'ended') {
+        } else if (currentStatus === 'finished' || currentStatus === 'ended') {
           statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-800 text-gray-400">${t('finishedStatus')}</span>`;
-        } else if (auction.status === 'cancelled') {
+        } else if (currentStatus === 'cancelled') {
           statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400">${t('cancelledStatus')}</span>`;
         }
+
 
         const eventBadgeHTML = auction.is_event ? `<span class="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">EVENT</span>` : '';
 
