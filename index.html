@@ -1326,12 +1326,23 @@
     }
 
     try {
-      if (window.supabase) {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { persistSession: false },
+          realtime: {
+            params: {
+              eventsPerSecond: 10
+            }
+          }
+        });
+        console.log("Supabase Client successfully initialized.");
+      } else {
+        console.warn("Supabase CDN belum termuat sepenuhnya.");
       }
     } catch (e) {
       console.error("Supabase Init Error:", e);
     }
+
 
     function validateAndCountTitle(el) {
       const cleanValue = el.value.replace(/[<>{}\[\]\\^`~|*$%]/g, '');
