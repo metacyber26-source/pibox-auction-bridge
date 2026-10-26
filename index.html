@@ -1416,6 +1416,22 @@
           authenticatePiUser(true);
         }
       }, 1000);
+            // (Tambahan) Watcher inisialisasi Pi SDK agar tombol langsung responsif
+      let sdkCheckCount = 0;
+      const sdkInterval = setInterval(() => {
+        sdkCheckCount++;
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if ((piInstance && typeof piInstance.init === 'function') || sdkCheckCount > 15) {
+          if (piInstance && typeof piInstance.init === 'function') {
+            try {
+              piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+              console.log("Pi SDK successfully re-initialized via Watcher.");
+            } catch (e) {}
+          }
+          clearInterval(sdkInterval);
+        }
+      }, 500);
+
     });
 
 
