@@ -1483,7 +1483,11 @@
       const btnAdminSchedule = document.getElementById('btnAdminSchedule');
       const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
       
-      if (isAuthenticating) return;
+      if (isAuthenticating) {
+        console.log("Autentikasi sedang berjalan...");
+        return;
+      }
+
       if (authenticatedPiUser) {
         if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
         return;
@@ -1495,26 +1499,18 @@
       }
 
       let piInstance = null;
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 20; i++) {
         piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
         if (piInstance) break;
-        await new Promise(r => setTimeout(r, 250));
+        await new Promise(r => setTimeout(r, 200));
       }
 
       if (!piInstance) {
         isAuthenticating = false;
-        const savedUser = localStorage.getItem('pi_session_user');
-        authenticatedPiUser = { username: savedUser || "Dev" };
-        const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-        
-        if (statusEl) statusEl.innerText = `User: @${authenticatedPiUser.username}`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-        isBuyerApproved = true;
-        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        
-        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-        await Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn">Login</span>`;
+        if (!isAuto) {
+          alert("Pi SDK tidak terdeteksi. Pastikan Anda membuka aplikasi ini di dalam Pi Browser resmi.");
+        }
         return;
       }
 
@@ -1569,13 +1565,15 @@
         }
       } catch (err) {
         console.warn("Autentikasi Pi SDK Gagal:", err);
-        isAuthenticating = false;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn">Login</span>`;
-        if (!isAuto) alert("Gagal terhubung ke Pi SDK. Pastikan Anda membuka tautan ini di dalam aplikasi Pi Browser.");
+        if (!isAuto) alert("Gagal terhubung ke Pi SDK: " + (err.message || "Unknown error"));
       } finally {
         isAuthenticating = false;
+        if (!authenticatedPiUser && btnHeaderLogin) {
+          btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn">Login</span>`;
+        }
       }
     }
+
 
 
     async function payAuctionDeposit() {
