@@ -1505,59 +1505,97 @@
     }
 
     async function authenticatePiUser(isAuto = false) {
-      const statusEl = document.getElementById('userStatusDisplay');
-      const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-      const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-      const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+  const statusEl = document.getElementById('userStatusDisplay');
+  const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+  const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+  const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+  
+  if (isAuthenticating) {
+    console.log("Autentikasi sedang berjalan...");
+    return;
+  }
+
+  if (authenticatedPiUser) {
+    if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
+    return;
+  }
+
+  isAuthenticating = true;
+  if (btnHeaderLogin) {
+    btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
+  }
+
+  let piInstance = null;
+  // Poling aman untuk menunggu Pi SDK termuat (maksimal 5 detik)
+  for (let i = 0; i < 20; i++) {
+    piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+    if (piInstance && typeof piInstance.authenticate === 'function') break;
+    await new Promise(r => setTimeout(r, 250));
+  }
+
+  if (!piInstance || typeof piInstance.authenticate !== 'function') {
+    isAuthenticating = false;
+    if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn">Login</span>`;
+    if (!isAuto) {
+      alert("Pi SDK belum siap atau Anda tidak membukanya di dalam Pi Browser resmi.");
+    }
+    return;
+  }
+
+  try {
+    piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+  } catch (e) {
+    console.warn("Pi Init Warning:", e);
+  }
+
+  try {
+    const scopes = ['username', 'payments'];
+    const onIncompletePaymentFound = (payment) => {
+      console.log("Incomplete payment found:", payment);
+    };
+
+    const auth = await piInstance.authenticate(scopes, onIncompletePaymentFound);
+    
+    if (auth && auth.user && auth.user.username) {
+      const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
+      authenticatedPiUser = { username: cleanUsername };
+      localStorage.setItem('pi_session_user', cleanUsername);
       
-      if (isAuthenticating) {
-        console.log("Autentikasi sedang berjalan...");
-        return;
+      const maskedName = SecureShield.maskUsername(cleanUsername);
+      
+      if (statusEl) statusEl.innerText = `User: @${cleanUsername}`;
+      if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+      
+      const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
+      const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
+      
+      if (isAdmin) {
+        isBuyerApproved = true;
+        if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+      } else {
+        if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
+        await checkBuyerStatusInDatabase(cleanUsername);
       }
+      
+      await Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+      if (!isAuto) alert(`🎉 Berhasil Login Pi Network sebagai @${cleanUsername}`);
+    } else {
+      throw new Error("Respon otentikasi Pi Network tidak valid.");
+    }
+  } catch (err) {
+    console.warn("Autentikasi Pi SDK Gagal:", err);
+    if (!isAuto) alert("Gagal terhubung ke Pi SDK: " + (err.message || "Unknown error"));
+  } finally {
+    isAuthenticating = false;
+    if (!authenticatedPiUser && btnHeaderLogin) {
+      btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn">Login</span>`;
+    }
+  }
+}
 
-      if (authenticatedPiUser) {
-        if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
-        return;
-      }
-
-      isAuthenticating = true;
-      if (btnHeaderLogin) {
-        btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
-      }
-
-      let piInstance = null;
-      for (let i = 0; i < 25; i++) {
-        piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.authenticate === 'function') break;
-        await new Promise(r => setTimeout(r, 300));
-      }
-
-      if (!piInstance || typeof piInstance.authenticate !== 'function') {
-        isAuthenticating = false;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn">Login</span>`;
-        if (!isAuto) {
-          alert("Pi SDK belum siap atau Anda tidak membukanya di dalam Pi Browser resmi.");
-        }
-        return;
-      }
-
-      try {
-        piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
-      } catch (e) {
-        console.warn("Pi Init Warning:", e);
-      }
-
-      try {
-        const scopes = ['username', 'payments'];
-        const onIncompletePaymentFound = (payment) => {
-          if (payment && payment.identifier) {
-            fetch('/api/pi/complete', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction ? payment.transaction.txid : '' })
-            }).catch(() => {});
-          }
-        };
 
         const auth = await piInstance.authenticate(scopes, onIncompletePaymentFound);
         
