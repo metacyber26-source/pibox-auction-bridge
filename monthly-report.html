@@ -197,6 +197,33 @@
         const totalBuyersCount = (buyers || []).length;
         const winningBuyersCount = winningBiddersSet.size;
 
+        // [TAMBAHAN] Kalkulasi Sirkulasi Koin Masuk (Inflow) & Keluar (Outflow) Wallet Dev
+        let devInflowTotal = 0;
+        let devOutflowTotal = 0;
+
+        (depositLogs || []).forEach(log => {
+          const amt = parseFloat(log.amount || 0);
+          if (log.type === 'deposit' || log.type === 'server_fee' || log.type === 'bid_fee') {
+            devInflowTotal += amt;
+          } else if (log.type === 'withdraw' || log.type === 'refund') {
+            devOutflowTotal += amt;
+          }
+        });
+
+        // Hitung volume lelang yang masuk ke wallet pusat (dev wallet)
+        let auctionDevInflow = 0;
+        relevantAuctions.forEach(item => {
+          const isFinished = item.status === 'finished' || item.status === 'ended';
+          const price = parseFloat(item.highest_bid || item.reserve_price || 0);
+          const isDevWallet = (!item.pibox_wallet || item.pibox_wallet.startsWith("GD52XTI"));
+          if ((isFinished || item.status === 'active') && isDevWallet) {
+            auctionDevInflow += price;
+          }
+        });
+
+        const totalDevInflowFinal = devInflowTotal + auctionDevInflow;
+        const netDevCirculation = totalDevInflowFinal - devOutflowTotal;
+
         // Menyusun format teks laporan lengkap & presisi
         let reportStr = `========================================\n`;
         reportStr += `📊 REKAPITULASI BULANAN ON-CHAIN TIME\n`;
