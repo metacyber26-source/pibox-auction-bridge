@@ -151,12 +151,23 @@
 
         if (auctionErr) throw auctionErr;
 
-        // Ambil data pembeli terdaftar
+                // Ambil data pembeli terdaftar
         const { data: buyers, error: buyerErr } = await supabaseClient
           .from('buyers')
           .select('*');
 
         if (buyerErr) throw buyerErr;
+
+        // [TAMBAHAN] Ambil log transaksi / deposit wallet dev dari rentang bulan terpilih
+        const { data: depositLogs, error: logErr } = await supabaseClient
+          .from('auction_deposits_log')
+          .select('*')
+          .gte('created_at', startDate)
+          .lte('created_at', endDate);
+
+        if (logErr) {
+          console.warn("Log transaksi dev wallet tidak ditemukan atau error:", logErr.message);
+        }
 
         // 1. Menyaring aset: Dirilis pada bulan ini (sesuai rentang) ATAU aset bulan-bulan sebelumnya yang statusnya masih 'active' / 'pending' (carry-over)
         const relevantAuctions = (auctions || []).filter(item => {
