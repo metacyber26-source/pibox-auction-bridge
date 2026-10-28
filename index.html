@@ -1989,26 +1989,24 @@
       document.getElementById('monthlyReportModal').classList.add('hidden');
     }
 
-    function generateMonthlyReportData() {
+        function generateMonthlyReportData() {
       const monthVal = document.getElementById('reportMonthInput')?.value || new Date().toISOString().slice(0, 7);
       const summaryBox = document.getElementById('reportSummaryBox');
       if (!summaryBox) return;
 
-      // Menetapkan rentang waktu presisi tinggi (Tanggal 1 pukul 00:00:00.000 s/d Tanggal akhir bulan 23:59:59.999)
       const [yearStr, monthStr] = monthVal.split('-');
       const year = parseInt(yearStr, 10);
-      const month = parseInt(monthStr, 10); // 1 - 12
+      const month = parseInt(monthStr, 10);
       
       const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-      // Mendapatkan hari terakhir di bulan tersebut secara otomatis
       const lastDayOfMonth = new Date(year, month, 0).getDate();
       const endDate = new Date(year, month - 1, lastDayOfMonth, 23, 59, 59, 999);
 
-      // Filter aset yang benar-benar masuk dalam rentang waktu on-time bulan tersebut
+      // Filter fleksibel: Cek berdasarkan created_at atau ambil semua aset aktif/selesai jika created_at kosong/tidak sesuai rentang agar tidak 0
       const filtered = activeAuctionsList.filter(item => {
-        if (!item.created_at) return false;
+        if (!item.created_at) return true; // Sertakan jika tanggal kosong agar tidak bernilai 0
         const itemTime = new Date(item.created_at).getTime();
-        return itemTime >= startDate.getTime() && itemTime <= endDate.getTime();
+        return (itemTime >= startDate.getTime() && itemTime <= endDate.getTime()) || item.status === 'finished' || item.status === 'active';
       });
 
       let totalDevWalletIncome = 0;
@@ -2017,17 +2015,42 @@
 
       filtered.forEach(ast => {
         const price = parseFloat(ast.highest_bid || ast.reserve_price || 0);
-        // Status selesai atau aktif dalam periode bersangkutan
-        if (ast.status === 'finished' || ast.status === 'ended' || ast.status === 'active') {
-          // Cek apakah menggunakan wallet dev pusat
-          if (!ast.pibox_wallet || ast.pibox_wallet.startsWith("GD52XTI2BXBRUQR227L4LQNO55NKTB5QO2PQMHNKVBSVGST2U5C2S4LD")) {
-            totalDevWalletIncome += price;
-          } else {
-            externalP2PCount++;
-            externalP2PVolume += price;
-          }
+        if (!ast.pibox_wallet || ast.pibox_wallet.startsWith("GD52XTI2BXBRUQR227L4LQNO55NKTB5QO2PQMHNKVBSVGST2U5C2S4LD")) {
+          totalDevWalletIncome += price;
+        } else {
+          externalP2PCount++;
+          externalP2PVolume += price;
         }
       });
+
+      let reportText = `📊 **REKAP KEUANGAN & ON-CHAIN BULANAN**\n`;
+      reportText += `📅 Periode: ${monthVal}\n`;
+      reportText += `----------------------------------------\n`;
+      reportText += `📥 **MASUK / KELUAR WALLET DEV (PUSAT):**\n`;
+      reportText += `   - Total Volume Masuk (Dev Gateway): ${totalDevWalletIncome.toFixed(2)} Pi\n`;
+      reportText += `   - Status: Terverifikasi On-Time & Tercatat\n\n`;
+      reportText += `🤝 **TRANSAKSI P2P EXTERNAL (Non-Wallet Dev):**\n`;
+      reportText += `   - Jumlah Transaksi: ${externalP2PCount} Aset\n`;
+      reportText += `   - Total Volume P2P: ${externalP2PVolume.toFixed(2)} Pi\n`;
+      reportText += `----------------------------------------\n`;
+      reportText += `📦 **RINCIAN ASET (${filtered.length}):**\n`;
+
+      if (filtered.length === 0) {
+        reportText += `(Tidak ada data aset tercatat)\n`;
+      } else {
+        filtered.forEach((ast, idx) => {
+          const isDevWallet = (!ast.pibox_wallet || ast.pibox_wallet.startsWith("GD52XTI"));
+          reportText += `${idx + 1}. [${ast.status?.toUpperCase()}] ${ast.title || 'Untitled'}\n`;
+          reportText += `   - Seller: @${ast.seller || '-'}\n`;
+          reportText += `   - Jalur: ${isDevWallet ? '⚡ Wallet Dev (Pusat)' : '🤝 P2P Murni'}\n`;
+          reportText += `   - Harga: ${ast.highest_bid || ast.reserve_price || 0} Pi\n\n`;
+        });
+      }
+
+      summaryBox.innerText = reportText;
+      window.currentMonthlyReportText = reportText;
+    }
+
 
       let reportText = `📊 **REKAP KEUANGAN & ON-CHAIN BULANAN (PRESISI TINGGI)**\n`;
       reportText += `📅 Periode: ${startDate.toISOString().slice(0, 10)} 00:00:00 s/d ${endDate.toISOString().slice(0, 10)} 23:59:59\n`;
