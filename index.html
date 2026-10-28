@@ -2673,12 +2673,20 @@
       closeCreateModal();
     }
 
-    async function fetchActiveAuctions() {
+        async function fetchActiveAuctions() {
       const mainContent = document.getElementById('mainContent');
-      if (!supabaseClient) {
-        mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Supabase Client belum terinisialisasi.</div>`;
-        return;
+      
+      // Ambil data cache lokal terlebih dahulu agar akses terasa instan tanpa loading lama
+      const cachedData = localStorage.getItem('nusantara_cached_auctions');
+      if (cachedData) {
+        try {
+          activeAuctionsList = JSON.parse(cachedData);
+          updateActiveCounts();
+          filterGallery();
+        } catch (e) {}
       }
+
+      if (!supabaseClient) return;
 
       try {
         const { data, error } = await supabaseClient
@@ -2689,12 +2697,16 @@
         if (error) throw error;
 
         activeAuctionsList = data || [];
+        localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
         updateActiveCounts();
         filterGallery();
       } catch (err) {
-        mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Gagal memuat galeri: ${err.message}</div>`;
+        if (!cachedData) {
+          mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Gagal memuat galeri: ${err.message}</div>`;
+        }
       }
     }
+
 
     function updateActiveCounts() {
       const sellersSet = new Set();
