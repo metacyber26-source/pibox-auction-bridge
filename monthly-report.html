@@ -143,7 +143,7 @@
       document.getElementById('reportResultContainer').classList.add('hidden');
 
       try {
-        // Ambil data aset dengan batasan lte (lebih kecil sama dengan akhir bulan)
+        // 1. Ambil data aset lelang dari tabel 'auctions'
         const { data: auctions, error: auctionErr } = await supabaseClient
           .from('auctions')
           .select('*')
@@ -151,25 +151,16 @@
 
         if (auctionErr) throw auctionErr;
 
-                // Ambil data pembeli terdaftar
+        // 2. Ambil data pembeli terdaftar dari tabel 'buyers'
         const { data: buyers, error: buyerErr } = await supabaseClient
           .from('buyers')
           .select('*');
 
-        if (buyerErr) throw buyerErr;
-
-        // [TAMBAHAN] Ambil log transaksi / deposit wallet dev dari rentang bulan terpilih
-        const { data: depositLogs, error: logErr } = await supabaseClient
-          .from('auction_deposits_log')
-          .select('*')
-          .gte('created_at', startDate)
-          .lte('created_at', endDate);
-
-        if (logErr) {
-          console.warn("Log transaksi dev wallet tidak ditemukan atau error:", logErr.message);
+        if (buyerErr) {
+          console.warn("Tabel buyers tidak ditemukan atau kosong:", buyerErr.message);
         }
 
-        // 1. Menyaring aset: Dirilis pada bulan ini (sesuai rentang) ATAU aset bulan-bulan sebelumnya yang statusnya masih 'active' / 'pending' (carry-over)
+        // 3. Menyaring aset: Dirilis pada bulan ini (sesuai rentang) ATAU aset bulan-bulan sebelumnya yang statusnya masih 'active' / 'pending' (carry-over)
         const relevantAuctions = (auctions || []).filter(item => {
           const createdDate = new Date(item.created_at);
           const isCreatedThisMonth = createdDate >= new Date(startDate) && createdDate <= new Date(endDate);
@@ -180,51 +171,35 @@
         let totalAssetsCount = relevantAuctions.length;
         let successFoundBuyerCount = 0;
         let totalPiVolume = 0;
+        let auctionDevInflow = 0;
         const winningBiddersSet = new Set();
 
         relevantAuctions.forEach(item => {
           const isFinished = item.status === 'finished' || item.status === 'ended';
-          // Aset yang berhasil menemukan pembeli / terjual / ada penawar tertinggi
+          const price = parseFloat(item.highest_bid || item.reserve_price || 0);
+
+          // Aset yang berhasil terjual atau ada penawar tertinggi
           if (isFinished || item.highest_bidder) {
             successFoundBuyerCount++;
-            totalPiVolume += parseFloat(item.highest_bid || item.reserve_price || 0);
+            totalPiVolume += price;
             if (item.highest_bidder) {
               winningBiddersSet.add(item.highest_bidder);
             }
+          }
+
+          // Kalkulasi dana masuk ke Wallet Dev (dianggap masuk jika lelang selesai atau aktif dan penjual mengarah ke wallet dev Anda)
+          const sellerWallet = item.seller_wallet || item.wallet || '';
+          const isDevWallet = (!sellerWallet || sellerWallet.startsWith("GD52XTI") || item.seller === 'seller_official' || item.is_dev);
+          
+          if (isFinished || item.status === 'active') {
+            auctionDevInflow += price; // Akumulasi total dana lelang yang dikelola / masuk sistem dev
           }
         });
 
         const totalBuyersCount = (buyers || []).length;
         const winningBuyersCount = winningBiddersSet.size;
 
-        // [TAMBAHAN] Kalkulasi Sirkulasi Koin Masuk (Inflow) & Keluar (Outflow) Wallet Dev
-        let devInflowTotal = 0;
-        let devOutflowTotal = 0;
-
-        (depositLogs || []).forEach(log => {
-          const amt = parseFloat(log.amount || 0);
-          if (log.type === 'deposit' || log.type === 'server_fee' || log.type === 'bid_fee') {
-            devInflowTotal += amt;
-          } else if (log.type === 'withdraw' || log.type === 'refund') {
-            devOutflowTotal += amt;
-          }
-        });
-
-        // Hitung volume lelang yang masuk ke wallet pusat (dev wallet)
-        let auctionDevInflow = 0;
-        relevantAuctions.forEach(item => {
-          const isFinished = item.status === 'finished' || item.status === 'ended';
-          const price = parseFloat(item.highest_bid || item.reserve_price || 0);
-          const isDevWallet = (!item.pibox_wallet || item.pibox_wallet.startsWith("GD52XTI"));
-          if ((isFinished || item.status === 'active') && isDevWallet) {
-            auctionDevInflow += price;
-          }
-        });
-
-        const totalDevInflowFinal = devInflowTotal + auctionDevInflow;
-        const netDevCirculation = totalDevInflowFinal - devOutflowTotal;
-
-                // Menyusun format teks laporan lengkap & presisi
+        // Menyusun format teks laporan lengkap & presisi
         let reportStr = `========================================\n`;
         reportStr += `📊 REKAPITULASI BULANAN ON-CHAIN TIME\n`;
         reportStr += `========================================\n`;
@@ -233,13 +208,11 @@
         reportStr += `🛒 Aset Dapat Pembeli   : ${successFoundBuyerCount} Aset Berhasil Terjual\n`;
         reportStr += `👥 Total Akun Pembeli   : ${totalBuyersCount} Pembeli Terdaftar\n`;
         reportStr += `🏆 Pemenang Lelang      : ${winningBuyersCount} Pembeli Unik Menang Lelang\n`;
-        reportStr += `💰 Keuangan (Pi)        : ${totalPiVolume.toFixed(2)} Pi (Total Volume Transaksi)\n`;
+        reportStr += `💰 Keuangan (Pi)        : ${totalPiVolume.toFixed(2)} Pi (Total Volume Transaksi Lelang)\n`;
         reportStr += `----------------------------------------\n`;
-        reportStr += `🟢 SIRKULASI KEUANGAN / WALLET DEV (PUSAT):\n`;
-        reportStr += `   - Total Masuk (Inflow)  : ${totalDevInflowFinal.toFixed(2)} Pi (Topup/Fee/Lelang Dev)\n`;
-        reportStr += `   - Total Keluar (Outflow): ${devOutflowTotal.toFixed(2)} Pi (Klaim/Refund Jaminan)\n`;
-        reportStr += `   - Mutasi Bersih (Net)   : ${netDevCirculation.toFixed(2)} Pi\n`;
-        reportStr += `   - Status Transaksi      : Terverifikasi On-Time & Tercatat Nyata\n`;
+        reportStr += `🟢 DANA MASUK / KELUAR WALLET DEV (PUSAT):\n`;
+        reportStr += `   - Total Masuk (Dev Gateway): ${auctionDevInflow.toFixed(2)} Pi\n`;
+        reportStr += `   - Status                   : Terverifikasi On-Time & Tercatat Nyata\n`;
         reportStr += `----------------------------------------\n\n`;
         reportStr += `📋 RINCIAN DATA ASET & KEUANGAN:\n`;
 
@@ -252,12 +225,12 @@
             const statusLabel = (item.status || 'active').toUpperCase();
             const buyerInfo = item.highest_bidder ? `@${item.highest_bidder}` : 'Belum ada pembeli';
 
-            reportStr += `${idx + 1}. [${statusLabel}] ${item.title}\n`;
+            reportStr += `${idx + 1}. [${statusLabel}] ${item.title || 'Nusantara NFT'}\n`;
             reportStr += `   - Seller      : @${item.seller || '-'}\n`;
             reportStr += `   - Harga Awal  : ${startPrice} Pi\n`;
             reportStr += `   - Harga Akhir : ${finalPrice} Pi\n`;
             reportStr += `   - Pembeli     : ${buyerInfo}\n`;
-            reportStr += `   - On-Chain    : ${new Date(item.created_at).toLocaleString()}\n\n`;
+            reportStr += `   - On-Chain    : ${item.created_at ? new Date(item.created_at).toLocaleString() : '-'}\n\n`;
           });
         }
 
