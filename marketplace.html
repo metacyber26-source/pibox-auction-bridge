@@ -434,6 +434,29 @@
   }
 }
 
+async function adminDeleteMarketProduct(prodId) {
+  if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+    alert("⛔ Akses Ditolak: Hanya Admin dan Developer yang dapat menghapus produk!");
+    return;
+  }
+
+  if (!confirm("Apakah Anda yakin ingin menghapus produk ini dari marketplace?")) return;
+
+  if (!supabaseClient) {
+    alert("Supabase belum terhubung.");
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient.from('marketplace_products').delete().eq('id', prodId);
+    if (error) throw error;
+
+    alert("🗑 Produk berhasil dihapus oleh Admin/Dev!");
+    fetchMarketProducts();
+  } catch (err) {
+    alert("❌ Gagal menghapus produk: " + err.message);
+  }
+}
 
     async function fetchMarketProducts() {
       const box = document.getElementById('marketContent');
