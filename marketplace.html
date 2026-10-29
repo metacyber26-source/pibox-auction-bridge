@@ -490,43 +490,47 @@
     }
 
     // FITUR HAPUS BARANG KHUSUS ADMIN & DEV (DAN PEMILIK BARANG)
-    async function deleteMarketProduct(prodId) {
-      if (!authenticatedPiUser) {
-        alert("Silakan login terlebih dahulu!");
-        authenticatePiMarketUser();
-        return;
-      }
+async function deleteMarketProduct(prodId) {
+  if (!authenticatedPiUser) {
+    alert("Silakan login terlebih dahulu!");
+    authenticatePiMarketUser();
+    return;
+  }
 
-      const currentUser = authenticatedPiUser.username;
-      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUser);
-      const prod = marketProductsList.find(p => p.id === prodId);
+  const currentUser = authenticatedPiUser.username;
+  const isAdminOrDev = ADMIN_USERNAMES.includes(currentUser);
+  const prod = marketProductsList.find(p => p.id === prodId);
 
-      if (!prod) return;
+  if (!prod) return;
 
-      if (!isAdminOrDev && prod.seller !== currentUser) {
-        alert("⛔ Akses Ditolak: Fitur hapus barang ini khusus Admin, Developer, atau pemilik asli barang!");
-        return;
-      }
+  if (!isAdminOrDev && prod.seller !== currentUser) {
+    alert("⛔ Akses Ditolak: Fitur hapus barang ini khusus Admin, Developer, atau pemilik asli barang!");
+    return;
+  }
 
-      if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus produk "${prod.title}" secara permanen?`)) {
-        return;
-      }
+  if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus produk "${prod.title}" secara permanen dari database?`)) {
+    return;
+  }
 
-      if (!supabaseClient) {
-        alert("Supabase belum terhubung.");
-        return;
-      }
+  if (!supabaseClient) {
+    alert("Supabase belum terhubung.");
+    return;
+  }
 
-      try {
-        const { error } = await supabaseClient.from('marketplace_products').delete().eq('id', prodId);
-        if (error) throw error;
+  try {
+    // Eksekusi penghapusan data secara nyata di database Supabase
+    const { error } = await supabaseClient.from('marketplace_products').delete().eq('id', prodId);
+    if (error) throw error;
 
-        alert("🗑️ Produk berhasil dihapus dari marketplace.");
-        fetchMarketProducts();
-      } catch (err) {
-        alert("❌ Gagal menghapus produk: " + err.message);
-      }
-    }
+    alert("🗑️ Produk berhasil dihapus secara permanen dari database!");
+    
+    // Ambil ulang data terbaru dari server agar tampilan langsung sinkron
+    await fetchMarketProducts();
+  } catch (err) {
+    alert("❌ Gagal menghapus produk: " + err.message);
+  }
+}
+
 
     function openMarketDetailModal(prodId) {
       const prod = marketProductsList.find(p => p.id === prodId);
