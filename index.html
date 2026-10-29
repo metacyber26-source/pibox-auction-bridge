@@ -2637,10 +2637,19 @@
       closeCreateModal();
     }
 
-    async function fetchActiveAuctions() {
+        let auctionCacheTimestamp = 0;
+    const CACHE_DURATION = 15000; // Cache 15 detik untuk meringankan beban database saat jutaan pengguna akses bersamaan
+
+    async function fetchActiveAuctions(force = false) {
       const mainContent = document.getElementById('mainContent');
       if (!supabaseClient) {
         mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Supabase Client belum terinisialisasi.</div>`;
+        return;
+      }
+
+      const now = Date.now();
+      if (!force && activeAuctionsList.length > 0 && (now - auctionCacheTimestamp < CACHE_DURATION)) {
+        renderGallery();
         return;
       }
 
@@ -2648,17 +2657,22 @@
         const { data, error } = await supabaseClient
           .from('auctions')
           .select('*')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(100); // Batasi limit per fetch untuk efisiensi performa load data skala besar
 
         if (error) throw error;
 
         activeAuctionsList = data || [];
+        auctionCacheTimestamp = Date.now();
         updateActiveCounts();
         filterGallery();
       } catch (err) {
-        mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Gagal memuat galeri: ${err.message}</div>`;
+        if (activeAuctionsList.length === 0) {
+          mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Gagal memuat galeri: ${err.message}</div>`;
+        }
       }
     }
+
 
     function updateActiveCounts() {
       const sellersSet = new Set();
