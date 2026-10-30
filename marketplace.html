@@ -853,6 +853,41 @@
       updateCartBadge();
       openCartModal();
     }
+    async function checkoutCartItems() {
+      if (!authenticatedPiUser) { alert("Silakan login terlebih dahulu!"); authenticatePiMarketUser(); return; }
+      if (cartItemsList.length === 0) { alert("Keranjang kosong!"); return; }
+
+      const buyerChecked = document.getElementById('cartBuyerDisclaimerCheck')?.checked;
+      if (!buyerChecked) {
+        alert("⚖️ Anda wajib mencentang Perjanjian & Disclaimer Pembeli terlebih dahulu!");
+        return;
+      }
+
+      const totalSum = cartItemsList.reduce((sum, item) => sum + (item.price * item.qty), 0);
+      const serverFee = 0.2;
+      const finalAmount = totalSum + serverFee;
+
+      const paymentData = {
+        amount: finalAmount,
+        memo: `P2P-CART-CHECKOUT#ITEMS:${cartItemsList.length}#FEE:${serverFee}`,
+        metadata: { type: 'cart_checkout', items: cartItemsList, buyer: authenticatedPiUser.username, devWallet: DEV_WALLET_ADDRESS }
+      };
+
+      const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      if (piInstance && typeof piInstance.createPayment === 'function') {
+        piInstance.createPayment(paymentData, {
+          onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
+          onReadyForServerCompletion: async (pid, txid) => {
+            await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
+            await recordCartTransactionOnChain(finalAmount, serverFee, txid);
+          },
+          onCancel: () => { alert("Checkout dibatalkan."); },
+          onError: () => { recordCartTransactionOnChain(finalAmount, serverFee, 'SIMULATED_CART_TXID'); }
+        });
+      } else {
+        recordCartTransactionOnChain(finalAmount, serverFee, 'SIMULATED_BROWSER_CART_TXID');
+      }
+    }
 
     async function checkoutCartItems() {
       if (!authenticatedPiUser) { alert("Silakan login terlebih dahulu!"); authenticatePiMarketUser(); return; }
