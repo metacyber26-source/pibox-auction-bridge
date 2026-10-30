@@ -889,11 +889,12 @@
       }
     }
 
-    async function checkoutCartItems() {
+        async function checkoutCartItems() {
       if (!authenticatedPiUser) { alert("Silakan login terlebih dahulu!"); authenticatePiMarketUser(); return; }
       if (cartItemsList.length === 0) { alert("Keranjang kosong!"); return; }
 
-      const buyerChecked = document.getElementById('buyerDisclaimerCheck')?.checked;
+      // Perbaikan: Menyesuaikan ID dengan elemen di HTML modal keranjang (cartBuyerDisclaimerCheck)
+      const buyerChecked = document.getElementById('cartBuyerDisclaimerCheck')?.checked;
       if (!buyerChecked) {
         alert("⚖️ Anda wajib menyetujui Perjanjian & Disclaimer Pembeli terlebih dahulu!");
         return;
@@ -914,6 +915,7 @@
         piInstance.createPayment(paymentData, {
           onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
           onReadyForServerCompletion: async (pid, txid) => {
+            await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
             await recordCartTransactionOnChain(finalAmount, serverFee, txid);
           },
           onCancel: () => { alert("Checkout dibatalkan."); },
@@ -923,6 +925,7 @@
         recordCartTransactionOnChain(finalAmount, serverFee, 'SIMULATED_BROWSER_CART_TXID');
       }
     }
+
 
     async function recordCartTransactionOnChain(totalAmount, serverFee, txid) {
       if (!supabaseClient) return;
