@@ -1118,12 +1118,19 @@
         return;
       }
 
-      try {
+            try {
         const { error } = await supabaseClient.from('marketplace_products').delete().eq('id', prodId);
         if (error) throw error;
 
         alert("🗑️ Produk berhasil dihapus dari database!");
+        
+        // Memperbarui daftar produk dari database Supabase secara sinkron
         await fetchMarketProducts();
+        
+        // Memfilter array lokal secara instan agar barang langsung hilang dari tampilan modal
+        marketProductsList = marketProductsList.filter(p => p.id !== prodId);
+        
+        // Segarkan ulang tampilan modal Kelola Barang Jualan Saya secara langsung
         if (!document.getElementById('sellerManagerModal').classList.contains('hidden')) {
           openSellerManagerModal();
         }
