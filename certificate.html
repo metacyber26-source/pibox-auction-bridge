@@ -438,15 +438,28 @@
         }
         function triggerMobilePDFPrint() {
             try {
-                // Memastikan jendela cetak dipanggil dengan aman di berbagai browser seluler/webview
+                // Coba panggil fungsi cetak bawaan browser
                 window.focus();
-                setTimeout(() => {
-                    window.print();
-                }, 200);
+                window.print();
             } catch (err) {
-                alert("Gagal mencetak dokumen: " + err.message);
+                // Fallback otomatis untuk WebView seluler yang memblokir window.print()
+                try {
+                    const htmlContent = document.documentElement.outerHTML;
+                    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Sertifikat-NFT-GM-${currentAuctionData ? currentAuctionData.id.substring(0,6) : 'Legal'}.html`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                } catch (fallbackErr) {
+                    alert("Cetak PDF tidak didukung langsung oleh browser ini. Silakan gunakan menu titik tiga (⋮) di browser Anda lalu pilih 'Bagikan' atau 'Cetak'.");
+                }
             }
         }
+
 
         document.addEventListener("DOMContentLoaded", loadCertificateData);
             // Event listener tambahan agar tombol cetak berfungsi optimal di semua browser mobile
