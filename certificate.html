@@ -439,28 +439,56 @@
             const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
             window.open(waUrl, '_blank');
         }
-        function triggerMobilePDFPrint() {
+        async function triggerMobilePDFPrint() {
+            const printBtn = document.getElementById('printBtn');
+            if (printBtn) {
+                printBtn.innerText = "⏳ Memproses PDF...";
+                printBtn.disabled = true;
+            }
+
             try {
-                // Coba panggil fungsi cetak bawaan browser
-                window.focus();
-                window.print();
+                const { jsPDF } = window.jspdf;
+                const element = document.getElementById('certificateArea');
+
+                // Konversi elemen sertifikat menjadi canvas berkualitas tinggi
+                const canvas = await html2canvas(element, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    windowWidth: 794,
+                    windowHeight: 1123
+                });
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                
+                // Unduh file PDF secara otomatis ke perangkat seluler
+                const fileName = `Sertifikat-NFT-GM-${currentAuctionData ? currentAuctionData.id.substring(0,6).toUpperCase() : 'Legal'}.pdf`;
+                pdf.save(fileName);
+
+                if (printBtn) {
+                    printBtn.innerText = "🖨️ Simpan / Cetak PDF";
+                    printBtn.disabled = false;
+                }
             } catch (err) {
-                // Fallback otomatis untuk WebView seluler yang memblokir window.print()
+                // Fallback terakhir: Cetak standar browser jika canvas gagal
                 try {
-                    const htmlContent = document.documentElement.outerHTML;
-                    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `Sertifikat-NFT-GM-${currentAuctionData ? currentAuctionData.id.substring(0,6) : 'Legal'}.html`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                } catch (fallbackErr) {
-                    alert("Cetak PDF tidak didukung langsung oleh browser ini. Silakan gunakan menu titik tiga (⋮) di browser Anda lalu pilih 'Bagikan' atau 'Cetak'.");
+                    window.print();
+                } catch (e) {
+                    alert("Gagal mengunduh PDF. Silakan gunakan menu titik tiga (⋮) di browser Anda lalu pilih 'Bagikan' atau 'Cetak'.");
+                }
+                if (printBtn) {
+                    printBtn.innerText = "🖨️ Simpan / Cetak PDF";
+                    printBtn.disabled = false;
                 }
             }
+        }
+
         }
 
 
