@@ -3719,6 +3719,80 @@ ${certText}
       if (!username) return false;
       return localStorage.getItem(getBuyerAgreementKey(auctionId, username)) === 'true';
     }
+        // Fungsi untuk mereset seluruh form rilis aset dan status sekuensial ke kondisi awal
+    function resetCreateForm() {
+      const formElements = [
+        'imageFileInput', 'extraSSInput', 'assetTitleInput', 
+        'assetDescriptionInput', 'assetHashInput', 'reservePriceInput',
+        'realSellerUsernameInput', 'piboxWalletInput', 'legalDisclaimerCheckbox'
+      ];
+      
+      formElements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          if (el.type === 'checkbox') {
+            el.checked = false;
+          } else if (el.type === 'file') {
+            el.value = '';
+            try { el.type = ''; el.type = 'file'; } catch(e) {}
+          } else {
+            el.value = '';
+          }
+        }
+      });
+
+      // Reset preview foto tambahan & counter teks
+      const extraPreview = document.getElementById('extraSSPreviewList');
+      if (extraPreview) extraPreview.innerHTML = '';
+
+      const titleCounter = document.getElementById('titleCharCounter');
+      if (titleCounter) titleCounter.innerText = '0 / 40';
+
+      const descCounter = document.getElementById('charCounter');
+      if (descCounter) descCounter.innerText = '0 / 500';
+
+      // Reset status langkah sekuensial ke kondisi awal
+      hasCompletedServerFee = false;
+      hasReleasedToGallery = false;
+
+      // Kembalikan tombol Bayar Server ke kondisi terkunci (disabled)
+      const btnPay = document.getElementById('btnPayServerFee');
+      if (btnPay) {
+        btnPay.disabled = true;
+        btnPay.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-not-allowed shadow-inner";
+        btnPay.innerText = "💳 Bayar 0.2 Pi (Biaya Server)";
+      }
+
+      // Kembalikan tombol Rilis ke Galeri ke kondisi terkunci (disabled)
+      const releaseBtn = document.getElementById('btnReleaseGallery');
+      if (releaseBtn) {
+        releaseBtn.disabled = true;
+        releaseBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-not-allowed shadow-inner";
+        releaseBtn.innerHTML = `<span>🚀 Rilis ke Galeri ("Pending")</span>`;
+      }
+
+      // Kembalikan tombol Kirim Email ke kondisi terkunci (disabled)
+      const sendEmailBtn = document.getElementById('btnSendEmail');
+      if (sendEmailBtn) {
+        sendEmailBtn.disabled = true;
+        sendEmailBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-not-allowed shadow-inner";
+        sendEmailBtn.innerHTML = `<span>📧 Kirim Email Verifikasi ke Admin</span>`;
+      }
+    }
+
+    // Fungsi untuk memicu pembersihan form dengan konfirmasi dialog
+    function handleClearForm() {
+      let warningMessage = "⚠️ Apakah Anda yakin ingin membersihkan seluruh isian form ini?";
+      if (hasCompletedServerFee || hasReleasedToGallery) {
+        warningMessage = "⚠️ PERINGATAN:\nAnda telah melakukan pembayaran Biaya Server / Rilis Aset. Jika form dibersihkan, status sesi ini akan di-reset dari awal.\n\nApakah Anda tetap ingin melanjutkan?";
+      }
+
+      if (confirm(warningMessage)) {
+        resetCreateForm();
+        alert("🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal.");
+      }
+    }
+
   </script>
 </body>
 </html>
