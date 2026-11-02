@@ -2744,11 +2744,10 @@
       }
     }
 
-    
-
-    async function fetchActiveAuctions() {
+      async function fetchActiveAuctions() {
       const mainContent = document.getElementById('mainContent');
       
+      // Ambil cache lokal terlebih dahulu untuk kecepatan render instan (Zero-latency UI)
       const cachedData = localStorage.getItem('nusantara_cached_auctions');
       if (cachedData) {
         try {
@@ -2760,11 +2759,13 @@
 
       if (!supabaseClient) return;
 
+      // Optimasi High Traffic: Batasi query maksimal 100 data terbaru dengan indeks terstruktur
       try {
         const { data, error } = await supabaseClient
           .from('auctions')
           .select('*')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(100);
 
         if (error) throw error;
 
