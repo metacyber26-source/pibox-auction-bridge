@@ -1353,6 +1353,53 @@
         }
       }
     }
+    // --- FUNGSI KONTROL SEKUENSIAL RILIS ASET ---
+    function checkReleaseFormCompletion() {
+      const mainImage = document.getElementById('imageFileInput')?.files[0];
+      const title = document.getElementById('assetTitleInput')?.value.trim();
+      const desc = document.getElementById('assetDescriptionInput')?.value.trim();
+      const hash = document.getElementById('assetHashInput')?.value.trim();
+      const price = document.getElementById('reservePriceInput')?.value.trim();
+      const realSeller = document.getElementById('realSellerUsernameInput')?.value.trim();
+      const wallet = document.getElementById('piboxWalletInput')?.value.trim();
+      const disclaimer = document.getElementById('legalDisclaimerCheckbox')?.checked;
+      
+      const btnPay = document.getElementById('btnPayServerFee');
+      if (!btnPay) return;
+
+      // Jika belum lengkap, kunci disclaimer & tombol bayar
+      const isFormComplete = mainImage && title && desc && hash && price && realSeller && wallet;
+
+      if (!isFormComplete) {
+        if (disclaimer && document.activeElement.id === 'legalDisclaimerCheckbox') {
+          alert("⚠️ Mohon lengkapi seluruh bidang input form terlebih dahulu sebelum mencentang disclaimer!");
+          document.getElementById('legalDisclaimerCheckbox').checked = false;
+        }
+        btnPay.disabled = true;
+        btnPay.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-not-allowed shadow-inner";
+        return;
+      }
+
+      // Jika form lengkap, cek centang disclaimer
+      if (disclaimer) {
+        btnPay.disabled = false;
+        btnPay.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg";
+      } else {
+        btnPay.disabled = true;
+        btnPay.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-not-allowed shadow-inner";
+      }
+    }
+
+    // Pasang Event Listener pemantau form rilis pada DOMContentLoaded
+    document.addEventListener("DOMContentLoaded", () => {
+      ['imageFileInput', 'assetTitleInput', 'assetDescriptionInput', 'assetHashInput', 'reservePriceInput', 'realSellerUsernameInput', 'piboxWalletInput', 'legalDisclaimerCheckbox'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', checkReleaseFormCompletion);
+          el.addEventListener('change', checkReleaseFormCompletion);
+        }
+      });
+    });
 
     function initPiSDK() {
       const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
