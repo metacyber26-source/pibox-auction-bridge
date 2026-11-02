@@ -1,4 +1,4 @@
-⅝8<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -3038,38 +3038,29 @@
 
         bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">${statusMsg}</div>`;
       } else {
-        const minAllowedBid = price + 25;
+        const targetPrice5 = price + 5;
+        const targetPrice10 = price + 10;
+        const targetPrice20 = price + 20;
 
         bidActionSection = `
-          <div class="space-y-2.5 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
-            <div class="flex justify-between items-center">
-              <p class="text-[10px] text-gray-300 font-semibold">Kirim Penawaran / Bidding (Min: ${minAllowedBid} Pi):</p>
-              <span class="text-[9px] text-yellow-400 font-mono">Harga Terakhir: ${price} Pi</span>
-            </div>
-            
-            <!-- Kolom Input Manual Bebas -->
-            <div class="flex gap-2 items-center">
-              <div class="relative flex-1">
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  id="manualBidInput" 
-                  min="${minAllowedBid}" 
-                  placeholder="Min. ${minAllowedBid} Pi (Harga + 25)" 
-                  class="w-full bg-gray-950 border border-yellow-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-yellow-500"
-                >
-              </div>
-              <button 
-                onclick="submitManualBid('${selectedAuction.id}', ${price})" 
-                class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow flex items-center gap-1"
-              >
-                Kirim 🚀
+          <div class="space-y-2 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
+            <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal dari Harga Terakhir (${price} Pi):</p>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                <span>+5 Pi</span>
+                <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice5})</span>
+              </button>
+              <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                <span>+10 Pi</span>
+                <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice10})</span>
+              </button>
+              <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                <span>+20 Pi</span>
+                <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice20})</span>
               </button>
             </div>
-            <p class="text-[9px] text-gray-400 italic">*Pengisian bebas, minimal harga terakhir ditambah 25 Pi.</p>
           </div>
         `;
-
       }
 
       const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
@@ -3800,29 +3791,6 @@ ${certText}
         resetCreateForm();
         alert("🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal.");
       }
-    }
-        // Fungsi untuk memvalidasi dan mengirimkan nominal tawaran dari input manual
-    function submitManualBid(auctionId, currentPrice) {
-      const inputEl = document.getElementById('manualBidInput');
-      if (!inputEl) return;
-
-      const enteredVal = parseFloat(inputEl.value);
-      const minRequired = currentPrice + 25;
-
-      if (isNaN(enteredVal)) {
-        alert("⚠️ Mohon masukkan angka nominal penawaran yang valid.");
-        inputEl.focus();
-        return;
-      }
-
-      if (enteredVal < minRequired) {
-        alert(`⚠️ Penawaran terlalu rendah!\nMinimal penawaran saat ini adalah ${minRequired} Pi (Harga terakhir ${currentPrice} Pi + 25 Pi).`);
-        inputEl.focus();
-        return;
-      }
-
-      // Lanjutkan ke fungsi eksekusi bidding utama
-      placeBidOnAuction(auctionId, enteredVal);
     }
 
   </script>
