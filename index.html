@@ -2657,7 +2657,7 @@
         return;
       }
 
-      const title = document.getElementById('assetTitleInput').value.trim();
+      const title = document.getElementById('assetTitleInput')?.value.trim();
       const hash = document.getElementById('assetHashInput')?.value.trim();
       const y = document.getElementById('ocYear')?.value || '2026';
       const m = document.getElementById('ocMonth')?.value || '01';
@@ -2673,9 +2673,11 @@
         return;
       }
 
+      // Daftar email tujuan utama & cadangan
+      const recipientEmails = "superchain585@gmail.com,auctionbridge314@gmail.com";
+
+      const emailSubject = encodeURIComponent("Verifikasi Rilis Aset - NFT Global Market & Auction Engine");
       const emailBodyText = 
-        `To: admin@nftglobalmarket.com\n` +
-        `Subject: Verifikasi Rilis Aset - NFT Global Market & Auction Engine\n\n` +
         `Halo Admin,\n\n` +
         `Mohon verifikasi aset/barang lelang yang baru saja saya unggah:\n\n` +
         `Nama Aset/Barang: ${title}\n` +
@@ -2683,31 +2685,25 @@
         `On-chain time: ${onChainTime}\n\n` +
         `Terima kasih!`;
 
-      // Salin otomatis ke clipboard agar tidak gagal kirim
+      // Salin otomatis format email & tujuan ke clipboard untuk kemudahan pengguna
+      const fullClipboardData = `To: ${recipientEmails}\nSubject: Verifikasi Rilis Aset\n\n${emailBodyText}`;
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(emailBodyText).catch(() => {});
+        navigator.clipboard.writeText(fullClipboardData).catch(() => {});
       }
 
-      // Tampilkan modal konfirmasi / fallback aman
       const confirmSend = confirm(
-        "📋 Format email verifikasi telah disalin ke Clipboard!\n\n" +
-        "Klik 'OK' untuk membuka aplikasi email, atau 'Cancel' jika Anda ingin langsung kembali ke galeri lelang."
+        "📋 Format email & 2 alamat email tujuan telah disalin ke Clipboard!\n\n" +
+        "• superchain585@gmail.com (Email Utama)\n" +
+        "• auctionbridge314@gmail.com\n\n" +
+        "Klik 'OK' untuk membuka aplikasi email Anda."
       );
 
       if (confirmSend) {
-        const emailSubject = encodeURIComponent("Verifikasi Rilis Aset - NFT Global Market & Auction Engine");
-        const emailBody = encodeURIComponent(
-          `Halo Admin,\n\n` +
-          `Mohon verifikasi aset/barang lelang yang baru saja saya unggah:\n\n` +
-          `Nama Aset/Barang: ${title}\n` +
-          `Kode/Hash: ${hash}\n` +
-          `On-chain time: ${onChainTime}\n\n` +
-          `Terima kasih!`
-        );
-        window.location.href = `mailto:admin@nftglobalmarket.com?subject=${emailSubject}&body=${emailBody}`;
+        const encodedBody = encodeURIComponent(emailBodyText);
+        window.location.href = `mailto:${recipientEmails}?subject=${emailSubject}&body=${encodedBody}`;
       }
 
-      // Reset state & kembalikan ke galeri
+      // Reset status sekuensial dan kembalikan ke galeri
       setTimeout(() => {
         hasCompletedServerFee = false;
         hasReleasedToGallery = false;
