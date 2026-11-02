@@ -2313,6 +2313,32 @@
         box.scrollTop = box.scrollHeight;
       } catch (e) {}
     }
+    // Fungsi tambahan untuk merender pesan chat baru secara instan tanpa reload DOM keseluruhan
+    function appendSingleChatMessageToDOM(msg) {
+      const box = document.getElementById('chatMessagesBox');
+      if (!box) return;
+
+      const isMe = authenticatedPiUser && msg.sender === authenticatedPiUser.username;
+      const maskedSender = SecureShield.maskUsername(msg.sender);
+      const sanitizedText = SecureShield.sanitizeHTML(msg.message);
+      
+      const imgContent = msg.image_url ? `<div class="w-40 h-40 bg-black/40 rounded-lg overflow-hidden cursor-pointer border border-white/20 mt-1" onclick="openImageZoomModal('${msg.image_url}')"><img src="${msg.image_url}" class="w-full h-full object-cover"></div>` : '';
+      
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-0.5`;
+      msgDiv.innerHTML = `
+        <span class="text-[9px] text-gray-400 font-bold">@${maskedSender}</span>
+        <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs flex flex-col gap-1.5 ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200'}">
+          ${sanitizedText ? `<span>${sanitizedText}</span>` : ''}
+          ${imgContent}
+          <div class="flex justify-between items-center pt-1 border-t border-black/10 text-[9px] gap-2">
+            <span class="opacity-60">${new Date(msg.created_at || Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+          </div>
+        </div>
+      `;
+      box.appendChild(msgDiv);
+      box.scrollTop = box.scrollHeight;
+    }
 
     function copyChatMessage(encodedText, buttonEl) {
       const originalText = decodeURIComponent(encodedText);
