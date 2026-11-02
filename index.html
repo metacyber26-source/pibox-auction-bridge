@@ -3700,30 +3700,40 @@ ${certText}
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       try {
-        const debouncedFetch = () => {
-          clearTimeout(realtimeDebounceTimer);
-          realtimeDebounceTimer = setTimeout(() => {
+        // High-Performance Throttle & Debounce untuk mencegah spam request saat jutaan pengguna online
+        let lastFetchTime = 0;
+        const throttledFetch = () => {
+          const now = Date.now();
+          if (now - lastFetchTime > 3000) { // Minimal jeda 3 detik antar sinkronisasi massal
+            lastFetchTime = now;
             fetchActiveAuctions();
-          }, 1000);
+          } else {
+            clearTimeout(realtimeDebounceTimer);
+            realtimeDebounceTimer = setTimeout(() => {
+              lastFetchTime = Date.now();
+              fetchActiveAuctions();
+            }, 3000);
+          }
         };
 
         supabaseClient
           .channel('public-cluster-auctions')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
-            debouncedFetch();
+            throttledFetch();
           })
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-              console.log("🔒 Terkoneksi aman dengan Edge Realtime Cluster.");
+              console.log("🔒 Terkoneksi aman dengan Edge Realtime Cluster (High-Scale Mode).");
             }
           });
 
         supabaseClient
           .channel('public-cluster-chats')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, () => {
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
             const chatModal = document.getElementById('chatModal');
             if (chatModal && !chatModal.classList.contains('hidden')) {
-              loadChatMessages();
+              // Append pesan secara instan tanpa memuat ulang seluruh database chat (Optimized DOM Update)
+              appendSingleChatMessageToDOM(payload.new);
             }
           })
           .subscribe();
@@ -3731,6 +3741,7 @@ ${certText}
         console.warn("Realtime warning:", e);
       }
     }
+
 
     function updateTimers() {}
 
