@@ -3526,6 +3526,29 @@ ${certText}
         executeBidProcess();
       }
     }
+    // Fungsi untuk memvalidasi dan mengirimkan tawaran dari input manual (Minimal Harga Terakhir + 25 Pi)
+    function submitManualBid(auctionId, currentPrice) {
+      const inputEl = document.getElementById('manualBidInput');
+      if (!inputEl) return;
+
+      const enteredValue = parseFloat(inputEl.value);
+      const minRequired = currentPrice + 25;
+
+      if (isNaN(enteredValue)) {
+        alert("⚠️ Mohon masukkan angka nominal penawaran yang valid.");
+        inputEl.focus();
+        return;
+      }
+
+      if (enteredValue < minRequired) {
+        alert(`⚠️ Penawaran Terlalu Rendah!\nMinimal penawaran saat ini adalah ${minRequired} Pi (Harga terakhir ${currentPrice} Pi + 25 Pi).`);
+        inputEl.focus();
+        return;
+      }
+
+      // Panggil fungsi utama penawaran lelang yang sudah ada
+      placeBidOnAuction(auctionId, enteredValue);
+    }
 
     async function executeDirectP2PPaymentToSeller(auctionId) {
       if (!authenticatedPiUser) {
