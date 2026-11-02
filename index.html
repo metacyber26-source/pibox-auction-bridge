@@ -2465,24 +2465,34 @@
       } catch(e) { alert(e.message); }
     }
 
+    let hasCompletedServerFee = false;
+    let hasReleasedToGallery = false;
+
     async function payServerFeeAndProceed() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      if (hasCompletedServerFee) {
+        alert("⚠️ Pembayaran biaya server sudah pernah dilakukan untuk sesi rilis ini. Tidak dapat melakukan pembayaran ulang.");
+        return;
+      }
+
       const payBtn = document.getElementById('btnPayServerFee');
       payBtn.disabled = true;
       payBtn.innerText = "⏳ Memproses Pembayaran 0.2 Pi...";
 
       const finishPaymentSuccess = () => {
-        hasPaidServerFee = true;
+        hasCompletedServerFee = true;
         payBtn.disabled = true;
-        payBtn.innerText = "✅ Biaya Server Terbayar";
+        payBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner";
+        payBtn.innerText = "✅ Biaya Server Terbayar (Selesai)";
         
+        // Aktifkan tombol langkah berikutnya: Rilis ke Galeri
         const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
         if (releaseGalleryBtn) {
           releaseGalleryBtn.disabled = false;
-          releaseGalleryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          releaseGalleryBtn.className = "w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg";
         }
 
-        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil! Silakan klik Rilis ke Galeri.");
+        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil! Silakan lanjutkan ke langkah: Rilis ke Galeri.");
       };
 
       const paymentData = {
@@ -2503,6 +2513,189 @@
         } else { finishPaymentSuccess(); }
       } catch (err) { finishPaymentSuccess(); }
     }
+
+    async function releaseToGalleryOnly() {
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      if (!hasCompletedServerFee) {
+        alert("⛔ Akses Ditolak: Anda harus menyelesaikan pembayaran biaya server 0.2 Pi terlebih dahulu!");
+        return;
+      }
+      if (hasReleasedToGallery) {
+        alert("⚠️ Aset ini sudah dirilis ke galeri sebelumnya.");
+        return;
+      }
+      
+      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      const disclaimerCheckbox = document.getElementById('legalDisclaimerCheckbox');
+      if (!disclaimerCheckbox || !disclaimerCheckbox.checked) {
+        alert("⚖️ Perlindungan Hukum: Anda wajib membaca dan mencentang kotak pernyataan tanggung jawab hukum sebelum merilis aset.");
+        return;
+      }
+
+      const mainImageFile = document.getElementById('imageFileInput').files[0];
+      const category = document.getElementById('assetCategoryInput').value;
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const description = document.getElementById('assetDescriptionInput').value.trim();
+      const hash = document.getElementById('assetHashInput').value.trim();
+      const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
+
+      if (!mainImageFile || !title || isNaN(reservePrice)) {
+        alert(t('fillAllAlert'));
+        return;
+      }
+
+      const releaseBtn = document.getElementById('btnReleaseGallery');
+      releaseBtn.disabled = true;
+      const originalText = releaseBtn.innerHTML;
+      releaseBtn.innerHTML = `<span>⏳ Tunggu, proses upload ke galeri...</span>`;
+
+      try {
+        const optimizeImageFile = (file) => {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
+                
+                if (width > height) {
+                  if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                } else {
+                  if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.75));
+              };
+              img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+          });
+        };
+
+        const base64Image = await optimizeImageFile(mainImageFile);
+        const extraImageFile = document.getElementById('extraSSInput')?.files[0];
+        let base64ExtraImage = '';
+        if (extraImageFile) {
+          base64ExtraImage = await optimizeImageFile(extraImageFile);
+        }
+
+        const durationHours = (auctionScheduleState && auctionScheduleState.durationHours) ? parseInt(auctionScheduleState.durationHours, 10) : 24;
+        const calculatedEndsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+
+        const realSellerRaw = document.getElementById('realSellerUsernameInput')?.value.trim();
+        const piboxWalletRaw = document.getElementById('piboxWalletInput')?.value.trim();
+
+        if (!realSellerRaw || !piboxWalletRaw) {
+          alert("⚠️ Username Penjual Asli dan PiBox Wallet Penjual Asli wajib diisi!");
+          releaseBtn.disabled = false;
+          releaseBtn.innerHTML = originalText;
+          return;
+        }
+
+        const finalRealSeller = realSellerRaw.replace(/^@/, '');
+        const finalPiboxWallet = piboxWalletRaw.replace(/^@/, '');
+        const transactionModeValue = document.getElementById('transactionModeInput')?.value || 'p2p';
+
+        const sellerAgreedTime = new Date().toISOString();
+        const sellerSig = `SIG-SELLER-${finalRealSeller}-${Date.now()}`;
+
+        const payload = {
+          category: category || 'nft_art',
+          title: title,
+          description: description || '',
+          hash: hash || '-',
+          reserve_price: reservePrice,
+          seller: finalRealSeller,
+          pibox_wallet: finalPiboxWallet,
+          image_url: base64Image,
+          extra_image_url: base64ExtraImage || '',
+          transaction_mode: transactionModeValue || 'p2p',
+          status: 'pending',
+          seller_agreed_at: sellerAgreedTime,
+          seller_digital_signature: sellerSig,
+          created_at: new Date().toISOString(),
+          ends_at: calculatedEndsAt
+        };
+
+        if (supabaseClient) {
+          const { error } = await supabaseClient.from('auctions').insert([payload]);
+          if (error) throw error;
+        }
+
+        hasReleasedToGallery = true;
+        alert("🎉 Sukses! Aset berhasil dirilis ke galeri (status Pending). Silakan lanjut ke langkah terakhir: Kirim Email Verifikasi.");
+        
+        releaseBtn.disabled = true;
+        releaseBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner";
+        releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
+        
+        // Aktifkan tombol langkah terakhir: Kirim Email Verifikasi
+        const sendEmailBtn = document.getElementById('btnSendEmail');
+        if (sendEmailBtn) {
+          sendEmailBtn.disabled = false;
+          sendEmailBtn.className = "w-full bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg";
+        }
+
+        fetchActiveAuctions();
+      } catch (err) {
+        releaseBtn.disabled = false;
+        releaseBtn.innerHTML = originalText;
+        alert("Gagal merilis aset: " + err.message);
+      }
+    }
+
+    function sendEmailToAdminFast() {
+      if (!hasReleasedToGallery) {
+        alert("⛔ Akses Ditolak: Anda harus menyelesaikan proses rilis ke galeri terlebih dahulu!");
+        return;
+      }
+
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const hash = document.getElementById('assetHashInput').value.trim();
+      const y = document.getElementById('ocYear')?.value || '2026';
+      const m = document.getElementById('ocMonth')?.value || '01';
+      const d = document.getElementById('ocDay')?.value || '01';
+      const h = document.getElementById('ocHour')?.value || '00';
+      const min = document.getElementById('ocMinute')?.value || '00';
+      const s = document.getElementById('ocSecond')?.value || '00';
+
+      const onChainTime = `${y}-${m}-${d} ${h}:${min}:${s}`;
+
+      if (!title) {
+        alert("Harap lengkapi nama aset/barang sebelum mengirim email verifikasi.");
+        return;
+      }
+
+      const emailSubject = encodeURIComponent("Verifikasi Rilis Aset - NFT Global Market & Auction Engine");
+      const emailBody = encodeURIComponent(
+        `Halo Admin,\n\n` +
+        `Mohon verifikasi aset/barang lelang yang baru saja saya unggah:\n\n` +
+        `Nama Aset/Barang: ${title}\n` +
+        `Kode/Hash: ${hash}\n` +
+        `On-chain time: ${onChainTime}\n\n` +
+        `Terima kasih!`
+      );
+
+      // Membuka klien email dan otomatis mengarahkan kembali ke galeri setelah email dikirim / jendela kembali aktif
+      window.location.href = `mailto:admin@nftglobalmarket.com?subject=${emailSubject}&body=${emailBody}`;
+      
+      alert("📧 Email verifikasi telah dibuka melalui klien email Anda. Setelah email terkirim, Anda akan dikembalikan ke halaman galeri.");
+      
+      setTimeout(() => {
+        hasCompletedServerFee = false;
+        hasReleasedToGallery = false;
+        closeCreateModal();
+        fetchActiveAuctions();
+      }, 1000);
+    }
+
 
     function handleExtraSSUpload(input) {
       const previewList = document.getElementById('extraSSPreviewList');
