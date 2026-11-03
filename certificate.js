@@ -5,20 +5,23 @@
 window.currentAuctionData = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
+    const statusMsg = document.getElementById('statusMessage');
     const urlParams = new URLSearchParams(window.location.search);
     const assetId = urlParams.get('id');
-    const statusMsg = document.getElementById('statusMessage');
 
+    // Inisialisasi Kunci Supabase
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
     let supabaseClient = null;
 
-    try {
-        if (window.supabase) {
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } else {
+        if (statusMsg) {
+            statusMsg.innerText = "❌ Library Supabase Tidak Terbaca";
+            statusMsg.style.color = "#f87171";
         }
-    } catch (e) {
-        console.error("Supabase Init Error:", e);
+        return;
     }
 
     function updateCertificateUI(data) {
