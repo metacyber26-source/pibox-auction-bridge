@@ -64,9 +64,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         const statusMsg = document.getElementById('statusMessage');
 
         if (!assetId) {
-            if (statusMsg) statusMsg.innerText = "❌ ID Aset tidak ditemukan di URL.";
+            if (statusMsg) {
+                statusMsg.innerText = "❌ ID Aset tidak ditemukan di URL (Gunakan format: ?id=UUID_ASET)";
+                statusMsg.style.color = "#f87171";
+            }
+            console.warn("Parameter ?id=... tidak ditemukan pada URL browser.");
             return;
         }
+
 
         if (!supabaseClient) {
             if (statusMsg) statusMsg.innerText = "❌ Gagal terhubung ke Database.";
