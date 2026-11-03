@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pibox Metaverse Marketplace 3D</title>
+  
+  <!-- A-Frame CDN untuk Web 3D / Metaverse Ringan -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-black text-white">
+
+  <!-- Navigasi Atas / Kembali ke Mode Web -->
+  <div class="absolute top-4 left-4 z-50 flex gap-2">
+    <a href="marketplace.html" class="bg-blue-600 px-4 py-2 rounded-xl text-xs font-bold shadow-lg">⬅️ Kembali ke Web Standar</a>
+  </div>
+
+  <!-- Scene Dunia 3D Metaverse (Virtual Showroom) -->
+  <a-scene embedded style="width: 100vw; height: 100vh;">
+    <!-- Lingkungan / Langit -->
+    <a-sky color="#0b0f17"></a-sky>
+    
+    <!-- Lampu Ruangan -->
+    <a-light type="ambient" color="#ffffff" intensity="0.8"></a-light>
+
+    <!-- Kamera & Kontrol Gerak Pengguna dalam 3D -->
+    <a-entity position="0 1.6 4">
+      <a-camera look-controls wasd-controls></a-camera>
+    </a-entity>
+
+    <!-- Stand / Etalase Toko Virtual 3D (Menampilkan Produk dari Supabase) -->
+    <a-entity id="virtualShowroom" position="0 0 -3">
+      <!-- Objek 3D Stan / Podium Produk akan dirender otomatis via JavaScript -->
+    </a-entity>
+  </a-scene>
+
+  <!-- Skrip Pengambilan Data Supabase ke Dunia 3D -->
+  <script>
+    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const { data: products } = await supabaseClient.from('marketplace_products').select('*');
+      const showroom = document.getElementById('virtualShowroom');
+
+      if (products && products.length > 0) {
+        let roomHTML = '';
+        products.forEach((prod, index) => {
+          // Mengatur posisi stan produk melingkar atau berderet di ruang 3D
+          let xPos = (index - products.length / 2) * 2.5;
+          roomHTML += `
+            <a-entity position="${xPos} 0 0">
+              <!-- Kotak Alas Produk -->
+              <a-box position="0 -0.5 0" width="1.5" height="0.1" depth="1.5" color="#1e293b"></a-box>
+              <!-- Papan Info / Banner Produk -->
+              <a-plane position="0 1.2 0" width="1.8" height="0.8" color="#111827" 
+                       text="value: ${prod.title}\n Harga: ${prod.price} Pi; color: #f3f4f6; align: center; width: 3;"></a-plane>
+            </a-entity>
+          `;
+        });
+        showroom.innerHTML = roomHTML;
+      }
+    });
+  </script>
+</body>
+</html>
