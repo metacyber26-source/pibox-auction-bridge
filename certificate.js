@@ -132,3 +132,7 @@ function shareWhatsApp() {
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
     window.open(waUrl, '_blank');
 }
+// Fungsi handler pencetakan dokumen PDF yang dioptimalkan untuk mobile
+function handlePrintPDF() {
+    window.print();
+}
