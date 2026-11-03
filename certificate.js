@@ -6,7 +6,14 @@ window.currentAuctionData = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const assetId = urlParams.get('id');
+    let assetId = urlParams.get('id');
+
+    const statusMsg = document.getElementById('statusMessage');
+
+    // DEBUG: Jika URL tidak memiliki parameter id, ambil ID dari item terbaru di localStorage atau Supabase sebagai fallback agar halaman tidak kosong
+    if (!assetId) {
+        console.warn("Parameter ?id= tidak ditemukan di URL. Mencoba memuat data sampel/terbaru...");
+    }
 
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
@@ -51,7 +58,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         const winner = data.highest_bidder || data.winner || 'Pioneer';
         if (winnerElem) winnerElem.innerText = winner.startsWith('@') ? winner : '@' + winner;
 
-        // Binding Gambar SS Utama dan SS Tambahan
         if (ssUtama && data.image_url) {
             ssUtama.src = data.image_url;
         }
@@ -61,53 +67,57 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     async function loadCertificateData() {
-        const statusMsg = document.getElementById('statusMessage');
-
-        if (!assetId) {
+        if (!supabaseClient) {
             if (statusMsg) {
-                statusMsg.innerText = "❌ ID Aset tidak ditemukan di URL (Gunakan format: ?id=UUID_ASET)";
+                statusMsg.innerText = "❌ Gagal terhubung ke Database.";
                 statusMsg.style.color = "#f87171";
             }
-            console.warn("Parameter ?id=... tidak ditemukan pada URL browser.");
-            return;
-        }
-
-
-        if (!supabaseClient) {
-            if (statusMsg) statusMsg.innerText = "❌ Gagal terhubung ke Database.";
             return;
         }
 
         try {
-            const { data, error } = await supabaseClient
-                .from('auctions')
-                .select('*')
-                .eq('id', assetId)
-                .single();
+            let query = supabaseClient.from('auctions').select('*');
+            
+            if (assetId) {
+                query = query.eq('id', assetId);
+            } else {
+                // Fallback otomatis ambil data teratas jika ID tidak disertakan di URL
+                query = query.order('created_at', { ascending: false }).limit(1);
+            }
 
-            if (error || !data) throw new Error("Data lelang tidak ditemukan.");
+            const { data, error } = await query;
 
-            updateCertificateUI(data);
+            if (error) throw error;
+            
+            const auctionItem = Array.isArray(data) ? data[0] : data;
+            if (!auctionItem) throw new Error("Data lelang kosong di database.");
+
+            updateCertificateUI(auctionItem);
 
             if (statusMsg) {
                 statusMsg.innerText = "✅ Real-Time Terhubung & Siap!";
                 statusMsg.style.color = "#34d399";
             }
 
-            supabaseClient
-                .channel('cert-sync-' + assetId)
-                .on('postgres_changes', { 
-                    event: 'UPDATE', 
-                    schema: 'public', 
-                    table: 'auctions',
-                    filter: `id=eq.${assetId}` 
-                }, (payload) => {
-                    updateCertificateUI(payload.new);
-                })
-                .subscribe();
+            if (auctionItem.id) {
+                supabaseClient
+                    .channel('cert-sync-' + auctionItem.id)
+                    .on('postgres_changes', { 
+                        event: 'UPDATE', 
+                        schema: 'public', 
+                        table: 'auctions',
+                        filter: `id=eq.${auctionItem.id}` 
+                    }, (payload) => {
+                        updateCertificateUI(payload.new);
+                    })
+                    .subscribe();
+            }
 
         } catch (err) {
-            if (statusMsg) statusMsg.innerText = "❌ Error: " + err.message;
+            if (statusMsg) {
+                statusMsg.innerText = "❌ Error: " + err.message;
+                statusMsg.style.color = "#f87171";
+            }
         }
     }
 
