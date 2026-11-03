@@ -6,14 +6,8 @@ window.currentAuctionData = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    let assetId = urlParams.get('id');
-
+    const assetId = urlParams.get('id');
     const statusMsg = document.getElementById('statusMessage');
-
-    // DEBUG: Jika URL tidak memiliki parameter id, ambil ID dari item terbaru di localStorage atau Supabase sebagai fallback agar halaman tidak kosong
-    if (!assetId) {
-        console.warn("Parameter ?id= tidak ditemukan di URL. Mencoba memuat data sampel/terbaru...");
-    }
 
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
@@ -81,7 +75,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (assetId) {
                 query = query.eq('id', assetId);
             } else {
-                // Fallback otomatis ambil data teratas jika ID tidak disertakan di URL
                 query = query.order('created_at', { ascending: false }).limit(1);
             }
 
