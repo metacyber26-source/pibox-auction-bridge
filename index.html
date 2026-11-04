@@ -2505,16 +2505,24 @@
       }
     }
     async function deleteSingleBuyer(username) {
-      if (!confirm(`Hapus pembeli @${username} dari database?`)) return;
-      if (!supabaseClient) return;
+      if (!confirm(`Hapus pembeli @${username}?`)) return;
+      if (!supabaseClient) {
+        alert("Supabase client belum siap!");
+        return;
+      }
       try {
-        const { error, count } = await supabaseClient
+        console.log("Mencoba menghapus user:", username);
+        const { error, data } = await supabaseClient
           .from('buyers')
-          .delete({ count: 'exact' })
+          .delete()
           .eq('username', username);
         
-        if (error) throw error;
+        if (error) {
+          console.error("Detail Error Supabase Delete:", error);
+          throw error;
+        }
         
+        console.log("Berhasil menghapus:", data);
         await fetchBuyersList();
         renderBuyersTable();
         alert(`🗑 Pembeli @${username} berhasil dihapus!`);
@@ -2522,6 +2530,7 @@
         alert("Gagal menghapus pembeli: " + e.message); 
       }
     }
+
 
     async function deleteSelectedBuyers() {
       const selectedCheckboxes = document.querySelectorAll('.buyer-checkbox:checked');
