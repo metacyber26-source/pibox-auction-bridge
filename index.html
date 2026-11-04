@@ -2146,28 +2146,71 @@
         openBuyersTableModal();
         return;
       }
-      if (!supabaseClient) return;
-      try {
-        const { data: existingBuyer } = await supabaseClient
-          .from('buyers')
-          .select('*')
-          .eq('username', authenticatedPiUser.username)
-          .maybeSingle();
 
-        if (!existingBuyer) {
-          const { error } = await supabaseClient
-            .from('buyers')
-            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
-          
-          if (error) throw error;
-          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
-        } else {
-          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${existingBuyer.status.toUpperCase()}`);
+      // Konfirmasi dan instruksi upload SS bukti pembayaran jaminan 35 Pi
+      const confirmRegister = confirm("📋 Pendaftaran Pembeli Lelang\n\nUntuk mengikuti penawaran lelang, Anda diwajibkan melampirkan Screenshot (SS) bukti pembayaran jaminan 35 Pi.\n\nKlik OK untuk memilih file SS bukti pembayaran Anda.");
+      if (!confirmRegister) return;
+
+      // Membuat input file dinamis untuk memilih SS bukti pembayaran
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.onchange = async function(e) {
+        const file = e.target.files[0];
+        if (!file) {
+          alert("Pendaftaran dibatalkan: File SS bukti pembayaran tidak dipilih.");
+          return;
         }
-        checkBuyerStatusInDatabase(authenticatedPiUser.username);
-      } catch (err) {
-        alert("Gagal memproses pendaftaran: " + err.message);
-      }
+
+        const reader = new FileReader();
+        reader.onload = async function(uploadEvent) {
+          const proofBase64 = uploadEvent.target.result;
+          const username = authenticatedPiUser.username;
+          const recipientEmails = "marketnftglobal@gmail.com,auctionbridge314@gmail.com";
+          const emailSubject = encodeURIComponent("Permohonan Mengikuti Penawaran Lelang & Bukti Jaminan 35 Pi - @" + username);
+          
+          const emailBodyText = 
+            `Halo Admin,\n\n` +
+            `Saya ingin mengajukan permohonan untuk mengikuti penawaran lelang di NFT Global Market & Auction Engine.\n\n` +
+            `Detail Calon Pembeli:\n` +
+            `- Username Pi Network: @${username}\n` +
+            `- Jaminan Disetor: 35 Pi\n` +
+            `- Status: Permohonan Pendaftaran Baru\n\n` +
+            `Bukti Screenshot pembayaran jaminan 35 Pi telah saya siapkan/lampirkan.\n\n` +
+            `Mohon verifikasi akun saya agar dapat segera melakukan penawaran lelang. Terima kasih!`;
+
+          // Salin detail ke clipboard sebagai cadangan jika klien email tidak mendukung body besar
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(`To: ${recipientEmails}\nSubject: Permohonan Mengikuti Lelang\n\n${emailBodyText}`).catch(() => {});
+          }
+
+          // Simpan ke database Supabase terlebih dahulu
+          if (supabaseClient) {
+            try {
+              await supabaseClient
+                .from('buyers')
+                .upsert([{ 
+                  username: username, 
+                  status: 'pending', 
+                  win_count: 0, 
+                  deposit_balance: 35.00,
+                  has_requested_withdrawal: false 
+                }], { onConflict: 'username' });
+            } catch (err) {
+              console.error("Supabase upsert error:", err);
+            }
+          }
+
+          alert("✅ Permohonan berhasil diproses!\nAplikasi email akan segera dibuka. Harap lampirkan file Screenshot (SS) bukti pembayaran 35 Pi pada email yang terbuka ke: marketnftglobal@gmail.com");
+          
+          // Membuka klien email otomatis
+          window.location.href = `mailto:${recipientEmails}?subject=${emailSubject}&body=${encodeURIComponent(emailBodyText)}`;
+          
+          checkBuyerStatusInDatabase(username);
+        };
+        reader.readAsDataURL(file);
+      };
+      fileInput.click();
     }
 
     async function fetchBuyersList() {
