@@ -2511,13 +2511,28 @@
     }
 
     async function deleteSelectedBuyers() {
-      const selected = Array.from(document.querySelectorAll('.buyer-checkbox:checked')).map(cb => cb.value);
-      if (selected.length === 0) return;
-      if (!confirm(`Hapus ${selected.length} pembeli terpilih?`)) return;
+      const selectedCheckboxes = document.querySelectorAll('.buyer-checkbox:checked');
+      const selectedUsernames = Array.from(selectedCheckboxes).map(cb => cb.value);
+      
+      if (selectedUsernames.length === 0) {
+        alert("Pilih minimal satu pembeli yang ingin dihapus.");
+        return;
+      }
+
+      if (!confirm(`Hapus ${selectedUsernames.length} pembeli terpilih?`)) return;
+      if (!supabaseClient) return;
+
       try {
-        for (const id of selected) { await supabaseClient.from('buyers').delete().eq('id', id); }
-        fetchBuyersList().then(() => renderBuyersTable());
-      } catch(e) { alert(e.message); }
+        for (const username of selectedUsernames) { 
+          const { error } = await supabaseClient.from('buyers').delete().eq('username', username); 
+          if (error) throw error;
+        }
+        await fetchBuyersList();
+        renderBuyersTable();
+        alert("🗑 Data pembeli terpilih berhasil dihapus!");
+      } catch(e) { 
+        alert("Gagal menghapus data: " + e.message); 
+      }
     }
 
     let hasCompletedServerFee = false;
