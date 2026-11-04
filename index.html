@@ -2536,10 +2536,14 @@
       if (!supabaseClient) return;
 
       try {
-        for (const username of selectedUsernames) { 
-          const { error } = await supabaseClient.from('buyers').delete().eq('username', username); 
-          if (error) throw error;
-        }
+        // Menggunakan operator .in() agar eksekusi hapus massal lebih optimal dan akurat di Supabase
+        const { error } = await supabaseClient
+          .from('buyers')
+          .delete()
+          .in('username', selectedUsernames);
+
+        if (error) throw error;
+
         await fetchBuyersList();
         renderBuyersTable();
         alert("🗑 Data pembeli terpilih berhasil dihapus!");
@@ -2547,7 +2551,6 @@
         alert("Gagal menghapus data: " + e.message); 
       }
     }
-
     let hasCompletedServerFee = false;
     let hasReleasedToGallery = false;
 
