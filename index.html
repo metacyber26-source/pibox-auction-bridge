@@ -2496,12 +2496,18 @@
       } catch(e) { alert(e.message); }
     }
 
-    async function deleteSingleBuyer(buyerId) {
-      if (!confirm("Hapus pembeli ini?")) return;
+    async function deleteSingleBuyer(username) {
+      if (!confirm(`Hapus pembeli @${username}?`)) return;
+      if (!supabaseClient) return;
       try {
-        await supabaseClient.from('buyers').delete().eq('id', buyerId);
-        fetchBuyersList().then(() => renderBuyersTable());
-      } catch(e) { alert(e.message); }
+        const { error } = await supabaseClient.from('buyers').delete().eq('username', username);
+        if (error) throw error;
+        await fetchBuyersList();
+        renderBuyersTable();
+        alert("🗑 Pembeli berhasil dihapus!");
+      } catch(e) { 
+        alert("Gagal menghapus pembeli: " + e.message); 
+      }
     }
 
     async function deleteSelectedBuyers() {
