@@ -2531,7 +2531,6 @@
       }
     }
 
-
     async function deleteSelectedBuyers() {
       const selectedCheckboxes = document.querySelectorAll('.buyer-checkbox:checked');
       const selectedUsernames = Array.from(selectedCheckboxes).map(cb => cb.value);
@@ -2545,13 +2544,16 @@
       if (!supabaseClient) return;
 
       try {
-        // Menggunakan operator .in() agar eksekusi hapus massal lebih optimal dan akurat di Supabase
+        console.log("Mencoba menghapus massal user:", selectedUsernames);
         const { error } = await supabaseClient
           .from('buyers')
           .delete()
           .in('username', selectedUsernames);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Detail Error Supabase Mass Delete:", error);
+          throw error;
+        }
 
         await fetchBuyersList();
         renderBuyersTable();
@@ -2560,6 +2562,7 @@
         alert("Gagal menghapus data: " + e.message); 
       }
     }
+
     let hasCompletedServerFee = false;
     let hasReleasedToGallery = false;
 
