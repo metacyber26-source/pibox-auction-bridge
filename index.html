@@ -2488,14 +2488,22 @@
       document.querySelectorAll('.buyer-checkbox').forEach(cb => cb.checked = master.checked);
     }
 
-    async function updateBuyerStatus(buyerId, newStatus) {
+    async function updateBuyerStatus(username, newStatus) {
       if (!supabaseClient) return;
       try {
-        await supabaseClient.from('buyers').update({ status: newStatus, has_requested_withdrawal: false }).eq('id', buyerId);
-        fetchBuyersList().then(() => renderBuyersTable());
-      } catch(e) { alert(e.message); }
+        const { error } = await supabaseClient
+          .from('buyers')
+          .update({ status: newStatus, has_requested_withdrawal: false })
+          .eq('username', username);
+        
+        if (error) throw error;
+        await fetchBuyersList();
+        renderBuyersTable();
+        alert(`✅ Status pembeli @${username} berhasil diubah menjadi ${newStatus.toUpperCase()}!`);
+      } catch(e) { 
+        alert("Gagal memperbarui status: " + e.message); 
+      }
     }
-
     async function deleteSingleBuyer(username) {
       if (!confirm(`Hapus pembeli @${username}?`)) return;
       if (!supabaseClient) return;
