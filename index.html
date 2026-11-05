@@ -406,9 +406,9 @@
 
         <!-- Tab Pilihan Ruang Chat -->
         <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-[11px] gap-1">
-          <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer" data-i18n="chatTabForum">🌐 Forum</button>
-          <button id="tabBtnAdmin" onclick="switchChatTab('admin')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer" data-i18n="chatTabAdmin">🛡️ Hubungi Admin</button>
-          <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer" data-i18n="chatTabP2P">🔒 P2P</button>
+          <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer">🌐 Forum</button>
+          <button id="tabBtnAdmin" onclick="switchChatTab('admin')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🛡️ Hubungi Admin</button>
+          <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🔒 P2P</button>
         </div>
 
         <!-- Selector Pemilih Target P2P -->
@@ -1158,7 +1158,7 @@
         withdrawalModalSub: "提交存款证明、用户名和钱包",
         withdrawUsernameLabel: "Pi Network 用户名:",
         withdrawWalletLabel: "PiBox 钱包地址:",
-        withdrawWalletPlaceholder: "输入目标钱包地址:",
+        withdrawWalletPlaceholder: "输入目标钱包地址...",
         withdrawProofLabel: "上传存款凭证 (截图):",
         submitWithdrawBtn: "🚀 提交索赔",
         previewSSLabel: "截图预览:",
@@ -2146,96 +2146,28 @@
         openBuyersTableModal();
         return;
       }
+      if (!supabaseClient) return;
+      try {
+        const { data: existingBuyer } = await supabaseClient
+          .from('buyers')
+          .select('*')
+          .eq('username', authenticatedPiUser.username)
+          .maybeSingle();
 
-      const username = authenticatedPiUser.username;
-      
-      // Catat otomatis ke database dengan status pending
-      if (supabaseClient) {
-        try {
-          const { data: existing } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-          if (!existing) {
-            await supabaseClient.from('buyers').insert([{ 
-              username: username, 
-              status: 'pending', 
-              win_count: 0, 
-              deposit_balance: 0.00,
-              has_requested_withdrawal: false 
-            }]);
-          } else {
-            alert(`ℹ️ Anda sudah terdaftar sebelumnya dengan status: ${existing.status.toUpperCase()}`);
-            checkBuyerStatusInDatabase(username);
-            return;
-          }
-        } catch (err) {
-          console.error("Gagal mendaftarkan pembeli:", err);
+        if (!existingBuyer) {
+          const { error } = await supabaseClient
+            .from('buyers')
+            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
+          
+          if (error) throw error;
+          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
+        } else {
+          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${existingBuyer.status.toUpperCase()}`);
         }
+        checkBuyerStatusInDatabase(authenticatedPiUser.username);
+      } catch (err) {
+        alert("Gagal memproses pendaftaran: " + err.message);
       }
-
-      alert(`✅ Pendaftaran Berhasil!\nUsername @${username} otomatis tercatat di daftar pembeli dengan status PENDING.\n\nMohon tunggu verifikasi dari Admin/Dev agar dapat mulai menawar.`);
-      checkBuyerStatusInDatabase(username);
-      if (typeof fetchBuyersList === 'function') fetchBuyersList();
-    }
-
-      // Membuat input file dinamis untuk memilih SS bukti pembayaran
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = 'image/*';
-      fileInput.onchange = async function(e) {
-        const file = e.target.files[0];
-        if (!file) {
-          alert("Pendaftaran dibatalkan: File SS bukti pembayaran tidak dipilih.");
-          return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = async function(uploadEvent) {
-          const proofBase64 = uploadEvent.target.result;
-          const username = authenticatedPiUser.username;
-          const recipientEmails = "marketnftglobal@gmail.com,auctionbridge314@gmail.com";
-          const emailSubject = encodeURIComponent("Permohonan Mengikuti Penawaran Lelang & Bukti Jaminan 35 Pi - @" + username);
-          
-          const emailBodyText = 
-            `Halo Admin,\n\n` +
-            `Saya ingin mengajukan permohonan untuk mengikuti penawaran lelang di NFT Global Market & Auction Engine.\n\n` +
-            `Detail Calon Pembeli:\n` +
-            `- Username Pi Network: @${username}\n` +
-            `- Jaminan Disetor: 35 Pi\n` +
-            `- Status: Permohonan Pendaftaran Baru\n\n` +
-            `Bukti Screenshot pembayaran jaminan 35 Pi telah saya siapkan/lampirkan.\n\n` +
-            `Mohon verifikasi akun saya agar dapat segera melakukan penawaran lelang. Terima kasih!`;
-
-          // Salin detail ke clipboard sebagai cadangan jika klien email tidak mendukung body besar
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(`To: ${recipientEmails}\nSubject: Permohonan Mengikuti Lelang\n\n${emailBodyText}`).catch(() => {});
-          }
-
-          // Simpan ke database Supabase terlebih dahulu
-          if (supabaseClient) {
-            try {
-              await supabaseClient
-                .from('buyers')
-                .upsert([{ 
-                  username: username, 
-                  status: 'pending', 
-                  win_count: 0, 
-                  deposit_balance: 35.00,
-                  has_requested_withdrawal: false 
-                }], { onConflict: 'username' });
-            } catch (err) {
-              console.error("Supabase upsert error:", err);
-            }
-          }
-
-          alert("✅ Permohonan berhasil diproses!\nAplikasi email akan segera dibuka. Harap lampirkan file Screenshot (SS) bukti pembayaran 35 Pi pada email yang terbuka ke: marketnftglobal@gmail.com");
-          
-          // Membuka klien email otomatis
-          window.location.href = `mailto:${recipientEmails}?subject=${emailSubject}&body=${encodeURIComponent(emailBodyText)}`;
-          
-          checkBuyerStatusInDatabase(username);
-        };
-        reader.readAsDataURL(file);
-      };
-      fileInput.click();
     }
 
     async function fetchBuyersList() {
