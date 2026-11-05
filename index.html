@@ -2526,6 +2526,31 @@
         alert("Gagal memperbarui status: " + e.message); 
       }
     }
+        async function adminResetBuyerDeposit(username) {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Hanya Admin dan Developer yang dapat menghapus/mereset saldo jaminan ini!");
+        return;
+      }
+      
+      if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus/mereset saldo jaminan 35 Pi untuk akun @${username}?`)) return;
+      if (!supabaseClient) return;
+
+      try {
+        const { error } = await supabaseClient
+          .from('buyers')
+          .update({ deposit_balance: 0.00, status: 'pending' })
+          .eq('username', username);
+
+        if (error) throw error;
+
+        await fetchBuyersList();
+        renderBuyersTable();
+        alert(`✅ Saldo jaminan untuk @${username} berhasil dihapus/direset oleh Admin/Dev.`);
+      } catch (err) {
+        alert("Gagal mereset saldo jaminan: " + err.message);
+      }
+    }
+
     async function deleteSingleBuyer(username) {
       if (!confirm(`Hapus pembeli @${username}?`)) return;
       if (!supabaseClient) {
