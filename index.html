@@ -1822,6 +1822,14 @@
       if (!supabaseClient || !username) return;
       try {
         const { data } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
+        const depositBal = data ? parseFloat(data.deposit_balance || 0) : 0;
+        
+        // Update tampilan saldo jaminan di dashboard
+        const balanceDisplayEl = document.getElementById('userDepositBalanceDisplay');
+        if (balanceDisplayEl) {
+          balanceDisplayEl.innerText = `Saldo Jaminan: ${depositBal} Pi`;
+        }
+
         if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
           isBuyerApproved = true;
           document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
@@ -1835,6 +1843,7 @@
         renderGallery();
       } catch(e) {}
     }
+
 
     function populateHourDropdownOptions() {
       const hourSelect = document.getElementById('scheduleStartHourSelect');
