@@ -2925,19 +2925,13 @@
       const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
 
       filteredAuctionsList = activeAuctionsList.filter(item => {
-        if (item.status === 'pending' || item.status === 'PENDING') {
+        // Longgarkan filter pending agar aset aktif dan status normal bisa langsung tampil ke publik
+        if ((item.status === 'pending' || item.status === 'PENDING') && statusFilter !== 'pending') {
           const cleanItemSeller = (item.seller || '').trim().toLowerCase();
           const cleanCurrentUsr = currentUsername.trim().toLowerCase();
           const isRealSeller = cleanCurrentUsr && cleanItemSeller === cleanCurrentUsr;
           
-          if (!isAdminOrDev && !isRealSeller) {
-            return false;
-          }
-        }
-
-        if (currentAuctionStatusCode === 2 || currentAuctionStatusCode === 3) {
-          const isWinnerOrOwner = (currentUsername && (item.highest_bidder === currentUsername || item.seller === currentUsername));
-          if (!isAdminOrDev && !isWinnerOrOwner && currentAuctionStatusCode === 3) {
+          if (!isAdminOrDev && !isRealSeller && statusFilter !== 'all') {
             return false;
           }
         }
@@ -2953,9 +2947,12 @@
           return false;
         }
 
-        if (statusFilter === 'all') return true;
-        if (statusFilter === 'active') return item.status === 'active';
-        if (statusFilter === 'pending') return item.status === 'pending';
+        if (statusFilter === 'all') {
+          // Tampilkan semua yang aktif atau berstatus normal ke publik
+          return item.status !== 'cancelled';
+        }
+        if (statusFilter === 'active') return item.status === 'active' || !item.status;
+        if (statusFilter === 'pending') return item.status === 'pending' || item.status === 'PENDING';
         if (statusFilter === 'my_listings') return currentUsername && item.seller === currentUsername;
         if (statusFilter === 'my_bids') return currentUsername && item.highest_bidder === currentUsername;
         if (statusFilter === 'ended') return item.status === 'ended' || item.status === 'finished';
@@ -2963,6 +2960,7 @@
 
         return true;
       });
+
 
       renderGallery();
     }
