@@ -2983,7 +2983,7 @@
       const mainContent = document.getElementById('mainContent');
       if (!mainContent) return;
 
-      if (filteredAuctionsList.length === 0) {
+      if (!filteredAuctionsList || filteredAuctionsList.length === 0) {
         mainContent.innerHTML = `
           <div class="text-center py-12 space-y-3">
             <p class="text-gray-500 text-xs">${t('emptyGallery')}</p>
@@ -2998,7 +2998,10 @@
       const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
       const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
 
-      let html = '<div class="grid grid-cols-1 gap-3">';
+      // Gunakan fragment/array join untuk efisiensi memori DOM saat traffic tinggi
+      const htmlChunks = [];
+      htmlChunks.push('<div class="grid grid-cols-1 gap-3">');
+
       filteredAuctionsList.forEach(auction => {
         const title = SecureShield.sanitizeHTML(auction.title || 'Untitled');
         const seller = SecureShield.maskUsername(auction.seller || 'Anon');
@@ -3035,7 +3038,7 @@
           `;
         }
 
-        html += `
+        htmlChunks.push(`
           <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2 hover:border-yellow-500/50 transition shadow-md">
             <div class="flex gap-3 items-center">
               <div class="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 border border-gray-800">
@@ -3064,10 +3067,11 @@
             </div>
             ${adminActionControls}
           </div>
-        `;
+        `);
       });
-      html += '</div>';
-      mainContent.innerHTML = html;
+
+      htmlChunks.push('</div>');
+      mainContent.innerHTML = htmlChunks.join('');
     }
 
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
