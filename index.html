@@ -4041,6 +4041,38 @@ ${certText}
         alert("🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal.");
       }
     }
+    function openSpamReportDetailModal(username) {
+      let reportDetails = `🚨 LAPORAN INDIKASI SPAM UNTUK: @${username}\n\n`;
+      let foundAny = false;
+
+      for (let key in localStorage) {
+        if (key.startsWith(`bid_count_`) && key.endsWith(`_${username}`)) {
+          const count = parseInt(localStorage.getItem(key) || '0', 10);
+          if (count > 5) {
+            foundAny = true;
+            const parts = key.split('_');
+            const aucId = parts.slice(2, parts.length - 1).join('_');
+            const targetAuction = activeAuctionsList.find(a => a.id === aucId);
+            const assetTitle = targetAuction ? targetAuction.title : `Aset ID: ${aucId}`;
+            
+            let feeSum = 0;
+            for (let i = 6; i <= count; i++) {
+              feeSum += calculateSuspiciousFee(i);
+            }
+
+            reportDetails += `📦 Aset: ${assetTitle}\n`;
+            reportDetails += `   - Jumlah Penawaran: ${count}x\n`;
+            reportDetails += `   - Total Pi Dibayarkan (Mulai Penawaran ke-6): ${feeSum.toFixed(2)} Pi\n\n`;
+          }
+        }
+      }
+
+      if (!foundAny) {
+        alert(`Username @${username} tidak memiliki catatan penawaran >5x dalam aset yang sama.`);
+      } else {
+        alert(reportDetails);
+      }
+    }
 
   </script>
 </body>
