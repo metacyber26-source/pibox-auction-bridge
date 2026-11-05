@@ -2514,7 +2514,47 @@
           </td>
           <td class="p-2 text-center">${withdrawalNotice}</td>
           <td class="p-2"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
-          <td class="p-2 text-center text-emerald-400 font-bold">${winCount}x Menang</td>
+          <td class="p-2 text-center">
+            ${(() => {
+              let totalBidsAllAssets = 0;
+              let totalPaidFeesFromBid6 = 0;
+              let reportedAssetsList = [];
+
+              for (let key in localStorage) {
+                if (key.startsWith(`bid_count_`) && key.endsWith(`_${b.username}`)) {
+                  const parts = key.split('_');
+                  if (parts.length >= 3) {
+                    const aucId = parts.slice(2, parts.length - 1).join('_');
+                    const count = parseInt(localStorage.getItem(key) || '0', 10);
+                    if (count > 0) {
+                      totalBidsAllAssets += count;
+                      if (count > 5) {
+                        reportedAssetsList.push({ auctionId: aucId, count: count });
+                        for (let i = 6; i <= count; i++) {
+                          totalPaidFeesFromBid6 += calculateSuspiciousFee(i);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+
+              if (totalBidsAllAssets > 5 && reportedAssetsList.length > 0) {
+                return `
+                  <button onclick="openSpamReportDetailModal('${b.username}')" class="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/40 px-2 py-1 rounded text-[10px] font-bold animate-pulse cursor-pointer">
+                    🚨 Spam (${totalBidsAllAssets} Tawaran, Bayar ${totalPaidFeesFromBid6.toFixed(2)} Pi)
+                  </button>
+                `;
+              } else {
+                return `
+                  <button disabled class="bg-gray-800 text-gray-500 px-2 py-1 rounded text-[10px] font-bold cursor-not-allowed opacity-50" title="Tidak ada indikasi spam (>5x penawaran)">
+                    Aman (${totalBidsAllAssets}x)
+                  </button>
+                `;
+              }
+            })()}
+          </td>
+
           <td class="p-2 text-right space-x-1">
             ${isAdminOrDev ? `
               <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 text-white px-2 py-1 rounded text-[10px] font-bold" title="Hapus/Reset Saldo Jaminan">Reset Saldo</button>
