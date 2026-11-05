@@ -3810,6 +3810,15 @@ ${certText}
     }
 
     function handleOpenCreateModal() {
+      // Validasi waktu jeda 60 menit sebelum/sesudah lelang (Kecuali Admin/Dev)
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      const btnHeaderCreate = document.getElementById('btnHeaderCreate');
+      
+      if (!isAdminOrDev && btnHeaderCreate && btnHeaderCreate.disabled) {
+        alert("🔒 Tombol rilis aset sedang dinonaktifkan (Aktif kembali 60 menit setelah sesi lelang resmi ditutup atau sebelum H-60 menit lelang dimulai).");
+        return;
+      }
+
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
@@ -3821,7 +3830,6 @@ ${certText}
       const realSellerInput = document.getElementById('realSellerUsernameInput');
       const walletInput = document.getElementById('piboxWalletInput');
       
-      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       if (isAdminOrDev) {
         if (realSellerInput) realSellerInput.value = "";
         if (walletInput) walletInput.value = "";
