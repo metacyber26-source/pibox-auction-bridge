@@ -3822,14 +3822,15 @@ ${certText}
 
     let realtimeDebounceTimer = null;
 
+    let realtimeDebounceTimer = null;
+
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       try {
-        // High-Performance Throttle & Debounce untuk mencegah spam request saat jutaan pengguna online
         let lastFetchTime = 0;
         const throttledFetch = () => {
           const now = Date.now();
-          if (now - lastFetchTime > 3000) { // Minimal jeda 3 detik antar sinkronisasi massal
+          if (now - lastFetchTime > 3000) {
             lastFetchTime = now;
             fetchActiveAuctions();
           } else {
@@ -3851,22 +3852,10 @@ ${certText}
               console.log("🔒 Terkoneksi aman dengan Edge Realtime Cluster (High-Scale Mode).");
             }
           });
-
-        supabaseClient
-          .channel('public-cluster-chats')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
-            const chatModal = document.getElementById('chatModal');
-            if (chatModal && !chatModal.classList.contains('hidden')) {
-              // Append pesan secara instan tanpa memuat ulang seluruh database chat (Optimized DOM Update)
-              appendSingleChatMessageToDOM(payload.new);
-            }
-          })
-          .subscribe();
       } catch (e) {
         console.warn("Realtime warning:", e);
       }
     }
-
 
     function updateTimers() {}
 
