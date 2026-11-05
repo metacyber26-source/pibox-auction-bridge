@@ -2147,9 +2147,34 @@
         return;
       }
 
-      // Konfirmasi dan instruksi upload SS bukti pembayaran jaminan 35 Pi
-      const confirmRegister = confirm("📋 Pendaftaran Pembeli Lelang\n\nUntuk mengikuti penawaran lelang, Anda diwajibkan melampirkan Screenshot (SS) bukti pembayaran jaminan 35 Pi.\n\nKlik OK untuk memilih file SS bukti pembayaran Anda.");
-      if (!confirmRegister) return;
+      const username = authenticatedPiUser.username;
+      
+      // Catat otomatis ke database dengan status pending
+      if (supabaseClient) {
+        try {
+          const { data: existing } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
+          if (!existing) {
+            await supabaseClient.from('buyers').insert([{ 
+              username: username, 
+              status: 'pending', 
+              win_count: 0, 
+              deposit_balance: 0.00,
+              has_requested_withdrawal: false 
+            }]);
+          } else {
+            alert(`ℹ️ Anda sudah terdaftar sebelumnya dengan status: ${existing.status.toUpperCase()}`);
+            checkBuyerStatusInDatabase(username);
+            return;
+          }
+        } catch (err) {
+          console.error("Gagal mendaftarkan pembeli:", err);
+        }
+      }
+
+      alert(`✅ Pendaftaran Berhasil!\nUsername @${username} otomatis tercatat di daftar pembeli dengan status PENDING.\n\nMohon tunggu verifikasi dari Admin/Dev agar dapat mulai menawar.`);
+      checkBuyerStatusInDatabase(username);
+      if (typeof fetchBuyersList === 'function') fetchBuyersList();
+    }
 
       // Membuat input file dinamis untuk memilih SS bukti pembayaran
       const fileInput = document.createElement('input');
