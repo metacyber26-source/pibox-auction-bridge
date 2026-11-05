@@ -2481,17 +2481,26 @@
           withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
         }
 
+        const buyerBalance = parseFloat(b.deposit_balance || 0);
+
         html += `<tr class="border-b border-gray-800">
           <td class="p-2 text-center">${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}</td>
-          <td class="p-2 font-mono text-yellow-400">@${displayedUsername}</td>
+          <td class="p-2 font-mono text-yellow-400">
+            @${displayedUsername}
+            <div class="text-[9px] text-emerald-400 font-sans">Depo: ${buyerBalance} Pi</div>
+          </td>
           <td class="p-2 text-center">${withdrawalNotice}</td>
           <td class="p-2"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
           <td class="p-2 text-center text-emerald-400 font-bold">${winCount}x Menang</td>
           <td class="p-2 text-right space-x-1">
-            ${isAdminOrDev ? `<button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold">${isApproved ? 'Set Pending' : 'Aktifkan'}</button>
-            <button onclick="deleteSingleBuyer('${b.username}')" class="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold">Hapus</button>` : ''}
+            ${isAdminOrDev ? `
+              <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 text-white px-2 py-1 rounded text-[10px] font-bold" title="Hapus/Reset Saldo Jaminan">Reset Saldo</button>
+              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved}')" class="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold">${isApproved ? 'Set Pending' : 'Aktifkan'}</button>
+              <button onclick="deleteSingleBuyer('${b.username}')" class="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold">Hapus</button>
+            ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
           </td>
         </tr>`;
+
     });
       tbody.innerHTML = html;
     }
