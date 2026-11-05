@@ -2869,9 +2869,9 @@
       async function fetchActiveAuctions() {
       const mainContent = document.getElementById('mainContent');
       
-      // Ambil cache lokal terlebih dahulu untuk kecepatan render instan (Zero-latency UI)
+      // Ambil cache lokal terlebih dahulu agar tampilan dashboard stabil seketika (Zero-latency UI)
       const cachedData = localStorage.getItem('nusantara_cached_auctions');
-      if (cachedData) {
+      if (cachedData && (!activeAuctionsList || activeAuctionsList.length === 0)) {
         try {
           activeAuctionsList = JSON.parse(cachedData);
           updateActiveCounts();
@@ -2881,7 +2881,6 @@
 
       if (!supabaseClient) return;
 
-      // Optimasi High Traffic: Batasi query maksimal 100 data terbaru dengan indeks terstruktur
       try {
         const { data, error } = await supabaseClient
           .from('auctions')
