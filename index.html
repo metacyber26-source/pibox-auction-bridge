@@ -1702,39 +1702,11 @@
           updateData.has_requested_withdrawal = true;
         }
 
-        // Status dipastikan tetap 'pending' saat top up, kecuali sudah 'approved' sebelumnya oleh admin
-        let forcedStatus = 'pending';
-        if (buyer && (buyer.status === 'approved' || buyer.status === 'aktif' || buyer.status === 'active')) {
-          forcedStatus = buyer.status;
-        }
-
-        let updateData = { deposit_balance: newBalance, status: forcedStatus };
-        if (type === 'withdraw') {
-          updateData.has_requested_withdrawal = true;
-        }
-
-        let forcedStatus = 'pending';
-        if (buyer && (buyer.status === 'approved' || buyer.status === 'aktif' || buyer.status === 'active')) {
-          forcedStatus = buyer.status;
-        }
-
-        let updateData = { deposit_balance: newBalance, status: forcedStatus };
-        if (type === 'withdraw') {
-          updateData.has_requested_withdrawal = true;
-        }
-
         if (!buyer) {
-          await supabaseClient.from('buyers').insert([{ 
-            username: username, 
-            deposit_balance: newBalance, 
-            status: 'pending', 
-            win_count: 0, 
-            has_requested_withdrawal: (type === 'withdraw') 
-          }]);
+          await supabaseClient.from('buyers').insert([{ username: username, deposit_balance: newBalance, status: newStatus, win_count: 0, has_requested_withdrawal: (type === 'withdraw') }]);
         } else {
           await supabaseClient.from('buyers').update(updateData).eq('username', username);
         }
-
 
         await supabaseClient.from('auction_deposits_log').insert([{ username: username, amount: amount, type: type, memo: memo }]);
 
