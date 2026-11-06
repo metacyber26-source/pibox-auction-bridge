@@ -1759,23 +1759,10 @@
 
           const currentBal = parseFloat(buyer.deposit_balance);
           
-          let hasMultiBids = false;
-          for (let key in localStorage) {
-            if (key.startsWith(`bid_count_`) && key.endsWith(`_${username}`)) {
-              if (parseInt(localStorage.getItem(key) || '0', 10) >= 3) {
-                hasMultiBids = true;
-                break;
-              }
-            }
-          }
-
+          // Penalti 25% dihapuskan karena penawar telah membayar biaya via SDK pada setiap penawaran > 5 kali.
           let refundAmount = currentBal;
           let penaltyFee = 0;
 
-          if (hasMultiBids) {
-            penaltyFee = currentBal * 0.25;
-            refundAmount = currentBal - penaltyFee;
-          }
 
           await supabaseClient.from('buyers').update({ 
             deposit_balance: 0.00, 
