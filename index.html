@@ -1814,32 +1814,39 @@
     async function checkBuyerStatusInDatabase(username) {
       if (!supabaseClient || !username) return;
       try {
-        const { data } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
-        const depositBal = data ? parseFloat(data.deposit_balance || 0) : 0;
+        const { data, error } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
         
-        // Update tampilan saldo jaminan di dashboard
+        const depositBal = (data && !error) ? parseFloat(data.deposit_balance || 0) : 0;
+        
+        // Perbarui tampilan saldo jaminan secara real-time di UI utama
         const balanceDisplayEl = document.getElementById('userDepositBalanceDisplay');
         if (balanceDisplayEl) {
           balanceDisplayEl.innerText = `Saldo Jaminan: ${depositBal} Pi`;
         }
 
-        // Panggil pengontrol status aktif tombol top up jaminan
+        // Perbarui status tombol Top Up
         updateTopupButtonState(depositBal);
 
-
-        if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
+        const isAdmin = ADMIN_USERNAMES.includes(username);
+        if (isAdmin) {
           isBuyerApproved = true;
-          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
-        } else if (data && data.status === 'pending') {
-          isBuyerApproved = false;
-          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Pending (Menunggu Verifikasi Admin/Dev)";
+          const statusTextEl = document.getElementById('buyerApprovalStatusText');
+          if (statusTextEl) statusTextEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+        } else if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
+          isBuyerApproved = true;
+          const statusTextEl = document.getElementById('buyerApprovalStatusText');
+          if (statusTextEl) statusTextEl.innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
         } else {
           isBuyerApproved = false;
-          document.getElementById('buyerApprovalStatusText').innerText = "Belum Terdaftar (Klik 'Daftar Pembeli')";
+          const statusTextEl = document.getElementById('buyerApprovalStatusText');
+          if (statusTextEl) statusTextEl.innerText = data ? "Status Akses: Pending (Menunggu Verifikasi)" : "Belum Terdaftar (Klik 'Daftar Pembeli')";
         }
         renderGallery();
-      } catch(e) {}
+      } catch(e) {
+        console.warn("Check buyer status warning:", e);
+      }
     }
+
 
 
     function populateHourDropdownOptions() {
