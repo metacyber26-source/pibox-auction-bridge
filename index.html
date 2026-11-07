@@ -1790,6 +1790,22 @@
       };
       reader.readAsDataURL(proofFile);
     }
+    function updateTopupButtonState(depositBal) {
+      const btnTopup = document.getElementById('btnTopupJaminan');
+      if (!btnTopup) return;
+
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      
+      // Jika admin atau saldo sudah >= 35 Pi, tombol top up dibuat redup/non-aktif agar rapi
+      if (!isAdminOrDev && depositBal < 35) {
+        btnTopup.disabled = false;
+        btnTopup.className = "flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition shadow cursor-pointer flex items-center justify-center gap-1 opacity-100 animate-pulse";
+      } else {
+        // Saldo sudah aman atau akun admin
+        btnTopup.disabled = false; // Tetap bisa diklik jika ingin top up lebih, atau ubah ke true jika ingin dikunci total.
+        btnTopup.className = "flex-1 bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition shadow cursor-pointer flex items-center justify-center gap-1 opacity-90";
+      }
+    }
 
     async function checkBuyerStatusInDatabase(username) {
       if (!supabaseClient || !username) return;
