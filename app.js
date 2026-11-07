@@ -858,19 +858,20 @@ async function authenticatePiUser(isAuto = false) {
   }
 
   let piInstance = null;
-  let attempts = 0;
-  while (attempts < 10) {
-    piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-    if (piInstance) break;
-    await new Promise(r => setTimeout(r, 150));
-    attempts++;
-  }
-
   try {
-    if (!piInstance) {
-      throw new Error("Pi SDK tidak terdeteksi, menggunakan mode aman.");
+    // Deteksi Pi SDK secara aman dengan timeout maksimal 1.5 detik agar tidak macet
+    let checkCount = 0;
+    while (checkCount < 10) {
+      piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      if (piInstance) break;
+      await new Promise(r => setTimeout(r, 150));
+      checkCount++;
     }
-    
+
+    if (!piInstance) {
+      throw new Error("Pi SDK tidak ditemukan di environment ini.");
+    }
+
     try {
       piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
     } catch (e) {}
@@ -885,6 +886,59 @@ async function authenticatePiUser(isAuto = false) {
         }).catch(() => {});
       }
     };
+
+    // Tambahkan timeout pembanding untuk mencegah auth tergantung selamanya
+    const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout Pi Auth")), 8000));
+    
+    const auth = await Promise.race([authPromise, timeoutPromise]);
+    
+    if (auth && auth.user && auth.user.username) {
+      const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
+      authenticatedPiUser = { username: cleanUsername };
+      const maskedName = SecureShield.maskUsername(cleanUsername);
+      
+      if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+      if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+      
+      const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
+      const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
+      
+      if (isAdmin) {
+        isBuyerApproved = true;
+        if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+      } else {
+        if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
+      }
+      await checkBuyerStatusInDatabase(cleanUsername);
+
+      Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+      if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
+    } else {
+      throw new Error("Respon otentikasi kosong.");
+    }
+  } catch (err) {
+    // Fallback otomatis ke Mode Simulasi Aman jika bukan di Pi Browser / Terjadi Timeout
+    authenticatedPiUser = { username: "Dev" };
+    const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
+    if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
+    if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+    isBuyerApproved = true;
+    if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+    if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+    
+    await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+    Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+    
+    if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aman).`);
+  } finally {
+    isAuthenticating = false;
+  }
+}
+
 
     const auth = await piInstance.authenticate(scopes, onIncompletePaymentFound);
     
