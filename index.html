@@ -1559,15 +1559,15 @@
       }
 
       let piInstance = null;
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 3; i++) {
         piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
         if (piInstance) break;
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 80));
       }
 
       try {
         if (!piInstance) {
-          throw new Error("Pi SDK tidak terdeteksi.");
+          throw new Error("Pi SDK tidak terdeteksi, menggunakan mode aman.");
         }
         
         try {
@@ -1585,7 +1585,7 @@
           }
         };
 
-        // 🛡️ TIMEOUT GUARD (Maksimal 4 Detik agar tidak macet/stuck)
+        // 🛡️ TIMEOUT GUARD 4 DETIK: Mencegah UI macet/stuck selamanya jika Pi SDK gagal merespons
         const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("Timeout Pi SDK")), 4000)
@@ -1621,7 +1621,7 @@
           throw new Error("Respon otentikasi kosong.");
         }
       } catch (err) {
-        // Fallback aman instan tanpa membuat UI macet
+        // Fallback aman instan agar aplikasi tetap bisa dipakai tanpa gangguan
         authenticatedPiUser = { username: "Dev" };
         const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
         if (statusEl) statusEl.innerText = `User: ${maskedName}`;
@@ -1632,20 +1632,13 @@
         
         await checkBuyerStatusInDatabase(authenticatedPiUser.username);
         Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-        
-        if (!isAuto && !err.message.includes("Timeout")) {
-          // Hanya beri info jika bukan karena timeout otomatis
-        }
       } finally {
         isAuthenticating = false;
-        // Pastikan tombol login kembali normal jika gagal total
         if (!authenticatedPiUser && btnHeaderLogin) {
           btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>`;
         }
       }
     }
-
-
 
     async function payAuctionDeposit() {
       if (!authenticatedPiUser) {
