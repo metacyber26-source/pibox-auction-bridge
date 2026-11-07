@@ -3925,11 +3925,26 @@ ${certText}
           .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
             throttledFetch();
           })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'buyers' }, (payload) => {
+            if (authenticatedPiUser && payload.new && payload.new.username === authenticatedPiUser.username) {
+              const newBal = parseFloat(payload.new.deposit_balance || 0);
+              const balanceDisplayEl = document.getElementById('userDepositBalanceDisplay');
+              if (balanceDisplayEl) {
+                balanceDisplayEl.innerText = `Saldo Jaminan: ${newBal} Pi`;
+              }
+              updateTopupButtonState(newBal);
+              checkBuyerStatusInDatabase(authenticatedPiUser.username);
+            }
+            if (typeof renderBuyersTable === 'function') {
+              fetchBuyersList().then(() => renderBuyersTable());
+            }
+          })
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-              console.log("🔒 Terkoneksi aman dengan Edge Realtime Cluster.");
+              console.log("🔒 Terkoneksi aman dengan Edge Realtime Cluster (Auctions & Buyers).");
             }
           });
+
       } catch (e) {
         console.warn("Realtime warning:", e);
       }
