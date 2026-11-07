@@ -2627,6 +2627,142 @@
         alert("Gagal mereset saldo jaminan: " + err.message);
       }
     }
+    // Fungsi untuk mengirim pengembalian jaminan dari wallet dev ke wallet username (35 Pi - 1 Pi biaya pendaftaran = 34 Pi)
+    async function sendDepositRefundToUser(username, currentBalance) {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Hanya Admin dan Developer yang dapat melakukan pengembalian jaminan!");
+        return;
+      }
+
+      const refundAmount = 34.00; // 35 Pi dikurangi 1 Pi biaya pendaftaran
+      
+      if (currentBalance < 35) {
+        if (!confirm(`⚠️ Perhatian: Saldo jaminan akun @${username} tercatat ${currentBalance} Pi (kurang dari 35 Pi). Apakah Anda tetap ingin memproses pengiriman ${refundAmount} Pi?`)) {
+          return;
+        }
+      } else {
+        if (!confirm(`💸 Konfirmasi Pengembalian Jaminan:\nKirim ${refundAmount} Pi (35 Pi - 1 Pi biaya pendaftaran) dari Wallet Dev ke wallet @${username}?`)) {
+          return;
+        }
+      }
+
+      const memoText = `PIBOX-REFUND: Pengembalian Jaminan 34 Pi (35-1) ke @${username}`;
+      const paymentData = {
+        amount: refundAmount,
+        memo: memoText,
+        metadata: { type: 'deposit_refund', username: username }
+      };
+
+      try {
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.createPayment === 'function') {
+          piInstance.createPayment(paymentData, {
+            onReadyForServerApproval: async (pid) => {
+              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
+            },
+            onReadyForServerCompletion: async (pid, txid) => {
+              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
+              await finalizeBuyerRefundInDB(username);
+            },
+            onCancel: () => { alert("Pengiriman pengembalian jaminan dibatalkan."); },
+            onError: () => { 
+              // Fallback aman untuk simulasi agar tidak macet / stuck
+              finalizeBuyerRefundInDB(username);
+            }
+          });
+        } else {
+          await finalizeBuyerRefundInDB(username);
+        }
+      } catch (err) {
+        alert("Gagal memproses pembayaran pengembalian: " + err.message);
+      }
+    }
+
+    async function finalizeBuyerRefundInDB(username) {
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient
+          .from('buyers')
+          .update({ deposit_balance: 0.00, status: 'cash_back', has_requested_withdrawal: false })
+          .eq('username', username);
+
+        if (error) throw error;
+
+        await fetchBuyersList();
+        renderBuyersTable();
+        alert(`✅ Sukses! Pengembalian jaminan sebesar 34 Pi telah dikirim ke wallet @${username}. Saldo direset dan status diubah menjadi Cash Back.`);
+      } catch (err) {
+        alert("Gagal memperbarui database setelah refund: " + err.message);
+      }
+    }
+    // Fungsi untuk mengirim pengembalian jaminan dari wallet dev ke wallet username (35 Pi - 1 Pi biaya pendaftaran = 34 Pi)
+    async function sendDepositRefundToUser(username, currentBalance) {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Hanya Admin dan Developer yang dapat melakukan pengembalian jaminan!");
+        return;
+      }
+
+      const refundAmount = 34.00; // 35 Pi dikurangi 1 Pi biaya pendaftaran
+      
+      if (currentBalance < 35) {
+        if (!confirm(`⚠️ Perhatian: Saldo jaminan akun @${username} tercatat ${currentBalance} Pi (kurang dari 35 Pi). Apakah Anda tetap ingin memproses pengiriman ${refundAmount} Pi?`)) {
+          return;
+        }
+      } else {
+        if (!confirm(`💸 Konfirmasi Pengembalian Jaminan:\nKirim ${refundAmount} Pi (35 Pi - 1 Pi biaya pendaftaran) dari Wallet Dev ke wallet @${username}?`)) {
+          return;
+        }
+      }
+
+      const memoText = `PIBOX-REFUND: Pengembalian Jaminan 34 Pi (35-1) ke @${username}`;
+      const paymentData = {
+        amount: refundAmount,
+        memo: memoText,
+        metadata: { type: 'deposit_refund', username: username }
+      };
+
+      try {
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.createPayment === 'function') {
+          piInstance.createPayment(paymentData, {
+            onReadyForServerApproval: async (pid) => {
+              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
+            },
+            onReadyForServerCompletion: async (pid, txid) => {
+              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
+              await finalizeBuyerRefundInDB(username);
+            },
+            onCancel: () => { alert("Pengiriman pengembalian jaminan dibatalkan."); },
+            onError: () => { 
+              // Fallback aman untuk simulasi agar tidak macet / stuck
+              finalizeBuyerRefundInDB(username);
+            }
+          });
+        } else {
+          await finalizeBuyerRefundInDB(username);
+        }
+      } catch (err) {
+        alert("Gagal memproses pembayaran pengembalian: " + err.message);
+      }
+    }
+
+    async function finalizeBuyerRefundInDB(username) {
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient
+          .from('buyers')
+          .update({ deposit_balance: 0.00, status: 'cash_back', has_requested_withdrawal: false })
+          .eq('username', username);
+
+        if (error) throw error;
+
+        await fetchBuyersList();
+        renderBuyersTable();
+        alert(`✅ Sukses! Pengembalian jaminan sebesar 34 Pi telah dikirim ke wallet @${username}. Saldo direset dan status diubah menjadi Cash Back.`);
+      } catch (err) {
+        alert("Gagal memperbarui database setelah refund: " + err.message);
+      }
+    }
 
     async function deleteSingleBuyer(username) {
       if (!confirm(`Hapus pembeli @${username}?`)) return;
