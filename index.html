@@ -108,19 +108,6 @@
       background: #374151;
       border-radius: 4px;
     }
-    /* Pastikan CSS ini ada di dalam tag <style> */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #111827;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #374151;
-  border-radius: 4px;
-}
-
   </style>
 </head>
 <body class="bg-gray-950 flex flex-col items-center justify-start min-h-screen p-2">
@@ -481,28 +468,23 @@
           </div>
         </div>
       </div>
-      
-      <!-- KODE BARU -->
-      <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[60vh] flex flex-col">
-        <!-- Bagian Horizontal Scroll (Di sebelah kanan garis merah) -->
-        <div class="overflow-x-auto custom-scrollbar flex-1">
-          <table class="w-full text-left text-[11px] text-gray-300 min-w-[550px] border-collapse">
-            <!-- Header tetap diam saat digeser ke bawah (Batas garis hijau) -->
-            <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-30 shadow-md">
-              <tr>
-                <th class="p-2 text-center w-8 bg-gray-900 sticky left-0 z-40 border-r border-gray-800"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
-                <th class="p-2 bg-gray-900 sticky left-8 z-40 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]" data-i18n="thUsername">Username</th>
-                <th class="p-2 text-center bg-gray-900" data-i18n="thNotice">Keterangan</th>
-                <th class="p-2 bg-gray-900" data-i18n="thStatus">Status Verifikasi</th>
-                <th class="p-2 text-center bg-gray-900">Spam Report</th>
-                <th class="p-2 text-right bg-gray-900" data-i18n="thAction">Aksi</th>
-              </tr>
-            </thead>
-            <!-- Bagian Vertical Scroll (Hanya bagian di bawah garis hijau yang bisa digeser ke atas-bawah) -->
-            <tbody id="buyersTableBody" class="overflow-y-auto max-h-[50vh]"></tbody>
-          </table>
-        </div>
+
+      <div class="overflow-x-auto border border-gray-800 rounded-xl">
+        <table class="w-full text-left text-[11px] text-gray-300">
+          <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800">
+            <tr>
+              <th class="p-2 text-center w-8"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
+              <th class="p-2" data-i18n="thUsername">Username</th>
+              <th class="p-2 text-center" data-i18n="thNotice">Keterangan</th>
+              <th class="p-2" data-i18n="thStatus">Status Verifikasi</th>
+              <th class="p-2 text-center">Spam Report</th>
+              <th class="p-2 text-right" data-i18n="thAction">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="buyersTableBody"></tbody>
+        </table>
       </div>
+    </div>
   </div>
 
   <!-- MODAL: KLAIM PENARIKAN JAMINAN (DENGAN KIRIM BUKTI DEPOSIT, USERNAME, WALLET) -->
@@ -2504,23 +2486,15 @@
           withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
         }
 
-        html += `<tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
-          <!-- Kolom Checkbox Terkunci di Kiri -->
-          <td class="p-2 text-center sticky left-0 z-20 bg-gray-950 border-r border-gray-800">
-            ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}
-          </td>
-
-          <!-- Kolom Username Terkunci di Kiri (bergeser setelah checkbox) -->
-          <td class="p-2 font-mono text-yellow-400 sticky left-8 z-20 bg-gray-950 border-r border-gray-800 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.6)]">
+        html += `<tr class="border-b border-gray-800">
+          <td class="p-2 text-center">${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}</td>
+          <td class="p-2 font-mono text-yellow-400">
             @${displayedUsername}
             <div class="text-[9px] text-emerald-400 font-sans">Depo: ${buyerBalance} Pi</div>
           </td>
-
-          <!-- Kolom-kolom di sebelah kanan (Bisa digeser horizontal) -->
-          <td class="p-2 text-center bg-gray-950">${withdrawalNotice}</td>
-          <td class="p-2 bg-gray-950"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
-          
-          <td class="p-2 text-center bg-gray-950">
+          <td class="p-2 text-center">${withdrawalNotice}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
+          <td class="p-2 text-center">
             ${(() => {
               let totalBidsAllAssets = 0;
               let totalPaidFeesFromBid6 = 0;
@@ -2560,8 +2534,7 @@
               }
             })()}
           </td>
-
-          <td class="p-2 text-right space-x-1 bg-gray-950">
+          <td class="p-2 text-right space-x-1">
             ${isAdminOrDev ? `
               <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow" title="Reset Saldo Jaminan">Reset Saldo</button>
               <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
