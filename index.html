@@ -17,7 +17,7 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- LINK KE CSS EKSTERNAL -->
+  <!-- CSS EKSTERNAL -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-gray-950 flex flex-col items-center justify-start min-h-screen p-2">
@@ -34,14 +34,405 @@
     </a>
   </div>
 
-  <!-- Main Container & Konten HTML Utama Anda tetap di sini... -->
+  <!-- Main Container -->
   <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[90vh]">
-    <!-- (Bagian Header, Banner, Galeri, dan Modal-modal HTML Anda diletakkan di sini) -->
+    
+    <!-- Banner Mode Jaringan -->
+    <div id="networkModeBanner" class="bg-amber-600/90 text-gray-950 font-black text-[10px] tracking-widest text-center py-1 uppercase shadow-md flex items-center justify-center gap-1.5">
+      <span data-i18n="networkModeLabel">⚡ MODE JARINGAN:</span>
+      <span id="networkModeBadge" class="bg-black text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-400/40">TESTNET</span>
+    </div>
+
+    <!-- Top Header Bar -->
+    <div class="bg-gray-950 p-3 sm:p-4 border-b border-gray-800 flex justify-between items-center sticky top-0 z-30">
+      <div class="flex items-center space-x-2">
+        <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+        <div>
+          <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200" data-i18n="appTitle">NFT GLOBAL MARKET & AUCTION ENGINE</h1>
+          <p class="text-[9px] text-yellow-500" data-i18n="appSubtitle">PiBox Multi-Asset Bridge v5.2 + Secure Core</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <select id="langSelector" onchange="changeLanguage(this.value)" class="bg-gray-900 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold py-1 px-1.5 rounded-lg focus:outline-none cursor-pointer">
+          <option value="id">🇮🇩 ID</option>
+          <option value="en">🇺🇸 EN</option>
+          <option value="zh">🇨🇳 中文</option>
+          <option value="es">🇪🇸 ES</option>
+        </select>
+
+        <button id="btnAdminSchedule" onclick="openScheduleModal()" class="hidden text-xs bg-purple-900 hover:bg-purple-800 text-purple-200 font-bold px-2 py-1.5 rounded-xl border border-purple-500/40 transition flex items-center gap-1 cursor-pointer">
+          ⚙️ <span data-i18n="scheduleBtn">Jadwal</span>
+        </button>
+
+        <button id="btnHeaderLogin" onclick="authenticatePiUser()" class="text-xs bg-gray-800 hover:bg-gray-700 text-yellow-400 font-semibold px-2 py-1.5 rounded-xl border border-yellow-500/30 transition flex items-center gap-1 cursor-pointer">
+          🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Panel Keamanan & Status Pendaftaran Calon Pembeli -->
+    <div id="buyerRegistrationPanel" class="bg-gradient-to-r from-blue-950/60 via-indigo-950/60 to-gray-950 border-b border-indigo-500/30 p-2.5 flex flex-col gap-2 text-[10px]">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-yellow-400 text-base">🛡️</span>
+          <div>
+            <p class="font-bold text-gray-200" data-i18n="buyerStatusTitle">Status Akses Pembeli</p>
+            <p id="buyerApprovalStatusText" class="text-amber-300" data-i18n="buyerStatusPending">Menunggu Verifikasi Pendaftaran Admin...</p>
+            <p id="userDepositBalanceDisplay" class="text-emerald-400 font-bold mt-0.5">Saldo Jaminan: 0 Pi</p>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5 items-end">
+          <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer">
+            <span data-i18n="releaseAssetBtn">+ List Aset/Barang</span>
+          </button>
+          <div class="flex gap-1">
+            <button onclick="openChatModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer flex items-center gap-1">
+              💬 <span data-i18n="chatRoomBtn">Chat Room</span>
+            </button>
+            <button onclick="handleBuyerRegistrationAction()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer" data-i18n="registerBuyerBtn">
+              📋 Daftar Pembeli
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-1 border-t border-indigo-500/20">
+        <button id="btnTopupJaminan" onclick="payAuctionDeposit()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition shadow cursor-pointer flex items-center justify-center gap-1" data-i18n="topupDepositBtn">
+          💳 Top Up Jaminan 35 Pi
+        </button>
+        <button onclick="requestDepositWithdrawal()" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition shadow cursor-pointer flex items-center justify-center gap-1" data-i18n="withdrawDepositBtn">
+          📥 Klaim Penarikan Jaminan
+        </button>
+      </div>
+    </div>
+
+    <!-- Banner Sesi Lelang -->
+    <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2 text-center flex justify-between items-center px-3">
+      <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider" data-i18n="auctionStatusLabel">⏳ STATUS LELANG:</span>
+      <span id="sessionStateBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" data-i18n="liveOpenBadge">
+        BUKA LIVE 24/7
+      </span>
+    </div>
+
+    <!-- Indikator Pengguna Real -->
+    <div class="bg-gray-950/80 border-b border-gray-800 p-2 flex justify-around items-center text-center">
+      <div class="flex flex-col items-center">
+        <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeSellersLabel">📦 Penjual Aktif</span>
+        <span id="activeSellersCount" class="text-xs font-bold text-yellow-400">0 User</span>
+      </div>
+      <div class="h-6 w-[1px] bg-gray-800"></div>
+      <div class="flex flex-col items-center">
+        <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeBiddersLabel">🔨 Penawar Aktif</span>
+        <span id="activeBiddersCount" class="text-xs font-bold text-emerald-400">0 User</span>
+      </div>
+    </div>
+
+    <!-- Fitur Pencarian & Filter Kategori -->
+    <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
+      <div class="flex gap-2">
+        <input type="text" id="searchInput" oninput="filterGallery()" placeholder="🔍 Cari nama aset, barang, properti..." data-i18n-placeholder="searchPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500 transition">
+        
+        <select id="statusFilter" onchange="filterGallery()" class="bg-gray-900 border border-gray-800 text-gray-300 text-[10px] font-semibold px-2 py-1.5 rounded-xl focus:outline-none cursor-pointer">
+          <option value="all" data-i18n="filterAll">Semua Status</option>
+          <option value="active" data-i18n="filterActive">Aktif</option>
+          <option value="pending" data-i18n="filterPending">⏳ Pending</option>
+          <option value="my_listings" data-i18n="filterMyListings">📦 Aset Saya</option>
+          <option value="my_bids" data-i18n="filterMyBids">🔨 Tawaran Saya</option>
+          <option value="ended" data-i18n="filterEnded">Selesai</option>
+          <option value="cancelled" data-i18n="filterCancelled">Dibatalkan</option>
+        </select>
+      </div>
+
+      <select id="categoryFilter" onchange="filterGallery()" class="w-full bg-gray-900 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold px-2 py-1.5 rounded-xl focus:outline-none cursor-pointer">
+        <option value="all" data-i18n="catAll">🌐 Semua Kategori Lelang</option>
+        <option value="nft_art" data-i18n="catDigital">🎨 Aset Digital & NFT</option>
+        <option value="luxury_items" data-i18n="catLuxury">💎 Barang Mewah (Jam, Perhiasan)</option>
+        <option value="electronics" data-i18n="catElectronics">📱 Elektronik & Gadget</option>
+        <option value="collectibles" data-i18n="catCollectibles">🏛️ Koleksi & Barang Antik</option>
+        <option value="fashion_craft" data-i18n="catFashion">👔 Fashion & Kerajinan Lokal</option>
+        <option value="automotive" data-i18n="catAutomotive">🚗 Otomotif & Kendaraan</option>
+        <option value="property_land" data-i18n="catProperty">🏠 Properti & Real Estate (Rumah, Tanah)</option>
+        <option value="services_tech" data-i18n="catServices">🛠️ Jasa, Layanan & Sewa</option>
+      </select>
+    </div>
+
+    <!-- Tombol Khusus Laporan Bulanan On-Chain -->
+    <div id="adminMonthlyReportPanel" class="hidden p-2 bg-gray-950 border-b border-gray-800 flex justify-between items-center px-3">
+      <span class="text-[10px] text-purple-400 font-bold">📊 Rekap On-Chain Bulanan</span>
+      <button onclick="openMonthlyReportModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] px-3 py-1 rounded-lg transition shadow cursor-pointer">
+        📥 Unduh / Share Laporan
+      </button>
+    </div>
+
+    <!-- GALERI CONTENT (Bagian yang memuat daftar lelang) -->
+    <div id="mainContent" class="p-4 flex-1 flex flex-col custom-scrollbar overflow-y-auto">
+      <div class="text-center py-10 text-gray-500 text-xs animate-pulse" data-i18n="loadingGallery">Memuat Galeri Lelang...</div>
+    </div>
+
+    <!-- Bottom Footer -->
+    <div class="bg-gray-950 p-3 border-t border-gray-800 text-center text-[10px] text-gray-500 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span id="userStatusDisplay" data-i18n="guestUser">User: Tamu (Belum Login)</span>
+        <button id="btnLoginManual" onclick="authenticatePiUser()" class="bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-[9px] px-2 py-0.5 rounded font-bold transition cursor-pointer" data-i18n="piLoginBtn">
+          🔑 Login Pi
+        </button>
+      </div>
+      <button onclick="triggerAggressiveRefresh()" class="bg-yellow-500/20 hover:bg-yellow-400/40 text-yellow-400 text-[9px] font-bold px-2.5 py-1 rounded-lg border border-yellow-500/40 transition cursor-pointer flex items-center gap-1">
+        🔄 <span id="refreshTextBtn" data-i18n="refreshBtn">Segarkan</span>
+      </button>
+    </div>
+
   </div>
 
-  <!-- PANGGIL FILE JAVASCRIPT EKSTERNAL -->
-  <script src="app.js"></script>
-  <!-- PANGGIL FILE JAVASCRIPT EKSTERNAL -->
+  <!-- MODAL-MODAL PENDUKUNG -->
+  <!-- MODAL: JADWAL -->
+  <div id="scheduleModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-purple-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="text-xs font-bold text-purple-400 uppercase tracking-wider" data-i18n="scheduleModalTitle">Pengaturan Jadwal Lelang</h2>
+        <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1" data-i18n="scheduleModeLabel">Status Mode Sesi Lelang Saat Ini:</label>
+          <select id="scheduleModeSelect" onchange="toggleScheduleInputVisibility()" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none cursor-pointer">
+            <option value="testing_mode" class="dev-only-mode hidden">🧪 [DEV ONLY] Mode Uji Coba</option>
+            <option value="24h_open" class="dev-only-mode hidden">🟢 [DEV ONLY] Selalu Buka 24/7</option>
+            <option value="scheduled" selected>⏳ Menggunakan Jadwal Buka & Sesi</option>
+            <option value="closed_now" class="dev-only-mode hidden">🔴 [DEV ONLY] Tutup Lelang Manual</option>
+          </select>
+        </div>
+        <div id="scheduledInputsContainer" class="space-y-3 bg-gray-900/80 p-3 rounded-xl border border-gray-800 hidden">
+          <div class="grid grid-cols-3 gap-1.5">
+            <div><span class="text-[9px] text-gray-400">Tahun</span><input type="number" id="schedYear" value="2026" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1 text-center text-white"></div>
+            <div><span class="text-[9px] text-gray-400">Bulan</span><select id="schedMonth" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1 text-white"><option value="11" selected>11</option></select></div>
+            <div><span class="text-[9px] text-gray-400">Tanggal</span><input type="number" id="schedDay" value="01" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1 text-center text-white"></div>
+          </div>
+          <div><label class="text-[10px] text-gray-400">Jam Buka:</label><select id="scheduleStartHourSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-white text-xs"></select></div>
+          <div><label class="text-[10px] text-gray-400">Durasi:</label><select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-emerald-400 text-xs"><option value="24">24 Jam</option></select></div>
+        </div>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeScheduleModal()" class="flex-1 bg-gray-900 text-gray-300 text-xs py-2 rounded-xl">Batal</button>
+        <button onclick="saveAuctionScheduleSettings()" class="flex-1 bg-purple-600 text-white font-bold text-xs py-2 rounded-xl">💾 Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: LAPORAN BULANAN -->
+  <div id="monthlyReportModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-purple-500/40 rounded-2xl p-4 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="text-xs font-bold text-purple-400 uppercase">Rekapitulasi Laporan Bulanan On-Chain</h2>
+        <button onclick="closeMonthlyReportModal()" class="text-gray-400 font-bold text-xl">&times;</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <input type="month" id="reportMonthInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-yellow-400" onchange="generateMonthlyReportData()">
+        <div id="reportSummaryBox" class="bg-gray-900 border border-gray-800 rounded-xl p-3 font-mono text-[11px] text-gray-300 space-y-1.5 max-h-56 overflow-y-auto"></div>
+      </div>
+      <div class="flex flex-col gap-2 pt-2">
+        <button onclick="copyMonthlyReportText(this)" class="w-full bg-yellow-500 text-gray-950 font-bold py-2 rounded-xl text-xs">📋 Salin Laporan</button>
+        <button onclick="downloadMonthlyReportAsHTML()" class="w-full bg-indigo-600 text-white font-bold py-2 rounded-xl text-xs">🌐 Download File HTML</button>
+        <button onclick="closeMonthlyReportModal()" class="w-full bg-gray-900 text-gray-300 py-2 rounded-xl text-xs">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CHAT ROOM -->
+  <div id="chatModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 w-full max-w-lg space-y-3 shadow-2xl max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="text-xs font-bold text-yellow-400 uppercase">Pusat Live Chat NFT Global Market</h2>
+        <button onclick="closeChatModal()" class="text-gray-400 font-bold text-xl">&times;</button>
+      </div>
+      <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-[11px] gap-1">
+        <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold bg-yellow-500 text-gray-950">🌐 Forum</button>
+        <button id="tabBtnAdmin" onclick="switchChatTab('admin')" class="flex-1 py-1.5 rounded-lg font-bold text-gray-400">🛡️ Admin</button>
+        <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold text-gray-400">🔒 P2P</button>
+      </div>
+      <div id="p2pTargetSelectorContainer" class="hidden bg-gray-900 p-2 rounded-xl border border-gray-800 text-xs space-y-1">
+        <div class="flex gap-2">
+          <select id="p2pTargetUserSelect" class="flex-1 bg-gray-950 border border-gray-800 rounded-lg p-1 text-xs text-yellow-400"><option value="">-- Pilih User --</option></select>
+          <button onclick="initP2PChatSession()" class="bg-indigo-600 text-white font-bold px-3 py-1 rounded-lg text-[10px]">Mulai</button>
+        </div>
+      </div>
+      <div id="chatMessagesBox" class="flex-1 bg-gray-900/90 border border-gray-800 rounded-xl p-3 h-64 overflow-y-auto space-y-2 text-xs"></div>
+      <div class="flex flex-col gap-1.5">
+        <div id="chatImagePreviewContainer" class="hidden flex items-center gap-2 bg-gray-900 p-1 rounded-lg text-[10px]">
+          <span id="chatImageFileName" class="text-gray-300 truncate flex-1"></span>
+          <button onclick="clearChatImagePreview()" class="text-red-400 font-bold px-1">✕ Hapus</button>
+        </div>
+        <div class="flex gap-2 items-center">
+          <label class="bg-indigo-600 text-white p-2 rounded-xl cursor-pointer text-xs">📷 <input type="file" id="chatImageFileInput" accept="image/*" onchange="handleChatImageSelect(this)" class="hidden"></label>
+          <input type="text" id="chatMessageInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Ketik pesan..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+          <button onclick="sendChatMessage()" class="bg-yellow-500 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs">Kirim 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DAFTAR PEMBELI -->
+  <div id="buyersTableModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 w-full max-w-lg space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="text-xs font-bold text-yellow-400 uppercase">👥 Daftar Calon Pembeli</h2>
+        <button onclick="closeBuyersTableModal()" class="text-gray-400 font-bold text-xl">&times;</button>
+      </div>
+      <div class="flex justify-between gap-2">
+        <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari pembeli..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1 text-xs text-white">
+        <div id="adminDeleteBatchContainer" class="hidden">
+          <button onclick="deleteSelectedBuyers()" class="bg-red-600 text-white font-bold text-[10px] px-2.5 py-1 rounded-xl">🗑 Hapus</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto border border-gray-800 rounded-xl">
+        <table class="w-full text-left text-[11px] text-gray-300">
+          <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800">
+            <tr>
+              <th class="p-2 text-center w-8"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
+              <th class="p-2">Username</th>
+              <th class="p-2 text-center">Keterangan</th>
+              <th class="p-2">Status</th>
+              <th class="p-2 text-center">Spam</th>
+              <th class="p-2 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="buyersTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: KLAIM PENARIKAN JAMINAN -->
+  <div id="withdrawalProofModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-amber-500/40 rounded-2xl p-4 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="text-xs font-bold text-amber-400 uppercase">Klaim Penarikan Jaminan</h2>
+        <button onclick="closeWithdrawalProofModal()" class="text-gray-400 font-bold text-xl">&times;</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div><label class="text-gray-300 mb-1">Username Pi:</label><input type="text" id="withdrawalUsernameInput" readonly class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-yellow-400 font-mono"></div>
+        <div><label class="text-gray-300 mb-1">PiBox Wallet Address:</label><input type="text" id="withdrawalWalletInput" placeholder="Alamat wallet..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-white font-mono"></div>
+        <div><label class="text-gray-300 mb-1">Upload Bukti Deposit:</label><input type="file" id="withdrawalProofFile" accept="image/*" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-xs text-gray-300"></div>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeWithdrawalProofModal()" class="flex-1 bg-gray-900 text-gray-300 text-xs py-2 rounded-xl">Batal</button>
+        <button onclick="submitWithdrawalWithProof()" class="flex-1 bg-amber-600 text-white font-bold text-xs py-2 rounded-xl">🚀 Kirim</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DETAIL ASET -->
+  <div id="detailModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="text-xs font-bold text-gray-200 uppercase">Detail Lelang Aset / Barang</h2>
+        <button onclick="closeDetailModal()" class="text-gray-400 font-bold text-xl">&times;</button>
+      </div>
+      <div id="modalDetailContent"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: BUAT LELANG / RILIS ASET -->
+  <div id="createModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+        <div>
+          <h2 class="text-sm font-bold text-gray-100">Rilis Lelang Baru</h2>
+          <p id="quotaDisplay" class="text-[10px] text-yellow-400">Maks 3 Listing Aktif Per Username</p>
+        </div>
+        <button onclick="closeCreateModal()" class="text-gray-400 font-bold text-lg">&times;</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-gray-300 mb-1">Pilih Kategori Lelang</label>
+          <select id="assetCategoryInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-xs text-yellow-400">
+            <option value="nft_art">🎨 Aset Digital & NFT</option>
+            <option value="luxury_items">💎 Barang Mewah (Jam, Perhiasan)</option>
+            <option value="electronics">📱 Elektronik & Gadget</option>
+            <option value="collectibles">🏛️ Koleksi & Barang Antik</option>
+            <option value="fashion_craft">👔 Fashion & Kerajinan Lokal</option>
+            <option value="automotive">🚗 Otomotif & Kendaraan</option>
+            <option value="property_land">🏠 Properti & Real Estate</option>
+            <option value="services_tech">🛠️ Jasa, Layanan & Sewa</option>
+          </select>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
+          <span class="font-semibold text-gray-200 text-[11px]">Foto / Screenshot Utama</span>
+          <input type="file" id="imageFileInput" accept="image/*" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300">
+        </div>
+        <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
+          <span class="font-bold text-indigo-300 text-[11px]">Foto Tambahan / Spesifikasi</span>
+          <input type="file" id="extraSSInput" accept="image/*" onchange="handleExtraSSUpload(this)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-gray-300">
+          <div id="extraSSPreviewList" class="flex gap-2 overflow-x-auto py-1"></div>
+        </div>
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block font-semibold text-gray-300">3. Identitas / Nama Aset / Barang / Jasa</label>
+            <span id="titleCharCounter" class="text-[10px] text-gray-400 font-mono">0 / 40</span>
+          </div>
+          <input type="text" id="assetTitleInput" maxlength="40" oninput="validateAndCountTitle(this)" placeholder="Masukkan nama barang..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-xs text-white">
+        </div>
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block font-semibold text-gray-300">Deskripsi & Spesifikasi Singkat</label>
+            <span id="charCounter" class="text-[10px] text-gray-400 font-mono">0 / 500</span>
+          </div>
+          <textarea id="assetDescriptionInput" rows="3" maxlength="500" oninput="updateCharCounter(this)" placeholder="Tuliskan lokasi, kondisi, atau detail..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-xs text-white resize-none"></textarea>
+        </div>
+        <div>
+          <label class="block font-semibold text-gray-300 mb-1">Kode Ref / Hash</label>
+          <input type="text" id="assetHashInput" placeholder="Hash/Kode Unik..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-xs font-mono text-yellow-400">
+        </div>
+        <div class="bg-gray-900/80 p-3 rounded-xl border border-gray-800 space-y-2">
+          <label class="block font-semibold text-yellow-400 text-[11px]">On-chain Time (Sesuai SS Detail Aset):</label>
+          <div class="grid grid-cols-3 gap-1">
+            <div><span class="text-[9px] text-gray-400">Tahun</span><input type="number" id="ocYear" value="2026" class="w-full bg-gray-950 border border-gray-800 rounded p-1 text-center text-white text-[10px]"></div>
+            <div><span class="text-[9px] text-gray-400">Bulan</span><select id="ocMonth" class="w-full bg-gray-950 border border-gray-800 rounded p-1 text-white text-[10px]"><option value="11" selected>Nov</option></select></div>
+            <div><span class="text-[9px] text-gray-400">Tanggal</span><input type="number" id="ocDay" value="11" class="w-full bg-gray-950 border border-gray-800 rounded p-1 text-center text-white text-[10px]"></div>
+          </div>
+          <div class="grid grid-cols-3 gap-1 pt-1">
+            <div><span class="text-[9px] text-gray-400">Jam</span><select id="ocHour" class="w-full bg-gray-950 border border-gray-800 rounded p-1 text-white text-[10px]"></select></div>
+            <div><span class="text-[9px] text-gray-400">Menit</span><input type="number" id="ocMinute" value="59" class="w-full bg-gray-950 border border-gray-800 rounded p-1 text-center text-white text-[10px]"></div>
+            <div><span class="text-[9px] text-gray-400">Detik</span><input type="number" id="ocSecond" value="07" class="w-full bg-gray-950 border border-gray-800 rounded p-1 text-center text-white text-[10px]"></div>
+          </div>
+        </div>
+        <div class="space-y-2 bg-gray-900/80 p-3 rounded-xl border border-gray-800">
+          <div><label class="block font-semibold text-gray-300 text-[11px]">Akun Pembuat Listing:</label><input type="text" id="creatorAdminInput" readonly class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-purple-400 font-mono"></div>
+          <div><label class="block font-semibold text-yellow-400 text-[11px]">Username Penjual Asli (Wajib):</label><input type="text" id="realSellerUsernameInput" placeholder="namapenjual_asli" class="w-full bg-gray-950 border border-yellow-500/40 rounded-lg p-2 text-xs text-white"></div>
+          <div><label class="block font-semibold text-yellow-400 text-[11px]">PiBox Wallet Penjual Asli (Wajib):</label><input type="text" id="piboxWalletInput" placeholder="Wallet Address..." class="w-full bg-gray-950 border border-yellow-500/40 rounded-lg p-2 text-xs text-white"></div>
+        </div>
+        <div>
+          <label class="block font-semibold text-gray-300 mb-1">Harga Awal Penawaran (Reserve Price in Pi)</label>
+          <input type="number" step="0.01" id="reservePriceInput" placeholder="Contoh: 150" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-xs text-white">
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-1">
+          <label class="block font-semibold text-gray-300 text-[11px]">Mode Transaksi Aset / Barang</label>
+          <select id="transactionModeInput" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2 text-xs text-yellow-400">
+            <option value="p2p">🤝 Transaksi Direct P2P</option>
+            <option value="market">🛒 Transaksi di Market / Platform</option>
+          </select>
+        </div>
+        <div class="bg-red-950/30 border border-red-500/40 rounded-xl p-3 space-y-2 text-[10px] text-gray-300">
+          <div class="font-bold text-red-400">⚖️ PERINGATAN HUKUM & DISCLAIMER PERANTARA</div>
+          <p>Aplikasi ini hanya bertindak sebagai perantara. Segala bentuk tuntutan hukum sepenuhnya menjadi tanggung jawab hukum penjual pribadi.</p>
+          <label class="flex items-start gap-2 cursor-pointer pt-1 border-t border-red-500/20">
+            <input type="checkbox" id="legalDisclaimerCheckbox" class="mt-0.5 accent-yellow-500">
+            <span class="text-white font-semibold">Saya menyatakan bahwa aset ini adalah milik sah saya dan membebaskan platform dari segala tuntutan hukum.</span>
+          </label>
+        </div>
+      </div>
+      <div class="flex flex-col gap-2 pt-2">
+        <button id="btnPayServerFee" type="button" onclick="payServerFeeAndProceed()" class="w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 rounded-xl cursor-not-allowed" disabled>💳 Bayar 0.2 Pi (Biaya Server)</button>
+        <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryOnly()" class="w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 rounded-xl cursor-not-allowed" disabled>🚀 Rilis ke Galeri ("Pending")</button>
+        <button id="btnSendEmail" type="button" onclick="sendEmailToAdminFast()" class="w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 rounded-xl cursor-not-allowed" disabled>📧 Kirim Email Verifikasi ke Admin</button>
+        <button type="button" onclick="handleClearForm()" class="w-full bg-gray-900 text-gray-400 text-xs py-2 rounded-xl">🧹 Bersihkan Form</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANGGIL FILE JAVASCRIPT UTAMA -->
   <script src="app.js"></script>
 </body>
 </html>
