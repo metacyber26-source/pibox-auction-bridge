@@ -746,6 +746,33 @@
       alert("🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal.");
     }
   }
+    // Fungsi Gabungan: Mendaftarkan pembeli (atau membuka tabel jika admin) dan langsung memproses top up jaminan 35 Pi
+  async function handleCombinedBuyerAndTopUp() {
+    if (!authenticatedPiUser) {
+      alert(t('loginFirstAlert'));
+      authenticatePiUser();
+      return;
+    }
+
+    const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+    if (isAdminOrDev) {
+      openBuyersTableModal();
+      return;
+    }
+
+    // Jalankan pendaftaran database terlebih dahulu, lalu lanjutkan pembayaran jaminan
+    if (supabaseClient) {
+      try {
+        await supabaseClient
+          .from('buyers')
+          .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
+      } catch (e) {}
+    }
+
+    // Lanjut eksekusi pembayaran top up jaminan 35 Pi
+    payAuctionDeposit();
+  }
+
 </script>
 
 
