@@ -1,3 +1,16 @@
+Disebelah kanan aksi, pengembalian jaminan.
+Masing-masing username tambahkan tombol kirim. Jika tombol kirim di klik, maka akan diarahkan pembayaran dari wallet dev ke wallet username tersebut.
+Yang di bayarkan dari wallet dev ke wallet username sebesar uang jaminan 35pi dikurangi 1pi sebagai biaya pendaftaran. 
+Kode-kode yang dibuat, jangan sampai menggagu/ merusak fitur lain dan tetap menjaga performa tetap stabil
+Pastikan login aman , lancar , tidak macet.
+ Untuk lebih efektifnya.
+Tunjukkan secara utuh,kode lama yang harus diganti.
+Tunjukkan kode baru/pengganti:
+
+Jika kode tambahan.
+Tunjukkan secara presisi, penempatan kode baru sebelum kode apa?
+
+Ini kode saat ini, silahkan di analisa dan diperbaiki
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -496,11 +509,8 @@
                 <th class="p-2 bg-gray-900" data-i18n="thStatus">Status Verifikasi</th>
                 <th class="p-2 text-center bg-gray-900">Spam Report</th>
                 <th class="p-2 text-right bg-gray-900" data-i18n="thAction">Aksi</th>
-                <th class="p-2 text-center bg-gray-900">Pengembalian Jaminan</th>
-                <th class="p-2 text-center bg-gray-900">Pengembalian Dana Anti Spam</th>
               </tr>
             </thead>
-
             <!-- Bagian Vertical Scroll (Hanya bagian di bawah garis hijau yang bisa digeser ke atas-bawah) -->
             <tbody id="buyersTableBody" class="overflow-y-auto max-h-[50vh]"></tbody>
           </table>
@@ -2570,85 +2580,6 @@
               <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
             ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
           </td>
-          <td class="p-2 text-center bg-gray-950">
-            ${isAdminOrDev ? `
-              <button onclick="sendDepositRefundToUser('${b.username}', ${buyerBalance})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer" title="Kirim pengembalian jaminan (35 Pi - 1 Pi biaya = 34 Pi)">
-                🚀 Kirim (34 Pi)
-              </button>
-            ` : '<span class="text-[9px] text-gray-500">-</span>'}
-          </td>
-          <td class="p-2 text-center bg-gray-950">
-            ${(() => {
-              // Hitung total fee anti-spam dari aset yang BENAR-BENAR DIMENANGKAN oleh user ini
-              let totalRefundableWonFees = 0;
-              let wonAssetsCount = 0;
-
-              if (activeAuctionsList && activeAuctionsList.length > 0) {
-                activeAuctionsList.forEach(ast => {
-                  const isWonByThisUser = (ast.highest_bidder === b.username && (ast.status === 'finished' || ast.status === 'ended'));
-                  if (isWonByThisUser) {
-                    const bidCount = getUserBidCount(ast.id, b.username);
-                    if (bidCount > 5) {
-                      wonAssetsCount++;
-                      for (let i = 6; i <= bidCount; i++) {
-                        totalRefundableWonFees += calculateSuspiciousFee(i);
-                      }
-                    }
-                  }
-                });
-              }
-
-              if (isAdminOrDev && totalRefundableWonFees > 0) {
-                return `
-                  <button onclick="sendAntiSpamRefundToUser('${b.username}', ${totalRefundableWonFees})" class="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer" title="Kirim dana anti-spam dari penawaran ke-6+ pada ${wonAssetsCount} aset yang dimenangkan">
-                    🚀 Kirim (${totalRefundableWonFees.toFixed(2)} Pi)
-                  </button>
-                `;
-              } else if (totalRefundableWonFees > 0) {
-                return `<span class="text-[9px] text-purple-400 font-bold">${totalRefundableWonFees.toFixed(2)} Pi (Menang ${wonAssetsCount} Aset)</span>`;
-              } else {
-                return `<span class="text-[9px] text-gray-500">Tidak ada aset dimenangkan (>5x)</span>`;
-              }
-            })()}
-          </td>
-
-          <td class="p-2 text-center bg-gray-950">
-            ${(() => {
-              // Hitung total fee anti-spam dari aset yang BENAR-BENAR DIMENANGKAN oleh user ini
-              let totalRefundableWonFees = 0;
-              let wonAssetsCount = 0;
-
-              if (activeAuctionsList && activeAuctionsList.length > 0) {
-                activeAuctionsList.forEach(ast => {
-                  // Cek apakah lelang selesai/dimenangkan oleh user ini
-                  const isWonByThisUser = (ast.highest_bidder === b.username && (ast.status === 'finished' || ast.status === 'ended'));
-                  if (isWonByThisUser) {
-                    const bidCount = getUserBidCount(ast.id, b.username);
-                    if (bidCount > 5) {
-                      wonAssetsCount++;
-                      for (let i = 6; i <= bidCount; i++) {
-                        totalRefundableWonFees += calculateSuspiciousFee(i);
-                      }
-                    }
-                  }
-                });
-              }
-
-              if (isAdminOrDev && totalRefundableWonFees > 0) {
-                return `
-                  <button onclick="sendAntiSpamRefundToUser('${b.username}', ${totalRefundableWonFees})" class="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer" title="Kirim dana anti-spam dari penawaran ke-6+ pada ${wonAssetsCount} aset yang dimenangkan">
-                    🚀 Kirim (${totalRefundableWonFees.toFixed(2)} Pi)
-                  </button>
-                `;
-              } else if (totalRefundableWonFees > 0) {
-                return `<span class="text-[9px] text-purple-400 font-bold">${totalRefundableWonFees.toFixed(2)} Pi (Menang ${wonAssetsCount} Aset)</span>`;
-              } else {
-                return `<span class="text-[9px] text-gray-500">Tidak ada aset dimenangkan (>5x)</span>`;
-              }
-            })()}
-          </td>
-
-
         </tr>`;
       });
 
@@ -2697,128 +2628,6 @@
         alert(`✅ Saldo jaminan untuk @${username} berhasil dihapus/direset oleh Admin/Dev.`);
       } catch (err) {
         alert("Gagal mereset saldo jaminan: " + err.message);
-      }
-    }
-    // Fungsi untuk mengirim pengembalian jaminan dari wallet dev ke wallet username (35 Pi - 1 Pi biaya pendaftaran = 34 Pi)
-    async function sendDepositRefundToUser(username, currentBalance) {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⛔ Akses Ditolak: Hanya Admin dan Developer yang dapat melakukan pengembalian jaminan!");
-        return;
-      }
-
-      const refundAmount = 34.00; // 35 Pi dikurangi 1 Pi biaya pendaftaran
-      
-      if (currentBalance < 35) {
-        if (!confirm(`⚠️ Perhatian: Saldo jaminan akun @${username} tercatat ${currentBalance} Pi (kurang dari 35 Pi). Apakah Anda tetap ingin memproses pengiriman ${refundAmount} Pi?`)) {
-          return;
-        }
-      } else {
-        if (!confirm(`💸 Konfirmasi Pengembalian Jaminan:\nKirim ${refundAmount} Pi (35 Pi - 1 Pi biaya pendaftaran) dari Wallet Dev ke wallet @${username}?`)) {
-          return;
-        }
-      }
-
-      const memoText = `PIBOX-REFUND: Pengembalian Jaminan 34 Pi (35-1) ke @${username}`;
-      const paymentData = {
-        amount: refundAmount,
-        memo: memoText,
-        metadata: { type: 'deposit_refund', username: username }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await finalizeBuyerRefundInDB(username);
-            },
-            onCancel: () => { alert("Pengiriman pengembalian jaminan dibatalkan."); },
-            onError: () => { 
-              // Fallback aman untuk simulasi agar tidak macet / stuck
-              finalizeBuyerRefundInDB(username);
-            }
-          });
-        } else {
-          await finalizeBuyerRefundInDB(username);
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran pengembalian: " + err.message);
-      }
-    }
-
-    async function finalizeBuyerRefundInDB(username) {
-      if (!supabaseClient) return;
-      try {
-        const { error } = await supabaseClient
-          .from('buyers')
-          .update({ deposit_balance: 0.00, status: 'cash_back', has_requested_withdrawal: false })
-          .eq('username', username);
-
-        if (error) throw error;
-
-        await fetchBuyersList();
-        renderBuyersTable();
-        alert(`✅ Sukses! Pengembalian jaminan sebesar 34 Pi telah dikirim ke wallet @${username}. Saldo direset dan status diubah menjadi Cash Back.`);
-      } catch (err) {
-        alert("Gagal memperbarui database setelah refund: " + err.message);
-      }
-    }
-    
-    // Fungsi untuk mengirim pengembalian dana anti-spam (penawaran ke-6 dan seterusnya dari aset yang benar-benar dimenangkan)
-    async function sendAntiSpamRefundToUser(username, refundAmount) {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⛔ Akses Ditolak: Hanya Admin dan Developer yang dapat melakukan pengembalian dana anti-spam!");
-        return;
-      }
-
-      if (refundAmount <= 0) {
-        alert("⚠️ Tidak ada dana anti-spam yang dapat dikembalikan (user belum memenangkan lelang dengan penawaran >5x).");
-        return;
-      }
-
-      if (!confirm(`💸 Konfirmasi Pengembalian Dana Anti-Spam:\nKirim ${refundAmount.toFixed(2)} Pi dari Wallet Dev ke wallet @${username} (berasal dari penawaran ke-6+ pada aset yang dimenangkan)?`)) {
-        return;
-      }
-
-      const memoText = `PIBOX-ANTISPAM-REFUND: Pengembalian Dana Anti-Spam ${refundAmount.toFixed(2)} Pi ke @${username}`;
-      const paymentData = {
-        amount: parseFloat(refundAmount.toFixed(2)),
-        memo: memoText,
-        metadata: { type: 'antispam_refund', username: username }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              alert(`✅ Sukses! Pengembalian dana anti-spam sebesar ${refundAmount.toFixed(2)} Pi telah dikirim ke wallet @${username}.`);
-              fetchBuyersList();
-              renderBuyersTable();
-            },
-            onCancel: () => { alert("Pengiriman pengembalian dana anti-spam dibatalkan."); },
-            onError: () => { 
-              // Fallback aman untuk simulasi agar tidak macet / stuck
-              alert(`✅ Sukses! Pengembalian dana anti-spam sebesar ${refundAmount.toFixed(2)} Pi telah dikirim ke wallet @${username} (Mode Simulasi).`);
-              fetchBuyersList();
-              renderBuyersTable();
-            }
-          });
-        } else {
-          alert(`✅ Sukses! Pengembalian dana anti-spam sebesar ${refundAmount.toFixed(2)} Pi telah dikirim ke wallet @${username} (Mode Simulasi Browser).`);
-          fetchBuyersList();
-          renderBuyersTable();
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran pengembalian dana anti-spam: " + err.message);
       }
     }
 
@@ -3326,11 +3135,9 @@
                   <span class="bg-gray-900 text-yellow-400 px-1.5 py-0.5 rounded border border-gray-800 font-semibold">${catBadgeText}</span>
                   <span class="text-gray-400">${t('sellerLabel')}: <span class="text-yellow-400 font-mono">@${seller}</span></span>
                 </div>
-                
-                <!-- 🎯 TEMPATKAN KODE BARU DI SINI -->
                 <div class="flex justify-between items-center text-[11px] pt-0.5">
                   <span class="text-emerald-400 font-bold">${price} Pi</span>
-                  <button type="button" onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">
+                  <button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">
                     Details & Bid
                   </button>
                 </div>
@@ -3338,8 +3145,6 @@
             </div>
             ${adminActionControls}
           </div>
-
-
         `);
       });
 
@@ -3809,270 +3614,6 @@ ${certText}
       }
       
       loadChatMessages();
-    }
-        // 🎯 TEMPATKAN KODE INI TEPAT SEBELUM FUNGSI placeBidOnAuction
-    function openDetailModalWithData(auctionId) {
-      selectedAuction = activeAuctionsList.find(a => a.id === auctionId);
-      if (!selectedAuction) return;
-
-      const content = document.getElementById('modalDetailContent');
-      const title = SecureShield.sanitizeHTML(selectedAuction.title || 'Untitled');
-      const description = SecureShield.sanitizeHTML(selectedAuction.description || 'Tidak ada deskripsi tambahan.');
-      const seller = SecureShield.maskUsername(selectedAuction.seller || 'Anon');
-      const price = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
-      const status = selectedAuction.status || 'active';
-      const categoryLabel = getCategoryLabel(selectedAuction.category);
-
-      let bidActionSection = '';
-      const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
-
-      if (!isBiddingAllowed) {
-        let statusMsg = "🔒 Penawaran non-aktif (Hanya aktif saat lelang berlangsung / Tahap 3).";
-        if (currentAuctionStatusCode === 1) statusMsg = "⏳ Belum ada jadwal lelang.";
-        if (currentAuctionStatusCode === 2) statusMsg = "📅 Lelang dijadwalkan (Belum dimulai).";
-        if (currentAuctionStatusCode === 4) statusMsg = "🏁 Lelang telah berakhir / selesai.";
-
-        bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">${statusMsg}</div>`;
-      } else {
-        const targetPrice5 = price + 5;
-        const targetPrice10 = price + 10;
-        const targetPrice20 = price + 20;
-        const minManualBid = price + 25;
-
-        bidActionSection = `
-          <div class="space-y-3 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
-            <div>
-              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal dari Harga Terakhir (${price} Pi):</p>
-              <div class="grid grid-cols-3 gap-1.5">
-                <button type="button" onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
-                  <span>+5 Pi</span>
-                  <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice5})</span>
-                </button>
-                <button type="button" onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
-                  <span>+10 Pi</span>
-                  <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice10})</span>
-                </button>
-                <button type="button" onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
-                  <span>+20 Pi</span>
-                  <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice20})</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="pt-2 border-t border-gray-800 space-y-1.5">
-              <div class="flex justify-between items-center text-[10px]">
-                <span class="text-gray-300 font-semibold">Atau Masukkan Penawaran Manual:</span>
-                <span class="text-yellow-400 font-mono">Min: ${minManualBid} Pi</span>
-              </div>
-              <div class="flex gap-2">
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  id="manualBidInput" 
-                  min="${minManualBid}" 
-                  placeholder="Minimal ${minManualBid} Pi" 
-                  class="flex-1 bg-gray-950 border border-yellow-500/40 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-yellow-500"
-                >
-                <button 
-                  type="button"
-                  onclick="submitManualBid('${selectedAuction.id}', ${price})" 
-                  class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs transition cursor-pointer shadow"
-                >
-                  Kirim 🚀
-                </button>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
-      const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
-      const extraImg = selectedAuction.extra_image_url || selectedAuction.extra_ss_url || '';
-
-      content.innerHTML = `
-        <div class="space-y-3 text-xs">
-          <div class="grid grid-cols-2 gap-2">
-            <div class="space-y-1">
-              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Utama</p>
-              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center cursor-pointer" onclick="openImageZoomModal('${mainImg}')">
-                <img src="${mainImg}" class="w-full h-full object-contain">
-              </div>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Tambahan</p>
-              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-purple-500/40 flex items-center justify-center">
-                ${extraImg ? `<img src="${extraImg}" class="w-full h-full object-contain cursor-pointer" onclick="openImageZoomModal('${extraImg}')">` : `<div class="text-[10px] text-gray-500 text-center p-2">Tidak ada foto tambahan</div>`}
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 class="font-bold text-sm text-yellow-400">${title}</h3>
-            <p class="text-[10px] text-gray-300 bg-gray-900 p-2 rounded-lg border border-gray-800 mt-1">${description}</p>
-          </div>
-
-          <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1">
-            <div class="flex justify-between">
-              <span class="text-gray-400">Penjual Asli:</span>
-              <span class="text-yellow-400 font-mono">@${seller}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-400">Harga Tertinggi:</span>
-              <span class="text-emerald-400 font-bold">${price} Pi</span>
-            </div>
-          </div>
-
-          ${bidActionSection}
-
-          <div class="flex flex-col gap-2 pt-2">
-            <button type="button" onclick="closeDetailModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs transition cursor-pointer">
-              Tutup
-            </button>
-          </div>
-        </div>
-      `;
-
-      document.getElementById('detailModal').classList.remove('hidden');
-
-      setTimeout(() => {
-        const usr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        const totalRef = calculateTotalRefundableFees(selectedAuction.id, usr);
-        const dispEl = document.getElementById('refundableFeesDisplay');
-        if (dispEl) dispEl.innerText = `${totalRef.toFixed(2)} Pi`;
-      }, 50);
-    }
-
-    // 🎯 TEMPATKAN KODE INI SEBELUM FUNGSI placeBidOnAuction
-    function openDetailModalWithData(auctionId) {
-      selectedAuction = activeAuctionsList.find(a => a.id === auctionId);
-      if (!selectedAuction) return;
-
-      const content = document.getElementById('modalDetailContent');
-      const title = SecureShield.sanitizeHTML(selectedAuction.title || 'Untitled');
-      const description = SecureShield.sanitizeHTML(selectedAuction.description || 'Tidak ada deskripsi tambahan.');
-      const seller = SecureShield.maskUsername(selectedAuction.seller || 'Anon');
-      const price = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
-      const status = selectedAuction.status || 'active';
-      const categoryLabel = getCategoryLabel(selectedAuction.category);
-
-      let bidActionSection = '';
-      const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
-
-      if (!isBiddingAllowed) {
-        let statusMsg = "🔒 Penawaran non-aktif (Hanya aktif saat lelang berlangsung / Tahap 3).";
-        if (currentAuctionStatusCode === 1) statusMsg = "⏳ Belum ada jadwal lelang.";
-        if (currentAuctionStatusCode === 2) statusMsg = "📅 Lelang dijadwalkan (Belum dimulai).";
-        if (currentAuctionStatusCode === 4) statusMsg = "🏁 Lelang telah berakhir / selesai.";
-
-        bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">${statusMsg}</div>`;
-      } else {
-        const targetPrice5 = price + 5;
-        const targetPrice10 = price + 10;
-        const targetPrice20 = price + 20;
-        const minManualBid = price + 25;
-
-        bidActionSection = `
-          <div class="space-y-3 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
-            <div>
-              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal dari Harga Terakhir (${price} Pi):</p>
-              <div class="grid grid-cols-3 gap-1.5">
-                <button type="button" onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
-                  <span>+5 Pi</span>
-                  <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice5})</span>
-                </button>
-                <button type="button" onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
-                  <span>+10 Pi</span>
-                  <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice10})</span>
-                </button>
-                <button type="button" onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs transition cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
-                  <span>+20 Pi</span>
-                  <span class="text-[9px] text-gray-400 font-normal">(=${targetPrice20})</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="pt-2 border-t border-gray-800 space-y-1.5">
-              <div class="flex justify-between items-center text-[10px]">
-                <span class="text-gray-300 font-semibold">Atau Masukkan Penawaran Manual:</span>
-                <span class="text-yellow-400 font-mono">Min: ${minManualBid} Pi</span>
-              </div>
-              <div class="flex gap-2">
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  id="manualBidInput" 
-                  min="${minManualBid}" 
-                  placeholder="Minimal ${minManualBid} Pi" 
-                  class="flex-1 bg-gray-950 border border-yellow-500/40 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-yellow-500"
-                >
-                <button 
-                  type="button"
-                  onclick="submitManualBid('${selectedAuction.id}', ${price})" 
-                  class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs transition cursor-pointer shadow"
-                >
-                  Kirim 🚀
-                </button>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
-      const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
-      const extraImg = selectedAuction.extra_image_url || selectedAuction.extra_ss_url || '';
-
-      content.innerHTML = `
-        <div class="space-y-3 text-xs">
-          <div class="grid grid-cols-2 gap-2">
-            <div class="space-y-1">
-              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Utama</p>
-              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center cursor-pointer" onclick="openImageZoomModal('${mainImg}')">
-                <img src="${mainImg}" class="w-full h-full object-contain">
-              </div>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Tambahan</p>
-              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-purple-500/40 flex items-center justify-center">
-                ${extraImg ? `<img src="${extraImg}" class="w-full h-full object-contain cursor-pointer" onclick="openImageZoomModal('${extraImg}')">` : `<div class="text-[10px] text-gray-500 text-center p-2">Tidak ada foto tambahan</div>`}
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 class="font-bold text-sm text-yellow-400">${title}</h3>
-            <p class="text-[10px] text-gray-300 bg-gray-900 p-2 rounded-lg border border-gray-800 mt-1">${description}</p>
-          </div>
-
-          <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1">
-            <div class="flex justify-between">
-              <span class="text-gray-400">Penjual Asli:</span>
-              <span class="text-yellow-400 font-mono">@${seller}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-400">Harga Tertinggi:</span>
-              <span class="text-emerald-400 font-bold">${price} Pi</span>
-            </div>
-          </div>
-
-          ${bidActionSection}
-
-          <div class="flex flex-col gap-2 pt-2">
-            <button type="button" onclick="closeDetailModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs transition cursor-pointer">
-              Tutup
-            </button>
-          </div>
-        </div>
-      `;
-
-      document.getElementById('detailModal').classList.remove('hidden');
-
-      // Perhitungan aman untuk menampilkan fee anti-spam
-      setTimeout(() => {
-        const usr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        const totalRef = calculateTotalRefundableFees(selectedAuction.id, usr);
-        const dispEl = document.getElementById('refundableFeesDisplay');
-        if (dispEl) dispEl.innerText = `${totalRef.toFixed(2)} Pi`;
-      }, 50);
     }
 
     async function placeBidOnAuction(auctionId, amount) {
