@@ -2571,13 +2571,49 @@
               <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
             ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
           </td>
-          <td class="p-2 text-center bg-gray-950">
+         <td class="p-2 text-center bg-gray-950">
             ${isAdminOrDev ? `
               <button onclick="sendDepositRefundToUser('${b.username}', ${buyerBalance})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer" title="Kirim pengembalian jaminan (35 Pi - 1 Pi biaya = 34 Pi)">
                 🚀 Kirim (34 Pi)
               </button>
             ` : '<span class="text-[9px] text-gray-500">-</span>'}
           </td>
+          <td class="p-2 text-center bg-gray-950">
+            ${(() => {
+              // Hitung total fee anti-spam dari aset yang BENAR-BENAR DIMENANGKAN oleh user ini
+              let totalRefundableWonFees = 0;
+              let wonAssetsCount = 0;
+
+              if (activeAuctionsList && activeAuctionsList.length > 0) {
+                activeAuctionsList.forEach(ast => {
+                  // Cek apakah lelang selesai/dimenangkan oleh user ini
+                  const isWonByThisUser = (ast.highest_bidder === b.username && (ast.status === 'finished' || ast.status === 'ended'));
+                  if (isWonByThisUser) {
+                    const bidCount = getUserBidCount(ast.id, b.username);
+                    if (bidCount > 5) {
+                      wonAssetsCount++;
+                      for (let i = 6; i <= bidCount; i++) {
+                        totalRefundableWonFees += calculateSuspiciousFee(i);
+                      }
+                    }
+                  }
+                });
+              }
+
+              if (isAdminOrDev && totalRefundableWonFees > 0) {
+                return `
+                  <button onclick="sendAntiSpamRefundToUser('${b.username}', ${totalRefundableWonFees})" class="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer" title="Kirim dana anti-spam dari penawaran ke-6+ pada ${wonAssetsCount} aset yang dimenangkan">
+                    🚀 Kirim (${totalRefundableWonFees.toFixed(2)} Pi)
+                  </button>
+                `;
+              } else if (totalRefundableWonFees > 0) {
+                return `<span class="text-[9px] text-purple-400 font-bold">${totalRefundableWonFees.toFixed(2)} Pi (Menang ${wonAssetsCount} Aset)</span>`;
+              } else {
+                return `<span class="text-[9px] text-gray-500">Tidak ada aset dimenangkan (>5x)</span>`;
+              }
+            })()}
+          </td>
+
 
         </tr>`;
       });
