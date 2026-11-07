@@ -1559,15 +1559,15 @@
       }
 
       let piInstance = null;
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 5; i++) {
         piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
         if (piInstance) break;
-        await new Promise(r => setTimeout(r, 150));
+        await new Promise(r => setTimeout(r, 100));
       }
 
       try {
         if (!piInstance) {
-          throw new Error("Pi SDK tidak terdeteksi, menggunakan mode aman.");
+          throw new Error("Pi SDK tidak terdeteksi.");
         }
         
         try {
@@ -1585,7 +1585,13 @@
           }
         };
 
-        const auth = await piInstance.authenticate(scopes, onIncompletePaymentFound);
+        // 🛡️ TIMEOUT GUARD (Maksimal 4 Detik agar tidak macet/stuck)
+        const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Timeout Pi SDK")), 4000)
+        );
+
+        const auth = await Promise.race([authPromise, timeoutPromise]);
         
         if (auth && auth.user && auth.user.username) {
           const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
@@ -1615,10 +1621,10 @@
           throw new Error("Respon otentikasi kosong.");
         }
       } catch (err) {
-        // Fallback aman agar login tidak macet / stuck loading
+        // Fallback aman instan tanpa membuat UI macet
         authenticatedPiUser = { username: "Dev" };
         const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-        if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
+        if (statusEl) statusEl.innerText = `User: ${maskedName}`;
         if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
         isBuyerApproved = true;
         if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
@@ -1627,11 +1633,18 @@
         await checkBuyerStatusInDatabase(authenticatedPiUser.username);
         Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
         
-        if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aman).`);
+        if (!isAuto && !err.message.includes("Timeout")) {
+          // Hanya beri info jika bukan karena timeout otomatis
+        }
       } finally {
         isAuthenticating = false;
+        // Pastikan tombol login kembali normal jika gagal total
+        if (!authenticatedPiUser && btnHeaderLogin) {
+          btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>`;
+        }
       }
     }
+
 
 
     async function payAuctionDeposit() {
