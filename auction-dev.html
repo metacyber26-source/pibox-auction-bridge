@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔒 [DEV ZONE] NFT GLOBAL MARKET & AUCTION ENGINE</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- jsPDF Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Pi Network SDK -->
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+
+  <!-- CSS EKSTERNAL -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-950 flex flex-col items-center justify-start min-h-screen p-2">
+
+  <!-- Navigasi Atas Khusus Dev -->
+  <div class="w-full max-w-md bg-red-950/40 p-2 border border-red-500/40 flex justify-between items-center text-[10px] mb-2 rounded-xl text-red-300 font-bold px-3">
+    <span>🛡️ DEV ENVIRONMENT (SANDBOX)</span>
+    <a href="index.html" class="bg-gray-800 hover:bg-gray-700 text-white px-2 py-1 rounded">← Kembali ke Utama</a>
+  </div>
+
+  <!-- Main Container -->
+  <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[90vh]">
+    
+    <!-- Banner Mode Jaringan -->
+    <div id="networkModeBanner" class="bg-amber-600/90 text-gray-950 font-black text-[10px] tracking-widest text-center py-1 uppercase shadow-md flex items-center justify-center gap-1.5">
+      <span data-i18n="networkModeLabel">⚡ MODE JARINGAN:</span>
+      <span id="networkModeBadge" class="bg-black text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-400/40">TESTNET</span>
+    </div>
+
+    <!-- Top Header Bar -->
+    <div class="bg-gray-950 p-3 sm:p-4 border-b border-gray-800 flex justify-between items-center sticky top-0 z-30">
+      <div class="flex items-center space-x-2">
+        <span class="inline-block w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+        <div>
+          <h1 class="font-bold text-xs sm:text-sm tracking-wide text-gray-200">DEV AUCTION ENGINE</h1>
+          <p class="text-[9px] text-red-400">Sandbox Mode v5.2 + Secure Core</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <select id="langSelector" onchange="changeLanguage(this.value)" class="bg-gray-900 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold py-1 px-1.5 rounded-lg focus:outline-none cursor-pointer">
+          <option value="id">🇮🇩 ID</option>
+          <option value="en">🇺🇸 EN</option>
+          <option value="zh">🇨🇳 中文</option>
+          <option value="es">🇪🇸 ES</option>
+        </select>
+
+        <button id="btnAdminSchedule" onclick="openScheduleModal()" class="text-xs bg-purple-900 hover:bg-purple-800 text-purple-200 font-bold px-2 py-1.5 rounded-xl border border-purple-500/40 transition flex items-center gap-1 cursor-pointer">
+          ⚙️ <span>Jadwal</span>
+        </button>
+
+        <button id="btnHeaderLogin" onclick="authenticatePiUser()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-md transition duration-200 flex items-center gap-1 cursor-pointer">
+          🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Panel Keamanan & Status Pendaftaran Calon Pembeli -->
+    <div id="buyerRegistrationPanel" class="bg-gradient-to-r from-blue-950/60 via-indigo-950/60 to-gray-950 border-b border-indigo-500/30 p-2.5 flex flex-col gap-2 text-[10px]">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-yellow-400 text-base">🛡️</span>
+          <div>
+            <p class="font-bold text-gray-200" data-i18n="buyerStatusTitle">Status Akses Pembeli</p>
+            <p id="buyerApprovalStatusText" class="text-amber-300">Menunggu Verifikasi Pendaftaran Admin...</p>
+            <p id="userDepositBalanceDisplay" class="text-emerald-400 font-bold mt-0.5">Saldo Jaminan: 0 Pi</p>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5 items-end">
+          <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer">
+            <span data-i18n="releaseAssetBtn">+ List Aset/Barang</span>
+          </button>
+          <div class="flex gap-1">
+            <button onclick="openChatModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer flex items-center gap-1">
+              💬 <span>Chat Room</span>
+            </button>
+            <button onclick="handleBuyerRegistrationAction()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer">
+              📋 Daftar Pembeli
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Banner Sesi Lelang -->
+    <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2 text-center flex justify-between items-center px-3">
+      <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider">⏳ STATUS LELANG:</span>
+      <span id="sessionStateBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+        BUKA LIVE 24/7
+      </span>
+    </div>
+
+    <!-- Fitur Pencarian & Filter Kategori -->
+    <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
+      <div class="flex gap-2">
+        <input type="text" id="searchInput" oninput="filterGallery()" placeholder="🔍 Cari nama aset, barang, properti..." class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500 transition">
+        
+        <select id="statusFilter" onchange="filterGallery()" class="bg-gray-900 border border-gray-800 text-gray-300 text-[10px] font-semibold px-2 py-1.5 rounded-xl focus:outline-none cursor-pointer">
+          <option value="all">Semua Status</option>
+          <option value="active">Aktif</option>
+          <option value="pending">⏳ Pending</option>
+          <option value="my_listings">📦 Aset Saya</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- GALERI CONTENT -->
+    <div id="mainContent" class="p-4 flex-1 flex flex-col custom-scrollbar overflow-y-auto">
+      <div class="text-center py-10 text-gray-500 text-xs animate-pulse">Memuat Galeri Lelang (Sandbox Mode)...</div>
+    </div>
+
+    <!-- Bottom Footer -->
+    <div class="bg-gray-950 p-3 border-t border-gray-800 text-center text-[10px] text-gray-500 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span id="userStatusDisplay">User: Tamu (Belum Login)</span>
+        <button id="btnLoginManual" onclick="authenticatePiUser()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 text-[10px] px-2.5 py-1 rounded-lg font-extrabold transition shadow-md cursor-pointer flex items-center gap-1">
+          🔑 Login Pi
+        </button>
+      </div>
+      <button onclick="triggerAggressiveRefresh()" class="bg-yellow-500/20 hover:bg-yellow-400/40 text-yellow-400 text-[9px] font-bold px-2.5 py-1 rounded-lg border border-yellow-500/40 transition cursor-pointer">
+        🔄 Segarkan
+      </button>
+    </div>
+
+  </div>
+
+  <!-- MODAL PENDUKUNG (Jadwal, Detail, dll dapat disesuaikan) -->
+  <div id="detailModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h2 class="text-xs font-bold text-gray-200 uppercase">Detail Lelang Aset / Barang</h2>
+        <button onclick="closeDetailModal()" class="text-gray-400 font-bold text-xl">&times;</button>
+      </div>
+      <div id="modalDetailContent"></div>
+    </div>
+  </div>
+
+  <!-- Skrip Utama yang Sama -->
+  <script src="app.js"></script>
+  <script>
+    // Skrip Proteksi Tambahan khusus Dev Sandbox
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+          // Opsional: Otomatis memicu login aman developer jika diakses
+          console.log("Dev Sandbox loaded. Silakan login sebagai Admin/Dev.");
+        }
+      }, 1000);
+    });
+  </script>
+</body>
+</html>
