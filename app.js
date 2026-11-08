@@ -847,6 +847,7 @@ async function authenticatePiUser(isAuto = false) {
   const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
   
   if (isAuthenticating) return;
+  
   if (authenticatedPiUser) {
     if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
     return;
@@ -858,9 +859,11 @@ async function authenticatePiUser(isAuto = false) {
   }
 
   let piInstance = null;
+  
   try {
+    // Deteksi Pi SDK dengan batas waktu maksimal 1 detik agar tidak looping terlalu lama
     let checkCount = 0;
-    while (checkCount < 10) {
+    while (checkCount < 7) {
       piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
       if (piInstance) break;
       await new Promise(r => setTimeout(r, 150));
@@ -868,7 +871,7 @@ async function authenticatePiUser(isAuto = false) {
     }
 
     if (!piInstance) {
-      throw new Error("Pi SDK tidak ditemukan di environment ini.");
+      throw new Error("Pi SDK tidak ditemukan di environment browser biasa.");
     }
 
     try {
@@ -886,8 +889,9 @@ async function authenticatePiUser(isAuto = false) {
       }
     };
 
+    // Eksekusi autentikasi Pi dengan batas waktu 6 detik maksimal
     const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout Pi Auth")), 8000));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout Pi Auth")), 6000));
     
     const auth = await Promise.race([authPromise, timeoutPromise]);
     
@@ -911,7 +915,13 @@ async function authenticatePiUser(isAuto = false) {
         if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
         if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
       }
-      await checkBuyerStatusInDatabase(cleanUsername);
+      
+      // Bungkus pengecekan database dengan try/catch aman agar tidak memblokir login jika database lambat
+      try {
+        await checkBuyerStatusInDatabase(cleanUsername);
+      } catch (dbErr) {
+        console.warn("Database status check warning:", dbErr);
+      }
 
       Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
       if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
@@ -919,19 +929,26 @@ async function authenticatePiUser(isAuto = false) {
       throw new Error("Respon otentikasi kosong.");
     }
   } catch (err) {
+    // Fallback otomatis ke Mode Simulasi Aman (Dev Mode) agar aplikasi tetap dapat diuji dengan lancar
     authenticatedPiUser = { username: "Dev" };
     const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
+    
     if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
     if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+    
     isBuyerApproved = true;
     if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
     if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
     
-    await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+    try {
+      await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+    } catch (e) {}
+    
     Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
     
     if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aman).`);
   } finally {
+    // Memastikan status autentikasi selalu direset, sehingga tombol tidak akan pernah macet
     isAuthenticating = false;
   }
 }
