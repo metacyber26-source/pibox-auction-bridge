@@ -3712,7 +3712,7 @@ ${certText}
       loadChatMessages();
     }
 
-    async function placeBidOnAuction(auctionId, amount) {
+        async function placeBidOnAuction(auctionId, amount) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
@@ -3746,6 +3746,33 @@ ${certText}
         return;
       }
 
+      // --- PERINGATAN ANTI-SPAM PRESISI PADA PENAWARAN KE-4 DAN KE-5 ---
+      const currentBidCount = getUserBidCount(auctionId, username);
+      const nextBidNumber = currentBidCount + 1;
+
+      if (nextBidNumber === 4) {
+        const confirmSpamWarning4 = confirm(
+          "⚠️ PERINGATAN ANTI-SPAM (PENAWARAN KE-4)\n\n" +
+          "Anda telah melakukan penawaran berulang sebanyak 3 kali pada aset ini. " +
+          "Mohon untuk tidak melakukan tindakan spam yang dapat mengganggu kestabilan lelang dan kenyamanan pengguna lain. " +
+          "Tindakan spam berlebihan dapat berisiko pada pembatasan akses akun Anda.\n\n" +
+          "Apakah Anda tetap ingin melanjutkan penawaran ke-4 ini?"
+        );
+        if (!confirmSpamWarning4) return;
+      }
+
+      if (nextBidNumber === 5) {
+        const confirmSpamWarning5 = confirm(
+          "🚨 PERINGATAN KERAS ANTI-SPAM (PENAWARAN KE-5)\n\n" +
+          "PERHATIAN: Ini adalah penawaran kelima Anda pada aset yang sama. " +
+          "Sistem mendeteksi pola aktivitas berulang yang menyerupai spam. " +
+          "Perlu diingat bahwa penawaran mulai ke-6 dan seterusnya akan dikenakan biaya kelipatan progresif demi menjaga integritas sistem.\n\n" +
+          "Pastikan Anda bertindak bijak dan bertanggung jawab. Lanjutkan penawaran?"
+        );
+        if (!confirmSpamWarning5) return;
+      }
+      // -------------------------------------------------------------
+
       const alreadyAgreed = isBuyerAlreadyAgreed(auctionId, username);
       const buyerCheckbox = document.getElementById('buyerLegalCheckbox');
 
@@ -3753,9 +3780,6 @@ ${certText}
         alert("⚖️ Perlindungan Hukum: Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum pembeli sebelum melakukan penawaran.");
         return;
       }
-
-      const currentBidCount = getUserBidCount(auctionId, username);
-      const nextBidNumber = currentBidCount + 1;
 
       let requiredBidFee = 0;
       if (nextBidNumber === 1) {
@@ -3823,6 +3847,7 @@ ${certText}
         executeBidProcess();
       }
     }
+
 
     function submitManualBid(auctionId, currentPrice) {
       const inputEl = document.getElementById('manualBidInput');
