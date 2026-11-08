@@ -888,9 +888,8 @@ async function authenticatePiUser(isAuto = false) {
   let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
 
   try {
-    // Jika berada di browser biasa atau Pi SDK belum siap, langsung arahkan ke simulasi aman (Dev) agar tidak macet
     if (!piInstance || typeof piInstance.authenticate !== 'function') {
-      throw new Error("Pi SDK tidak tersedia di lingkungan ini, mengaktifkan mode aman.");
+      throw new Error("Pi SDK tidak tersedia, beralih ke mode aman.");
     }
 
     const scopes = ['username', 'payments'];
@@ -904,9 +903,9 @@ async function authenticatePiUser(isAuto = false) {
       }
     };
 
-    // Batas waktu pengaman (timeout) 3 detik agar tombol tidak stuck
+    // Eksekusi autentikasi Pi dengan batas waktu 4 detik agar tidak macet total
     const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth Timeout")), 3000));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 4000));
     
     const auth = await Promise.race([authPromise, timeoutPromise]);
     
@@ -935,10 +934,10 @@ async function authenticatePiUser(isAuto = false) {
       Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
       if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
     } else {
-      throw new Error("Respon otentikasi kosong.");
+      throw new Error("Gagal mendapatkan data user.");
     }
   } catch (err) {
-    // Fallback otomatis ke Mode Aman (Dev) agar aplikasi langsung bisa digunakan tanpa macet
+    // Fallback otomatis ke Mode Aman (Dev) agar tombol langsung aktif dan tidak muter-muter (macet)
     authenticatedPiUser = { username: "Dev" };
     const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
     if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
@@ -950,12 +949,11 @@ async function authenticatePiUser(isAuto = false) {
     await checkBuyerStatusInDatabase(authenticatedPiUser.username);
     Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
     
-    if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aman Aktif).`);
+    if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aman).`);
   } finally {
     isAuthenticating = false;
   }
 }
-
 
 function calculateTotalRefundableFees(auctionId, username) {
   const currentBidCount = getUserBidCount(auctionId, username);
