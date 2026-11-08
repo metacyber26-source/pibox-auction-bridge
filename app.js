@@ -760,11 +760,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setTimeout(() => {
     const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-    if (!authenticatedPiUser && piInstance) {
+    if (!authenticatedPiUser && piInstance && !isAuthenticating) {
       authenticatePiUser(true);
     }
-  }, 500);
-});
+  }, 1000);
 
 async function fetchAndListenAuctionSchedule() {
   if (!supabaseClient) return;
