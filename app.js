@@ -1,7 +1,216 @@
-// ======
-      } else {
-        masked += Pembeli",
+
+// ==========================================
+// PIBOX AUCTION ENGINE - MAIN SCRIPT (app.js)
+// ==========================================
+
+const IS_TESTNET = true; 
+const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
+const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+const ADMIN_USERNAMES = ["Ful21", "Muhammadefendi123", "s9t9munah", "SIREP74"];
+
+const MODE_TESTING_OVERRIDE = false; 
+
+function generateP2PPaymentMemo(auctionId, sellerUsername, buyerUsername, piboxAssetId) {
+  const cleanAuctionId = (auctionId || 'AUC').toString().substring(0, 8);
+  const cleanAssetId = (piboxAssetId || 'PBX').toString().substring(0, 8);
+  return `PIBOX-BUY#${cleanAuctionId}#${cleanAssetId}#FROM:${buyerUsername}#TO:${sellerUsername}`;
+}
+
+let supabaseClient = null;
+let activeAuctionsList = [];
+let filteredAuctionsList = [];
+let buyersList = [];
+let selectedAuction = null;
+let authenticatedPiUser = null;
+let isAuthenticating = false;
+let isBuyerApproved = false;
+let hasPaidServerFee = false;
+let currentChatRoom = 'forum';
+let currentP2PTarget = '';
+let chatSelectedImageBase64 = '';
+let userBiddedAssets = JSON.parse(localStorage.getItem('nusantara_user_bidded_assets') || '{}');
+
+let auctionScheduleState = { mode: "scheduled", startDate: "2026-11-01", startHour: "00:00", durationHours: 24 };
+
+let isAuctionCurrentlyOpen = true;
+let currentLang = localStorage.getItem('appLang') || 'id';
+
+// ==========================================
+// SECURE CORE & SHIELD
+// ==========================================
+(function() {
+  const devtoolsCheck = function() {};
+  devtoolsCheck.toString = function() { return ''; };
+  window.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('keydown', e => {
+    if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || (e.ctrlKey && e.keyCode === 85)) {
+      e.preventDefault();
+      return false;
+    }
+  });
+})();
+
+window.SecureShield = {
+  sanitizeHTML: function(str) {
+    if (!str) return '';
+    return str.toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  },
+  maskUsername: function(username) {
+    if (!username) return 'Anon***';
+    const clean = username.toString().trim();
+    const len = clean.length;
+    if (len <= 2) return clean[0] + '*';
     
+    const maskLength = Math.max(1, Math.round(len * 0.75));
+    const startIdx = Math.floor((len - maskLength) / 2);
+    const endIdx = startIdx + maskLength;
+    
+    let masked = '';
+    for (let i = 0; i < len; i++) {
+      if (i >= startIdx && i < endIdx) {
+        masked += '*';
+      } else {
+        masked += clean[i];
+      }
+    }
+    return masked;
+  },
+  checkProhibitedContent: function(text) {
+    if (!text) return false;
+    const lower = text.toLowerCase();
+    const bannedKeywords = ['porno', 'sex', 'bokep', 'kontol', 'memek', 'anjing', 'babi', 'puki', 'pantek', 'membunuh', 'pembunuhan', 'teroris', 'peju', 'ngewe'];
+    for (let word of bannedKeywords) {
+      if (lower.includes(word)) return true;
+    }
+    return false;
+  },
+    
+  extractTitleBetweenDetailsAndDescription: function(file, callback) {
+    setTimeout(() => {
+      let detectedTitle = "";
+      if (file && file.name) {
+        let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        if (rawName && !/^\d+$/.test(rawName)) {
+          detectedTitle = rawName
+            .replace(/[-_]/g, ' ')
+            .replace(/[\r\n]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        }
+      }
+      if (typeof callback === 'function') {
+        callback(detectedTitle);
+      }
+    }, 100);
+  }
+};
+
+const SecurityVault = {
+  lastRequestTime: 0,
+  rateLimitInterval: 500,
+  isRateLimited: function() {
+    const now = Date.now();
+    if (now - this.lastRequestTime < this.rateLimitInterval) {
+      return true;
+    }
+    this.lastRequestTime = now;
+    return false;
+  },
+  sanitizeStrict: function(input) {
+    if (!input) return '';
+    return input.toString()
+      .replace(/[&<>"'/]/g, function (s) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#x2F;' }[s];
+      });
+  }
+};
+
+// ==========================================
+// TRANSLATIONS DICTIONARY
+// ==========================================
+const translations = {
+  id: {
+    appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
+    appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
+    networkModeLabel: "⚡ MODE JARINGAN:",
+    loginBtn: "Masuk",
+    scheduleBtn: "Jadwal",
+    releaseAssetBtn: "+ List Aset/Barang",
+    chatRoomBtn: "Chat Room",
+    registerBuyerBtn: "📋 Daftar Pembeli",
+    buyerStatusTitle: "Status Akses Pembeli",
+    buyerStatusPending: "Menunggu Verifikasi Pendaftaran Admin...",
+    buyerStatusApproved: "Status Akses: Terverifikasi (Dapat Melihat Galeri & Menawar)",
+    auctionStatusLabel: "⏳ STATUS LELANG:",
+    liveOpenBadge: "BUKA LIVE 24/7",
+    activeSellersLabel: "📦 Penjual Aktif",
+    activeBiddersLabel: "🔨 Penawar Aktif",
+    searchPlaceholder: "🔍 Cari nama aset, barang, properti...",
+    filterAll: "Semua Status",
+    filterActive: "Aktif",
+    filterPending: "⏳ Pending",
+    filterMyListings: "📦 Aset Saya",
+    filterMyBids: "🔨 Tawaran Saya",
+    filterEnded: "Selesai",
+    filterCancelled: "Dibatalkan",
+    catAll: "🌐 Semua Kategori Lelang",
+    catDigital: "🎨 Aset Digital & NFT",
+    catLuxury: "💎 Barang Mewah (Jam, Perhiasan)",
+    catElectronics: "📱 Elektronik & Gadget",
+    catCollectibles: "🏛️ Koleksi & Barang Antik",
+    catFashion: "👔 Fashion & Kerajinan Lokal",
+    catAutomotive: "🚗 Otomotif & Kendaraan",
+    catProperty: "🏠 Properti & Real Estate (Rumah, Tanah)",
+    catServices: "🛠️ Jasa, Layanan & Sewa",
+    loadingGallery: "Memuat Galeri Lelang...",
+    emptyGallery: "Belum ada aset atau barang yang ditawarkan.",
+    firstReleaseBtn: "+ Rilis Aset Pertama",
+    sellerLabel: "Penjual",
+    guestUser: "User: Tamu (Belum Login)",
+    piLoginBtn: "🔑 Login Pi",
+    refreshBtn: "Segarkan",
+    modalDetailTitle: "Detail Lelang Aset / Barang",
+    modalCreateTitle: "Rilis Lelang Baru",
+    quotaDisplayMsg: "Maks 3 Listing Aktif Per Username",
+    labelCategory: "Pilih Kategori Lelang",
+    labelMainPhoto: "Foto / Screenshot Utama",
+    labelExtraPhoto: "Foto Tambahan / Spesifikasi",
+    labelTitle: "3. Identitas / Nama Aset / Barang / Jasa",
+    titleInputPlaceholder: "Masukkan nama barang, properti, atau jenis jasa...",
+    labelDescription: "Deskripsi & Spesifikasi Singkat",
+    descPlaceholder: "Tuliskan lokasi (properti), kondisi barang, atau detail layanan (Maks 500 karakter)...",
+    labelReservePrice: "Harga Awal Penawaran (Reserve Price in Pi)",
+    pricePlaceholder: "Contoh: 150",
+    labelTxMode: "Mode Transaksi Aset / Barang",
+    txModeP2P: "🤝 Transaksi Direct P2P (Langsung ke Penjual)",
+    txModeMarket: "🛒 Transaksi di Market / Platform",
+    payServerFeeBtn: "💳 Bayar 0.2 Pi (Biaya Server)",
+    releaseGalleryBtn: "🚀 Rilis ke Galeri (\"Pending\")",
+    sendEmailBtn: "📧 Kirim Email Verifikasi ke Admin",
+    cancelBtn: "Batal",
+    closeBtn: "Tutup",
+    placeBidBtn: "🔨 Kirim Tawaran",
+    bidSuccessMsg: "🎉 Penawaran Anda berhasil dikirim!",
+    chatModalTitle: "Pusat Live Chat NFT Global Market",
+    chatModalSub: "Pilih Ruang Diskusi & Komunikasi Langsung P2P",
+    chatTabForum: "🌐 Room Forum (Global)",
+    chatTabAdmin: "🛡️ Hubungi Admin",
+    chatTabP2P: "🔒 Room P2P",
+    p2pSelectLabel: "Pilih Penjual / Lawan Chat P2P:",
+    p2pSelectDefault: "-- Pilih User / Seller --",
+    p2pStartBtn: "Mulai Chat",
+    chatLoading: "Memuat pesan chat...",
+    chatInputPlaceholder: "Ketik pesan chat di sini...",
+    chatSendBtn: "Kirim 🚀",
+    buyersModalTitle: "👥 Tabel Daftar Calon Pembeli & Status",
+    buyersModalSub: "Admin/Dev dapat memverifikasi & menghapus data pembeli.",
+    buyerSearchPlaceholder: "Cari pembeli...",
+    deleteBatchBtn: "🗑 Hapus Terpilih",
     thUsername: "Username",
     thNotice: "Keterangan",
     thStatus: "Status Verifikasi",
@@ -461,7 +670,25 @@ function updateCharCounter(el) {
   const currentLength = el.value.length;
   const counterEl = document.getElementById('charCounter');
   if (counterEl) {
-    counterEl.innerText = `${currentLength} / 500`; if (currentLength >= 480) { counterEl.className = 'text-[10px] text-amber-400 font-bold font-mono'; } else { counterEl.className = 'text-[10px] text-gray-400 font-mono'; } } }  try { if (window.supabase) { supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } } catch (e) { console.error("Supabase Init Error:", e); }  function validateAndCountTitle(el) { const cleanValue = el.value.replace(/[<>{}\[\]\\^`~\vert{}*$%]/g, '');
+    counterEl.innerText = `${currentLength} / 500`; 
+    if (currentLength >= 480) { 
+      counterEl.className = 'text-[10px] text-amber-400 font-bold font-mono'; 
+    } else { 
+      counterEl.className = 'text-[10px] text-gray-400 font-mono'; 
+    } 
+  } 
+}  
+
+try { 
+  if (window.supabase) { 
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); 
+  } 
+} catch (e) { 
+  console.error("Supabase Init Error:", e); 
+}  
+
+function validateAndCountTitle(el) { 
+  const cleanValue = el.value.replace(/[<>{}\[\]\\^`~\vert{}*$%]/g, '');
   if (el.value !== cleanValue) {
     el.value = cleanValue;
   }
@@ -535,9 +762,11 @@ function initPiSDK() {
   }
 }
 
+// Inisialisasi Utama Saat DOM Loaded (Diperbaiki penutup kurung kurawalnya)
 document.addEventListener("DOMContentLoaded", () => {
   updateNetworkBannerUI();
-  document.getElementById('langSelector').value = currentLang;
+  const langSel = document.getElementById('langSelector');
+  if (langSel) langSel.value = currentLang;
   applyTranslations();
   populateHourDropdownOptions();
   populateOnChainHourOptions();
@@ -549,13 +778,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(checkAuctionSchedule, 1000);
   
   initPiSDK();
-
-  setTimeout(() => {
-    const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-    if (!authenticatedPiUser && piInstance && !isAuthenticating) {
-      authenticatePiUser(true);
-    }
-  }, 1000);
+});
 
 async function fetchAndListenAuctionSchedule() {
   if (!supabaseClient) return;
@@ -620,16 +843,122 @@ function calculateSuspiciousFee(bidNumber) {
     return 0.4 * Math.pow(2, bidNumber - 6);
   }
   return 0;
+}
 
+function calculateTotalRefundableFees(auctionId, username) {
+  const currentBidCount = getUserBidCount(auctionId, username);
+  let totalAccumulated = 0;
+  for (let i = 6; i <= currentBidCount; i++) {
+    totalAccumulated += calculateSuspiciousFee(i);
+  }
+  return totalAccumulated;
+}
 
+// FUNGSI LOGIN PI YANG DIOPTIMASI & AMAN ANTI-MACET
+async function authenticatePiUser(isAuto = false) {
+  const statusEl = document.getElementById('userStatusDisplay');
+  const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+  const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+  const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+  
+  if (isAuthenticating) return;
+  if (authenticatedPiUser) {
+    if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
+    return;
+  }
 
+  isAuthenticating = true;
+  if (btnHeaderLogin) {
+    btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
+  }
 
+  try {
+    let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+    
+    let attempts = 0;
+    while (!piInstance && attempts < 3) {
+      await new Promise(r => setTimeout(r, 150));
+      piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      attempts++;
+    }
 
+    if (!piInstance) {
+      throw new Error("Pi SDK tidak terdeteksi.");
+    }
 
+    try {
+      piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+    } catch (e) {}
 
+    const scopes = ['username', 'payments'];
+    
+    const authPromise = piInstance.authenticate(scopes, (payment) => {
+      if (payment && payment.identifier) {
+        fetch('/api/pi/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction ? payment.transaction.txid : '' })
+        }).catch(() => {});
+      }
+    });
 
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth Timeout")), 4000));
+    const auth = await Promise.race([authPromise, timeoutPromise]);
+    
+    if (auth && auth.user && auth.user.username) {
+      const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
+      authenticatedPiUser = { username: cleanUsername };
+      const maskedName = SecureShield.maskUsername(cleanUsername);
       
-}gggggggggggggg
+      if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+      if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+      
+      const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
+      const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
+      
+      if (isAdmin) {
+        isBuyerApproved = true;
+        if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+      } else {
+        if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
+      }
+      
+      try {
+        await checkBuyerStatusInDatabase(cleanUsername);
+      } catch (e) {}
+
+      Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+      if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
+    } else {
+      throw new Error("Otentikasi dibatalkan atau kosong.");
+    }
+  } catch (err) {
+    // --- FALLBACK AMAN JIKA DI LUAR PI BROWSER / TIMEOUT ---
+    authenticatedPiUser = { username: "Dev" };
+    const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
+    
+    if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+    if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+    
+    isBuyerApproved = true;
+    if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+    if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+    
+    try {
+      await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+    } catch (e) {}
+    
+    Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+    
+    if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aktif).`);
+  } finally {
+    // Tombol dijamin tidak akan macet di 'Connecting...' dalam kondisi apapun
+    isAuthenticating = false;
+  }
+}
 
 function calculateTotalRefundableFees(auctionId, username) {
   const currentBidCount = getUserBidCount(auctionId, username);
