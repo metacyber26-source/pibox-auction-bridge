@@ -1461,428 +1461,23 @@
         .subscribe();
     }
 
-    function updateNetworkBannerUI() {
-      const badge = document.getElementById('networkModeBadge');
-      if (!badge) return;
-      badge.innerText = IS_TESTNET ? "TESTNET" : "MAINNET";
-    }
-
-    function getUserBidCount(auctionId, username) {
-      const key = `bid_count_${auctionId}_${username}`;
-      return parseInt(localStorage.getItem(key) || '0', 10);
-    }
-
-    function incrementUserBidCount(auctionId, username) {
-      const key = `bid_count_${auctionId}_${username}`;
-      const current = getUserBidCount(auctionId, username);
-      localStorage.setItem(key, current + 1);
-      return current + 1;
-    }
-
-    function calculateSuspiciousFee(bidNumber) {
-      if (bidNumber === 1) return 0.2;
-      if (bidNumber >= 6) {
-        return 0.4 * Math.pow(2, bidNumber - 6);
-      }
-      return 0;
-    }
-
-    function calculateTotalRefundableFees(auctionId, username) {
-      const currentBidCount = getUserBidCount(auctionId, username);
-      let totalAccumulated = 0;
-      for (let i = 6; i <= currentBidCount; i++) {
-        totalAccumulated += calculateSuspiciousFee(i);
-      }
-      return totalAccumulated;
-    }
-
-    // --- FUNGSI LOGIN DENGAN TIMEOUT GUARD ANTI-STUCK 4 DETIK ---
-    async function authenticatePiUser(isAuto = false) {
-      const statusEl = document.getElementById('userStatusDisplay');
-      const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-      const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-      const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-      
-      if (isAuthenticating) return;
-      if (authenticatedPiUser) {
-        if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
-        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-        return;
-      }
-
-      isAuthenticating = true;
-      if (btnHeaderLogin) {
-        btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
-      }
-
-      let piInstance = null;
-      for (let i = 0; i < 3; i++) {
-        piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance) break;
-        await new Promise(r => setTimeout(r, 80));
-      }
-
-      try {
-        if (!piInstance) {
-          throw new Error("Pi SDK tidak terdeteksi, menggunakan mode aman.");
-        }
-        
-        try {
-          piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
-        } catch (e) {}
-
-        const scopes = ['username', 'payments'];
-        const onIncompletePaymentFound = (payment) => {
-          if (payment && payment.identifier) {
-            fetch('/api/pi/complete', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction ? payment.transaction.txid : '' })
-            }).catch(() => {});
-          }
-        };
-
-        const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Timeout Pi SDK")), 4000)
-        );
-
-        const auth = await Promise.race([authPromise, timeoutPromise]);
-        
-        if (auth && auth.user && auth.user.username) {
-          const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
-          authenticatedPiUser = { username: cleanUsername };
-          const maskedName = SecureShield.maskUsername(cleanUsername);
-          
-          if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-          
-          const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
-          const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
-          
-          if (isAdmin) {
-            isBuyerApproved = true;
-            if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-            if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-            if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-          } else {
-            if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-            if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
-          }
-          
-          await checkBuyerStatusInDatabase(cleanUsername);
-          Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-          if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
-        } else {
-          throw new Error("Respon otentikasi kosong.");
-        }
-      } catch (err) {
-        authenticatedPiUser = { username: "Dev" };
-        const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-        if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-        isBuyerApproved = true;
-        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        
-        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-        Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-      } finally {
-        isAuthenticating = false;
-        if (!authenticatedPiUser && btnHeaderLogin) {
-          btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>`;
-        }
-      }
-    }
-
-    async function payAuctionDeposit() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      const username = authenticatedPiUser.username;
-      if (!supabaseClient) return;
-
-      try {
-        let { data: buyer } = await supabaseClient
-          .from('buyers')
-          .select('deposit_balance')
-          .eq('username', username)
-          .maybeSingle();
-
-        const currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
-        const targetDeposit = 35.00;
-
-        if (currentBalance >= targetDeposit) {
-          alert(`✅ Saldo jaminan Anda sudah mencukupi (${currentBalance} Pi >= 35 Pi). Status Anda otomatis AKTIF.`);
-          await supabaseClient.from('buyers').update({ status: 'approved' }).eq('username', username);
-          await checkBuyerStatusInDatabase(username);
-          return;
-        }
-
-        const deficit = targetDeposit - currentBalance;
-
-        const confirmTopUp = confirm(
-          `🛡️ Verifikasi Saldo Jaminan\n` +
-          `Saldo Anda saat ini: ${currentBalance} Pi\n` +
-          `Kekurangan jaminan menuju 35 Pi: ${deficit.toFixed(2)} Pi\n\n` +
-          `Klik OK untuk melanjutkan pembayaran kekurangan via Pi SDK sebesar ${deficit.toFixed(2)} Pi.`
-        );
-
-        if (!confirmTopUp) return;
-
-        executeRelativeDepositPayment(username, deficit);
-
-      } catch (err) {
-        alert("Gagal memeriksa saldo jaminan: " + err.message);
-      }
-    }
-
-    async function executeRelativeDepositPayment(username, amountToPay) {
-      const memoText = `PIBOX-AUCTION: Top Up Kekurangan Jaminan ${amountToPay.toFixed(2)} Pi - @${username}`;
-
-      const paymentData = {
-        amount: parseFloat(amountToPay.toFixed(2)),
-        memo: memoText,
-        metadata: { type: 'auction_deposit_relative', username: username }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await applyRelativeTopUpToDatabase(username, amountToPay, memoText);
-            },
-            onCancel: () => { alert("Top up jaminan dibatalkan."); },
-            onError: () => { 
-              applyRelativeTopUpToDatabase(username, amountToPay, memoText);
-            }
-          });
-        } else {
-          applyRelativeTopUpToDatabase(username, amountToPay, memoText);
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran: " + err.message);
-      }
-    }
-
-    async function applyRelativeTopUpToDatabase(username, addedAmount, memo) {
-      if (!supabaseClient) return;
-      try {
-        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-        
-        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
-        let newBalance = currentBalance + addedAmount;
-        let newStatus = newBalance >= 35 ? 'approved' : 'pending';
-
-        if (!buyer) {
-          await supabaseClient.from('buyers').insert([{ 
-            username: username, 
-            deposit_balance: newBalance, 
-            status: newStatus, 
-            win_count: 0, 
-            has_requested_withdrawal: false 
-          }]);
-        } else {
-          await supabaseClient.from('buyers').update({ 
-            deposit_balance: newBalance, 
-            status: newStatus 
-          }).eq('username', username);
-        }
-
-        await supabaseClient.from('auction_deposits_log').insert([{ 
-          username: username, 
-          amount: addedAmount, 
-          type: 'deposit_relative', 
-          memo: memo 
-        }]);
-
-        alert(`✅ Top Up Berhasil!\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
-        await checkBuyerStatusInDatabase(username);
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
-      } catch (e) {
-        alert("Gagal memperbarui database: " + e.message);
-      }
-    }
-
-    async function updateUserDepositBalance(username, amount, type, memo) {
-      if (!supabaseClient) return;
-      try {
-        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-        
-        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
-        let newBalance = type === 'deposit' ? currentBalance + amount : currentBalance - amount;
-        if (newBalance < 0) newBalance = 0;
-
-        let newStatus = newBalance < 35 ? 'pending' : (buyer ? buyer.status : 'pending');
-
-        let updateData = { deposit_balance: newBalance, status: newStatus };
-        if (type === 'withdraw') {
-          updateData.has_requested_withdrawal = true;
-        }
-
-        if (!buyer) {
-          await supabaseClient.from('buyers').insert([{ username: username, deposit_balance: newBalance, status: newStatus, win_count: 0, has_requested_withdrawal: (type === 'withdraw') }]);
-        } else {
-          await supabaseClient.from('buyers').update(updateData).eq('username', username);
-        }
-
-        await supabaseClient.from('auction_deposits_log').insert([{ username: username, amount: amount, type: type, memo: memo }]);
-
-        alert(`✅ Berhasil! Saldo jaminan Anda sekarang: ${newBalance} Pi. Status Akses: ${newStatus.toUpperCase()}`);
-        checkBuyerStatusInDatabase(username);
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
-      } catch (e) {
-        alert("Gagal memperbarui saldo deposit: " + e.message);
-      }
-    }
-
-    function requestDepositWithdrawal() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-      const username = authenticatedPiUser.username;
-      
-      const usernameInput = document.getElementById('withdrawalUsernameInput');
-      const walletInput = document.getElementById('withdrawalWalletInput');
-      if (usernameInput) usernameInput.value = username;
-      if (walletInput) walletInput.value = "";
-
-      document.getElementById('withdrawalProofModal').classList.remove('hidden');
-    }
-
-    function closeWithdrawalProofModal() {
-      document.getElementById('withdrawalProofModal').classList.add('hidden');
-    }
-
-    async function submitWithdrawalWithProof() {
-      if (!authenticatedPiUser) return;
-      const username = authenticatedPiUser.username;
-      const wallet = document.getElementById('withdrawalWalletInput')?.value.trim();
-      const proofFile = document.getElementById('withdrawalProofFile')?.files[0];
-
-      if (!wallet) {
-        alert("Harap masukkan alamat PiBox Wallet tujuan!");
-        return;
-      }
-
-      if (!proofFile) {
-        alert("Harap upload bukti deposit (Screenshot) terlebih dahulu!");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = async function(e) {
-        const proofBase64 = e.target.result;
-
-        if (!supabaseClient) return;
-
-        try {
-          const { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-          if (!buyer || parseFloat(buyer.deposit_balance || 0) <= 0) {
-            alert("Saldo jaminan Anda kosong.");
-            closeWithdrawalProofModal();
-            return;
-          }
-
-          const currentBal = parseFloat(buyer.deposit_balance);
-          let refundAmount = currentBal;
-          let penaltyFee = 0;
-
-          await supabaseClient.from('buyers').update({ 
-            deposit_balance: 0.00, 
-            status: 'pending', 
-            has_requested_withdrawal: true 
-          }).eq('username', username);
-
-          await supabaseClient.from('auction_deposits_log').insert([
-            { 
-              username: username, 
-              amount: refundAmount, 
-              type: 'withdraw', 
-              memo: `Penarikan oleh ${username} (Wallet: ${wallet}, Penalti: ${penaltyFee} Pi, Bukti Terlampir)` 
-            }
-          ]);
-
-          alert(`📤 Klaim Penarikan Berhasil Dikirim!\nWallet: ${wallet}\nJumlah Dikembalikan: ${refundAmount.toFixed(2)} Pi (Tanpa Penalti).\nStatus Anda diatur ke 'Pending'.`);
-
-          closeWithdrawalProofModal();
-          checkBuyerStatusInDatabase(username);
-          if (typeof renderBuyersTable === 'function') renderBuyersTable();
-        } catch (e) {
-          alert("Gagal memproses klaim penarikan: " + e.message);
-        }
-      };
-      reader.readAsDataURL(proofFile);
-    }
-
-    async function checkBuyerStatusInDatabase(username) {
-      if (!supabaseClient || !username) return;
-      try {
-        const { data } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
-        const depositBal = data ? parseFloat(data.deposit_balance || 0) : 0;
-        
-        const balanceDisplayEl = document.getElementById('userDepositBalanceDisplay');
-        if (balanceDisplayEl) {
-          balanceDisplayEl.innerText = `Saldo Jaminan: ${depositBal} Pi`;
-        }
-
-        if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
-          isBuyerApproved = true;
-          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
-        } else if (data && data.status === 'pending') {
-          isBuyerApproved = false;
-          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Pending (Menunggu Verifikasi Admin/Dev)";
-        } else {
-          isBuyerApproved = false;
-          document.getElementById('buyerApprovalStatusText').innerText = "Belum Terdaftar (Klik 'Daftar Pembeli')";
-        }
-        renderGallery();
-      } catch(e) {}
-    }
-
-    function populateHourDropdownOptions() {
-      const hourSelect = document.getElementById('scheduleStartHourSelect');
-      if (!hourSelect) return;
-      let html = '';
-      for (let h = 0; h < 24; h++) {
-        const hStr = h.toString().padStart(2, '0') + ':00';
-        html += `<option value="${hStr}">${hStr} WIB</option>`;
-      }
-      hourSelect.innerHTML = html;
-    }
-
     function openScheduleModal() {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("Akses Ditolak: Hanya Admin dan Developer!");
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isMasterDev = (currentUsr === "Ful21" || ADMIN_USERNAMES.includes(currentUsr));
+      
+      if (!isMasterDev) {
+        alert("⛔ Akses Ditolak: Hanya dev / username Ful21 yang dapat mengatur jadwal lelang!");
         return;
       }
       
       const modeSelect = document.getElementById('scheduleModeSelect');
       const devOnlyOptions = document.querySelectorAll('.dev-only-mode');
-      const isMasterDev = (authenticatedPiUser.username === "Ful21" || authenticatedPiUser.username === "Dev");
       
       devOnlyOptions.forEach(opt => {
-        if (isMasterDev) {
-          opt.classList.remove('hidden');
-        } else {
-          opt.classList.add('hidden');
-        }
+        opt.classList.remove('hidden');
       });
 
       if (modeSelect && auctionScheduleState.mode) {
-        if (!isMasterDev && auctionScheduleState.mode !== 'scheduled') {
-          auctionScheduleState.mode = 'scheduled';
-        }
         modeSelect.value = auctionScheduleState.mode;
         toggleScheduleInputVisibility();
       }
@@ -1900,9 +1495,15 @@
       }
 
       if (auctionScheduleState.startHour) {
-        const hourEl = document.getElementById('scheduleStartHourSelect');
-        if (hourEl) hourEl.value = auctionScheduleState.startHour;
+        const hourInputEl = document.getElementById('schedHourInput');
+        if (hourInputEl) hourInputEl.value = auctionScheduleState.startHour;
       }
+
+      if (auctionScheduleState.durationHours) {
+        const durInputEl = document.getElementById('schedDurationInput');
+        if (durInputEl) durInputEl.value = auctionScheduleState.durationHours;
+      }
+
       document.getElementById('scheduleModal').classList.remove('hidden');
     }
 
@@ -1918,18 +1519,21 @@
     }
 
     async function saveAuctionScheduleSettings() {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("Akses Ditolak: Hanya Admin dan Developer!");
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isMasterDev = (currentUsr === "Ful21" || ADMIN_USERNAMES.includes(currentUsr));
+
+      if (!isMasterDev) {
+        alert("⛔ Akses Ditolak: Hanya dev / username Ful21 yang dapat menyimpan jadwal lelang!");
         return;
       }
 
       const mode = document.getElementById('scheduleModeSelect').value;
       const y = document.getElementById('schedYear')?.value || '2026';
-      const m = document.getElementById('schedMonth')?.value || '01';
+      const m = (document.getElementById('schedMonth')?.value || '11').padStart(2, '0');
       const d = (document.getElementById('schedDay')?.value || '1').padStart(2, '0');
       const startDate = `${y}-${m}-${d}`;
-      const startHour = document.getElementById('scheduleStartHourSelect').value;
-      const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
+      const startHour = document.getElementById('schedHourInput')?.value || '00:00';
+      const durationHours = parseInt(document.getElementById('schedDurationInput')?.value, 10) || 24;
 
       const newSchedule = { mode, startDate, startHour, durationHours };
 
@@ -1948,15 +1552,102 @@
         auctionScheduleState = newSchedule;
         checkAuctionSchedule();
 
-        alert("✅ Pengaturan Jadwal Lelang Disimpan & Disinkronkan Secara On-time!");
+        alert("✅ Pengaturan Jadwal Lelang Berhasil Disimpan & Tersinkronisasi Terpusat (Real-time & On-time)!");
         closeScheduleModal();
       } catch (err) {
         alert("Gagal menyimpan jadwal ke database: " + err.message);
       }
     }
 
-    let currentAuctionStatusCode = 1;
+    function checkAuctionSchedule() {
+      const badge = document.getElementById('sessionStateBadge');
+      const btnHeaderCreate = document.getElementById('btnHeaderCreate');
+      if (!badge) return;
+      const mode = auctionScheduleState.mode;
 
+      const setListButtonState = (enabled, customText = null) => {
+        if (!btnHeaderCreate) return;
+        if (enabled) {
+          btnHeaderCreate.disabled = false;
+          btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer opacity-100";
+          if (customText) btnHeaderCreate.innerHTML = `<span>${customText}</span>`;
+        } else {
+          btnHeaderCreate.disabled = true;
+          btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-none flex items-center justify-center gap-1 cursor-not-allowed opacity-60";
+          if (customText) btnHeaderCreate.innerHTML = `<span>${customText}</span>`;
+        }
+      };
+
+      if (mode === 'testing_mode') {
+        isAuctionCurrentlyOpen = true;
+        currentAuctionStatusCode = 3;
+        badge.innerText = "🧪 UJI COBA (SANDBOX ACTIVE)";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse";
+        setListButtonState(true, "+ List Aset/Barang");
+        return;
+      }
+
+      if (mode === '24h_open') {
+        isAuctionCurrentlyOpen = true;
+        currentAuctionStatusCode = 3;
+        badge.innerText = "BUKA LIVE 24/7";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+        setListButtonState(true, "+ List Aset/Barang");
+        return;
+      }
+
+      if (mode === 'closed_now') {
+        isAuctionCurrentlyOpen = false;
+        currentAuctionStatusCode = 1;
+        badge.innerText = "🔴 LELANG DITUTUP";
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+        setListButtonState(false, "🔒 List Aset Ditutup");
+        return;
+      }
+
+      if (mode === 'scheduled') {
+        if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
+          const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
+          const startTime = new Date(startDateTimeStr).getTime();
+          const preStartTime = startTime - (60 * 60 * 1000);
+          const durationMs = (auctionScheduleState.durationHours || 24) * 60 * 60 * 1000;
+          const endTime = startTime + durationMs;
+          const postEndTime = endTime + (60 * 60 * 1000);
+          const now = new Date().getTime();
+
+          if (now < startTime) {
+            isAuctionCurrentlyOpen = false;
+            currentAuctionStatusCode = 2;
+            const diffSec = Math.floor((startTime - now) / 1000);
+            const dh = Math.floor(diffSec / 3600);
+            const dm = Math.floor((diffSec % 3600) / 60);
+            const ds = diffSec % 60;
+            badge.innerText = `⏳ Mulai dalam: ${dh}j ${dm}m ${ds}d`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse";
+            setListButtonState(now >= preStartTime ? false : true, now >= preStartTime ? "🔒 List Aset Dikunci (H-60m)" : "+ List Aset/Barang");
+          } else if (now >= startTime && now <= endTime) {
+            isAuctionCurrentlyOpen = true;
+            currentAuctionStatusCode = 3;
+            const diffSec = Math.floor((endTime - now) / 1000);
+            const h = Math.floor(diffSec / 3600);
+            const m = Math.floor((diffSec % 3600) / 60);
+            const s = diffSec % 60;
+            badge.innerText = `🔥 Live (Tutup dalam: ${h}j ${m}m ${s}d)`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
+            setListButtonState(false, "🔒 List Aset Ditutup (Live)");
+          } else {
+            isAuctionCurrentlyOpen = false;
+            currentAuctionStatusCode = 4;
+            badge.innerText = `🏁 Lelang Selesai`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40";
+            setListButtonState(true, "+ List Aset/Barang");
+          }
+        }
+      }
+    }
+
+          
+        
     function checkAuctionSchedule() {
       const badge = document.getElementById('sessionStateBadge');
       const btnHeaderCreate = document.getElementById('btnHeaderCreate');
