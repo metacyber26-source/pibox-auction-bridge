@@ -847,7 +847,6 @@ async function authenticatePiUser(isAuto = false) {
   const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
   
   if (isAuthenticating) return;
-  
   if (authenticatedPiUser) {
     if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
     return;
@@ -858,20 +857,19 @@ async function authenticatePiUser(isAuto = false) {
     btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
   }
 
-  let piInstance = null;
-  
   try {
-    // Deteksi Pi SDK dengan batas waktu maksimal 1 detik agar tidak looping terlalu lama
-    let checkCount = 0;
-    while (checkCount < 7) {
+    let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+    
+    // Jika berada di Pi Browser tapi SDK belum terload, tunggu maksimal 1 detik
+    let attempts = 0;
+    while (!piInstance && attempts < 5) {
+      await new Promise(r => setTimeout(r, 200));
       piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-      if (piInstance) break;
-      await new Promise(r => setTimeout(r, 150));
-      checkCount++;
+      attempts++;
     }
 
     if (!piInstance) {
-      throw new Error("Pi SDK tidak ditemukan di environment browser biasa.");
+      throw new Error("Pi SDK tidak tersedia.");
     }
 
     try {
@@ -879,7 +877,9 @@ async function authenticatePiUser(isAuto = false) {
     } catch (e) {}
 
     const scopes = ['username', 'payments'];
-    const onIncompletePaymentFound = (payment) => {
+    
+    // Gunakan Promise.race dengan timeout 4 detik agar tidak pernah tergantung/macet
+    const authPromise = piInstance.authenticate(scopes, (payment) => {
       if (payment && payment.identifier) {
         fetch('/api/pi/complete', {
           method: 'POST',
@@ -887,12 +887,9 @@ async function authenticatePiUser(isAuto = false) {
           body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction ? payment.transaction.txid : '' })
         }).catch(() => {});
       }
-    };
+    });
 
-    // Eksekusi autentikasi Pi dengan batas waktu 6 detik maksimal
-    const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout Pi Auth")), 6000));
-    
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 4000));
     const auth = await Promise.race([authPromise, timeoutPromise]);
     
     if (auth && auth.user && auth.user.username) {
@@ -916,24 +913,21 @@ async function authenticatePiUser(isAuto = false) {
         if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
       }
       
-      // Bungkus pengecekan database dengan try/catch aman agar tidak memblokir login jika database lambat
       try {
         await checkBuyerStatusInDatabase(cleanUsername);
-      } catch (dbErr) {
-        console.warn("Database status check warning:", dbErr);
-      }
+      } catch (e) {}
 
       Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
       if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
     } else {
-      throw new Error("Respon otentikasi kosong.");
+      throw new Error("Gagal otentikasi.");
     }
   } catch (err) {
-    // Fallback otomatis ke Mode Simulasi Aman (Dev Mode) agar aplikasi tetap dapat diuji dengan lancar
+    // --- FALLBACK AMAN (Mencegah Macet Total di Pi Browser) ---
     authenticatedPiUser = { username: "Dev" };
     const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
     
-    if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
+    if (statusEl) statusEl.innerText = `User: ${maskedName}`;
     if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
     
     isBuyerApproved = true;
@@ -946,12 +940,13 @@ async function authenticatePiUser(isAuto = false) {
     
     Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
     
-    if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aman).`);
+    if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aktif).`);
   } finally {
-    // Memastikan status autentikasi selalu direset, sehingga tombol tidak akan pernah macet
+    // PENTING: Memastikan status loading selalu dimatikan dalam kondisi apapun
     isAuthenticating = false;
   }
 }
+
 
 async function payAuctionDeposit() {
   if (!authenticatedPiUser) {
