@@ -1501,6 +1501,7 @@
       if (isAuthenticating) return;
       if (authenticatedPiUser) {
         if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
+        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
         return;
       }
 
@@ -1536,7 +1537,6 @@
           }
         };
 
-        // 🛡️ TIMEOUT GUARD 4 DETIK: Mencegah UI macet/stuck selamanya jika Pi SDK gagal merespons
         const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("Timeout Pi SDK")), 4000)
@@ -1563,9 +1563,9 @@
           } else {
             if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
             if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
-            await checkBuyerStatusInDatabase(cleanUsername);
           }
           
+          await checkBuyerStatusInDatabase(cleanUsername);
           Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
           if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
         } else {
