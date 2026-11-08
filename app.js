@@ -860,16 +860,15 @@ async function authenticatePiUser(isAuto = false) {
   try {
     let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
     
-    // Jika berada di Pi Browser tapi SDK belum terload, tunggu maksimal 1 detik
     let attempts = 0;
-    while (!piInstance && attempts < 5) {
-      await new Promise(r => setTimeout(r, 200));
+    while (!piInstance && attempts < 3) {
+      await new Promise(r => setTimeout(r, 150));
       piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
       attempts++;
     }
 
     if (!piInstance) {
-      throw new Error("Pi SDK tidak tersedia.");
+      throw new Error("Pi SDK tidak terdeteksi.");
     }
 
     try {
@@ -878,7 +877,7 @@ async function authenticatePiUser(isAuto = false) {
 
     const scopes = ['username', 'payments'];
     
-    // Gunakan Promise.race dengan timeout 4 detik agar tidak pernah tergantung/macet
+    // Eksekusi auth dengan timeout ketat 3.5 detik agar tidak tergantung (hang) di Pi Browser
     const authPromise = piInstance.authenticate(scopes, (payment) => {
       if (payment && payment.identifier) {
         fetch('/api/pi/complete', {
@@ -889,7 +888,7 @@ async function authenticatePiUser(isAuto = false) {
       }
     });
 
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 4000));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth Timeout")), 3500));
     const auth = await Promise.race([authPromise, timeoutPromise]);
     
     if (auth && auth.user && auth.user.username) {
@@ -920,10 +919,10 @@ async function authenticatePiUser(isAuto = false) {
       Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
       if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
     } else {
-      throw new Error("Gagal otentikasi.");
+      throw new Error("Otentikasi dibatalkan atau kosong.");
     }
   } catch (err) {
-    // --- FALLBACK AMAN (Mencegah Macet Total di Pi Browser) ---
+    // --- FALLBACK AMAN (Mencegah Macet Total di Pi Browser / Timeout) ---
     authenticatedPiUser = { username: "Dev" };
     const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
     
@@ -942,11 +941,10 @@ async function authenticatePiUser(isAuto = false) {
     
     if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aktif).`);
   } finally {
-    // PENTING: Memastikan status loading selalu dimatikan dalam kondisi apapun
+    // KUNCI UTAMA: Memastikan status loading selalu dilepas dalam kondisi apapun
     isAuthenticating = false;
   }
 }
-
 
 async function payAuctionDeposit() {
   if (!authenticatedPiUser) {
