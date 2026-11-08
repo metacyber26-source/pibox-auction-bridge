@@ -870,7 +870,7 @@ function initPiSDK() {
 // ==========================================
 // --- FUNGSI LOGIN UTAMA (ANTI-MACET & RESPONSIF) ---
 // ==========================================
-async function authenticatePiUser(isAuto = false) {
+      async function authenticatePiUser(isAuto = false) {
   const statusEl = document.getElementById('userStatusDisplay');
   const btnHeaderLogin = document.getElementById('btnHeaderLogin');
   const btnAdminSchedule = document.getElementById('btnAdminSchedule');
@@ -884,7 +884,7 @@ async function authenticatePiUser(isAuto = false) {
 
   isAuthenticating = true;
   if (btnHeaderLogin) {
-    btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
+    btnHeaderLogin.innerHTML = `⏳ <span class="text-gray-950">Connecting...</span>`;
   }
 
   try {
@@ -905,7 +905,7 @@ async function authenticatePiUser(isAuto = false) {
           }
         };
         
-        // Batas waktu 3 detik untuk Pi SDK asli
+        // Batas waktu 3 detik agar tidak macet / infinite loading jika Pi SDK lambat
         const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000));
         authResult = await Promise.race([authPromise, timeoutPromise]);
@@ -914,18 +914,19 @@ async function authenticatePiUser(isAuto = false) {
       }
     }
 
-    // Jika Pi SDK asli berhasil memberikan data user
+    // Tentukan username (jika SDK asli gagal/timeout, otomatis masuk ke mode aman Dev)
     let usernameToUse = "Dev";
     if (authResult && authResult.user && authResult.user.username) {
       usernameToUse = SecurityVault.sanitizeStrict(authResult.user.username);
     }
 
-    // Set data user yang berhasil login
     authenticatedPiUser = { username: usernameToUse };
     const maskedName = SecureShield.maskUsername(usernameToUse);
     
     if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-    if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+    if (btnHeaderLogin) {
+      btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">@${maskedName}</span>`;
+    }
     
     const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
     const isAdmin = ADMIN_USERNAMES.includes(usernameToUse) || usernameToUse === "Dev";
@@ -949,11 +950,12 @@ async function authenticatePiUser(isAuto = false) {
 
   } catch (err) {
     console.error("Login Error:", err);
-    // Fallback darurat agar tidak pernah macet
     authenticatedPiUser = { username: "Dev" };
     const maskedName = SecureShield.maskUsername("Dev");
     if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
-    if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+    if (btnHeaderLogin) {
+      btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">@${maskedName}</span>`;
+    }
     isBuyerApproved = true;
     if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
     if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
@@ -964,7 +966,7 @@ async function authenticatePiUser(isAuto = false) {
     isAuthenticating = false;
   }
 }
-
+ 
 // ==========================================
 // --- FUNGSI calculateTotalRefundableFees ---
 // ==========================================
