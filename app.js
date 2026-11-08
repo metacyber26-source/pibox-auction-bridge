@@ -854,7 +854,20 @@ function calculateTotalRefundableFees(auctionId, username) {
   return totalAccumulated;
 }
 
-// FUNGSI LOGIN PI YANG DIOPTIMASI & AMAN ANTI-MACET
+// --- INTI INISIALISASI PI SDK YANG DIOPTIMALKAN ---
+function initPiSDK() {
+  try {
+    const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+    if (piInstance && typeof piInstance.init === 'function') {
+      piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+      console.log("Pi SDK initialized successfully.");
+    }
+  } catch (e) {
+    console.warn("Pi SDK Init warning:", e);
+  }
+}
+
+// --- FUNGSI LOGIN UTAMA (ANTI-MACET & RESPONSIF) ---
 async function authenticatePiUser(isAuto = false) {
   const statusEl = document.getElementById('userStatusDisplay');
   const btnHeaderLogin = document.getElementById('btnHeaderLogin');
@@ -872,27 +885,16 @@ async function authenticatePiUser(isAuto = false) {
     btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
   }
 
+  let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+
   try {
-    let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-    
-    let attempts = 0;
-    while (!piInstance && attempts < 3) {
-      await new Promise(r => setTimeout(r, 150));
-      piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-      attempts++;
+    // Jika berada di browser biasa atau Pi SDK belum siap, langsung arahkan ke simulasi aman (Dev) agar tidak macet
+    if (!piInstance || typeof piInstance.authenticate !== 'function') {
+      throw new Error("Pi SDK tidak tersedia di lingkungan ini, mengaktifkan mode aman.");
     }
-
-    if (!piInstance) {
-      throw new Error("Pi SDK tidak terdeteksi.");
-    }
-
-    try {
-      piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
-    } catch (e) {}
 
     const scopes = ['username', 'payments'];
-    
-    const authPromise = piInstance.authenticate(scopes, (payment) => {
+    const onIncompletePaymentFound = (payment) => {
       if (payment && payment.identifier) {
         fetch('/api/pi/complete', {
           method: 'POST',
@@ -900,9 +902,12 @@ async function authenticatePiUser(isAuto = false) {
           body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction ? payment.transaction.txid : '' })
         }).catch(() => {});
       }
-    });
+    };
 
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth Timeout")), 4000));
+    // Batas waktu pengaman (timeout) 3 detik agar tombol tidak stuck
+    const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth Timeout")), 3000));
+    
     const auth = await Promise.race([authPromise, timeoutPromise]);
     
     if (auth && auth.user && auth.user.username) {
@@ -925,40 +930,32 @@ async function authenticatePiUser(isAuto = false) {
         if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
         if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
       }
-      
-      try {
-        await checkBuyerStatusInDatabase(cleanUsername);
-      } catch (e) {}
+      await checkBuyerStatusInDatabase(cleanUsername);
 
       Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
       if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
     } else {
-      throw new Error("Otentikasi dibatalkan atau kosong.");
+      throw new Error("Respon otentikasi kosong.");
     }
   } catch (err) {
-    // --- FALLBACK AMAN JIKA DI LUAR PI BROWSER / TIMEOUT ---
+    // Fallback otomatis ke Mode Aman (Dev) agar aplikasi langsung bisa digunakan tanpa macet
     authenticatedPiUser = { username: "Dev" };
     const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-    
-    if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+    if (statusEl) statusEl.innerText = `User: ${maskedName} (Simulasi Aman)`;
     if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-    
     isBuyerApproved = true;
     if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
     if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
     
-    try {
-      await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-    } catch (e) {}
-    
+    await checkBuyerStatusInDatabase(authenticatedPiUser.username);
     Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
     
-    if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aktif).`);
+    if (!isAuto) alert(`🎉 Berhasil Masuk sebagai @${maskedName} (Mode Aman Aktif).`);
   } finally {
-    // Tombol dijamin tidak akan macet di 'Connecting...' dalam kondisi apapun
     isAuthenticating = false;
   }
 }
+
 
 function calculateTotalRefundableFees(auctionId, username) {
   const currentBidCount = getUserBidCount(auctionId, username);
