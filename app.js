@@ -828,7 +828,7 @@ function calculateSuspiciousFee(bidNumber) {
     return 0.4 * Math.pow(2, bidNumber - 6);
   }
   return 0;
-}
+}gggggggggggggg
 
 function calculateTotalRefundableFees(auctionId, username) {
   const currentBidCount = getUserBidCount(auctionId, username);
