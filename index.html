@@ -598,7 +598,7 @@
           <input type="text" id="assetHashInput" placeholder="Hash/Kode Unik: GCVJ2EXX... (diisi '-' jika tidak ada)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none focus:border-yellow-500 transition">
         </div>
 
-                <div class="bg-gray-900/80 p-3 rounded-xl border border-gray-800 space-y-2">
+        <div class="bg-gray-900/80 p-3 rounded-xl border border-gray-800 space-y-2">
           <label class="block font-semibold text-yellow-400 text-[11px]" data-i18n="onChainTimeLabel">On-chain Time (Sesuai SS Detail Aset):</label>
           
           <div class="grid grid-cols-3 gap-1.5 relative z-20">
@@ -631,7 +631,6 @@
             </div>
           </div>
         </div>
-
 
         <div class="space-y-2 bg-gray-900/80 p-3 rounded-xl border border-gray-800">
           <div>
@@ -1133,8 +1132,8 @@
         monthLabel: "月份 (下拉)",
         dateLabel: "日期 (手动)",
         hourLabel: "小时 (下拉)",
-        minuteLabel: "分钟 (手动)",
-        secondLabel: "秒 (手动)",
+        minuteLabel: "分钟 (下拉)",
+        secondLabel: "秒 (下拉)",
         creatorAccountLabel: "上架创建者账户 (管理员/开发者):",
         realSellerLabel: "真实卖家用户名 (必填):",
         disclaimerTitle: "⚖️ 法律声明与中介免责声明",
@@ -1522,13 +1521,12 @@
           }
         };
 
-                const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
+        const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("Timeout Pi SDK")), 4000)
         );
 
         const auth = await Promise.race([authPromise, timeoutPromise]);
-
         
         if (auth && auth.user && auth.user.username) {
           const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
@@ -1576,7 +1574,6 @@
       }
     }
 
-        // --- PERBAIKAN LOGIKA: CEK SALDO & TOP UP RELATIF MENJUMLAHKAN KEKURANGAN MENUJU 35 PI ---
     async function payAuctionDeposit() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1588,7 +1585,6 @@
       if (!supabaseClient) return;
 
       try {
-        // Ambil data saldo jaminan saat ini dari database Supabase
         let { data: buyer } = await supabaseClient
           .from('buyers')
           .select('deposit_balance')
@@ -1598,7 +1594,6 @@
         const currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
         const targetDeposit = 35.00;
 
-        // Jika saldo sudah mencukupi 35 Pi atau lebih, langsung aktifkan status tanpa tagihan Pi SDK lagi
         if (currentBalance >= targetDeposit) {
           alert(`✅ Saldo jaminan Anda sudah mencukupi (${currentBalance} Pi >= 35 Pi). Status Anda otomatis AKTIF.`);
           await supabaseClient.from('buyers').update({ status: 'approved' }).eq('username', username);
@@ -1606,7 +1601,6 @@
           return;
         }
 
-        // Hitung sisa kekurangan jaminan relatif
         const deficit = targetDeposit - currentBalance;
 
         const confirmTopUp = confirm(
@@ -1651,7 +1645,6 @@
             }
           });
         } else {
-          // Fallback aman jika berjalan di luar lingkungan native Pi Browser
           applyRelativeTopUpToDatabase(username, amountToPay, memoText);
         }
       } catch (err) {
@@ -1666,8 +1659,6 @@
         
         let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
         let newBalance = currentBalance + addedAmount;
-        
-        // Jika total saldo akumulasi sudah mencapai >= 35 Pi, ubah status jadi 'approved' (Aktif)
         let newStatus = newBalance >= 35 ? 'approved' : 'pending';
 
         if (!buyer) {
@@ -1699,7 +1690,6 @@
         alert("Gagal memperbarui database: " + e.message);
       }
     }
-
 
     async function updateUserDepositBalance(username, amount, type, memo) {
       if (!supabaseClient) return;
@@ -2870,6 +2860,7 @@
       } catch (err) { finishPaymentSuccess(); }
     }
 
+    // --- FUNGSI UPLOAD KE GALERI YANG DIOPTIMALKAN (ANTI-STUCK & STABIL) ---
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       if (!hasCompletedServerFee) {
@@ -2902,7 +2893,7 @@
       const releaseBtn = document.getElementById('btnReleaseGallery');
       releaseBtn.disabled = true;
       const originalText = releaseBtn.innerHTML;
-      releaseBtn.innerHTML = `<span>⏳ Tunggu, proses upload ke galeri...</span>`;
+      releaseBtn.innerHTML = `<span>⏳ Mengoptimalkan & Upload Aset...</span>`;
 
       try {
         const optimizeImageFile = (file) => {
@@ -2914,8 +2905,8 @@
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_WIDTH = 800;
-                const MAX_HEIGHT = 800;
+                const MAX_WIDTH = 700;
+                const MAX_HEIGHT = 700;
                 
                 if (width > height) {
                   if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
@@ -2926,7 +2917,7 @@
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.75));
+                resolve(canvas.toDataURL('image/jpeg', 0.70));
               };
               img.src = event.target.result;
             };
@@ -2996,7 +2987,7 @@
       } catch (err) {
         releaseBtn.disabled = false;
         releaseBtn.innerHTML = originalText;
-        alert("Gagal merilis aset: " + err.message);
+        alert("Gagal merilis aset (Ukuran file mungkin terlalu besar): " + err.message);
       }
     }
 
@@ -3713,7 +3704,7 @@ ${certText}
       loadChatMessages();
     }
 
-        async function placeBidOnAuction(auctionId, amount) {
+    async function placeBidOnAuction(auctionId, amount) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
@@ -3747,7 +3738,6 @@ ${certText}
         return;
       }
 
-      // --- PERINGATAN ANTI-SPAM PRESISI PADA PENAWARAN KE-4 DAN KE-5 ---
       const currentBidCount = getUserBidCount(auctionId, username);
       const nextBidNumber = currentBidCount + 1;
 
@@ -3772,7 +3762,6 @@ ${certText}
         );
         if (!confirmSpamWarning5) return;
       }
-      // -------------------------------------------------------------
 
       const alreadyAgreed = isBuyerAlreadyAgreed(auctionId, username);
       const buyerCheckbox = document.getElementById('buyerLegalCheckbox');
@@ -3848,7 +3837,6 @@ ${certText}
         executeBidProcess();
       }
     }
-
 
     function submitManualBid(auctionId, currentPrice) {
       const inputEl = document.getElementById('manualBidInput');
@@ -3970,7 +3958,7 @@ ${certText}
             }
           });
         } else {
-          alert(`[Simulasi Browser] Pembayaran P2P sebesar ${winningPrice} Pi ke penjual @${sellerName} berhasil disimulasikan!`);
+          alert(`[Simulasi Browser] Pembayaran P2P sebesar ${winningPrice} Pi ke penjual @${sellerName} berhasil disimulasikan!\nMemo: ${autoGeneratedMemo}`);
           if (supabaseClient) {
             await supabaseClient.from('auctions').update({ status: 'finished' }).eq('id', auctionId);
           }
@@ -4053,14 +4041,14 @@ ${certText}
     }
 
     function updateTimers() {}
-    // Tambahan Presisi untuk Real-Time Saldo Checker
+
     async function forceRefreshUserBalance() {
       if (authenticatedPiUser && authenticatedPiUser.username) {
         await checkBuyerStatusInDatabase(authenticatedPiUser.username);
       }
     }
 
-        function triggerAggressiveRefresh() {
+    function triggerAggressiveRefresh() {
       fetchActiveAuctions();
       fetchBuyersList();
       forceRefreshUserBalance();
@@ -4068,7 +4056,6 @@ ${certText}
         loadChatMessages();
       }
     }
-
 
     function openImageZoomModal(imgSrc) {
       if (!imgSrc) return;
