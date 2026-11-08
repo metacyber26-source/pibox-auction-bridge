@@ -1590,6 +1590,7 @@
       }
     }
 
+        // --- PERBAIKAN LOGIKA: CEK SALDO & TOP UP RELATIF MENJUMLAHKAN KEKURANGAN MENUJU 35 PI ---
     async function payAuctionDeposit() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -1598,13 +1599,53 @@
       }
 
       const username = authenticatedPiUser.username;
-      const depositAmount = 35.00;
-      const memoText = `PIBOX-AUCTION: Top Up Jaminan 35 Pi - @${username}`;
+      if (!supabaseClient) return;
+
+      try {
+        // Ambil data saldo jaminan saat ini dari database Supabase
+        let { data: buyer } = await supabaseClient
+          .from('buyers')
+          .select('deposit_balance')
+          .eq('username', username)
+          .maybeSingle();
+
+        const currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
+        const targetDeposit = 35.00;
+
+        // Jika saldo sudah mencukupi 35 Pi atau lebih, langsung aktifkan status tanpa tagihan Pi SDK lagi
+        if (currentBalance >= targetDeposit) {
+          alert(`✅ Saldo jaminan Anda sudah mencukupi (${currentBalance} Pi >= 35 Pi). Status Anda otomatis AKTIF.`);
+          await supabaseClient.from('buyers').update({ status: 'approved' }).eq('username', username);
+          await checkBuyerStatusInDatabase(username);
+          return;
+        }
+
+        // Hitung sisa kekurangan jaminan relatif
+        const deficit = targetDeposit - currentBalance;
+
+        const confirmTopUp = confirm(
+          `🛡️ Verifikasi Saldo Jaminan\n` +
+          `Saldo Anda saat ini: ${currentBalance} Pi\n` +
+          `Kekurangan jaminan menuju 35 Pi: ${deficit.toFixed(2)} Pi\n\n` +
+          `Klik OK untuk melanjutkan pembayaran kekurangan via Pi SDK sebesar ${deficit.toFixed(2)} Pi.`
+        );
+
+        if (!confirmTopUp) return;
+
+        executeRelativeDepositPayment(username, deficit);
+
+      } catch (err) {
+        alert("Gagal memeriksa saldo jaminan: " + err.message);
+      }
+    }
+
+    async function executeRelativeDepositPayment(username, amountToPay) {
+      const memoText = `PIBOX-AUCTION: Top Up Kekurangan Jaminan ${amountToPay.toFixed(2)} Pi - @${username}`;
 
       const paymentData = {
-        amount: depositAmount,
+        amount: parseFloat(amountToPay.toFixed(2)),
         memo: memoText,
-        metadata: { type: 'auction_deposit', username: username }
+        metadata: { type: 'auction_deposit_relative', username: username }
       };
 
       try {
@@ -1616,20 +1657,63 @@
             },
             onReadyForServerCompletion: async (pid, txid) => {
               await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await updateUserDepositBalance(username, depositAmount, 'deposit', memoText);
+              await applyRelativeTopUpToDatabase(username, amountToPay, memoText);
             },
             onCancel: () => { alert("Top up jaminan dibatalkan."); },
             onError: () => { 
-              updateUserDepositBalance(username, depositAmount, 'deposit', memoText);
+              applyRelativeTopUpToDatabase(username, amountToPay, memoText);
             }
           });
         } else {
-          await updateUserDepositBalance(username, depositAmount, 'deposit', memoText);
+          // Fallback aman jika berjalan di luar lingkungan native Pi Browser
+          applyRelativeTopUpToDatabase(username, amountToPay, memoText);
         }
       } catch (err) {
-        alert("Gagal memproses Top Up jaminan: " + err.message);
+        alert("Gagal memproses pembayaran: " + err.message);
       }
     }
+
+    async function applyRelativeTopUpToDatabase(username, addedAmount, memo) {
+      if (!supabaseClient) return;
+      try {
+        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
+        
+        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
+        let newBalance = currentBalance + addedAmount;
+        
+        // Jika total saldo akumulasi sudah mencapai >= 35 Pi, ubah status jadi 'approved' (Aktif)
+        let newStatus = newBalance >= 35 ? 'approved' : 'pending';
+
+        if (!buyer) {
+          await supabaseClient.from('buyers').insert([{ 
+            username: username, 
+            deposit_balance: newBalance, 
+            status: newStatus, 
+            win_count: 0, 
+            has_requested_withdrawal: false 
+          }]);
+        } else {
+          await supabaseClient.from('buyers').update({ 
+            deposit_balance: newBalance, 
+            status: newStatus 
+          }).eq('username', username);
+        }
+
+        await supabaseClient.from('auction_deposits_log').insert([{ 
+          username: username, 
+          amount: addedAmount, 
+          type: 'deposit_relative', 
+          memo: memo 
+        }]);
+
+        alert(`✅ Top Up Berhasil!\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
+        await checkBuyerStatusInDatabase(username);
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
+      } catch (e) {
+        alert("Gagal memperbarui database: " + e.message);
+      }
+    }
+
 
     async function updateUserDepositBalance(username, amount, type, memo) {
       if (!supabaseClient) return;
