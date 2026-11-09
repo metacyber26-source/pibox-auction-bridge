@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+9<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -1944,34 +1944,48 @@
         authenticatePiUser();
         return;
       }
-      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      if (isAdminOrDev) {
-        openBuyersTableModal();
-        return;
-      }
+
+      const currentUsername = authenticatedPiUser.username;
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
+
       if (!supabaseClient) return;
+
       try {
+        // Cek apakah user sudah terdaftar di tabel buyers
         const { data: existingBuyer } = await supabaseClient
           .from('buyers')
           .select('*')
-          .eq('username', authenticatedPiUser.username)
+          .eq('username', currentUsername)
           .maybeSingle();
 
         if (!existingBuyer) {
+          // Secara otomatis tercatat dengan status 'pending'
           const { error } = await supabaseClient
             .from('buyers')
-            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
+            .upsert([{ username: currentUsername, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
           
           if (error) throw error;
-          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
-        } else {
-          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${existingBuyer.status.toUpperCase()}`);
         }
-        checkBuyerStatusInDatabase(authenticatedPiUser.username);
+
+        // 1. Jika admin/dev klik, masuk ke halaman tabel daftar pembeli
+        if (isAdminOrDev) {
+          openBuyersTableModal();
+        } else {
+          // 2. Jika user biasa, otomatis tercatat (tanpa masuk tabel) lalu diarahkan ke top up jaminan 35 pi
+          alert("📋 Pendaftaran pembeli berhasil tercatat dengan status 'Pending'. Silakan lakukan Top Up Jaminan 35 Pi.");
+          if (typeof payAuctionDeposit === 'function') {
+            payAuctionDeposit();
+          }
+        }
+
+        if (typeof checkBuyerStatusInDatabase === 'function') {
+          checkBuyerStatusInDatabase(currentUsername);
+        }
       } catch (err) {
-        alert("Gagal memproses pendaftaran: " + err.message);
+        alert("Gagal memproses pendaftaran pembeli: " + err.message);
       }
     }
+
 
     async function fetchBuyersList() {
       if (!supabaseClient) return;
