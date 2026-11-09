@@ -2069,43 +2069,41 @@
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
           const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
           const startTime = new Date(startDateTimeStr).getTime();
-          const preStartTime = startTime - (60 * 60 * 1000);
-          const durationMs = (auctionScheduleState.durationHours || 24) * 60 * 60 * 1000;
+          const durationHours = parseFloat(auctionScheduleState.durationHours) || 1;
+          const durationMs = durationHours * 60 * 60 * 1000;
           const endTime = startTime + durationMs;
-          const postEndTime = endTime + (60 * 60 * 1000);
           const now = new Date().getTime();
 
-          if (now < preStartTime) {
+          if (now < startTime) {
             isAuctionCurrentlyOpen = false;
-            currentAuctionStatusCode = 1;
-            badge.innerText = `⏳ Belum Ada Jadwal`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
-            setListButtonState(true, "+ List Aset/Barang");
-          } else if (now >= preStartTime && now <= postEndTime) {
-            isAuctionCurrentlyOpen = (now >= startTime && now <= endTime);
-            currentAuctionStatusCode = (now >= startTime && now <= endTime) ? 3 : 2;
+            currentAuctionStatusCode = 2;
+            const diffSec = Math.floor((startTime - now) / 1000);
+            const d = Math.floor(diffSec / 86400);
+            const h = Math.floor((diffSec % 86400) / 3600);
+            const m = Math.floor((diffSec % 3600) / 60);
+            const s = diffSec % 60;
             
-            if (now < startTime) {
-              badge.innerText = `📅 Lelang Segera Mulai (${auctionScheduleState.startHour})`;
-              badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
-              setListButtonState(false, "🔒 List Aset Dikunci (H-60m)");
-            } else if (now >= startTime && now <= endTime) {
-              const diffSec = Math.floor((endTime - now) / 1000);
-              const h = Math.floor(diffSec / 3600);
-              const m = Math.floor((diffSec % 3600) / 60);
-              const s = diffSec % 60;
-              badge.innerText = `🔥 Berlangsung (Tutup dalam: ${h}j ${m}m ${s}d)`;
-              badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
-              setListButtonState(false, "🔒 List Aset Ditutup (Live)");
-            } else {
-              badge.innerText = `🏁 Lelang Selesai (Pending 60m)`;
-              badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40";
-              setListButtonState(false, "🔒 Pending Pembukaan (60m)");
-            }
+            let countdownStr = h + "j " + m + "m " + s + "d";
+            if (d > 0) countdownStr = d + "h " + countdownStr;
+
+            badge.innerText = `⏳ Mulai dalam: ${countdownStr}`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
+            setListButtonState(false, "🔒 List Aset Dikunci (Menunggu Jadwal)");
+          } else if (now >= startTime && now <= endTime) {
+            isAuctionCurrentlyOpen = true;
+            currentAuctionStatusCode = 3;
+            const diffSec = Math.floor((endTime - now) / 1000);
+            const h = Math.floor(diffSec / 3600);
+            const m = Math.floor((diffSec % 3600) / 60);
+            const s = diffSec % 60;
+
+            badge.innerText = `🔥 LIVE BERLANGSUNG (${h}j ${m}m ${s}d)`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
+            setListButtonState(false, "🔒 List Aset Ditutup (Sesi Live)");
           } else {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 4;
-            badge.innerText = `🏁 Lelang Berakhir / Selesai`;
+            badge.innerText = `🏁 LELANG SELESAI`;
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40";
             setListButtonState(true, "+ List Aset/Barang");
           }
