@@ -1934,7 +1934,7 @@
 
     function openScheduleModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("Akses Ditolak: Hanya Admin dan Developer!");
+        alert("Akses Ditolak: Hanya Admin & Developer!");
         return;
       }
       
@@ -1943,17 +1943,11 @@
       const isMasterDev = (authenticatedPiUser.username === "Ful21" || authenticatedPiUser.username === "Dev");
       
       devOnlyOptions.forEach(opt => {
-        if (isMasterDev) {
-          opt.classList.remove('hidden');
-        } else {
-          opt.classList.add('hidden');
-        }
+        if (isMasterDev) opt.classList.remove('hidden');
+        else opt.classList.add('hidden');
       });
 
       if (modeSelect && auctionScheduleState.mode) {
-        if (!isMasterDev && auctionScheduleState.mode !== 'scheduled') {
-          auctionScheduleState.mode = 'scheduled';
-        }
         modeSelect.value = auctionScheduleState.mode;
         toggleScheduleInputVisibility();
       }
@@ -1961,19 +1955,20 @@
       if (auctionScheduleState.startDate) {
         const parts = auctionScheduleState.startDate.split('-');
         if (parts.length === 3) {
-          const yearEl = document.getElementById('schedYear');
-          const monthEl = document.getElementById('schedMonth');
-          const dayEl = document.getElementById('schedDay');
-          if (yearEl) yearEl.value = parts[0];
-          if (monthEl) monthEl.value = parts[1];
-          if (dayEl) dayEl.value = parts[2];
+          document.getElementById('schedYear').value = parts[0];
+          document.getElementById('schedMonth').value = parseInt(parts[1], 10);
+          document.getElementById('schedDay').value = parseInt(parts[2], 10);
         }
       }
 
       if (auctionScheduleState.startHour) {
-        const hourEl = document.getElementById('scheduleStartHourSelect');
-        if (hourEl) hourEl.value = auctionScheduleState.startHour;
+        const timeParts = auctionScheduleState.startHour.split(':');
+        if (timeParts.length >= 2) {
+          document.getElementById('schedHourManual').value = timeParts[0];
+          document.getElementById('schedMinuteManual').value = timeParts[1];
+        }
       }
+
       document.getElementById('scheduleModal').classList.remove('hidden');
     }
 
