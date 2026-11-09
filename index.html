@@ -170,10 +170,6 @@
         </button>
       </div>
     </div>
-<!-- Tombol Darurat Anti-Macet -->
-<button onclick="forceResetAndLogin()" class="text-[9px] bg-red-950/80 hover:bg-red-900 text-red-300 font-bold px-1.5 py-1 rounded-lg border border-red-500/40 transition flex items-center gap-0.5 cursor-pointer" title="Reset Sesi jika login macet">
-  ⚡<span class="hidden sm:inline"> Reset Login</span>
-</button>
 
 
     <!-- Panel Keamanan & Status Pendaftaran Calon Pembeli -->
@@ -1447,47 +1443,6 @@
       }, 800);
     });
     // --- FUNGSI LOGIN PRESISI (AMAN, LANCAR, ANTI-STUCK 4 DETIK) ---
-      // --- FUNGSI FORCE RESET & LOGIN DARURAT (ANTI-MACET TOTAL) ---
-    async function forceResetAndLogin() {
-      if (isAuthenticating) return;
-      isAuthenticating = true;
-      
-      // Bersihkan state autentikasi yang nyangkut
-      authenticatedPiUser = null;
-      localStorage.removeItem('nusantara_cached_auctions');
-      
-      const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-      if (btnHeaderLogin) {
-        btnHeaderLogin.innerHTML = `🔄 <span class="text-yellow-400">Resetting...</span>`;
-      }
-
-      try {
-        // Paksa bypass langsung ke mode dev/aman agar tidak menunggu SDK yang macet
-        authenticatedPiUser = { username: "Dev" };
-        const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
-        
-        const statusEl = document.getElementById('userStatusDisplay');
-        if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-        
-        isBuyerApproved = true;
-        
-        const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-        const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-
-        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-        Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-        
-        alert("✅ Sesi berhasil di-reset! Anda masuk menggunakan mode stabil.");
-      } catch (err) {
-        console.error("Reset error:", err);
-      } finally {
-        isAuthenticating = false;
-      }
-    }
-
     async function authenticatePiUser(isAuto = false) {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
@@ -1510,7 +1465,7 @@
       for (let i = 0; i < 3; i++) {
         piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
         if (piInstance) break;
-        await new Promise(r => setTimeout(r, 50));
+        await new Promise(r => setTimeout(r, 80));
       }
 
       try {
@@ -1534,10 +1489,8 @@
         };
 
         const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
-        
-        // Proteksi anti-macet (Timeout otomatis dipangkas maksimal 2.5 detik)
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Timeout Pi SDK")), 2500)
+          setTimeout(() => reject(new Error("Timeout Pi SDK")), 4000)
         );
 
         const auth = await Promise.race([authPromise, timeoutPromise]);
@@ -1570,7 +1523,7 @@
           throw new Error("Respon otentikasi kosong.");
         }
       } catch (err) {
-        // Fallback otomatis ke mode aman agar aplikasi tetap lancar tanpa macet
+        // Fallback Dev Mode jika SDK di luar Sandbox/Browser standar
         authenticatedPiUser = { username: "Dev" };
         const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
         if (statusEl) statusEl.innerText = `User: ${maskedName}`;
@@ -1588,7 +1541,6 @@
         }
       }
     }
-
 
     async function fetchAndListenAuctionSchedule() {
       if (!supabaseClient) return;
@@ -2037,156 +1989,41 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
-    async function checkBuyerStatusInDatabase(username) {
-      if (!supabaseClient || !username) return;
-      try {
-        const { data, error } = await supabaseClient
-          .from('buyers')
-          .select('*')
-          .eq('username', username)
-          .maybeSingle();
 
-        if (data) {
-          const balance = parseFloat(data.deposit_balance || 0);
-          const balanceDisplayEl = document.getElementById('userDepositBalanceDisplay');
-          if (balanceDisplayEl) {
-            balanceDisplayEl.innerText = `Saldo Jaminan: ${balance} Pi`;
-          }
-          
-          const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
-          const isAdmin = ADMIN_USERNAMES.includes(username);
-          if (isAdmin) {
-            isBuyerApproved = true;
-            if (buyerStatusEl) buyerStatusEl.innerText = "Admin Terverifikasi (Akses Penuh)";
-          } else {
-            isBuyerApproved = (data.status === 'approved' || data.status === 'aktif' || data.status === 'active' || balance >= 35);
-            if (buyerStatusEl) {
-              buyerStatusEl.innerText = isBuyerApproved ? "Status Akses: Terverifikasi (Akses Penuh)" : "Status: Pending (Belum Verifikasi / Jaminan Kurang)";
-            }
-          }
-        }
-      } catch (e) {}
-    }
-
-    async function payAuctionDeposit() {
+    async function handleBuyerRegistrationAction() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
-
-      const currentUsr = authenticatedPiUser.username;
-      let currentBalance = 0.0;
-
-      if (supabaseClient) {
-        try {
-          const { data } = await supabaseClient
-            .from('buyers')
-            .select('deposit_balance')
-            .eq('username', currentUsr)
-            .maybeSingle();
-          if (data && data.deposit_balance !== undefined) {
-            currentBalance = parseFloat(data.deposit_balance);
-          }
-        } catch (e) {}
-      }
-
-      // 3. Ketentuan jika saldo jaminan = 35 pi atau lebih
-      if (currentBalance >= 35.0) {
-        alert("ℹ️ Saldo anda sudah mencukupi (≥ 35 Pi).");
+      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      if (isAdminOrDev) {
+        openBuyersTableModal();
         return;
       }
-
-      const requiredTopUpAmount = parseFloat((35.0 - currentBalance).toFixed(2));
-
-      // Pop up keterangan jaminan akan dikembalikan dipotong 1 pi
-      const confirmTopUp = confirm(
-        "ℹ️ Keterangan Jaminan:\n" +
-        "Jaminan ini akan dikembalikan setelah sesi lelang selesai dan transaksi sudah dilaksanakan. " +
-        "Pengembalian ini dipotong 1 Pi sebagai biaya pendaftaran.\n\n" +
-        `Saldo Anda saat ini: ${currentBalance} Pi.\n` +
-        `Pembayaran kekurangan via Pi SDK: ${requiredTopUpAmount} Pi.\n\n" +
-        "Klik OK untuk melanjutkan pembayaran."
-      );
-
-      if (!confirmTopUp) return;
-
-      const finishTopUpSuccess = async () => {
-        const newTotalBalance = currentBalance + requiredTopUpAmount;
-        if (supabaseClient) {
-          try {
-            await supabaseClient
-              .from('buyers')
-              .upsert([{ 
-                username: currentUsr, 
-                deposit_balance: newTotalBalance, 
-                status: newTotalBalance >= 35 ? 'approved' : 'pending',
-                has_requested_withdrawal: false 
-              }], { onConflict: 'username' });
-          } catch (e) {}
-        }
-        await checkBuyerStatusInDatabase(currentUsr);
-        alert(`✅ Pembayaran berhasil! Saldo jaminan Anda sekarang ${newTotalBalance} Pi (Real-time).\n\nSilahkan konfirmasi ke admin.`);
-      };
-
-      const paymentData = {
-        amount: requiredTopUpAmount,
-        memo: `PIBOX-DEPOSIT: Top Up Jaminan - @${currentUsr}`,
-        metadata: { type: 'deposit_topup', username: currentUsr }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => { 
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); 
-            },
-            onReadyForServerCompletion: async (pid, txid) => { 
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); 
-              finishTopUpSuccess(); 
-            },
-            onCancel: () => { alert("Pembayaran jaminan dibatalkan."); },
-            onError: () => { finishTopUpSuccess(); }
-          });
-        } else { 
-          finishTopUpSuccess(); 
-        }
-      } catch (err) { 
-        finishTopUpSuccess(); 
-      }
-    }
-
-   
-
-      // 2. Jika user biasa klik tombol daftar pembeli, otomatis tercatat dengan status "Pending" tanpa masuk ke halaman tabel, lalu diarahkan ke top up jaminan 35 pi
       if (!supabaseClient) return;
       try {
         const { data: existingBuyer } = await supabaseClient
           .from('buyers')
           .select('*')
-          .eq('username', currentUsr)
+          .eq('username', authenticatedPiUser.username)
           .maybeSingle();
 
         if (!existingBuyer) {
           const { error } = await supabaseClient
             .from('buyers')
-            .upsert([{ username: currentUsr, status: 'pending', win_count: 0, deposit_balance: 0.00, has_requested_withdrawal: false }], { onConflict: 'username' });
+            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
           
           if (error) throw error;
+          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
+        } else {
+          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${existingBuyer.status.toUpperCase()}`);
         }
-
-        await checkBuyerStatusInDatabase(currentUsr);
-        alert("📋 Pendaftaran berhasil dicatat dengan status 'Pending'. Sistem mengarahkan Anda ke proses Top Up Jaminan 35 Pi.");
-        
-        // Secara otomatis diarahkan ke klik tombol top up jaminan 35 pi
-        payAuctionDeposit();
+        checkBuyerStatusInDatabase(authenticatedPiUser.username);
       } catch (err) {
-        alert("Gagal memproses pendaftaran pembeli: " + err.message);
+        alert("Gagal memproses pendaftaran: " + err.message);
       }
     }
-      
-
 
     async function fetchBuyersList() {
       if (!supabaseClient) return;
