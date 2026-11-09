@@ -3072,57 +3072,80 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       }
     }
 
-    function sendEmailToAdminFast() {
-      if (!hasReleasedToGallery) {
-        alert("⛔ Akses Ditolak: Anda harus menyelesaikan proses rilis ke galeri terlebih dahulu!");
-        return;
-      }
-
+    async function sendEmailToAdminFast() {
+      // Diubah fungsinya: Digunakan saat gagal / menunggu upload ke galeri untuk rilis aset via email ke admin
+      const mainImageFile = document.getElementById('imageFileInput').files[0];
+      const extraImageFile = document.getElementById('extraSSInput')?.files[0];
+      const category = document.getElementById('assetCategoryInput').value;
       const title = document.getElementById('assetTitleInput').value.trim();
-      const hash = document.getElementById('assetHashInput')?.value.trim();
+      const description = document.getElementById('assetDescriptionInput').value.trim();
+      const hash = document.getElementById('assetHashInput')?.value.trim() || '-';
+      
       const y = document.getElementById('ocYear')?.value || '2026';
       const m = document.getElementById('ocMonth')?.value || '01';
       const d = document.getElementById('ocDay')?.value || '01';
       const h = document.getElementById('ocHour')?.value || '00';
       const min = document.getElementById('ocMinute')?.value || '00';
       const s = document.getElementById('ocSecond')?.value || '00';
-
       const onChainTime = `${y}-${m}-${d} ${h}:${min}:${s}`;
 
-      if (!title) {
-        alert("Harap lengkapi nama aset/barang sebelum mengirim email verifikasi.");
+      const realSeller = document.getElementById('realSellerUsernameInput')?.value.trim();
+      const piboxWallet = document.getElementById('piboxWalletInput')?.value.trim();
+      const reservePrice = document.getElementById('reservePriceInput')?.value.trim();
+      const transactionMode = document.getElementById('transactionModeInput')?.value || 'p2p';
+
+      if (!title || !realSeller || !piboxWallet || !reservePrice) {
+        alert("⚠️ Mohon lengkapi minimal Nama Aset, Username Penjual Asli, Wallet PiBox, dan Harga Pi sebelum rilis aset via email!");
         return;
       }
 
+      // 10 Data yang dikirim via email
+      const emailBodyData = 
+        `=== PERMINTAAN RILIS ASET KE GALERI (VIA EMAIL) ===\n\n` +
+        `1. Foto/SS Utama: ${mainImageFile ? mainImageFile.name : 'Terlampir/File dipilih'}\n` +
+        `2. Foto/SS Tambahan: ${extraImageFile ? extraImageFile.name : 'Tidak ada'}\n` +
+        `3. Nama Aset/Barang: ${title}\n` +
+        `4. Deskripsi: ${description || '-'}\n` +
+        `5. Hash/Kode: ${hash}\n` +
+        `6. On-chain Time: ${onChainTime}\n` +
+        `7. Username Penjual Asli: @${realSeller}\n` +
+        `8. Wallet PiBox Penjual: ${piboxWallet}\n` +
+        `9. Harga Pi: ${reservePrice} Pi\n` +
+        `10. Pilihan Mode Transaksi: ${transactionMode.toUpperCase()}\n\n` +
+        `Mohon Admin segera merilis aset ini ke galeri utama.\nTerima kasih!`;
+
       const recipientEmails = "marketnftglobal@gmail.com,auctionbridge314@gmail.com";
-      const emailSubject = encodeURIComponent("Verifikasi Rilis Aset - NFT Global Market & Auction Engine");
-      const emailBodyText = 
-        `Halo Admin,\n\n` +
-        `Mohon verifikasi aset/barang lelang yang baru saja saya unggah:\n\n` +
-        `Nama Aset/Barang: ${title}\n` +
-        `Kode/Hash: ${hash}\n` +
-        `On-chain time: ${onChainTime}\n\n` +
-        `Terima kasih!`;
+      const emailSubject = encodeURIComponent(`Rilis Aset via Email: ${title} - (@${realSeller})`);
+
+      // Simpan notifikasi ke localStorage / Supabase agar muncul di Dashboard Admin
+      adminEmailNotificationsCount++;
+      localStorage.setItem('admin_email_notif_count', adminEmailNotificationsCount);
+      localStorage.setItem(`admin_email_latest_${Date.now()}`, JSON.stringify({
+        title, seller: realSeller, time: new Date().toISOString(), data: emailBodyData
+      }));
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(`To: ${recipientEmails}\nSubject: Verifikasi Rilis Aset\n\n${emailBodyText}`).catch(() => {});
+        navigator.clipboard.writeText(`To: ${recipientEmails}\nSubject: Unpan/Rilis Aset\n\n${emailBodyData}`).catch(() => {});
       }
 
       const confirmSend = confirm(
-        "📧 Email verifikasi akan dikirim ke alamat admin.\nKlik 'OK' untuk membuka aplikasi email."
+        "📧 Data 10 poin rilis aset telah disiapkan.\n" +
+        "Klik 'OK' untuk membuka aplikasi email Anda dan mengirimkannya ke Admin. Notifikasi email baru akan otomatis muncul di Dashboard Admin."
       );
 
       if (confirmSend) {
-        window.location.href = `mailto:${recipientEmails}?subject=${emailSubject}&body=${encodeURIComponent(emailBodyText)}`;
+        window.location.href = `mailto:${recipientEmails}?subject=${emailSubject}&body=${encodeURIComponent(emailBodyData)}`;
       }
 
       setTimeout(() => {
         resetCreateForm();
         closeCreateModal();
         fetchActiveAuctions();
-        alert("🚀 Kembali ke halaman galeri. Form isian rilis aset telah dibersihkan.");
+        updateAdminEmailNotificationBadge();
+        alert("🚀 Form isian dibersihkan. Silakan cek notifikasi di dashboard admin.");
       }, 500);
     }
+
 
     function handleExtraSSUpload(input) {
       const previewList = document.getElementById('extraSSPreviewList');
