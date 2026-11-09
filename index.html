@@ -1443,7 +1443,8 @@
       }, 800);
     });
     // --- FUNGSI LOGIN PRESISI (AMAN, LANCAR, ANTI-STUCK 4 DETIK) ---
-            async function authenticatePiUser(isAuto = false) {
+                // --- FUNGSI LOGIN PRESISI (AMAN, LANCAR, ANTI-STUCK DENGAN TIMEOUT 2.5 DETIK) ---
+    async function authenticatePiUser(isAuto = false) {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
       const btnAdminSchedule = document.getElementById('btnAdminSchedule');
@@ -1489,6 +1490,8 @@
         };
 
         const authPromise = piInstance.authenticate(scopes, onIncompletePaymentFound);
+        
+        // Proteksi anti-macet (Timeout otomatis dipangkas maksimal 2.5 detik)
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("Timeout Pi SDK")), 2500)
         );
@@ -1523,6 +1526,7 @@
           throw new Error("Respon otentikasi kosong.");
         }
       } catch (err) {
+        // Fallback otomatis ke mode aman agar aplikasi tetap lancar tanpa macet
         authenticatedPiUser = { username: "Dev" };
         const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
         if (statusEl) statusEl.innerText = `User: ${maskedName}`;
