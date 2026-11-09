@@ -1985,16 +1985,20 @@
 
     async function saveAuctionScheduleSettings() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("Akses Ditolak: Hanya Admin dan Developer!");
+        alert("Akses Ditolak: Hanya Admin & Developer!");
         return;
       }
 
       const mode = document.getElementById('scheduleModeSelect').value;
       const y = document.getElementById('schedYear')?.value || '2026';
-      const m = document.getElementById('schedMonth')?.value || '01';
+      const m = (document.getElementById('schedMonth')?.value || '1').padStart(2, '0');
       const d = (document.getElementById('schedDay')?.value || '1').padStart(2, '0');
       const startDate = `${y}-${m}-${d}`;
-      const startHour = document.getElementById('scheduleStartHourSelect').value;
+      
+      const hour = (document.getElementById('schedHourManual')?.value || '00').padStart(2, '0');
+      const minute = (document.getElementById('schedMinuteManual')?.value || '00').padStart(2, '0');
+      const startHour = `${hour}:${minute}`;
+
       const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
 
       const newSchedule = { mode, startDate, startHour, durationHours };
@@ -2020,6 +2024,7 @@
         alert("Gagal menyimpan jadwal ke database: " + err.message);
       }
     }
+
 
     let currentAuctionStatusCode = 1;
 
