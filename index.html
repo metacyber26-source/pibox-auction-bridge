@@ -1990,40 +1990,64 @@
       URL.revokeObjectURL(url);
     }
 
-    async function handleBuyerRegistrationAction() {
+        async function handleBuyerRegistrationAction() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
-      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      if (isAdminOrDev) {
+      
+      const currentUsr = authenticatedPiUser.username;
+      const isAdmin = ADMIN_USERNAMES.includes(currentUsr);
+
+      // 1. Jika admin klik tombol daftar pembeli, masuk ke tabel daftar pembeli secara otomatis tercatat dengan status "Pending"
+      if (isAdmin) {
+        if (supabaseClient) {
+          try {
+            const { data: existing } = await supabaseClient
+              .from('buyers')
+              .select('*')
+              .eq('username', currentUsr)
+              .maybeSingle();
+
+            if (!existing) {
+              await supabaseClient
+                .from('buyers')
+                .upsert([{ username: currentUsr, status: 'pending', win_count: 0, deposit_balance: 0.00, has_requested_withdrawal: false }], { onConflict: 'username' });
+            }
+          } catch (e) {}
+        }
         openBuyersTableModal();
         return;
       }
+
+      // 2. Jika user biasa klik tombol daftar pembeli, otomatis tercatat dengan status "Pending" dan diarahkan ke top up jaminan 35 pi
       if (!supabaseClient) return;
       try {
         const { data: existingBuyer } = await supabaseClient
           .from('buyers')
           .select('*')
-          .eq('username', authenticatedPiUser.username)
+          .eq('username', currentUsr)
           .maybeSingle();
 
         if (!existingBuyer) {
           const { error } = await supabaseClient
             .from('buyers')
-            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
+            .upsert([{ username: currentUsr, status: 'pending', win_count: 0, deposit_balance: 0.00, has_requested_withdrawal: false }], { onConflict: 'username' });
           
           if (error) throw error;
-          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
-        } else {
-          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${existingBuyer.status.toUpperCase()}`);
         }
-        checkBuyerStatusInDatabase(authenticatedPiUser.username);
+
+        await checkBuyerStatusInDatabase(currentUsr);
+        alert("📋 Pendaftaran berhasil dicatat dengan status 'Pending'. Sistem mengarahkan Anda ke proses Top Up Jaminan 35 Pi.");
+        
+        // Secara otomatis diarahkan ke klik tombol top up jaminan 35 pi
+        payAuctionDeposit();
       } catch (err) {
-        alert("Gagal memproses pendaftaran: " + err.message);
+        alert("Gagal memproses pendaftaran pembeli: " + err.message);
       }
     }
+
 
     async function fetchBuyersList() {
       if (!supabaseClient) return;
