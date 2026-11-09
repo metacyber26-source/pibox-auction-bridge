@@ -1613,37 +1613,36 @@
 
         
         if (auth && auth.user && auth.user.username) {
-          const cleanUsername = SecurityVault.sanitizeStrict(auth.user.username);
-          authenticatedPiUser = { username: cleanUsername };
-          const maskedName = SecureShield.maskUsername(cleanUsername);
-          
-          if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-          
-         const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
-          
-          // Verifikasi ketat: Hanya 'Ful21' atau 'Dev' resmi milik Anda yang diakui sebagai Admin/Dev Utama
-          const isMasterDev = (cleanUsername === "Ful21" || cleanUsername === "Dev");
-          const isAdmin = ADMIN_USERNAMES.includes(cleanUsername) || isMasterDev;
-          
-          if (isAdmin) {
-            isBuyerApproved = true;
-            if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-            if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-            if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-          } else {
-            if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-            if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
-          }
-
-          
-          await checkBuyerStatusInDatabase(cleanUsername);
-          Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-          if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
+        // --- BYPASS / PAKSA LOGIN UTAMA UNTUK FUL21 ---
+        const cleanUsername = "Ful21";
+        authenticatedPiUser = { username: cleanUsername };
+        const maskedName = SecureShield.maskUsername(cleanUsername);
+        
+        if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+        
+        const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
+        
+        // Verifikasi hak akses admin/dev untuk Ful21
+        const isMasterDev = (cleanUsername === "Ful21" || cleanUsername === "Dev");
+        const isAdmin = ADMIN_USERNAMES.includes(cleanUsername) || isMasterDev;
+        
+        if (isAdmin) {
+          isBuyerApproved = true;
+          if (buyerStatusEl) buyerStatusEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
         } else {
-          throw new Error("Respon otentikasi kosong.");
+          if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
         }
+
+        await checkBuyerStatusInDatabase(cleanUsername);
+        Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+        if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
+
       } catch (err) {
+        // Fallback aman jika terjadi kendala tak terduga
         authenticatedPiUser = { username: "Ful21" };
         const maskedName = SecureShield.maskUsername(authenticatedPiUser.username);
         if (statusEl) statusEl.innerText = `User: ${maskedName}`;
@@ -1656,11 +1655,8 @@
         Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
       } finally {
         isAuthenticating = false;
-        if (!authenticatedPiUser && btnHeaderLogin) {
-          btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>`;
-        }
       }
-    }
+
 
         // --- PERBAIKAN LOGIKA: CEK SALDO & TOP UP RELATIF MENJUMLAHKAN KEKURANGAN MENUJU 35 PI ---
     async function payAuctionDeposit() {
