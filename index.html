@@ -2047,32 +2047,55 @@
         }
       };
 
-      if (mode === 'testing_mode') {
-        isAuctionCurrentlyOpen = true;
-        currentAuctionStatusCode = 3;
-        badge.innerText = "🧪 UJI COBA (SANDBOX ACTIVE)";
-        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse";
-        setListButtonState(true, "+ List Aset/Barang");
-        return;
-      }
+      if (mode === 'scheduled') {
+        if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
+          const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
+          const startTime = new Date(startDateTimeStr).getTime();
+          const durationHours = parseFloat(auctionScheduleState.durationHours) || 24;
+          const endTime = startTime + (durationHours * 3600 * 1000);
+          const now = new Date().getTime();
 
-      if (mode === '24h_open') {
+          // Tampilkan format jadwal yang diset di badge Status Lelang jika belum mulai
+          const formattedScheduleText = `${auctionScheduleState.startDate} ${auctionScheduleState.startHour} WIB`;
+
+          if (now < startTime) {
+            isAuctionCurrentlyOpen = false;
+            currentAuctionStatusCode = 2;
+            badge.innerText = `⏳ Terjadwal: ${formattedScheduleText}`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
+            setListButtonState(false, "🔒 List Aset Dikunci (Menunggu Jadwal)");
+          } else if (now >= startTime && now <= endTime) {
+            isAuctionCurrentlyOpen = true;
+            currentAuctionStatusCode = 3;
+            badge.innerText = `🔥 LIVE BERLANGSUNG (Sesi ${durationHours} Jam)`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
+            setListButtonState(false, "🔒 List Aset Ditutup (Sesi Live)");
+          } else {
+            isAuctionCurrentlyOpen = false;
+            currentAuctionStatusCode = 4;
+            badge.innerText = `🏁 Selesai (${formattedScheduleText})`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40";
+            setListButtonState(true, "+ List Aset/Barang");
+          }
+        } else {
+          badge.innerText = "⏳ Belum Ada Jadwal";
+          badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
+        }
+      } else if (mode === '24h_open') {
         isAuctionCurrentlyOpen = true;
         currentAuctionStatusCode = 3;
         badge.innerText = "BUKA LIVE 24/7";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
         setListButtonState(true, "+ List Aset/Barang");
-        return;
-      }
-
-      if (mode === 'closed_now') {
+      } else if (mode === 'closed_now') {
         isAuctionCurrentlyOpen = false;
         currentAuctionStatusCode = 1;
         badge.innerText = "🔴 LELANG DITUTUP";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
         setListButtonState(false, "🔒 List Aset Ditutup");
-        return;
       }
+    }
+
 
       if (mode === 'scheduled') {
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
