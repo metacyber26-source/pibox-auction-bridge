@@ -1,4 +1,4 @@
-9<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -197,10 +197,9 @@
             <button onclick="openChatModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer flex items-center gap-1">
               💬 <span data-i18n="chatRoomBtn">Chat Room</span>
             </button>
-                        <button onclick="handleBuyerRegistrationClick(event)" ondblclick="handleBuyerRegistrationDblClick(event)" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer" data-i18n="registerBuyerBtn" title="Klik: Daftar Pembeli | Klik 2x (Khusus Admin/Dev): Buka Tabel Daftar Pembeli">
+            <button onclick="handleBuyerRegistrationAction()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer" data-i18n="registerBuyerBtn">
               📋 Daftar Pembeli
             </button>
-
           </div>
         </div>
       </div>
@@ -1939,20 +1938,7 @@
       URL.revokeObjectURL(url);
     }
 
-    // Variabel bantu untuk mencegah benturan antara single click dan double click
-    let buyerClickTimer = null;
-
-    function handleBuyerRegistrationClick(event) {
-      // Mencegah benturan langsung, berikan jeda singkat untuk mendeteksi apakah ini double click
-      if (buyerClickTimer) clearTimeout(buyerClickTimer);
-      buyerClickTimer = setTimeout(() => {
-        executeNormalBuyerRegistration();
-      }, 250);
-    }
-
-    async function handleBuyerRegistrationDblClick(event) {
-      if (buyerClickTimer) clearTimeout(buyerClickTimer);
-      
+    async function handleBuyerRegistrationAction() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
@@ -1960,26 +1946,12 @@
       }
 
       const currentUsername = authenticatedPiUser.username;
-      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername) || currentUsername === "Ful21" || currentUsername === "Dev";
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
 
-      if (isAdminOrDev) {
-        openBuyersTableModal();
-      } else {
-        alert("⛔ Akses Ditolak: Fitur klik 2x untuk membuka tabel pembeli hanya khusus untuk Admin dan Developer.");
-      }
-    }
-
-    async function executeNormalBuyerRegistration() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      const currentUsername = authenticatedPiUser.username;
       if (!supabaseClient) return;
 
       try {
+        // Cek apakah user sudah terdaftar di tabel buyers
         const { data: existingBuyer } = await supabaseClient
           .from('buyers')
           .select('*')
@@ -1987,24 +1959,24 @@
           .maybeSingle();
 
         if (!existingBuyer) {
+          // Secara otomatis tercatat dengan status 'pending'
           const { error } = await supabaseClient
             .from('buyers')
             .upsert([{ username: currentUsername, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
           
           if (error) throw error;
-          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan lakukan Top Up Jaminan 35 Pi.");
-        } else {
-          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${existingBuyer.status.toUpperCase()}`);
         }
-        
-        if (typeof checkBuyerStatusInDatabase === 'function') {
-          checkBuyerStatusInDatabase(currentUsername);
-        }
-      } catch (err) {
-        alert("Gagal memproses pendaftaran: " + err.message);
-      }
-    }
 
+        // 1. Jika admin/dev klik, masuk ke halaman tabel daftar pembeli
+        if (isAdminOrDev) {
+          openBuyersTableModal();
+        } else {
+          // 2. Jika user biasa, otomatis tercatat (tanpa masuk tabel) lalu diarahkan ke top up jaminan 35 pi
+          alert("📋 Pendaftaran pembeli berhasil tercatat dengan status 'Pending'. Silakan lakukan Top Up Jaminan 35 Pi.");
+          if (typeof payAuctionDeposit === 'function') {
+            payAuctionDeposit();
+          }
+        }
 
         if (typeof checkBuyerStatusInDatabase === 'function') {
           checkBuyerStatusInDatabase(currentUsername);
