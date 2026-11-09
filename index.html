@@ -1989,6 +1989,125 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
+    async function checkBuyerStatusInDatabase(username) {
+      if (!supabaseClient || !username) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('buyers')
+          .select('*')
+          .eq('username', username)
+          .maybeSingle();
+
+        if (data) {
+          const balance = parseFloat(data.deposit_balance || 0);
+          const balanceDisplayEl = document.getElementById('userDepositBalanceDisplay');
+          if (balanceDisplayEl) {
+            balanceDisplayEl.innerText = `Saldo Jaminan: ${balance} Pi`;
+          }
+          
+          const buyerStatusEl = document.getElementById('buyerApprovalStatusText');
+          const isAdmin = ADMIN_USERNAMES.includes(username);
+          if (isAdmin) {
+            isBuyerApproved = true;
+            if (buyerStatusEl) buyerStatusEl.innerText = "Admin Terverifikasi (Akses Penuh)";
+          } else {
+            isBuyerApproved = (data.status === 'approved' || data.status === 'aktif' || data.status === 'active' || balance >= 35);
+            if (buyerStatusEl) {
+              buyerStatusEl.innerText = isBuyerApproved ? "Status Akses: Terverifikasi (Akses Penuh)" : "Status: Pending (Belum Verifikasi / Jaminan Kurang)";
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function payAuctionDeposit() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const currentUsr = authenticatedPiUser.username;
+      let currentBalance = 0.0;
+
+      if (supabaseClient) {
+        try {
+          const { data } = await supabaseClient
+            .from('buyers')
+            .select('deposit_balance')
+            .eq('username', currentUsr)
+            .maybeSingle();
+          if (data && data.deposit_balance !== undefined) {
+            currentBalance = parseFloat(data.deposit_balance);
+          }
+        } catch (e) {}
+      }
+
+      // 3. Ketentuan jika saldo jaminan = 35 pi atau lebih
+      if (currentBalance >= 35.0) {
+        alert("ℹ️ Saldo anda sudah mencukupi (≥ 35 Pi).");
+        return;
+      }
+
+      const requiredTopUpAmount = parseFloat((35.0 - currentBalance).toFixed(2));
+
+      // Pop up keterangan jaminan akan dikembalikan dipotong 1 pi
+      const confirmTopUp = confirm(
+        "ℹ️ Keterangan Jaminan:\n" +
+        "Jaminan ini akan dikembalikan setelah sesi lelang selesai dan transaksi sudah dilaksanakan. " +
+        "Pengembalian ini dipotong 1 Pi sebagai biaya pendaftaran.\n\n" +
+        `Saldo Anda saat ini: ${currentBalance} Pi.\n` +
+        `Pembayaran kekurangan via Pi SDK: ${requiredTopUpAmount} Pi.\n\n" +
+        "Klik OK untuk melanjutkan pembayaran."
+      );
+
+      if (!confirmTopUp) return;
+
+      const finishTopUpSuccess = async () => {
+        const newTotalBalance = currentBalance + requiredTopUpAmount;
+        if (supabaseClient) {
+          try {
+            await supabaseClient
+              .from('buyers')
+              .upsert([{ 
+                username: currentUsr, 
+                deposit_balance: newTotalBalance, 
+                status: newTotalBalance >= 35 ? 'approved' : 'pending',
+                has_requested_withdrawal: false 
+              }], { onConflict: 'username' });
+          } catch (e) {}
+        }
+        await checkBuyerStatusInDatabase(currentUsr);
+        alert(`✅ Pembayaran berhasil! Saldo jaminan Anda sekarang ${newTotalBalance} Pi (Real-time).\n\nSilahkan konfirmasi ke admin.`);
+      };
+
+      const paymentData = {
+        amount: requiredTopUpAmount,
+        memo: `PIBOX-DEPOSIT: Top Up Jaminan - @${currentUsr}`,
+        metadata: { type: 'deposit_topup', username: currentUsr }
+      };
+
+      try {
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.createPayment === 'function') {
+          piInstance.createPayment(paymentData, {
+            onReadyForServerApproval: async (pid) => { 
+              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); 
+            },
+            onReadyForServerCompletion: async (pid, txid) => { 
+              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); 
+              finishTopUpSuccess(); 
+            },
+            onCancel: () => { alert("Pembayaran jaminan dibatalkan."); },
+            onError: () => { finishTopUpSuccess(); }
+          });
+        } else { 
+          finishTopUpSuccess(); 
+        }
+      } catch (err) { 
+        finishTopUpSuccess(); 
+      }
+    }
 
             async function handleBuyerRegistrationAction() {
       if (!authenticatedPiUser) {
