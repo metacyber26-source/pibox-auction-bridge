@@ -1560,9 +1560,15 @@
         .subscribe();
     }
 
-    function openScheduleModal() {
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isMasterDev = (currentUsr === "Ful21" || ADMIN_USERNAMES.includes(currentUsr));
+        function openScheduleModal() {
+      if (!authenticatedPiUser) {
+        alert("Silakan Login terlebih dahulu!");
+        authenticatePiUser();
+        return;
+      }
+
+      const currentUsr = authenticatedPiUser.username;
+      const isMasterDev = (currentUsr === "Ful21" || currentUsr === "Dev" || ADMIN_USERNAMES.includes(currentUsr));
       
       if (!isMasterDev) {
         alert("⛔ Akses Ditolak: Hanya dev / username Ful21 yang dapat mengatur jadwal lelang!");
@@ -1606,20 +1612,14 @@
       document.getElementById('scheduleModal').classList.remove('hidden');
     }
 
-    function closeScheduleModal() {
-      document.getElementById('scheduleModal').classList.add('hidden');
-    }
-
-    function toggleScheduleInputVisibility() {
-      const mode = document.getElementById('scheduleModeSelect').value;
-      const container = document.getElementById('scheduledInputsContainer');
-      if (mode === 'scheduled') container.classList.remove('hidden');
-      else container.classList.add('hidden');
-    }
-
     async function saveAuctionScheduleSettings() {
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isMasterDev = (currentUsr === "Ful21" || ADMIN_USERNAMES.includes(currentUsr));
+      if (!authenticatedPiUser) {
+        alert("Silakan Login terlebih dahulu!");
+        return;
+      }
+
+      const currentUsr = authenticatedPiUser.username;
+      const isMasterDev = (currentUsr === "Ful21" || currentUsr === "Dev" || ADMIN_USERNAMES.includes(currentUsr));
 
       if (!isMasterDev) {
         alert("⛔ Akses Ditolak: Hanya dev / username Ful21 yang dapat menyimpan jadwal lelang!");
@@ -1657,6 +1657,20 @@
         alert("Gagal menyimpan jadwal ke database: " + err.message);
       }
     }
+
+
+    function closeScheduleModal() {
+      document.getElementById('scheduleModal').classList.add('hidden');
+    }
+
+    function toggleScheduleInputVisibility() {
+      const mode = document.getElementById('scheduleModeSelect').value;
+      const container = document.getElementById('scheduledInputsContainer');
+      if (mode === 'scheduled') container.classList.remove('hidden');
+      else container.classList.add('hidden');
+    }
+
+    
 
     function checkAuctionSchedule() {
       const badge = document.getElementById('sessionStateBadge');
