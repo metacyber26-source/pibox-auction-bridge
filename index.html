@@ -1448,6 +1448,39 @@
       }, 800);
     });
     // --- FUNGSI LOGIN PRESISI (AMAN, LANCAR, ANTI-STUCK 4 DETIK) ---
+        // --- FITUR UJI COBA SEBAGAI USER BIASA (UNTUK DEV/ADMIN) ---
+    let isSimulatingNormalUser = false;
+
+    function toggleSimulateNormalUser() {
+      isSimulatingNormalUser = !isSimulatingNormalUser;
+      const simBtnText = document.getElementById('simUserText');
+      
+      if (isSimulatingNormalUser) {
+        if (simBtnText) simBtnText.innerText = " (Aktif User)";
+        alert("👤 Mode Simulasi User Biasa Aktif:\nAplikasi kini menyembunyikan hak akses Admin/Dev (Tombol Jadwal & Rekap Bulanan disembunyikan, status akses diperlakukan sebagai user biasa). Klik tombol 'Test User' sekali lagi untuk kembali ke Mode Dev.");
+      } else {
+        if (simBtnText) simBtnText.innerText = " Test User";
+        alert("🛡️ Mode Dev / Admin Dipulihkan.");
+      }
+      
+      // Refresh status UI berdasar mode simulasi
+      if (authenticatedPiUser) {
+        const cleanUsername = authenticatedPiUser.username;
+        const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+        const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+        const isDevOrAdmin = !isSimulatingNormalUser && (cleanUsername === "Ful21" || cleanUsername === "Dev" || ADMIN_USERNAMES.includes(cleanUsername));
+
+        if (isDevOrAdmin) {
+          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+        } else {
+          if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
+        }
+      }
+      filterGallery();
+    }
+
     async function authenticatePiUser(isAuto = false) {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
