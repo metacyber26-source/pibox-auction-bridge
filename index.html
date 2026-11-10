@@ -3033,6 +3033,45 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       }
     }
 
+    // --- FUNGSI BERSIHKAN SPAM & RESET HITUNGAN PENAWARAN >5X MENJADI NOL ---
+    function clearAllSpamReportsAndBids() {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = (currentUsr === 'Ful21' || ADMIN_USERNAMES.includes(currentUsr));
+
+      if (!isAdminOrDev) {
+        alert("⛔ Akses Ditolak: Hanya Admin dan Ful21 yang dapat membersihkan laporan spam!");
+        return;
+      }
+
+      const confirmClear = confirm(
+        "🧹 Konfirmasi Pembersihan Spam:\n\n" +
+        "Tindakan ini akan membersihkan seluruh catatan laporan spam dan me-reset hitungan penawaran yang lebih dari 5x kembali dari nol (0) di seluruh riwayat penawaran lokal.\n\n" +
+        "Apakah Anda ingin melanjutkan?"
+      );
+
+      if (!confirmClear) return;
+
+      try {
+        let clearedCount = 0;
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('bid_count_')) {
+            const count = parseInt(localStorage.getItem(key) || '0', 10);
+            if (count > 5) {
+              // Reset hitungan kembali ke 0 (atau dihapus dari storage agar bersih total)
+              localStorage.removeItem(key);
+              clearedCount++;
+            }
+          }
+        });
+
+        renderBuyersTable();
+        alert(`✅ Berhasil! Seluruh catatan spam dan penawaran berlebih telah dibersihkan (${clearedCount} entri di-reset ke 0).`);
+      } catch (err) {
+        alert("Terjadi kesalahan saat membersihkan spam: " + err.message);
+      }
+    }
+
+
     let hasCompletedServerFee = false;
     let hasReleasedToGallery = false;
 
