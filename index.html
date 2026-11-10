@@ -2084,7 +2084,11 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
 
         if (data && data.value) {
           auctionScheduleState = data.value;
-          checkAuctionSchedule();
+          if (typeof checkAuctionSchedule === 'function') {
+            checkAuctionSchedule();
+          } else if (typeof updateAuctionScheduleStateUI === 'function') {
+            updateAuctionScheduleStateUI();
+          }
         }
       } catch (e) {
         console.error("Gagal memuat jadwal dari SQL:", e);
@@ -2101,7 +2105,7 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       const mode = document.getElementById('scheduleModeSelect').value;
       const y = document.getElementById('schedYear')?.value || '2026';
       const m = (document.getElementById('schedMonth')?.value || '11').padStart(2, '0');
-      const d = (document.getElementById('schedDay')?.value || '1').padStart(2, '0');
+      const d = (document.getElementById('schedDay')?.value || '01').padStart(2, '0');
       const startDate = `${y}-${m}-${d}`;
       const startHour = document.getElementById('scheduleStartHourSelect').value;
       const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
@@ -2127,14 +2131,21 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
         if (error) throw error;
 
         auctionScheduleState = newSchedule;
-        checkAuctionSchedule();
+        
+        // Panggilan aman anti-crash
+        if (typeof checkAuctionSchedule === 'function') {
+          checkAuctionSchedule();
+        } else if (typeof updateAuctionScheduleStateUI === 'function') {
+          updateAuctionScheduleStateUI();
+        }
 
         alert("✅ Jadwal Berhasil Tersimpan Permanen di Database Supabase!");
         closeScheduleModal();
       } catch (err) {
         alert("Gagal menyimpan jadwal ke database: " + err.message);
       }
-    
+    }
+
 
     // Fungsi pengecekan jadwal di bawah ini langsung melanjutkan dengan aman
 
