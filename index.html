@@ -3616,7 +3616,21 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       const categoryLabel = getCategoryLabel(selectedAuction.category);
 
       let bidActionSection = '';
-      const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
+      
+      // Validasi ketat status pembeli: Jika status masih pending (bukan admin/Ful21 dan belum approved), disclaimer & penawaran dikunci
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isPrivileged = (currentUsr === 'Ful21' || ADMIN_USERNAMES.includes(currentUsr));
+      const canAccessBidding = isPrivileged || isBuyerApproved;
+
+      if (!canAccessBidding) {
+        bidActionSection = `
+          <div class="bg-amber-950/40 border border-amber-500/40 text-amber-300 p-3 rounded-xl text-center text-[11px] font-bold space-y-1">
+            <p>⏳ Status Akun Anda: PENDING</p>
+            <p class="text-[10px] text-gray-300 font-normal">Selama status masih pending, kotak centang disclaimer dikunci dan akses penawaran tertutup. Harap tunggu verifikasi Admin / Ful21 atau lakukan Top Up Jaminan.</p>
+          </div>
+        `;
+      } else {
+        const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
 
       if (!isBiddingAllowed) {
         let statusMsg = "🔒 Penawaran non-aktif (Hanya aktif saat lelang berlangsung / Tahap 3).";
