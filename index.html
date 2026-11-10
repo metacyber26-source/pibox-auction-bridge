@@ -2118,7 +2118,6 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
         }
       };
 
-      // Set Panel Informasi Jadwal Lelang (Statis kecuali ada settingan baru)
       if (mode === 'testing_mode') {
         infoText.innerText = "Mode Uji Coba (Sandbox Standby)";
       } else {
@@ -2136,26 +2135,22 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
 
       if (mode === 'scheduled') {
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
-          // Konversi waktu berbasis WIB (Jakarta - Indonesia, GMT+7)
           const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
           const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
           const startTime = new Date(startDateTimeStr).getTime();
           
-          // Durasi tetap diset 1 Jam sesuai permintaan
-          const durationMs = 1 * 60 * 60 * 1000; 
+          const durationMs = 1 * 60 * 60 * 1000; // Sesi 1 Jam
           const endTime = startTime + durationMs;
           const preOpenTime = startTime - (60 * 60 * 1000); // 60 menit sebelum dibuka
           const now = nowWib.getTime();
 
           if (now < preOpenTime) {
-            // Belum masuk rentang 60 menit sebelum buka
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 1;
             badge.innerText = "⏳ Menunggu Jadwal Buka";
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
             setListButtonState(false, "🔒 List Aset Dikunci");
           } else if (now >= preOpenTime && now < startTime) {
-            // Aktif 60 menit sebelum jadwal lelang dibuka (Hitung mundur menuju buka)
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 2;
             const diffSec = Math.floor((startTime - now) / 1000);
@@ -2166,7 +2161,6 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse";
             setListButtonState(false, "🔒 List Aset Dikunci (Persiapan)");
           } else if (now >= startTime && now <= endTime) {
-            // Selama sesi lelang terbuka (1 Jam)
             isAuctionCurrentlyOpen = true;
             currentAuctionStatusCode = 3;
             const diffSec = Math.floor((endTime - now) / 1000);
@@ -2177,7 +2171,6 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
             setListButtonState(true, "+ List Aset/Barang");
           } else {
-            // Otomatis non-aktif setelah sesi lelang tutup otomatis
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 4;
             badge.innerText = `🏁 SESI TUTUP OTOMATIS`;
