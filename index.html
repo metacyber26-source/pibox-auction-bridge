@@ -2094,6 +2094,28 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       else container.classList.add('hidden');
     }
 
+    // --- 1. FUNGSI AMBIL JADWAL DARI SUPABASE (SQL) ---
+    async function fetchAndListenAuctionSchedule() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'auction_schedule')
+          .maybeSingle();
+          
+        if (error) throw error;
+
+        if (data && data.value) {
+          auctionScheduleState = data.value;
+          checkAuctionSchedule();
+        }
+      } catch (e) {
+        console.error("Gagal memuat jadwal dari SQL:", e);
+      }
+    }
+
+    // --- 2. FUNGSI SIMPAN JADWAL KE SUPABASE (SQL) ---
     async function saveAuctionScheduleSettings() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("Akses Ditolak: Hanya Admin dan Developer!");
@@ -2116,7 +2138,6 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       }
 
       try {
-        // Menyimpan data secara permanen ke database Supabase tabel app_settings
         const { error } = await supabaseClient
           .from('app_settings')
           .upsert([
@@ -2132,36 +2153,13 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
         auctionScheduleState = newSchedule;
         checkAuctionSchedule();
 
-        alert("✅ Jadwal Lelang Berhasil Tersimpan Permanen di Database SQL (Supabase)!");
+        alert("✅ Jadwal Berhasil Tersimpan Permanen di Database Supabase!");
         closeScheduleModal();
       } catch (err) {
-        alert("Gagal menyimpan jadwal ke database SQL: " + err.message);
+        alert("Gagal menyimpan jadwal ke database: " + err.message);
       }
     }
 
-
-    let currentAuctionStatusCode = 1;
-
-    function checkAuctionSchedule() {
-      const badge = document.getElementById('sessionStateBadge');
-      const infoText = document.getElementById('auctionInfoText');
-      const btnHeaderCreate = document.getElementById('btnHeaderCreate');
-      if (!badge || !infoText) return;
-      
-      const mode = auctionScheduleState.mode;
-
-      const setListButtonState = (enabled, customText = null) => {
-        if (!btnHeaderCreate) return;
-        if (enabled) {
-          btnHeaderCreate.disabled = false;
-          btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer opacity-100";
-          if (customText) btnHeaderCreate.innerHTML = `<span>${customText}</span>`;
-        } else {
-          btnHeaderCreate.disabled = true;
-          btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-none flex items-center justify-center gap-1 cursor-not-allowed opacity-60";
-          if (customText) btnHeaderCreate.innerHTML = `<span>${customText}</span>`;
-        }
-      };
 
       if (mode === 'testing_mode') {
         infoText.innerText = "Mode Uji Coba (Sandbox Standby)";
