@@ -1337,6 +1337,34 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
     } catch (e) {
       console.error("Supabase Init Error:", e);
     }
+    // --- UJI KONEKSI & KUERI SUPABASE OTOMATIS ---
+    async function testSupabaseConnection() {
+      if (!supabaseClient) {
+        console.error("❌ Objek supabaseClient belum tersedia!");
+        return;
+      }
+
+      try {
+        const { data, error, status } = await supabaseClient
+          .from('app_settings')
+          .select('*')
+          .limit(1);
+
+        if (error) {
+          console.error("❌ Koneksi ke Database Gagal:", error.message);
+          alert("⚠️ Gagal terhubung ke Database SQL Supabase: " + error.message);
+        } else {
+          console.log("✅ Berhasil Terhubung ke Supabase!", { statusHttpStatus: status, sampleData: data });
+        }
+      } catch (err) {
+        console.error("❌ Terjadi kesalahan jaringan atau kredensial:", err);
+      }
+    }
+
+    // Jalankan uji koneksi otomatis saat halaman dimuat
+    document.addEventListener("DOMContentLoaded", () => {
+      setTimeout(testSupabaseConnection, 1000);
+    });
 
     function validateAndCountTitle(el) {
       const cleanValue = el.value.replace(/[<>{}\[\]\\^`~|*$%]/g, '');
