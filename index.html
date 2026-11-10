@@ -2144,17 +2144,16 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
         closeScheduleModal();
       } catch (err) {
         alert("Gagal menyimpan jadwal ke database: " + err.message);
-      }
+      
+        function checkAuctionSchedule() {
+      const infoText = document.getElementById('auctionInfoText');
+      const badge = document.getElementById('sessionStateBadge');
+      if (!infoText || !badge) return;
 
-    // Fungsi pengecekan jadwal di bawah ini langsung melanjutkan dengan aman
+      const mode = auctionScheduleState.mode || 'scheduled';
 
       if (mode === 'testing_mode') {
         infoText.innerText = "Mode Uji Coba (Sandbox Standby)";
-      } else {
-        infoText.innerText = `Buka: ${auctionScheduleState.startDate} ${auctionScheduleState.startHour} WIB (Sesi 1 Jam)`;
-      }
-
-      if (mode === 'testing_mode') {
         isAuctionCurrentlyOpen = true;
         currentAuctionStatusCode = 3;
         badge.innerText = "🧪 SANDBOX STANDBY (AKTIF)";
@@ -2165,13 +2164,16 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
 
       if (mode === 'scheduled') {
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
+          infoText.innerText = `Buka: ${auctionScheduleState.startDate} ${auctionScheduleState.startHour} WIB (Sesi 1 Jam)`;
+          
           const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
           const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
           const startTime = new Date(startDateTimeStr).getTime();
           
-          const durationMs = 1 * 60 * 60 * 1000; // Sesi 1 Jam
+          const durationHours = parseInt(auctionScheduleState.durationHours, 10) || 1;
+          const durationMs = durationHours * 60 * 60 * 1000;
           const endTime = startTime + durationMs;
-          const preOpenTime = startTime - (60 * 60 * 1000); // 60 menit sebelum dibuka
+          const preOpenTime = startTime - (60 * 60 * 1000); 
           const now = nowWib.getTime();
 
           if (now < preOpenTime) {
@@ -2197,7 +2199,7 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
             const m = Math.floor((diffSec % 3600) / 60);
             const s = diffSec % 60;
 
-            badge.innerText = `🔥 SESI 1 JAM BERLANGSUNG (${m}m ${s}d)`;
+            badge.innerText = `🔥 SESI ${durationHours} JAM BERLANGSUNG (${m}m ${s}d)`;
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
             setListButtonState(true, "+ List Aset/Barang");
           } else {
@@ -2211,6 +2213,19 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       }
     }
 
+    function setListButtonState(isOpen, textLabel) {
+      const btnHeaderCreate = document.getElementById('btnHeaderCreate');
+      if (!btnHeaderCreate) return;
+      if (isOpen) {
+        btnHeaderCreate.disabled = false;
+        btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer";
+        btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
+      } else {
+        btnHeaderCreate.disabled = true;
+        btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-inner flex items-center justify-center gap-1 cursor-not-allowed";
+        btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
+      }
+    }
 
     function openMonthlyReportModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
