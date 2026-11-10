@@ -2078,21 +2078,29 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       }
 
       try {
+        // Menyimpan data secara permanen ke database Supabase tabel app_settings
         const { error } = await supabaseClient
           .from('app_settings')
-          .upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }], { onConflict: 'key' });
+          .upsert([
+            { 
+              key: 'auction_schedule', 
+              value: newSchedule, 
+              updated_at: new Date().toISOString() 
+            }
+          ], { onConflict: 'key' });
 
         if (error) throw error;
 
         auctionScheduleState = newSchedule;
         checkAuctionSchedule();
 
-        alert("✅ Pengaturan Jadwal Lelang Disimpan & Disinkronkan Secara On-time!");
+        alert("✅ Jadwal Lelang Berhasil Tersimpan Permanen di Database SQL (Supabase)!");
         closeScheduleModal();
       } catch (err) {
-        alert("Gagal menyimpan jadwal ke database: " + err.message);
+        alert("Gagal menyimpan jadwal ke database SQL: " + err.message);
       }
     }
+
 
     let currentAuctionStatusCode = 1;
 
