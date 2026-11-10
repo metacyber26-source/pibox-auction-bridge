@@ -1438,20 +1438,24 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
     async function fetchAndListenAuctionSchedule() {
       if (!supabaseClient) return;
       try {
-        const { data } = await supabaseClient
+        // Mengambil data jadwal permanen dari database SQL (Supabase)
+        const { data, error } = await supabaseClient
           .from('app_settings')
           .select('value')
           .eq('key', 'auction_schedule')
           .maybeSingle();
           
+        if (error) throw error;
+
         if (data && data.value) {
           auctionScheduleState = data.value;
           checkAuctionSchedule();
         }
       } catch (e) {
-        console.error("Gagal memuat jadwal:", e);
+        console.error("Gagal memuat jadwal dari SQL:", e);
       }
 
+      // Realtime listener agar perubahan jadwal langsung sinkron tanpa reload
       supabaseClient
         .channel('public-cluster-settings')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', filter: 'key=eq.auction_schedule' }, (payload) => {
@@ -1462,6 +1466,7 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
         })
         .subscribe();
     }
+
 
     function updateNetworkBannerUI() {
       const badge = document.getElementById('networkModeBadge');
