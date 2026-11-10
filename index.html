@@ -2098,8 +2098,10 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
 
     function checkAuctionSchedule() {
       const badge = document.getElementById('sessionStateBadge');
+      const infoText = document.getElementById('auctionInfoText');
       const btnHeaderCreate = document.getElementById('btnHeaderCreate');
-      if (!badge) return;
+      if (!badge || !infoText) return;
+      
       const mode = auctionScheduleState.mode;
 
       const setListButtonState = (enabled, customText = null) => {
@@ -2115,78 +2117,76 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
         }
       };
 
+      // Set Panel Informasi Jadwal Lelang (Statis kecuali ada settingan baru)
+      if (mode === 'testing_mode') {
+        infoText.innerText = "Mode Uji Coba (Sandbox Standby)";
+      } else {
+        infoText.innerText = `Buka: ${auctionScheduleState.startDate} ${auctionScheduleState.startHour} WIB (Sesi 1 Jam)`;
+      }
+
       if (mode === 'testing_mode') {
         isAuctionCurrentlyOpen = true;
         currentAuctionStatusCode = 3;
-        badge.innerText = "🧪 UJI COBA (SANDBOX ACTIVE)";
+        badge.innerText = "🧪 SANDBOX STANDBY (AKTIF)";
         badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse";
         setListButtonState(true, "+ List Aset/Barang");
         return;
       }
 
-      if (mode === '24h_open') {
-        isAuctionCurrentlyOpen = true;
-        currentAuctionStatusCode = 3;
-        badge.innerText = "BUKA LIVE 24/7";
-        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
-        setListButtonState(true, "+ List Aset/Barang");
-        return;
-      }
-
-      if (mode === 'closed_now') {
-        isAuctionCurrentlyOpen = false;
-        currentAuctionStatusCode = 1;
-        badge.innerText = "🔴 LELANG DITUTUP";
-        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
-        setListButtonState(false, "🔒 List Aset Ditutup");
-        return;
-      }
-
       if (mode === 'scheduled') {
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
+          // Konversi waktu berbasis WIB (Jakarta - Indonesia, GMT+7)
+          const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
           const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
           const startTime = new Date(startDateTimeStr).getTime();
-          const durationHours = parseFloat(auctionScheduleState.durationHours) || 1;
-          const durationMs = durationHours * 60 * 60 * 1000;
+          
+          // Durasi tetap diset 1 Jam sesuai permintaan
+          const durationMs = 1 * 60 * 60 * 1000; 
           const endTime = startTime + durationMs;
-          const now = new Date().getTime();
+          const preOpenTime = startTime - (60 * 60 * 1000); // 60 menit sebelum dibuka
+          const now = nowWib.getTime();
 
-          if (now < startTime) {
+          if (now < preOpenTime) {
+            // Belum masuk rentang 60 menit sebelum buka
+            isAuctionCurrentlyOpen = false;
+            currentAuctionStatusCode = 1;
+            badge.innerText = "⏳ Menunggu Jadwal Buka";
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
+            setListButtonState(false, "🔒 List Aset Dikunci");
+          } else if (now >= preOpenTime && now < startTime) {
+            // Aktif 60 menit sebelum jadwal lelang dibuka (Hitung mundur menuju buka)
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 2;
             const diffSec = Math.floor((startTime - now) / 1000);
-            const d = Math.floor(diffSec / 86400);
-            const h = Math.floor((diffSec % 86400) / 3600);
             const m = Math.floor((diffSec % 3600) / 60);
             const s = diffSec % 60;
-            
-            let countdownStr = h + "j " + m + "m " + s + "d";
-            if (d > 0) countdownStr = d + "h " + countdownStr;
 
-            badge.innerText = `⏳ Mulai dalam: ${countdownStr}`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
-            setListButtonState(false, "🔒 List Aset Dikunci (Menunggu Jadwal)");
+            badge.innerText = `⏱️ Buka dalam: ${m}m ${s}d`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse";
+            setListButtonState(false, "🔒 List Aset Dikunci (Persiapan)");
           } else if (now >= startTime && now <= endTime) {
+            // Selama sesi lelang terbuka (1 Jam)
             isAuctionCurrentlyOpen = true;
             currentAuctionStatusCode = 3;
             const diffSec = Math.floor((endTime - now) / 1000);
-            const h = Math.floor(diffSec / 3600);
             const m = Math.floor((diffSec % 3600) / 60);
             const s = diffSec % 60;
 
-            badge.innerText = `🔥 LIVE BERLANGSUNG (${h}j ${m}m ${s}d)`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
-            setListButtonState(false, "🔒 List Aset Ditutup (Sesi Live)");
+            badge.innerText = `🔥 SESI 1 JAM BERLANGSUNG (${m}m ${s}d)`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
+            setListButtonState(true, "+ List Aset/Barang");
           } else {
+            // Otomatis non-aktif setelah sesi lelang tutup otomatis
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 4;
-            badge.innerText = `🏁 LELANG SELESAI`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40";
-            setListButtonState(true, "+ List Aset/Barang");
+            badge.innerText = `🏁 SESI TUTUP OTOMATIS`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+            setListButtonState(false, "🔒 Sesi Lelang Selesai");
           }
         }
       }
     }
+
 
     function openMonthlyReportModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
