@@ -148,10 +148,6 @@
         <a href="auction-dev.html" title="Buka Halaman Perbaikan Modular Dev" class="text-[9px] bg-red-950/80 hover:bg-red-900 text-red-300 font-bold px-1.5 py-1 rounded-lg border border-red-500/40 transition flex items-center gap-0.5">
           🧪<span class="hidden sm:inline"> Dev</span>
         </a>
-        <!-- Tombol Khusus Uji Coba User Biasa (Bukan Dev/Admin) -->
-        <button id="btnToggleTestUser" onclick="toggleTestUserMode()" title="Uji Coba Tampilan & Fitur Sebagai User Biasa" class="text-[9px] bg-blue-950/80 hover:bg-blue-900 text-blue-300 font-bold px-1.5 py-1 rounded-lg border border-blue-500/40 transition flex items-center gap-0.5 cursor-pointer">
-          👤<span class="hidden sm:inline" id="testUserBtnText"> Test User</span>
-        </button>
 
         <select id="langSelector" onchange="changeLanguage(this.value)" class="bg-gray-900 text-yellow-400 border border-yellow-500/30 text-[9px] font-bold py-1 px-1 rounded-lg focus:outline-none cursor-pointer">
           <option value="id">🇮🇩 ID</option>
@@ -211,7 +207,9 @@
     <!-- Banner Sesi Lelang -->
     <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-gray-900 border-b border-purple-500/30 p-2 text-center flex justify-between items-center px-3">
       <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider" data-i18n="auctionStatusLabel">⏳ STATUS LELANG:</span>
-      <span id="sessionStateBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Memuat Jadwal...</span>
+      <span id="sessionStateBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" data-i18n="liveOpenBadge">
+        BUKA LIVE 24/7
+      </span>
     </div>
 
     <!-- Indikator Pengguna Real -->
@@ -341,10 +339,10 @@
           <div>
             <label class="block text-[10px] text-gray-400 font-semibold mb-1">3. Durasi Sesi Lelang:</label>
             <select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none cursor-pointer relative z-30">
-              <option value="1">Sesi 1 Jam</option>
-              <option value="6">Sesi 6 Jam</option>
+              <option value="24">Sesi 24 Jam</option>
               <option value="12">Sesi 12 Jam</option>
-          </select>
+              <option value="48">Sesi 48 Jam</option>
+            </select>
           </div>
         </div>
       </div>
@@ -715,16 +713,7 @@
     const IS_TESTNET = true; 
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
-        // Daftar Role & Username Resmi Tim Admin NFT-GM
-    const ADMIN_USERNAMES = ["Ful21", "Muhammadefendi123", "SIREP74", "s9t9munah", "jokocahyono23"];
-    
-    const TEAM_ROLES = {
-      "Ful21": { role: "Dev", label: "Developer / System Admin" },
-      "Muhammadefendi123": { role: "Ketua", label: "Ketua Umum" },
-      "SIREP74": { role: "Bendahara", label: "Bendahara Utama" },
-      "s9t9munah": { role: "Admin", label: "Admin Operasional" },
-      "jokocahyono23": { role: "Moderator", label: "Moderator P2P & Chat" }
-    };
+    const ADMIN_USERNAMES = ["Ful21", "Muhammadefendi123", "s9t9munah", "SIREP74"];
 
     const MODE_TESTING_OVERRIDE = false; 
 
@@ -1488,68 +1477,6 @@
     }
 
     // --- FUNGSI LOGIN DENGAN TIMEOUT GUARD ANTI-STUCK 4 DETIK ---
-        // Variabel state untuk melacak status uji coba
-    let isTestUserModeActive = false;
-    let originalDevUserCache = null;
-
-    function toggleTestUserMode() {
-      const btnText = document.getElementById('testUserBtnText');
-      const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-      const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-
-      if (!isTestUserModeActive) {
-        // --- MASUK KE MODE UJI COBA SEBAGAI USER BIASA ---
-        isTestUserModeActive = true;
-        originalDevUserCache = authenticatedPiUser; // Simpan sesi asli dev/admin
-        
-        // Ubah identitas sementara menjadi user biasa
-        authenticatedPiUser = { username: "TesterUserBiasa" };
-        
-        // Sembunyikan panel/tombol khusus Admin & Dev secara visual
-        if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
-        
-        // Ubah tampilan tombol uji coba
-        if (btnText) btnText.innerText = " Normal";
-        const btnElement = document.getElementById('btnToggleTestUser');
-        if (btnElement) {
-          btnElement.className = "text-[9px] bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 font-bold px-1.5 py-1 rounded-lg border border-emerald-500/40 transition flex items-center gap-0.5 cursor-pointer animate-pulse";
-          btnElement.title = "Kembali ke Mode Normal (Dev & Admin)";
-        }
-
-        alert("👤 Mode Uji Coba Aktif:\nAnda sekarang bertindak sebagai USER BIASA (Bukan Dev/Admin).\n\nKlik tombol yang sama lagi untuk kembali ke normal.");
-      } else {
-        // --- KEMBALI KE MODE NORMAL (DEV & ADMIN) ---
-        isTestUserModeActive = false;
-        authenticatedPiUser = originalDevUserCache || { username: "Ful21" }; // Kembalikan ke identitas asli
-        
-        // Munculkan kembali panel/tombol khusus Admin & Dev
-        const cleanUsr = authenticatedPiUser.username;
-        if (ADMIN_USERNAMES.includes(cleanUsr)) {
-          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        }
-
-        // Kembalikan tampilan tombol uji coba
-        if (btnText) btnText.innerText = " Test User";
-        const btnElement = document.getElementById('btnToggleTestUser');
-        if (btnElement) {
-          btnElement.className = "text-[9px] bg-blue-950/80 hover:bg-blue-900 text-blue-300 font-bold px-1.5 py-1 rounded-lg border border-blue-500/40 transition flex items-center gap-0.5 cursor-pointer";
-          btnElement.title = "Uji Coba Tampilan & Fitur Sebagai User Biasa";
-        }
-
-        alert("🔄 Mode Normal Dipulihkan:\nAnda kembali sebagai Dev / Admin.");
-      }
-
-      // Refresh galeri & status verifikasi pembeli agar menyesuaikan hak akses
-      if (typeof checkBuyerStatusInDatabase === 'function' && authenticatedPiUser) {
-        checkBuyerStatusInDatabase(authenticatedPiUser.username);
-      }
-      if (typeof renderGallery === 'function') {
-        renderGallery();
-      }
-    }
-
     async function authenticatePiUser(isAuto = false) {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
@@ -2069,41 +1996,43 @@
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
           const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
           const startTime = new Date(startDateTimeStr).getTime();
-          const durationHours = parseFloat(auctionScheduleState.durationHours) || 1;
-          const durationMs = durationHours * 60 * 60 * 1000;
+          const preStartTime = startTime - (60 * 60 * 1000);
+          const durationMs = (auctionScheduleState.durationHours || 24) * 60 * 60 * 1000;
           const endTime = startTime + durationMs;
+          const postEndTime = endTime + (60 * 60 * 1000);
           const now = new Date().getTime();
 
-          if (now < startTime) {
+          if (now < preStartTime) {
             isAuctionCurrentlyOpen = false;
-            currentAuctionStatusCode = 2;
-            const diffSec = Math.floor((startTime - now) / 1000);
-            const d = Math.floor(diffSec / 86400);
-            const h = Math.floor((diffSec % 86400) / 3600);
-            const m = Math.floor((diffSec % 3600) / 60);
-            const s = diffSec % 60;
+            currentAuctionStatusCode = 1;
+            badge.innerText = `⏳ Belum Ada Jadwal`;
+            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
+            setListButtonState(true, "+ List Aset/Barang");
+          } else if (now >= preStartTime && now <= postEndTime) {
+            isAuctionCurrentlyOpen = (now >= startTime && now <= endTime);
+            currentAuctionStatusCode = (now >= startTime && now <= endTime) ? 3 : 2;
             
-            let countdownStr = h + "j " + m + "m " + s + "d";
-            if (d > 0) countdownStr = d + "h " + countdownStr;
-
-            badge.innerText = `⏳ Mulai dalam: ${countdownStr}`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
-            setListButtonState(false, "🔒 List Aset Dikunci (Menunggu Jadwal)");
-          } else if (now >= startTime && now <= endTime) {
-            isAuctionCurrentlyOpen = true;
-            currentAuctionStatusCode = 3;
-            const diffSec = Math.floor((endTime - now) / 1000);
-            const h = Math.floor(diffSec / 3600);
-            const m = Math.floor((diffSec % 3600) / 60);
-            const s = diffSec % 60;
-
-            badge.innerText = `🔥 LIVE BERLANGSUNG (${h}j ${m}m ${s}d)`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
-            setListButtonState(false, "🔒 List Aset Ditutup (Sesi Live)");
+            if (now < startTime) {
+              badge.innerText = `📅 Lelang Segera Mulai (${auctionScheduleState.startHour})`;
+              badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
+              setListButtonState(false, "🔒 List Aset Dikunci (H-60m)");
+            } else if (now >= startTime && now <= endTime) {
+              const diffSec = Math.floor((endTime - now) / 1000);
+              const h = Math.floor(diffSec / 3600);
+              const m = Math.floor((diffSec % 3600) / 60);
+              const s = diffSec % 60;
+              badge.innerText = `🔥 Berlangsung (Tutup dalam: ${h}j ${m}m ${s}d)`;
+              badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
+              setListButtonState(false, "🔒 List Aset Ditutup (Live)");
+            } else {
+              badge.innerText = `🏁 Lelang Selesai (Pending 60m)`;
+              badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40";
+              setListButtonState(false, "🔒 Pending Pembukaan (60m)");
+            }
           } else {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 4;
-            badge.innerText = `🏁 LELANG SELESAI`;
+            badge.innerText = `🏁 Lelang Berakhir / Selesai`;
             badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40";
             setListButtonState(true, "+ List Aset/Barang");
           }
