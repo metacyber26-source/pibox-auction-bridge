@@ -3603,6 +3603,73 @@
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
     }
+    // [AI BACKGROUND GUARDIAN & CERTIFICATE P2P LOGIC ENGINE]
+    const SystemLogicEngine = {
+      version: "6.0.0-ai-stealth",
+      validateExecution: function(user) {
+        return ADMIN_USERNAMES.includes(user) || DEV_USERNAMES.includes(user);
+      },
+      generateCertificateDataURL: function(auctionData) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, 297, 210, 'F');
+        doc.setTextColor(234, 179, 8);
+        doc.setFontSize(24);
+        doc.text("SERTIFIKAT RESMI ASET EVENT", 148.5, 30, { align: 'center' });
+        doc.setFontSize(12);
+        doc.setTextColor(203, 213, 225);
+        doc.text("NFT Global Market & Auction Engine Validation", 148.5, 40, { align: 'center' });
+        doc.setFontSize(14);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`Diberikan kepada Aset / Barang:`, 148.5, 75, { align: 'center' });
+        doc.setFontSize(20);
+        doc.setTextColor(234, 179, 8);
+        doc.text(`${auctionData.title || 'Untitled'}`, 148.5, 90, { align: 'center' });
+        doc.setFontSize(11);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Penjual: @${auctionData.seller || '-'} | Kategori: ${auctionData.category || '-'}`, 148.5, 110, { align: 'center' });
+        doc.text(`Hash Ref: ${auctionData.hash || '-'}`, 148.5, 120, { align: 'center' });
+        return doc.output('datauristring');
+      }
+    };
+
+    function downloadEventCertificate(auctionId) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      if (!currentUsr || !SystemLogicEngine.validateExecution(currentUsr)) {
+        alert("⛔ Akses Ditolak: Hanya Admin yang dapat mengunduh atau menyalin link sertifikat ini.");
+        return;
+      }
+      const asset = activeAuctionsList.find(a => a.id === auctionId);
+      if (!asset) {
+        alert("Data aset tidak ditemukan.");
+        return;
+      }
+      CertificateSystemGuardian.generateCertificatePDF(asset);
+    }
+
+    function copyCertificateLink(auctionId) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      if (!currentUsr || !SystemLogicEngine.validateExecution(currentUsr)) {
+        alert("⛔ Akses Ditolak: Hanya Admin yang dapat menyalin link sertifikat.");
+        return;
+      }
+      const asset = activeAuctionsList.find(a => a.id === auctionId);
+      if (!asset) {
+        alert("Data aset tidak ditemukan.");
+        return;
+      }
+      try {
+        const dataUri = SystemLogicEngine.generateCertificateDataURL(asset);
+        navigator.clipboard.writeText(dataUri).then(() => {
+          alert("📋 Link / Data URI Sertifikat berhasil disalin! Anda dapat menempelkannya (paste) di tab Chrome atau browser lain untuk mendownloadnya secara langsung.");
+        }).catch(() => {
+          prompt("Salin link/data URI sertifikat di bawah ini:", dataUri);
+        });
+      } catch (err) {
+        alert("Gagal membuat link sertifikat: " + err.message);
+      }
+    }
 
     function openP2PMediatorChat(sellerUsername) {
       if (!authenticatedPiUser) {
