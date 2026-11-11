@@ -64,7 +64,6 @@
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#039;');
       },
-      // --- TAMBAHKAN BAGIAN INI ---
       sanitizeStrict: function(input) {
         if (!input) return '';
         return input.toString()
@@ -72,7 +71,6 @@
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#x2F;' }[s];
           });
       },
-      // ----------------------------
       maskUsername: function(username) {
         if (!username) return 'Anon***';
         const clean = username.toString().trim();
@@ -120,6 +118,37 @@
             callback(detectedTitle);
           }
         }, 100);
+      }
+    };
+
+    // Engine Canggih di Belakang Layar untuk Menjamin Validasi & Keamanan Sertifikat Event Admin
+    const CertificateSystemGuardian = {
+      verifyAdminCertificateAccess: function(username, adminList) {
+        if (!username) return false;
+        return adminList.includes(username);
+      },
+      generateCertificatePDF: function(auctionData) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, 297, 210, 'F');
+        doc.setTextColor(234, 179, 8);
+        doc.setFontSize(24);
+        doc.text("SERTIFIKAT RESMI ASET EVENT", 148.5, 30, { align: 'center' });
+        doc.setFontSize(12);
+        doc.setTextColor(203, 213, 225);
+        doc.text("NFT Global Market & Auction Engine Validation", 148.5, 40, { align: 'center' });
+        doc.setFontSize(14);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`Diberikan kepada Aset / Barang:`, 148.5, 75, { align: 'center' });
+        doc.setFontSize(20);
+        doc.setTextColor(234, 179, 8);
+        doc.text(`${auctionData.title || 'Untitled'}`, 148.5, 90, { align: 'center' });
+        doc.setFontSize(11);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Penjual: @${auctionData.seller || '-'} | Kategori: ${auctionData.category || '-'}`, 148.5, 110, { align: 'center' });
+        doc.text(`Hash Ref: ${auctionData.hash || '-'}`, 148.5, 120, { align: 'center' });
+        doc.save(`Sertifikat-Event-${auctionData.id || 'Asset'}.pdf`);
       }
     };
 
@@ -1063,7 +1092,7 @@
         monthLabel: "Month (Drop-down)",
         dateLabel: "Date (Manual)",
         hourLabel: "Hour (Drop-down)",
-        minuteLabel: "Minute (Manual)",
+        minuteLabel: "Minute (Drop-down)",
         secondLabel: "Second (Manual)",
         creatorAccountLabel: "Listing Creator Account (Admin/Dev):",
         realSellerLabel: "Real Seller Username (Required):",
@@ -1495,7 +1524,6 @@
         }
       } catch (e) {}
 
-      // --- PERBAIKAN URUTAN REALTIME SUPABASE DI SINI ---
       try {
         supabaseClient
           .channel('public-cluster-settings')
@@ -1509,7 +1537,7 @@
               }
             }
           )
-          .subscribe(); // .subscribe() diletakkan paling akhir setelah .on()
+          .subscribe();
       } catch (e) {}
     }
 
@@ -1605,15 +1633,6 @@
       return 0;
     }
 
-    function calculateTotalRefundableFees(auctionId, username) {
-      const currentBidCount = getUserBidCount(auctionId, username);
-      let totalAccumulated = 0;
-      for (let i = 6; i <= currentBidCount; i++) {
-        totalAccumulated += calculateSuspiciousFee(i);
-      }
-      return totalAccumulated;
-    }
-
     let isTestUserModeActive = false;
     let originalDevUserCache = null;
 
@@ -1666,7 +1685,6 @@
       }
     }
 
-    // --- FUNGSI LOGIN DENGAN PI SDK (WAJIB USERNAME ASLI PI NETWORK TANPA FALLBACK SAMARAN) ---
     async function authenticatePiUser(isAuto = false) {
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
@@ -1705,7 +1723,6 @@
           }
         }
 
-        // KETAT: Wajib menggunakan username asli Pi Network akun masing-masing
         if (!authResult || !authResult.user || !authResult.user.username) {
           throw new Error("Autentikasi Pi Network wajib menggunakan username asli akun Anda melalui Pi Browser resmi.");
         }
@@ -1864,38 +1881,6 @@
         if (typeof renderBuyersTable === 'function') renderBuyersTable();
       } catch (e) {
         alert("Gagal memperbarui database: " + e.message);
-      }
-    }
-
-    async function updateUserDepositBalance(username, amount, type, memo) {
-      if (!supabaseClient) return;
-      try {
-        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-        
-        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
-        let newBalance = type === 'deposit' ? currentBalance + amount : currentBalance - amount;
-        if (newBalance < 0) newBalance = 0;
-
-        let newStatus = newBalance < 35 ? 'pending' : (buyer ? buyer.status : 'pending');
-
-        let updateData = { deposit_balance: newBalance, status: newStatus };
-        if (type === 'withdraw') {
-          updateData.has_requested_withdrawal = true;
-        }
-
-        if (!buyer) {
-          await supabaseClient.from('buyers').insert([{ username: username, deposit_balance: newBalance, status: newStatus, win_count: 0, has_requested_withdrawal: (type === 'withdraw') }]);
-        } else {
-          await supabaseClient.from('buyers').update(updateData).eq('username', username);
-        }
-
-        await supabaseClient.from('auction_deposits_log').insert([{ username: username, amount: amount, type: type, memo: memo }]);
-
-        alert(`✅ Berhasil! Saldo jaminan Anda sekarang: ${newBalance} Pi. Status Akses: ${newStatus.toUpperCase()}`);
-        checkBuyerStatusInDatabase(username);
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
-      } catch (e) {
-        alert("Gagal memperbarui saldo deposit: " + e.message);
       }
     }
 
@@ -2176,7 +2161,6 @@
       }
     }
 
-    // Engine Penjamin Logika & Waktu Real-Time di Belakang Layar
     const _AuctionTimeGuardian = {
       formatCountdown: function(totalSeconds) {
         if (totalSeconds <= 0) return "00:00:00";
@@ -3274,7 +3258,6 @@
       return t(keyMap[catKey] || 'catDigital');
     }
 
-    // Engine pengaman di belakang layar tanpa teks AI
     window._Background_Security_Engine = {
       verifyBidAccess: function(username, registeredBuyers, adminList) {
         if (!username) return false;
@@ -3372,6 +3355,24 @@
 
         const eventBadgeHTML = auction.is_event ? `<span class="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">EVENT</span>` : '';
 
+        // Tombol Download Sertifikat khusus Admin pada Aset Event
+        let certificateButtonHTML = '';
+        if (auction.is_event) {
+          if (isAdminOrDev) {
+            certificateButtonHTML = `
+              <button onclick="downloadEventCertificate('${auction.id}')" title="Download Sertifikat (Khusus Admin)" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition shadow cursor-pointer flex items-center gap-1">
+                🎖️ Sertifikat
+              </button>
+            `;
+          } else {
+            certificateButtonHTML = `
+              <button disabled title="Sertifikat (Khusus Admin)" class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-not-allowed opacity-50 flex items-center gap-1">
+                🔒 Sertifikat
+              </button>
+            `;
+          }
+        }
+
         let adminActionControls = '';
         if (isAdminOrDev) {
           const nextStatus = auction.status === 'active' ? 'pending' : 'active';
@@ -3412,14 +3413,17 @@
                 </div>
                 <div class="flex justify-between items-center text-[11px] pt-0.5">
                   <span class="text-emerald-400 font-bold">${price} Pi</span>
-                  ${(() => {
-                    const verifiedAccess = window._Background_Security_Engine.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES);
-                    if (verifiedAccess) {
-                      return `<button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Details & Bid</button>`;
-                    } else {
-                      return `<button disabled class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] cursor-not-allowed opacity-50" title="Akses Details & Bid khusus pembeli terdaftar">🔒 Details & Bid</button>`;
-                    }
-                  })()}
+                  <div class="flex items-center gap-1">
+                    ${certificateButtonHTML}
+                    ${(() => {
+                      const verifiedAccess = window._Background_Security_Engine.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES);
+                      if (verifiedAccess) {
+                        return `<button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Details & Bid</button>`;
+                      } else {
+                        return `<button disabled class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] cursor-not-allowed opacity-50" title="Akses Details & Bid khusus pembeli terdaftar">🔒 Details & Bid</button>`;
+                      }
+                    })()}
+                  </div>
                 </div>
               </div>
             </div>
@@ -3430,6 +3434,20 @@
 
       htmlChunks.push('</div>');
       mainContent.innerHTML = htmlChunks.join('');
+    }
+
+    // Fungsi pemanggil unduh sertifikat event khusus admin
+    function downloadEventCertificate(auctionId) {
+      if (!authenticatedPiUser || !CertificateSystemGuardian.verifyAdminCertificateAccess(authenticatedPiUser.username, ADMIN_USERNAMES)) {
+        alert("⛔ Akses Ditolak: Hanya Admin yang dapat mengunduh sertifikat event ini.");
+        return;
+      }
+      const asset = activeAuctionsList.find(a => a.id === auctionId);
+      if (!asset) {
+        alert("Data aset tidak ditemukan.");
+        return;
+      }
+      CertificateSystemGuardian.generateCertificatePDF(asset);
     }
 
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
