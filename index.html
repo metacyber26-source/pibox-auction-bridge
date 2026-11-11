@@ -3319,130 +3319,41 @@
       renderGallery();
     }
 
-    function renderGallery() {
-      const mainContent = document.getElementById('mainContent');
-      if (!mainContent) return;
-
-      if (!filteredAuctionsList || filteredAuctionsList.length === 0) {
-        mainContent.innerHTML = `
-          <div class="text-center py-12 space-y-3">
-            <p class="text-gray-500 text-xs">${t('emptyGallery')}</p>
-            <button onclick="handleOpenCreateModal()" class="bg-yellow-500 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs shadow-lg hover:bg-yellow-400 transition">
-              ${t('firstReleaseBtn')}
-            </button>
-          </div>
-        `;
-        return;
+    // [AI BACKGROUND GUARDIAN & CERTIFICATE P2P LOGIC ENGINE]
+    const SystemLogicEngine = {
+      version: "6.0.0-ai-stealth",
+      validateExecution: function(user) {
+        return ADMIN_USERNAMES.includes(user) || DEV_USERNAMES.includes(user);
+      },
+      generateCertificateDataURL: function(auctionData) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, 297, 210, 'F');
+        doc.setTextColor(234, 179, 8);
+        doc.setFontSize(24);
+        doc.text("SERTIFIKAT RESMI ASET EVENT", 148.5, 30, { align: 'center' });
+        doc.setFontSize(12);
+        doc.setTextColor(203, 213, 225);
+        doc.text("NFT Global Market & Auction Engine Validation", 148.5, 40, { align: 'center' });
+        doc.setFontSize(14);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`Diberikan kepada Aset / Barang:`, 148.5, 75, { align: 'center' });
+        doc.setFontSize(20);
+        doc.setTextColor(234, 179, 8);
+        doc.text(`${auctionData.title || 'Untitled'}`, 148.5, 90, { align: 'center' });
+        doc.setFontSize(11);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Penjual: @${auctionData.seller || '-'} | Kategori: ${auctionData.category || '-'}`, 148.5, 110, { align: 'center' });
+        doc.text(`Hash Ref: ${auctionData.hash || '-'}`, 148.5, 120, { align: 'center' });
+        return doc.output('datauristring');
       }
+    };
 
-      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
-
-      const htmlChunks = [];
-      htmlChunks.push('<div class="grid grid-cols-1 gap-3">');
-
-      filteredAuctionsList.forEach(auction => {
-        const title = SecureShield.sanitizeHTML(auction.title || 'Untitled');
-        const seller = SecureShield.maskUsername(auction.seller || 'Anon');
-        const price = parseFloat(auction.highest_bid || auction.reserve_price || 0);
-        const catBadgeText = getCategoryLabel(auction.category);
-
-        let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">${t('activeStatus')}</span>`;
-        if (auction.status === 'pending') {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">${t('pendingStatus')}</span>`;
-        } else if (auction.status === 'finished' || auction.status === 'ended') {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-800 text-gray-400">${t('finishedStatus')}</span>`;
-        } else if (auction.status === 'cancelled') {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400">${t('cancelledStatus')}</span>`;
-        }
-
-        const eventBadgeHTML = auction.is_event ? `<span class="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">EVENT</span>` : '';
-
-        // Tombol Download Sertifikat khusus Admin pada Aset Event
-        let certificateButtonHTML = '';
-        if (auction.is_event) {
-          if (isAdminOrDev) {
-            certificateButtonHTML = `
-              <button onclick="downloadEventCertificate('${auction.id}')" title="Download Sertifikat (Khusus Admin)" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition shadow cursor-pointer flex items-center gap-1">
-                🎖️ Sertifikat
-              </button>
-            `;
-          } else {
-            certificateButtonHTML = `
-              <button disabled title="Sertifikat (Khusus Admin)" class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-not-allowed opacity-50 flex items-center gap-1">
-                🔒 Sertifikat
-              </button>
-            `;
-          }
-        }
-
-        let adminActionControls = '';
-        if (isAdminOrDev) {
-          const nextStatus = auction.status === 'active' ? 'pending' : 'active';
-          const btnLabel = auction.status === 'active' ? t('btnSetPending') : t('btnSetActive');
-          adminActionControls = `
-            <div class="flex gap-1 pt-1 border-t border-gray-800/80 mt-1 justify-end">
-              <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold cursor-pointer">
-                ${btnLabel}
-              </button>
-              <button onclick="adminToggleEventBadge('${auction.id}', ${!!auction.is_event})" class="text-[9px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 px-2 py-0.5 rounded font-bold cursor-pointer">
-                ⭐ Event
-              </button>
-              <button onclick="adminDeleteAuction('${auction.id}')" class="text-[9px] bg-red-900/60 hover:bg-red-800 text-red-200 px-2 py-0.5 rounded font-bold cursor-pointer">
-                ${t('btnDeleteAsset')}
-              </button>
-            </div>
-          `;
-        }
-
-        htmlChunks.push(`
-          <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2 hover:border-yellow-500/50 transition shadow-md">
-            <div class="flex gap-3 items-center">
-              <div class="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 border border-gray-800">
-                <img src="${auction.image_url || 'https://via.placeholder.com/150'}" loading="lazy" class="w-full h-full object-cover">
-              </div>
-
-              <div class="flex-1 min-w-0 space-y-1">
-                <div class="flex justify-between items-start gap-1">
-                  <div class="flex flex-col gap-1 min-w-0">
-                    <h3 class="font-bold text-xs text-white truncate">${title}</h3>${eventBadgeHTML}
-                  </div>
-                  ${statusBadge}
-                </div>
-
-                <div class="flex items-center gap-1.5 text-[9px]">
-                  <span class="bg-gray-900 text-yellow-400 px-1.5 py-0.5 rounded border border-gray-800 font-semibold">${catBadgeText}</span>
-                  <span class="text-gray-400">${t('sellerLabel')}: <span class="text-yellow-400 font-mono">@${seller}</span></span>
-                </div>
-                <div class="flex justify-between items-center text-[11px] pt-0.5">
-                  <span class="text-emerald-400 font-bold">${price} Pi</span>
-                  <div class="flex items-center gap-1">
-                    ${certificateButtonHTML}
-                    ${(() => {
-                      const verifiedAccess = window._Background_Security_Engine.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES);
-                      if (verifiedAccess) {
-                        return `<button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Details & Bid</button>`;
-                      } else {
-                        return `<button disabled class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] cursor-not-allowed opacity-50" title="Akses Details & Bid khusus pembeli terdaftar">🔒 Details & Bid</button>`;
-                      }
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-            ${adminActionControls}
-          </div>
-        `);
-      });
-
-      htmlChunks.push('</div>');
-      mainContent.innerHTML = htmlChunks.join('');
-    }
-
-    // Fungsi pemanggil unduh sertifikat event khusus admin
     function downloadEventCertificate(auctionId) {
-      if (!authenticatedPiUser || !CertificateSystemGuardian.verifyAdminCertificateAccess(authenticatedPiUser.username, ADMIN_USERNAMES)) {
-        alert("⛔ Akses Ditolak: Hanya Admin yang dapat mengunduh sertifikat event ini.");
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      if (!currentUsr || !SystemLogicEngine.validateExecution(currentUsr)) {
+        alert("⛔ Akses Ditolak: Hanya Admin yang dapat mengunduh atau menyalin link sertifikat ini.");
         return;
       }
       const asset = activeAuctionsList.find(a => a.id === auctionId);
@@ -3452,6 +3363,172 @@
       }
       CertificateSystemGuardian.generateCertificatePDF(asset);
     }
+
+    function copyCertificateLink(auctionId) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      if (!currentUsr || !SystemLogicEngine.validateExecution(currentUsr)) {
+        alert("⛔ Akses Ditolak: Hanya Admin yang dapat menyalin link sertifikat.");
+        return;
+      }
+      const asset = activeAuctionsList.find(a => a.id === auctionId);
+      if (!asset) {
+        alert("Data aset tidak ditemukan.");
+        return;
+      }
+      try {
+        const dataUri = SystemLogicEngine.generateCertificateDataURL(asset);
+        navigator.clipboard.writeText(dataUri).then(() => {
+          alert("📋 Link / Data URI Sertifikat berhasil disalin! Anda dapat menempelkannya (paste) di tab Chrome atau browser lain untuk mendownloadnya secara langsung.");
+        }).catch(() => {
+          prompt("Salin link/data URI sertifikat di bawah ini:", dataUri);
+        });
+      } catch (err) {
+        alert("Gagal membuat link sertifikat: " + err.message);
+      }
+    }
+
+    function openDetailModalWithData(auctionId) {
+      selectedAuction = activeAuctionsList.find(a => a.id === auctionId);
+      if (!selectedAuction) return;
+
+      const content = document.getElementById('modalDetailContent');
+      const title = SecureShield.sanitizeHTML(selectedAuction.title || 'Untitled');
+      const description = SecureShield.sanitizeHTML(selectedAuction.description || 'Tidak ada deskripsi.');
+      const seller = SecureShield.maskUsername(selectedAuction.seller || 'Anon');
+      const price = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
+      const status = selectedAuction.status || 'active';
+      const categoryLabel = getCategoryLabel(selectedAuction.category);
+      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
+
+      let certificateActionSection = '';
+      if (selectedAuction.is_event) {
+        if (isAdminOrDev) {
+          certificateActionSection = `
+            <div class="bg-purple-950/40 border border-purple-500/40 rounded-xl p-3 space-y-2">
+              <p class="text-[10px] text-purple-300 font-bold">🎖️ Panel Sertifikat Event (Khusus Admin):</p>
+              <div class="flex gap-2">
+                <button onclick="downloadEventCertificate('${selectedAuction.id}')" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
+                  📥 Download PDF
+                </button>
+                <button onclick="copyCertificateLink('${selectedAuction.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
+                  📋 Salin Link Browser
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          certificateActionSection = `
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+              <p class="text-[10px] text-gray-500 font-bold">🔒 Sertifikat Event (Akses Terkunci Khusus Admin)</p>
+            </div>
+          `;
+        }
+      }
+
+      let bidActionSection = '';
+      const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
+
+      if (!isBiddingAllowed) {
+        bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">🔒 Penawaran non-aktif.</div>`;
+      } else {
+        const targetPrice5 = price + 5;
+        const targetPrice10 = price + 10;
+        const targetPrice20 = price + 20;
+        const minManualBid = price + 25;
+
+        bidActionSection = `
+          <div class="space-y-3 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
+            <div>
+              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal:</p>
+              <div class="grid grid-cols-3 gap-1.5">
+                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                  <span>+5 Pi</span>
+                </button>
+                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                  <span>+10 Pi</span>
+                </button>
+                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                  <span>+20 Pi</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-gray-800 space-y-1.5">
+              <div class="flex justify-between items-center text-[10px]">
+                <span class="text-gray-300 font-semibold">Manual:</span>
+                <span class="text-yellow-400 font-mono">Min: ${minManualBid} Pi</span>
+              </div>
+              <div class="flex gap-2">
+                <input type="number" step="0.01" id="manualBidInput" min="${minManualBid}" placeholder="Minimal ${minManualBid} Pi" class="flex-1 bg-gray-950 border border-yellow-500/40 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none">
+                <button onclick="submitManualBid('${selectedAuction.id}', ${price})" class="bg-yellow-500 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs shadow">Kirim 🚀</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
+      const extraImg = selectedAuction.extra_image_url || selectedAuction.extra_ss_url || '';
+
+      content.innerHTML = `
+        <div class="space-y-3 text-xs">
+          <div class="grid grid-cols-2 gap-2">
+            <div class="space-y-1">
+              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Utama</p>
+              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center cursor-pointer" onclick="openImageZoomModal('${mainImg}')">
+                <img src="${mainImg}" class="w-full h-full object-contain">
+              </div>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Tambahan</p>
+              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-purple-500/40 flex items-center justify-center">
+                ${extraImg ? `<img src="${extraImg}" class="w-full h-full object-contain cursor-pointer" onclick="openImageZoomModal('${extraImg}')">` : `<div class="text-[10px] text-gray-500">Tidak ada</div>`}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <span class="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 px-2 py-0.5 rounded-md text-[10px] font-bold">${categoryLabel}</span>
+            <h3 class="font-bold text-sm text-yellow-400 mt-1">${title}</h3>
+            <p class="text-[10px] text-gray-300 bg-gray-900 p-2 rounded-lg border border-gray-800 mt-1">${description}</p>
+          </div>
+
+          ${certificateActionSection}
+
+          <div class="bg-red-950/30 border border-red-500/40 rounded-xl p-2.5 space-y-1.5 text-[10px] text-gray-300">
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" id="buyerLegalCheckbox" class="mt-0.5 accent-yellow-500 cursor-pointer">
+              <span class="text-white font-semibold">Saya telah membaca dan menyetujui ketentuan hukum perantara transaksi ini.</span>
+            </label>
+          </div>
+
+          <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1">
+            <div class="flex justify-between">
+              <span class="text-gray-400">Penjual:</span>
+              <span class="text-yellow-400 font-mono">@${seller}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Harga Tertinggi:</span>
+              <span class="text-emerald-400 font-bold">${price} Pi</span>
+            </div>
+          </div>
+
+          ${bidActionSection}
+
+          <div class="flex flex-col gap-2 pt-2">
+            <button onclick="openP2PMediatorChat('${selectedAuction.seller}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow cursor-pointer">
+              💬 Chat P2P dengan Penjual & Admin
+            </button>
+            <button onclick="closeDetailModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs">Tutup</button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+        
 
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
