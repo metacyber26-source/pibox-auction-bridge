@@ -2165,6 +2165,58 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       } catch (err) {
      }
     }
+  async function triggerInstantOneHourAuction() {
+    if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+      alert("Akses Ditolak: Hanya Admin dan Developer!");
+      return;
+    }
+
+    // Ambil waktu sekarang di zona waktu lokal/WIB
+    const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    const y = nowWib.getFullYear();
+    const m = String(nowWib.getMonth() + 1).padStart(2, '0');
+    const d = String(nowWib.getDate()).padStart(2, '0');
+    const h = String(nowWib.getHours()).padStart(2, '0');
+    const min = String(nowWib.getMinutes()).padStart(2, '0');
+
+    const startDateStr = `${y}-${m}-${d}`;
+    const startHourStr = `${h}:${min}`;
+
+    const newSchedule = {
+      mode: 'instant_one_hour',
+      startDate: startDateStr,
+      startHour: startHourStr,
+      durationHours: 1,
+      instantTimestamp: nowWib.getTime() // Simpan detik pasti saat tombol diklik
+    };
+
+    if (!supabaseClient) {
+      alert("Supabase belum terhubung.");
+      return;
+    }
+
+    try {
+      const { error } = await supabaseClient
+        .from('app_settings')
+        .upsert([
+          { 
+            key: 'auction_schedule', 
+            value: newSchedule, 
+            updated_at: new Date().toISOString() 
+          }
+        ], { onConflict: 'key' });
+
+      if (error) throw error;
+
+      auctionScheduleState = newSchedule;
+      if (typeof checkAuctionSchedule === 'function') checkAuctionSchedule();
+
+      alert("🚀 Berhasil! Lelang langsung dibuka sekarang untuk durasi tepat 1 jam (60 menit) ke depan.");
+      closeScheduleModal();
+    } catch (err) {
+      alert("Gagal mengaktifkan lelang instan: " + err.message);
+    }
+  }
 
     function checkAuctionSchedule() {
       const infoText = document.getElementById('auctionInfoText');
