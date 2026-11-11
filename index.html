@@ -3559,10 +3559,16 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
                 </div>
                 <div class="flex justify-between items-center text-[11px] pt-0.5">
                   <span class="text-emerald-400 font-bold">${price} Pi</span>
-                  <button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">
-                    Details & Bid
-                  </button>
+                  ${(() => {
+                    const aiVerifiedAccess = (window._AI_Vault_Shield && window._AI_Vault_Shield.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES));
+                    if (aiVerifiedAccess) {
+                      return `<button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Details & Bid</button>`;
+                    } else {
+                      return `<button disabled class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] cursor-not-allowed opacity-50" title="Akses Details & Bid khusus pembeli terdaftar">🔒 Details & Bid</button>`;
+                    }
+                  })()}
                 </div>
+
               </div>
             </div>
             ${adminActionControls}
