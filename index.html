@@ -1708,13 +1708,16 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
           }
         }
 
-        // Fallback otomatis ke akun Dev / Admin jika login Pi SDK tertahan/gagal di browser mobile
-        const usernameToUse = (authResult && authResult.user && authResult.user.username) ? authResult.user.username : "Ful21";
-        const cleanUsername = SecureShield.sanitizeStrict(usernameToUse);
-        
-        authenticatedPiUser = { username: cleanUsername };
-        const maskedName = SecureShield.maskUsername(cleanUsername);
-        
+        // Memastikan login wajib menggunakan username Pi Network asli pengguna masing-masing
+      if (!authResult || !authResult.user || !authResult.user.username) {
+        throw new Error("Autentikasi Pi Network gagal atau dibatalkan. Harap login melalui Pi Browser resmi.");
+      }
+      const usernameToUse = authResult.user.username;
+      const cleanUsername = SecureShield.sanitizeStrict(usernameToUse);
+
+      authenticatedPiUser = { username: cleanUsername };
+      const maskedName = SecureShield.maskUsername(cleanUsername);
+
         if (statusEl) statusEl.innerText = `User: ${maskedName}`;
         if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
         
