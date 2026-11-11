@@ -2225,15 +2225,37 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
 
       const mode = auctionScheduleState.mode || 'scheduled';
 
-      if (mode === 'testing_mode') {
-        infoText.innerText = "Mode Uji Coba (Sandbox Standby)";
+      if (mode === 'instant_one_hour') {
+      const instantStart = auctionScheduleState.instantTimestamp || new Date(`${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`).getTime();
+      const durationMs = 60 * 60 * 1000; // Tepat 60 menit / 1 jam
+      const endTime = instantStart + durationMs;
+
+      const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+      const now = nowWib.getTime();
+
+      infoText.innerText = `Mode Instan: Aktif 1 Jam (Tutup otomatis)`;
+
+      if (now <= endTime) {
         isAuctionCurrentlyOpen = true;
         currentAuctionStatusCode = 3;
-        badge.innerText = "🧪 SANDBOX STANDBY (AKTIF)";
-        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse";
+
+        const diffSec = Math.floor((endTime - now) / 1000);
+        const m = Math.floor((diffSec % 3600) / 60);
+        const s = diffSec % 60;
+
+        badge.innerText = `🔥 LELANG INSTAN BERLANGSUNG (${m}m ${s}d)`;
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
         setListButtonState(true, "+ List Aset/Barang");
-        return;
+      } else {
+        isAuctionCurrentlyOpen = false;
+        currentAuctionStatusCode = 4;
+        badge.innerText = `🏁 LELANG 1 JAM OTOMATIS TUTUP`;
+        badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+        setListButtonState(false, "🔒 Waktu Lelang 1 Jam Habis");
       }
+      return;
+    }
+
 
       if (mode === 'scheduled') {
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
