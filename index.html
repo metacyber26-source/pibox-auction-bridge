@@ -3353,28 +3353,10 @@
         } else if (auction.status === 'finished' || auction.status === 'ended') {
           statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-800 text-gray-400">${t('finishedStatus')}</span>`;
         } else if (auction.status === 'cancelled') {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400">${t('cancelledStatus')}</span>`;
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400 border border-red-500/40">${t('cancelledStatus')}</span>`;
         }
 
         const eventBadgeHTML = auction.is_event ? `<span class="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">EVENT</span>` : '';
-
-        // Tombol Download Sertifikat khusus Admin pada Aset Event
-        let certificateButtonHTML = '';
-        if (auction.is_event) {
-          if (isAdminOrDev) {
-            certificateButtonHTML = `
-              <button onclick="downloadEventCertificate('${auction.id}')" title="Download Sertifikat (Khusus Admin)" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition shadow cursor-pointer flex items-center gap-1">
-                🎖️ Sertifikat
-              </button>
-            `;
-          } else {
-            certificateButtonHTML = `
-              <button disabled title="Sertifikat (Khusus Admin)" class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-not-allowed opacity-50 flex items-center gap-1">
-                🔒 Sertifikat
-              </button>
-            `;
-          }
-        }
 
         let adminActionControls = '';
         if (isAdminOrDev) {
@@ -3417,13 +3399,12 @@
                 <div class="flex justify-between items-center text-[11px] pt-0.5">
                   <span class="text-emerald-400 font-bold">${price} Pi</span>
                   <div class="flex items-center gap-1">
-                    ${certificateButtonHTML}
                     ${(() => {
                       const verifiedAccess = window._Background_Security_Engine.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES);
                       if (verifiedAccess) {
                         return `<button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Details & Bid</button>`;
                       } else {
-                        return `<button disabled class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] cursor-not-allowed opacity-50" title="Akses Details & Bid khusus pembeli terdaftar">🔒 Details & Bid</button>`;
+                        return `<button disabled class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-not-allowed opacity-50" title="Akses Details & Bid khusus pembeli terdaftar">🔒 Details & Bid</button>`;
                       }
                     })()}
                   </div>
@@ -3439,55 +3420,6 @@
       mainContent.innerHTML = htmlChunks.join('');
     }
 
-    // Fungsi pemanggil unduh sertifikat event khusus admin
-    function downloadEventCertificate(auctionId) {
-      if (!authenticatedPiUser || !CertificateSystemGuardian.verifyAdminCertificateAccess(authenticatedPiUser.username, ADMIN_USERNAMES)) {
-        alert("⛔ Akses Ditolak: Hanya Admin yang dapat mengunduh sertifikat event ini.");
-        return;
-      }
-      const asset = activeAuctionsList.find(a => a.id === auctionId);
-      if (!asset) {
-        alert("Data aset tidak ditemukan.");
-        return;
-      }
-      CertificateSystemGuardian.generateCertificatePDF(asset);
-    }
-
-    async function adminToggleAuctionStatus(auctionId, targetStatus) {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⛔ Akses Ditolak!");
-        return;
-      }
-      if (!supabaseClient) return;
-      try {
-        const normalizedStatus = (targetStatus === 'aktif' || targetStatus === 'active') ? 'active' : 'pending';
-        const { error } = await supabaseClient.from('auctions').update({ status: normalizedStatus }).eq('id', auctionId);
-        if (error) throw error;
-        fetchActiveAuctions();
-      } catch (err) {
-        alert("Gagal: " + err.message);
-      }
-    }
-
-    async function adminToggleEventBadge(auctionId, currentEventState) {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) return;
-      if (!supabaseClient) return;
-      try {
-        const newState = !currentEventState;
-        await supabaseClient.from('auctions').update({ is_event: newState }).eq('id', auctionId);
-        fetchActiveAuctions();
-      } catch (err) {}
-    }
-
-    async function adminDeleteAuction(auctionId) {
-      if (!confirm("Hapus aset ini?")) return;
-      if (!supabaseClient) return;
-      try {
-        await supabaseClient.from('auctions').delete().eq('id', auctionId);
-        fetchActiveAuctions();
-      } catch (err) {}
-    }
-
     function openDetailModalWithData(auctionId) {
       selectedAuction = activeAuctionsList.find(a => a.id === auctionId);
       if (!selectedAuction) return;
@@ -3499,6 +3431,33 @@
       const price = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
       const status = selectedAuction.status || 'active';
       const categoryLabel = getCategoryLabel(selectedAuction.category);
+      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
+
+      let certificateActionSection = '';
+      if (selectedAuction.is_event) {
+        if (isAdminOrDev) {
+          certificateActionSection = `
+            <div class="bg-purple-950/40 border border-purple-500/40 rounded-xl p-3 space-y-2">
+              <p class="text-[10px] text-purple-300 font-bold">🎖️ Panel Sertifikat Event (Khusus Admin):</p>
+              <div class="flex gap-2">
+                <button onclick="downloadEventCertificate('${selectedAuction.id}')" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
+                  📥 Download PDF
+                </button>
+                <button onclick="copyCertificateLink('${selectedAuction.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
+                  📋 Salin Link Browser
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          certificateActionSection = `
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+              <p class="text-[10px] text-gray-500 font-bold">🔒 Sertifikat Event (Akses Terkunci Khusus Admin)</p>
+            </div>
+          `;
+        }
+      }
 
       let bidActionSection = '';
       const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
@@ -3568,6 +3527,8 @@
             <p class="text-[10px] text-gray-300 bg-gray-900 p-2 rounded-lg border border-gray-800 mt-1">${description}</p>
           </div>
 
+          ${certificateActionSection}
+
           <div class="bg-red-950/30 border border-red-500/40 rounded-xl p-2.5 space-y-1.5 text-[10px] text-gray-300">
             <label class="flex items-start gap-2 cursor-pointer">
               <input type="checkbox" id="buyerLegalCheckbox" class="mt-0.5 accent-yellow-500 cursor-pointer">
@@ -3599,6 +3560,7 @@
 
       document.getElementById('detailModal').classList.remove('hidden');
     }
+
 
     function closeDetailModal() {
       document.getElementById('detailModal').classList.add('hidden');
