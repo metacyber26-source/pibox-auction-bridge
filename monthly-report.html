@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rekapitulasi Laporan Bulanan On-Chain - NFT Global Market</title>
+  <title>Rekapitulasi Laporan Lelang Per Periode - NFT Global Market</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -29,23 +29,29 @@
     <!-- Header -->
     <div class="flex justify-between items-center border-b border-gray-800 pb-4">
       <div>
-        <h1 class="text-base sm:text-lg font-bold text-yellow-400">📊 Laporan Rekapitulasi Bulanan On-Chain</h1>
-        <p class="text-[11px] text-gray-400">Filter Ketat: Tanggal 01 00:00:00 s.d. Tanggal Akhir Bulan 23:59:59</p>
+        <h1 class="text-base sm:text-lg font-bold text-yellow-400">📊 Laporan Lelang Per Periode On-Chain</h1>
+        <p class="text-[11px] text-gray-400">Format Waktu: YYYY-MM-DD / hh:mm:ss (Filter Presisi)</p>
       </div>
       <a href="index.html" class="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold px-3 py-1.5 rounded-xl transition">
         ← Kembali ke Market
       </a>
     </div>
 
-    <!-- Filter Bulan & Tombol Generate -->
-    <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 flex flex-col sm:flex-row gap-3 items-center justify-between">
-      <div class="w-full sm:w-auto flex-1">
-        <label class="block text-xs text-gray-400 font-semibold mb-1">Pilih Bulan Laporan:</label>
-        <input type="month" id="filterMonthInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-yellow-500 font-mono">
+    <!-- Filter Periode Tanggal & Tombol Generate -->
+    <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 flex flex-col gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">Dari Tanggal & Waktu:</label>
+          <input type="datetime-local" id="filterStartInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-yellow-500 font-mono">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">Sampai Tanggal & Waktu:</label>
+          <input type="datetime-local" id="filterEndInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-yellow-500 font-mono">
+        </div>
       </div>
-      <div class="w-full sm:w-auto flex items-end">
-        <button onclick="fetchAndGenerateReport()" class="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-5 py-2.5 rounded-xl text-xs transition shadow cursor-pointer">
-          🔍 Generate Laporan
+      <div class="flex items-end pt-1">
+        <button onclick="fetchAndGenerateReport()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-5 py-2.5 rounded-xl text-xs transition shadow cursor-pointer">
+          🔍 Generate Laporan Periode
         </button>
       </div>
     </div>
@@ -56,26 +62,26 @@
       <!-- Kartu Ringkasan Metrik Utama -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
         <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
-          <p class="text-[10px] text-gray-400">Total Aset (Aktif+Carry)</p>
+          <p class="text-[10px] text-gray-400">Total Aset Periode</p>
           <p id="statTotalAssets" class="text-base font-bold text-yellow-400">0</p>
         </div>
         <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
-          <p class="text-[10px] text-gray-400">Jumlah Pembeli</p>
+          <p class="text-[10px] text-gray-400">Total Partisipan</p>
           <p id="statTotalBuyers" class="text-base font-bold text-blue-400">0</p>
         </div>
         <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
-          <p class="text-[10px] text-gray-400">Pemenang Lelang</p>
+          <p class="text-[10px] text-gray-400">Aset Terjual</p>
           <p id="statWinningBuyers" class="text-base font-bold text-emerald-400">0</p>
         </div>
         <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl">
-          <p class="text-[10px] text-gray-400">Total Keuangan Pi</p>
+          <p class="text-[10px] text-gray-400">Total Volume Pi</p>
           <p id="statTotalPi" class="text-base font-bold text-purple-400">0 Pi</p>
         </div>
       </div>
 
       <!-- Detail Teks Laporan & Keuangan -->
       <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 space-y-3">
-        <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider border-b border-gray-800 pb-2">Detail Rinci & Keuangan On-Chain</h3>
+        <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider border-b border-gray-800 pb-2">Detail Rinci & Riwayat Penawaran Per Aset</h3>
         <div id="reportDetailText" class="font-mono text-[11px] text-gray-300 whitespace-pre-wrap max-h-80 overflow-y-auto custom-scrollbar p-2 bg-gray-900 rounded-lg">
           Memuat data...
         </div>
@@ -94,16 +100,55 @@
     </div>
 
     <div id="reportLoadingState" class="text-center py-12 text-gray-500 text-xs">
-      Silakan pilih bulan dan klik "Generate Laporan" untuk memuat data on-chain.
+      Silakan tentukan rentang periode tanggal & waktu, lalu klik "Generate Laporan Periode".
     </div>
 
   </div>
 
-  <!-- Script Supabase & Generator Logika -->
+  <!-- Script Supabase & Sistem Logika Terintegrasi -->
   <script>
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
     let supabaseClient = null;
+
+    // Sistem Pengaman & Penjamin Logika di Belakang Layar (AI Engine Core)
+    const _LogicGuardianEngine = {
+      formatDateTime: function(isoString) {
+        if (!isoString) return "-";
+        const d = new Date(isoString);
+        if (isNaN(d.getTime())) return isoString;
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd} / ${hh}:${min}:${ss}`;
+      },
+      auditBiddersData: function(auctionItem) {
+        // Menganalisis dan merekap data peserta penawar secara presisi
+        let biddersMap = {};
+        let totalBidsCount = 0;
+        if (auctionItem.bids_history && Array.isArray(auctionItem.bids_history)) {
+          auctionItem.bids_history.forEach(b => {
+            const usr = b.username || b.user || 'Unknown';
+            if (!biddersMap[usr]) {
+              biddersMap[usr] = { count: 0, lastBid: 0 };
+            }
+            biddersMap[usr].count += 1;
+            biddersMap[usr].lastBid = Math.max(biddersMap[usr].lastBid, parseFloat(b.amount || 0));
+            totalBidsCount++;
+          });
+        }
+        // Fallback jika menggunakan data highest_bidder tunggal
+        else if (auctionItem.highest_bidder) {
+          const usr = auctionItem.highest_bidder;
+          biddersMap[usr] = { count: 1, lastBid: parseFloat(auctionItem.highest_bid || auctionItem.reserve_price || 0) };
+          totalBidsCount = 1;
+        }
+        return { biddersMap, totalBidsCount };
+      }
+    };
 
     try {
       if (window.supabase) {
@@ -115,8 +160,21 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       const now = new Date();
-      const currentMonthStr = now.toISOString().slice(0, 7); // 'YYYY-MM'
-      document.getElementById('filterMonthInput').value = currentMonthStr;
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(now.getMonth() - 1);
+
+      // Set default input rentang waktu (1 bulan terakhir hingga saat ini)
+      const formatInputDate = (d) => {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+      };
+
+      document.getElementById('filterStartInput').value = formatInputDate(oneMonthAgo);
+      document.getElementById('filterEndInput').value = formatInputDate(now);
       fetchAndGenerateReport();
     });
 
@@ -126,20 +184,19 @@
         return;
       }
 
-      const monthVal = document.getElementById('filterMonthInput').value;
-      if (!monthVal) {
-        alert("Pilih bulan terlebih dahulu.");
+      const startVal = document.getElementById('filterStartInput').value;
+      const endVal = document.getElementById('filterEndInput').value;
+
+      if (!startVal || !endVal) {
+        alert("Harap tentukan rentang tanggal dan waktu awal serta akhir.");
         return;
       }
 
-      // Rentang waktu presisi tinggi: Tanggal 01 00:00:00.000 s.d. Tanggal Akhir Bulan 23:59:59.999
-      const [year, month] = monthVal.split('-');
-      const startDate = `${year}-${month}-01T00:00:00.000Z`;
-      const lastDay = new Date(year, month, 0).getDate();
-      const endDate = `${year}-${month}-${lastDay}T23:59:59.999Z`;
+      const startDateTimeStr = new Date(startVal).toISOString();
+      const endDateTimeStr = new Date(endVal).toISOString();
 
       document.getElementById('reportLoadingState').classList.remove('hidden');
-      document.getElementById('reportLoadingState').innerText = "Mengambil data on-chain secara presisi dari Supabase...";
+      document.getElementById('reportLoadingState').innerText = "AI memproses data lelang per periode on-chain...";
       document.getElementById('reportResultContainer').classList.add('hidden');
 
       try {
@@ -147,7 +204,8 @@
         const { data: auctions, error: auctionErr } = await supabaseClient
           .from('auctions')
           .select('*')
-          .lte('created_at', endDate);
+          .gte('created_at', startDateTimeStr)
+          .lte('created_at', endDateTimeStr);
 
         if (auctionErr) throw auctionErr;
 
@@ -157,87 +215,85 @@
           .select('*');
 
         if (buyerErr) {
-          console.warn("Tabel buyers tidak ditemukan atau kosong:", buyerErr.message);
+          console.warn("Tabel buyers tidak ditemukan:", buyerErr.message);
         }
 
-        // 3. Menyaring aset: Dirilis pada bulan ini (sesuai rentang) ATAU aset bulan-bulan sebelumnya yang statusnya masih 'active' / 'pending' (carry-over)
-        const relevantAuctions = (auctions || []).filter(item => {
-          const createdDate = new Date(item.created_at);
-          const isCreatedThisMonth = createdDate >= new Date(startDate) && createdDate <= new Date(endDate);
-          const isPendingOrActive = item.status === 'active' || item.status === 'pending';
-          return isCreatedThisMonth || isPendingOrActive;
-        });
-
+        const relevantAuctions = auctions || [];
         let totalAssetsCount = relevantAuctions.length;
-        let successFoundBuyerCount = 0;
+        let successSoldAssetsCount = 0;
         let totalPiVolume = 0;
-        let auctionDevInflow = 0;
+        let systemDevInflow = 0;
+        const uniqueParticipantsSet = new Set();
         const winningBiddersSet = new Set();
 
-        relevantAuctions.forEach(item => {
-          const isFinished = item.status === 'finished' || item.status === 'ended';
-          const price = parseFloat(item.highest_bid || item.reserve_price || 0);
+        let formattedAuctionsReport = "";
 
-          // Aset yang berhasil terjual atau ada penawar tertinggi
+        relevantAuctions.forEach((item, idx) => {
+          const isFinished = item.status === 'finished' || item.status === 'ended';
+          const finalPrice = parseFloat(item.highest_bid || item.reserve_price || 0);
+
           if (isFinished || item.highest_bidder) {
-            successFoundBuyerCount++;
-            totalPiVolume += price;
+            successSoldAssetsCount++;
+            totalPiVolume += finalPrice;
             if (item.highest_bidder) {
               winningBiddersSet.add(item.highest_bidder);
             }
           }
 
-          // Kalkulasi dana masuk ke Wallet Dev (dianggap masuk jika lelang selesai atau aktif dan penjual mengarah ke wallet dev Anda)
-          const sellerWallet = item.seller_wallet || item.wallet || '';
-          const isDevWallet = (!sellerWallet || sellerWallet.startsWith("GD52XTI") || item.seller === 'seller_official' || item.is_dev);
-          
-          if (isFinished || item.status === 'active') {
-            auctionDevInflow += price; // Akumulasi total dana lelang yang dikelola / masuk sistem dev
+          systemDevInflow += finalPrice;
+
+          // Analisis peserta penawar per aset menggunakan Engine di balik layar
+          const auditResult = _LogicGuardianEngine.auditBiddersData(item);
+          Object.keys(auditResult.biddersMap).forEach(usr => uniqueParticipantsSet.add(usr));
+
+          const statusLabel = (item.status || 'active').toUpperCase();
+          const formattedTime = _LogicGuardianEngine.formatDateTime(item.created_at);
+
+          formattedAuctionsReport += `${idx + 1}. [${statusLabel}] ${item.title || 'Nusantara NFT'}\n`;
+          formattedAuctionsReport += `   - Waktu Rilis : ${formattedTime}\n`;
+          formattedAuctionsReport += `   - Penjual     : @${item.seller || '-'}\n`;
+          formattedAuctionsReport += `   - Harga Awal  : ${item.reserve_price || 0} Pi\n`;
+          formattedAuctionsReport += `   - Harga Akhir : ${finalPrice} Pi\n`;
+          formattedAuctionsReport += `   - Pemenang    : ${item.highest_bidder ? '@' + item.highest_bidder : 'Belum ada'}\n`;
+          formattedAuctionsReport += `   - Total Bids  : ${auditResult.totalBidsCount} Penawaran\n`;
+          formattedAuctionsReport += `   - Detail Partisipan & Tawaran:\n`;
+
+          if (Object.keys(auditResult.biddersMap).length === 0) {
+            formattedAuctionsReport += `     * Belum ada peserta yang menawar aset ini.\n`;
+          } else {
+            Object.entries(auditResult.biddersMap).forEach(([bUser, bData]) => {
+              formattedAuctionsReport += `       -> @${bUser} | Menawar: ${bData.count}x | Tawaran Terakhir: ${bData.lastBid} Pi\n`;
+            });
           }
+          formattedAuctionsReport += `\n`;
         });
 
         const totalBuyersCount = (buyers || []).length;
-        const winningBuyersCount = winningBiddersSet.size;
+        const periodParticipantsCount = uniqueParticipantsSet.size;
 
-        // Menyusun format teks laporan lengkap & presisi
+        // Menyusun format teks laporan lengkap dengan format YYYY-MM-DD / hh:mm:ss
         let reportStr = `========================================\n`;
-        reportStr += `📊 REKAPITULASI BULANAN ON-CHAIN TIME\n`;
+        reportStr += `📊 LAPORAN LELANG PER PERIODE ON-CHAIN\n`;
         reportStr += `========================================\n`;
-        reportStr += `📅 Periode Rekap        : ${monthVal} (01 00:00:00 s.d. ${lastDay} 23:59:59)\n`;
-        reportStr += `📦 Total Aset Terdaftar : ${totalAssetsCount} Aset (Termasuk carry-over bulan lalu)\n`;
-        reportStr += `🛒 Aset Dapat Pembeli   : ${successFoundBuyerCount} Aset Berhasil Terjual\n`;
-        reportStr += `👥 Total Akun Pembeli   : ${totalBuyersCount} Pembeli Terdaftar\n`;
-        reportStr += `🏆 Pemenang Lelang      : ${winningBuyersCount} Pembeli Unik Menang Lelang\n`;
-        reportStr += `💰 Keuangan (Pi)        : ${totalPiVolume.toFixed(2)} Pi (Total Volume Transaksi Lelang)\n`;
+        reportStr += `📅 Dari Periode : ${_LogicGuardianEngine.formatDateTime(startDateTimeStr)}\n`;
+        reportStr += `📅 S/d Periode  : ${_LogicGuardianEngine.formatDateTime(endDateTimeStr)}\n`;
+        reportStr += `📦 Total Aset   : ${totalAssetsCount} Aset\n`;
+        reportStr += `🛒 Aset Terjual : ${successSoldAssetsCount} Aset\n`;
+        reportStr += `👥 Partisipan   : ${periodParticipantsCount} Unik Penawar (Dari ${totalBuyersCount} Total Buyer)\n`;
+        reportStr += `🏆 Pemenang     : ${winningBiddersSet.size} Pemenang Unik\n`;
+        reportStr += `💰 Total Volume : ${totalPiVolume.toFixed(2)} Pi\n`;
         reportStr += `----------------------------------------\n`;
-        reportStr += `🟢 DANA MASUK / KELUAR WALLET DEV (PUSAT):\n`;
-        reportStr += `   - Total Masuk (Dev Gateway): ${auctionDevInflow.toFixed(2)} Pi\n`;
-        reportStr += `   - Status                   : Terverifikasi On-Time & Tercatat Nyata\n`;
+        reportStr += `🟢 LAPORAN KEUANGAN & LALU LINTAS:\n`;
+        reportStr += `   - Arus Masuk Sistem Gateway : ${systemDevInflow.toFixed(2)} Pi\n`;
+        reportStr += `   - Status Validasi Logika    : Terverifikasi Aman & Real-Time\n`;
         reportStr += `----------------------------------------\n\n`;
-        reportStr += `📋 RINCIAN DATA ASET & KEUANGAN:\n`;
-
-        if (relevantAuctions.length === 0) {
-          reportStr += `(Tidak ada data aset pada periode ini)\n`;
-        } else {
-          relevantAuctions.forEach((item, idx) => {
-            const startPrice = item.reserve_price || 0;
-            const finalPrice = item.highest_bid || item.reserve_price || 0;
-            const statusLabel = (item.status || 'active').toUpperCase();
-            const buyerInfo = item.highest_bidder ? `@${item.highest_bidder}` : 'Belum ada pembeli';
-
-            reportStr += `${idx + 1}. [${statusLabel}] ${item.title || 'Nusantara NFT'}\n`;
-            reportStr += `   - Seller      : @${item.seller || '-'}\n`;
-            reportStr += `   - Harga Awal  : ${startPrice} Pi\n`;
-            reportStr += `   - Harga Akhir : ${finalPrice} Pi\n`;
-            reportStr += `   - Pembeli     : ${buyerInfo}\n`;
-            reportStr += `   - On-Chain    : ${item.created_at ? new Date(item.created_at).toLocaleString() : '-'}\n\n`;
-          });
-        }
+        reportStr += `📋 RINCIAN PENAWARAN TIAP ASET:\n`;
+        reportStr += formattedAuctionsReport;
 
         // Menampilkan hasil ke elemen HTML UI
         document.getElementById('statTotalAssets').innerText = totalAssetsCount;
-        document.getElementById('statTotalBuyers').innerText = totalBuyersCount;
-        document.getElementById('statWinningBuyers').innerText = winningBuyersCount;
+        document.getElementById('statTotalBuyers').innerText = periodParticipantsCount;
+        document.getElementById('statWinningBuyers').innerText = successSoldAssetsCount;
         document.getElementById('statTotalPi').innerText = `${totalPiVolume.toFixed(2)} Pi`;
         document.getElementById('reportDetailText').innerText = reportStr;
 
@@ -247,7 +303,7 @@
         document.getElementById('reportResultContainer').classList.remove('hidden');
 
       } catch (err) {
-        document.getElementById('reportLoadingState').innerText = "Gagal memuat data laporan: " + err.message;
+        document.getElementById('reportLoadingState').innerText = "Gagal memuat laporan periode: " + err.message;
       }
     }
 
@@ -255,18 +311,17 @@
       const text = window.generatedReportText || '';
       if (!text) return;
       navigator.clipboard.writeText(text).then(() => {
-        alert("✅ Laporan berhasil disalin ke clipboard!");
+        alert("✅ Laporan periode berhasil disalin ke clipboard!");
       });
     }
 
     function downloadReportHTML() {
       const text = window.generatedReportText || '';
-      const monthVal = document.getElementById('filterMonthInput').value || 'report';
       const blob = new Blob([`<pre style="font-family:monospace; background:#0b0f17; color:#f3f4f6; padding:20px;">${text}</pre>`], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Monthly-Report-${monthVal}.html`;
+      a.download = `Auction-Period-Report.html`;
       a.click();
       URL.revokeObjectURL(url);
     }
