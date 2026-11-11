@@ -2176,6 +2176,17 @@
       }
     }
 
+    // Engine Penjamin Logika & Waktu Real-Time di Belakang Layar
+    const _AuctionTimeGuardian = {
+      formatCountdown: function(totalSeconds) {
+        if (totalSeconds <= 0) return "00:00:00";
+        const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+        const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+        const s = (totalSeconds % 60).toString().padStart(2, '0');
+        return `${h}:${m}:${s}`;
+      }
+    };
+
     function checkAuctionSchedule() {
       const infoText = document.getElementById('auctionInfoText');
       const badge = document.getElementById('sessionStateBadge');
@@ -2197,18 +2208,17 @@
           isAuctionCurrentlyOpen = true;
           currentAuctionStatusCode = 3;
 
-          const diffSec = Math.floor((endTime - now) / 1000);
-          const m = Math.floor((diffSec % 3600) / 60);
-          const s = diffSec % 60;
+          const diffSec = Math.max(0, Math.floor((endTime - now) / 1000));
+          const countdownStr = _AuctionTimeGuardian.formatCountdown(diffSec);
 
-          badge.innerText = `🔥 LELANG INSTAN BERLANGSUNG (${m}m ${s}d)`;
-          badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
+          badge.innerText = `🔥 LELANG INSTAN: ${countdownStr}`;
+          badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
           setListButtonState(true, "+ List Aset/Barang");
         } else {
           isAuctionCurrentlyOpen = false;
           currentAuctionStatusCode = 4;
-          badge.innerText = `🏁 LELANG 1 JAM OTOMATIS TUTUP`;
-          badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+          badge.innerText = `🏁 LELANG SELESAI (00:00:00)`;
+          badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
           setListButtonState(false, "🔒 Waktu Lelang 1 Jam Habis");
         }
         return;
@@ -2231,39 +2241,38 @@
           if (now < preOpenTime) {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 1;
-            badge.innerText = "⏳ Menunggu Jadwal Buka";
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-800 text-gray-400";
+            badge.innerText = "⏳ MENUNGGU JADWAL (00:00:00)";
+            badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-gray-800 text-gray-400 border border-gray-700 shadow-md tracking-wider";
             setListButtonState(false, "🔒 List Aset Dikunci");
           } else if (now >= preOpenTime && now < startTime) {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 2;
-            const diffSec = Math.floor((startTime - now) / 1000);
-            const m = Math.floor((diffSec % 3600) / 60);
-            const s = diffSec % 60;
+            const diffSec = Math.max(0, Math.floor((startTime - now) / 1000));
+            const countdownStr = _AuctionTimeGuardian.formatCountdown(diffSec);
 
-            badge.innerText = `⏱️ Buka dalam: ${m}m ${s}d`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse";
+            badge.innerText = `⏱️ BUKA DALAM: ${countdownStr}`;
+            badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-md animate-pulse tracking-wider";
             setListButtonState(false, "🔒 List Aset Dikunci (Persiapan)");
           } else if (now >= startTime && now <= endTime) {
             isAuctionCurrentlyOpen = true;
             currentAuctionStatusCode = 3;
-            const diffSec = Math.floor((endTime - now) / 1000);
-            const m = Math.floor((diffSec % 3600) / 60);
-            const s = diffSec % 60;
+            const diffSec = Math.max(0, Math.floor((endTime - now) / 1000));
+            const countdownStr = _AuctionTimeGuardian.formatCountdown(diffSec);
 
-            badge.innerText = `🔥 SESI ${durationHours} JAM BERLANGSUNG (${m}m ${s}d)`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
+            badge.innerText = `🔥 BERLANGSUNG: ${countdownStr}`;
+            badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
             setListButtonState(true, "+ List Aset/Barang");
           } else {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 4;
-            badge.innerText = `🏁 SESI TUTUP OTOMATIS`;
-            badge.className = "text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+            badge.innerText = `🏁 SESI TUTUP (00:00:00)`;
+            badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
             setListButtonState(false, "🔒 Sesi Lelang Selesai");
           }
         }
       }
     }
+
 
     function setListButtonState(isOpen, textLabel) {
       const btnHeaderCreate = document.getElementById('btnHeaderCreate');
