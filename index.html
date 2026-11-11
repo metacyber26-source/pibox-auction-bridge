@@ -465,13 +465,11 @@
       <div class="flex flex-col gap-2">
         <div class="flex justify-between items-center gap-2">
           <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari pembeli..." data-i18n-placeholder="buyerSearchPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500">
-          <div id="adminDeleteBatchContainer" class="hidden flex gap-1">
+          <div id="adminDeleteBatchContainer" class="hidden">
             <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl transition shadow cursor-pointer" data-i18n="deleteBatchBtn">🗑 Hapus Terpilih</button>
-            <button onclick="clearAllSpamReportsAndBids()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl transition shadow cursor-pointer" title="Bersihkan semua laporan spam / reset hitungan penawaran >5x menjadi 0">🧹 Bersihkan Spam</button>
           </div>
         </div>
       </div>
-
       
       <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[60vh] flex flex-col">
         <div class="overflow-x-auto custom-scrollbar flex-1">
@@ -1681,23 +1679,27 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
         btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
       }
 
-      // Timeout Guard 3 Detik agar tidak pernah macet/infinite loading di perangkat mobile
-      const loginTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Pi SDK Authentication Timeout")), 3000)
-      );
+      let piInstance = null;
+      for (let i = 0; i < 2; i++) {
+        piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance) break;
+        await new Promise(r => setTimeout(r, 50));
+      }
 
       try {
         let authResult = null;
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        
         if (piInstance && typeof piInstance.authenticate === 'function') {
-          piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
-          const authPromise = piInstance.authenticate(['username', 'payments'], () => {});
-          authResult = await Promise.race([authPromise, loginTimeoutPromise]);
-        } else {
-          throw new Error("Pi SDK not loaded");
+          try {
+            piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+            const authPromise = piInstance.authenticate(['username', 'payments'], () => {});
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2500));
+            authResult = await Promise.race([authPromise, timeoutPromise]);
+          } catch (e) {
+            authResult = null;
+          }
         }
 
+        // Fallback otomatis ke akun Dev / Admin jika login Pi SDK tertahan/gagal di browser mobile
         const usernameToUse = (authResult && authResult.user && authResult.user.username) ? authResult.user.username : "Ful21";
         const cleanUsername = SecureShield.sanitizeStrict(usernameToUse);
         
@@ -1710,8 +1712,7 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
         const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
         if (isAdmin) {
           isBuyerApproved = true;
-          const statusTextEl = document.getElementById('buyerApprovalStatusText');
-          if (statusTextEl) statusTextEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+          document.getElementById('buyerApprovalStatusText').innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
           if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
           if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
         } else {
@@ -1726,26 +1727,14 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
         if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
 
       } catch (err) {
-        // Fallback instan otomatis jika terjadi kendala pada Pi SDK di HP
-        const fallbackUser = "Ful21";
-        authenticatedPiUser = { username: fallbackUser };
-        const maskedFallback = SecureShield.maskUsername(fallbackUser);
-        
-        if (statusEl) statusEl.innerText = `User: ${maskedFallback}`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedFallback}</span>`;
-        
+        // Pemulihan darurat agar tombol tidak macet
+        authenticatedPiUser = { username: "Ful21" };
+        if (statusEl) statusEl.innerText = `User: Dev (Ful21)`;
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@Ful21</span>`;
         isBuyerApproved = true;
-        const statusTextEl = document.getElementById('buyerApprovalStatusText');
-        if (statusTextEl) statusTextEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-        
         if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
         if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        
-        await checkBuyerStatusInDatabase(fallbackUser);
-        await fetchAndListenAuctionSchedule();
-        Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-
-        if (!isAuto) alert(`✅ Login Berhasil (Mode Aman tersambung otomatis).`);
+        await checkBuyerStatusInDatabase("Ful21");
       } finally {
         isAuthenticating = false;
       }
@@ -2001,39 +1990,19 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
           balanceDisplayEl.innerText = `Saldo Jaminan: ${depositBal} Pi`;
         }
 
-        // --- BACKGROUND COGNITIVE ENGINE (TEGAS, KONSISTEN & TELITI) ---
-        // Memastikan kestabilan performa, prioritas penawaran, dan validasi ketat status aktif
-        const rawStatus = data ? (data.status || 'pending').toLowerCase() : 'pending';
-        const isPrivilegedUser = (username === 'Ful21' || ADMIN_USERNAMES.includes(username));
-        
-        if (rawStatus === 'approved' || rawStatus === 'aktif' || rawStatus === 'active' || isPrivilegedUser) {
+        if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
           isBuyerApproved = true;
-          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Aktif (Prioritas Penawaran & Stabil)";
-          // Menjaga kelancaran dan kestabilan aplikasi secara otomatis di latar belakang untuk akun aktif
-          optimizeActiveUserPerformance(username);
+          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
+        } else if (data && data.status === 'pending') {
+          isBuyerApproved = false;
+          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Pending (Menunggu Verifikasi Admin/Dev)";
         } else {
           isBuyerApproved = false;
-          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Pending (Disclaimer & Penawaran Tertutup Dikunci)";
+          document.getElementById('buyerApprovalStatusText').innerText = "Belum Terdaftar (Klik 'Daftar Pembeli')";
         }
-
         renderGallery();
       } catch(e) {}
     }
-
-    // Fungsi latar belakang untuk menjaga kelancaran dan prioritas akun aktif
-    function optimizeActiveUserPerformance(username) {
-      try {
-        if (!window.activeUserOptimizedCache) {
-          window.activeUserOptimizedCache = new Set();
-        }
-        if (!window.activeUserOptimizedCache.has(username)) {
-          window.activeUserOptimizedCache.add(username);
-          // Sinkronisasi stabilitas latar belakang tanpa mengganggu UI utama
-          console.log(`[System Engine] Prioritas & kestabilan dioptimalkan untuk akun aktif: @${username}`);
-        }
-      } catch(err) {}
-    }
-
 
     function populateHourDropdownOptions() {
       const hourSelect = document.getElementById('scheduleStartHourSelect');
@@ -3042,45 +3011,6 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       }
     }
 
-    // --- FUNGSI BERSIHKAN SPAM & RESET HITUNGAN PENAWARAN >5X MENJADI NOL ---
-    function clearAllSpamReportsAndBids() {
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isAdminOrDev = (currentUsr === 'Ful21' || ADMIN_USERNAMES.includes(currentUsr));
-
-      if (!isAdminOrDev) {
-        alert("⛔ Akses Ditolak: Hanya Admin dan Ful21 yang dapat membersihkan laporan spam!");
-        return;
-      }
-
-      const confirmClear = confirm(
-        "🧹 Konfirmasi Pembersihan Spam:\n\n" +
-        "Tindakan ini akan membersihkan seluruh catatan laporan spam dan me-reset hitungan penawaran yang lebih dari 5x kembali dari nol (0) di seluruh riwayat penawaran lokal.\n\n" +
-        "Apakah Anda ingin melanjutkan?"
-      );
-
-      if (!confirmClear) return;
-
-      try {
-        let clearedCount = 0;
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('bid_count_')) {
-            const count = parseInt(localStorage.getItem(key) || '0', 10);
-            if (count > 5) {
-              // Reset hitungan kembali ke 0 (atau dihapus dari storage agar bersih total)
-              localStorage.removeItem(key);
-              clearedCount++;
-            }
-          }
-        });
-
-        renderBuyersTable();
-        alert(`✅ Berhasil! Seluruh catatan spam dan penawaran berlebih telah dibersihkan (${clearedCount} entri di-reset ke 0).`);
-      } catch (err) {
-        alert("Terjadi kesalahan saat membersihkan spam: " + err.message);
-      }
-    }
-
-
     let hasCompletedServerFee = false;
     let hasReleasedToGallery = false;
 
@@ -3625,21 +3555,7 @@ let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_no
       const categoryLabel = getCategoryLabel(selectedAuction.category);
 
       let bidActionSection = '';
-      
-      // Validasi ketat status pembeli: Jika status masih pending (bukan admin/Ful21 dan belum approved), disclaimer & penawaran dikunci
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isPrivileged = (currentUsr === 'Ful21' || ADMIN_USERNAMES.includes(currentUsr));
-      const canAccessBidding = isPrivileged || isBuyerApproved;
-
-      if (!canAccessBidding) {
-        bidActionSection = `
-          <div class="bg-amber-950/40 border border-amber-500/40 text-amber-300 p-3 rounded-xl text-center text-[11px] font-bold space-y-1">
-            <p>⏳ Status Akun Anda: PENDING</p>
-            <p class="text-[10px] text-gray-300 font-normal">Selama status masih pending, kotak centang disclaimer dikunci dan akses penawaran tertutup. Harap tunggu verifikasi Admin / Ful21 atau lakukan Top Up Jaminan.</p>
-          </div>
-        `;
-      } else {
-        const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
+      const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
 
       if (!isBiddingAllowed) {
         let statusMsg = "🔒 Penawaran non-aktif (Hanya aktif saat lelang berlangsung / Tahap 3).";
