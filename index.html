@@ -1494,16 +1494,24 @@
         }
       } catch (e) {}
 
-      supabaseClient
-        .channel('public-cluster-settings')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', filter: 'key=eq.auction_schedule' }, (payload) => {
-          if (payload.new && payload.new.value) {
-            auctionScheduleState = payload.new.value;
-            checkAuctionSchedule();
-          }
-        })
-        .subscribe();
+      // --- PERBAIKAN URUTAN REALTIME SUPABASE DI SINI ---
+      try {
+        supabaseClient
+          .channel('public-cluster-settings')
+          .on(
+            'postgres_changes', 
+            { event: '*', schema: 'public', table: 'app_settings', filter: 'key=eq.auction_schedule' }, 
+            (payload) => {
+              if (payload.new && payload.new.value) {
+                auctionScheduleState = payload.new.value;
+                checkAuctionSchedule();
+              }
+            }
+          )
+          .subscribe(); // .subscribe() diletakkan paling akhir setelah .on()
+      } catch (e) {}
     }
+
 
     function updateNetworkBannerUI() {
       const badge = document.getElementById('networkModeBadge');
