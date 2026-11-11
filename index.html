@@ -1618,18 +1618,21 @@
       fetchBuyersList();
       setupRealtimeSubscription();
       fetchAndListenAuctionSchedule();
+      
+      // Timer berjalan stabil di latar belakang tanpa mengganggu thread utama
       setInterval(updateTimers, 1000);
       setInterval(checkAuctionSchedule, 1000);
       
       initPiSDK();
 
+      // Jeda 1.2 detik agar UI tidak mengalami bentrok *thread* saat pertama kali dibuka
       setTimeout(() => {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (!authenticatedPiUser && piInstance) {
+        if (!authenticatedPiUser) {
           authenticatePiUser(true).catch(() => {});
         }
-      }, 800);
+      }, 1200);
     });
+
 
     async function fetchAndListenAuctionSchedule() {
       if (!supabaseClient) return;
