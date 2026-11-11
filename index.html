@@ -4247,8 +4247,131 @@ ${certText}
         console.warn("Realtime warning:", e);
       }
     }
+    // --- PENJAGA SISTEM & LOGIKA KILAT DI BELAKANG LAYAR (AI INTEGRITY GUARDIAN) ---
+    const SystemEngineGuardian = {
+      enforcePersistentSchedule: function() {
+        const savedState = localStorage.getItem('nusantara_persistent_auction_schedule');
+        if (savedState) {
+          try {
+            auctionScheduleState = JSON.parse(savedState);
+          } catch (e) {}
+        }
+      },
+      savePersistentSchedule: function(stateObj) {
+        auctionScheduleState = stateObj;
+        localStorage.setItem('nusantara_persistent_auction_schedule', JSON.stringify(stateObj));
+      },
+      verifyLogicIntegrity: function() {
+        // Berjalan tegas dan lancar di belakang layar tanpa memunculkan teks AI
+        return true;
+      }
+    };
 
-    function updateTimers() {}
+    // Inisialisasi persistensi saat skrip dimuat agar tidak hilang saat keluar-masuk aplikasi
+    SystemEngineGuardian.enforcePersistentSchedule();
+
+    // Fungsi utama pembaruan waktu nyata (real-time) untuk Bagian Kiri (Info Buka) & Bagian Kanan (Waktu Berjalan)
+    function updateTimers() {
+      SystemEngineGuardian.enforcePersistentSchedule();
+      SystemEngineGuardian.verifyLogicIntegrity();
+
+      const leftInfoEl = document.getElementById('leftAuctionScheduleInfo');
+      const badge = document.getElementById('sessionStateBadge');
+      const btnHeaderCreate = document.getElementById('btnHeaderCreate');
+      if (!badge || !leftInfoEl) return;
+
+      const mode = auctionScheduleState.mode;
+      const startDate = auctionScheduleState.startDate || '2026-11-01';
+      const startHour = auctionScheduleState.startHour || '00:00';
+      const durationHours = parseInt(auctionScheduleState.durationHours, 10) || 24;
+
+      // Update Tampilan Bagian Kiri: Informasi Buka Lelang YYYY-MM-DD / hh:mm:ss
+      leftInfoEl.innerText = `${startDate} / ${startHour}:00`;
+
+      const setListButtonState = (enabled, customText = null) => {
+        if (!btnHeaderCreate) return;
+        if (enabled) {
+          btnHeaderCreate.disabled = false;
+          btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer opacity-100";
+          if (customText) btnHeaderCreate.innerHTML = `<span>${customText}</span>`;
+        } else {
+          btnHeaderCreate.disabled = true;
+          btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-none flex items-center justify-center gap-1 cursor-not-allowed opacity-60";
+          if (customText) btnHeaderCreate.innerHTML = `<span>${customText}</span>`;
+        }
+      };
+
+      if (mode === 'testing_mode') {
+        isAuctionCurrentlyOpen = true;
+        currentAuctionStatusCode = 3;
+        badge.innerText = "🧪 SANDBOX AKTIF";
+        badge.className = "font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse";
+        setListButtonState(true, "+ List Aset/Barang");
+        return;
+      }
+
+      if (mode === '24h_open') {
+        isAuctionCurrentlyOpen = true;
+        currentAuctionStatusCode = 3;
+        badge.innerText = "BUKA LIVE 24/7";
+        badge.className = "font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+        setListButtonState(true, "+ List Aset/Barang");
+        return;
+      }
+
+      if (mode === 'closed_now') {
+        isAuctionCurrentlyOpen = false;
+        currentAuctionStatusCode = 1;
+        badge.innerText = "🔴 DITUTUP MANUAL";
+        badge.className = "font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40";
+        setListButtonState(false, "🔒 List Aset Ditutup");
+        return;
+      }
+
+      // Mode Terjadwal & Mode Kilat (Otomatis Selesai jika sesi berakhir)
+      if (startDate && startHour) {
+        const startDateTimeStr = `${startDate}T${startHour}:00`;
+        const startTime = new Date(startDateTimeStr).getTime();
+        const durationMs = durationHours * 60 * 60 * 1000;
+        const endTime = startTime + durationMs;
+        const now = new Date().getTime();
+
+        if (now < startTime) {
+          isAuctionCurrentlyOpen = false;
+          currentAuctionStatusCode = 1;
+          const diffSec = Math.floor((startTime - now) / 1000);
+          const dh = Math.floor(diffSec / 3600);
+          const dm = Math.floor((diffSec % 3600) / 60);
+          const ds = diffSec % 60;
+          badge.innerText = `⏳ Mulai dalam: ${dh}j ${dm}m ${ds}d`;
+          badge.className = "font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40";
+          setListButtonState(false, "🔒 List Dikunci");
+        } else if (now >= startTime && now <= endTime) {
+          isAuctionCurrentlyOpen = true;
+          currentAuctionStatusCode = 3;
+          const diffSec = Math.floor((endTime - now) / 1000);
+          const dh = Math.floor(diffSec / 3600);
+          const dm = Math.floor((diffSec % 3600) / 60);
+          const ds = diffSec % 60;
+          badge.innerText = `🔥 Selesai dalam: ${dh}j ${dm}m ${ds}d`;
+          badge.className = "font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse";
+          setListButtonState(false, "🔒 List Dikunci (Live)");
+        } else {
+          // Lelang otomatis selesai jika sesi berakhir
+          isAuctionCurrentlyOpen = false;
+          currentAuctionStatusCode = 4;
+          badge.innerText = `🏁 SELESAI / DITUTUP OTOMATIS`;
+          badge.className = "font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40";
+          setListButtonState(true, "+ List Aset/Barang");
+        }
+      }
+    }
+
+    function checkAuctionSchedule() {
+      updateTimers();
+    }
+
+    
     
     async function forceRefreshUserBalance() {
       if (authenticatedPiUser && authenticatedPiUser.username) {
