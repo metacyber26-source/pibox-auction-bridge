@@ -123,109 +123,164 @@
         }, 100);
       }
     };
-// KUNCIAN KEAMANAN SESI: Mencegah username dibajak/masuk ke akun lain
-async function authenticatePiUser(isAuto = false) {
-  let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-  let piUsername = "";
+// Key penyimpanan lokal khusus perangkat ini
+const SAVED_ACCOUNTS_KEY = 'pibox_saved_verified_accounts';
 
-  // 1. Ambil identitas asli dari Pi SDK
-  if (piInstance && typeof piInstance.authenticate === 'function') {
-    try {
-      piInstance.init({ version: "2.0", sandbox: typeof IS_TESTNET !== 'undefined' ? IS_TESTNET : true });
-      const authResult = await piInstance.authenticate(['username', 'payments'], () => {});
-      if (authResult && authResult.user && authResult.user.username) {
-        piUsername = authResult.user.username.trim();
-      }
-    } catch (e) {}
-  }
+function openSemiAutoLoginModal() {
+  renderSavedAccountsList();
+  document.getElementById('semiAutoLoginModal').classList.remove('hidden');
+}
 
-  // Jika lewat web browser biasa / manual prompt
-  if (!piUsername) {
-    const inputUserPrompt = prompt("🛡️ Masukkan Username Pi Network Anda (Kunci Akun):");
-    if (!inputUserPrompt) return;
-    piUsername = inputUserPrompt.trim().replace(/^@/, '');
-  }
+function closeSemiAutoLoginModal() {
+  document.getElementById('semiAutoLoginModal').classList.add('hidden');
+}
 
-  if (!piUsername) {
-    alert("❌ Kuncian Keamanan: Username wajib diisi.");
+// Render daftar tombol akun yang sudah pernah terverifikasi di perangkat ini
+function renderSavedAccountsList() {
+  const container = document.getElementById('savedAccountsContainer');
+  const listEl = document.getElementById('savedAccountsList');
+  const savedAccounts = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+
+  if (savedAccounts.length === 0) {
+    container.classList.add('hidden');
     return;
   }
 
-  // 2. Validasi Kunci Password Unik 1-ke-1 untuk Username tersebut
-  const inputPassword = prompt(`🔒 Akun @${piUsername} terkunci.\nMasukkan Password Keamanan Unik Anda:`);
-  if (!inputPassword) {
-    alert("❌ Akses ditolak: Password kuncian tidak boleh kosong.");
+  container.classList.remove('hidden');
+  listEl.innerHTML = savedAccounts.map(acc => `
+    <div class="flex items-center justify-between bg-gray-900 hover:bg-gray-800 border border-emerald-500/30 rounded-xl p-2.5 transition">
+      <button onclick="quickLoginWithSavedAccount('${acc.username}', '${acc.token}')" class="flex-1 flex items-center gap-2 text-left cursor-pointer">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <div>
+          <p class="text-xs font-bold text-white">@${acc.username}</p>
+          <p class="text-[9px] text-emerald-400">Terverifikasi • Klik untuk masuk</p>
+        </div>
+      </button>
+      <button onclick="removeSavedAccount('${acc.username}')" title="Hapus dari perangkat ini" class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer">
+        ✕
+      </button>
+    </div>
+  `).join('');
+}
+
+// Proses Login Manual (Langkah Awal)
+async function processManualLoginSubmit() {
+  const rawUser = document.getElementById('manualLoginUsername').value.trim().replace(/^@/, '');
+  const rawPass = document.getElementById('manualLoginPassword').value.trim();
+
+  if (!rawUser || !rawPass) {
+    alert("⚠️ Harap isi Username dan Password Keamanan Anda.");
     return;
   }
 
-  const cleanPassword = inputPassword.trim();
-
-  // 3. Cek Database Supabase untuk mencocokkan ikatan Username <-> Password
+  // Validasi ke Supabase (pioneers_security)
   if (typeof supabaseClient !== 'undefined' && supabaseClient) {
     try {
       let { data: secRecord, error } = await supabaseClient
         .from('pioneers_security')
         .select('*')
-        .eq('username', piUsername)
+        .eq('username', rawUser)
         .maybeSingle();
 
       if (error) throw error;
 
       if (!secRecord) {
-        // Pendaftaran Kunci Pertama (Binding 1-to-1)
-        // Cek apakah password ini sudah dipakai orang lain
+        // Cek apakah password sudah dipakai akun lain
         let { data: existingPass } = await supabaseClient
           .from('pioneers_security')
           .select('*')
-          .eq('password_hash', cleanPassword)
+          .eq('password_hash', rawPass)
           .maybeSingle();
 
         if (existingPass) {
-          alert(`⛔ KUNCIAN AKTIF: Password ini sudah terikat ke akun @${existingPass.username}. 1 Password unik hanya untuk 1 Username!`);
+          alert(`⛔ Password ini sudah dipakai oleh @${existingPass.username}. Gunakan password lain.`);
           return;
         }
 
-        // Daftarkan ikatan baru secara permanen
+        // Daftarkan akun & kunci baru
         const { error: insertErr } = await supabaseClient
           .from('pioneers_security')
-          .insert([{ username: piUsername, password_hash: cleanPassword }]);
+          .insert([{ username: rawUser, password_hash: rawPass }]);
 
-        if (insertErr) {
-          alert("⛔ Gagal mendaftarkan kuncian akun: " + insertErr.message);
-          return;
-        }
-        alert(`🎉 Kuncian Berhasil Dibuat!\nAkun @${piUsername} kini terkunci aman dengan password Anda.`);
-      } else {
-        // Validasi Ketat: Jika password salah, tolak masuk!
-        if (secRecord.password_hash !== cleanPassword) {
-          alert(`🚨 PERINGATAN KEAMANAN:\nPassword salah untuk akun @${piUsername}. Anda tidak diizinkan masuk ke akun pengguna lain!`);
-          return;
-        }
+        if (insertErr) throw insertErr;
+      } else if (secRecord.password_hash !== rawPass) {
+        alert(`🚨 Password salah untuk akun @${rawUser}! Akses ditolak.`);
+        return;
       }
     } catch (err) {
-      console.error("Security lock error:", err);
+      alert("Gagal verifikasi ke server: " + err.message);
+      return;
     }
   }
 
-  // 4. Set Sesi Terkunci di Browser (LocalStorage Binding)
-  authenticatedPiUser = { username: piUsername };
-  localStorage.setItem('locked_pi_session', piUsername);
+  // Simpan ke daftar klik-cepat di perangkat ini
+  saveAccountToDevice(rawUser, rawPass);
+  finalizeLoginSession(rawUser);
+  closeSemiAutoLoginModal();
+}
 
-  // Perbarui Tampilan UI Tombol Login & Status Header
+// Login Cepat 1x Klik dari Pop-Up
+async function quickLoginWithSavedAccount(username, savedToken) {
+  // Verifikasi ulang secara senyap di latar belakang ke Supabase agar tetap aman
+  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+    const { data: secRecord } = await supabaseClient
+      .from('pioneers_security')
+      .select('password_hash')
+      .eq('username', username)
+      .maybeSingle();
+
+    if (secRecord && secRecord.password_hash !== savedToken) {
+      alert("⚠️ Sesi kadaluarsa atau password telah diubah. Silakan masukkan password kembali.");
+      removeSavedAccount(username);
+      return;
+    }
+  }
+
+  finalizeLoginSession(username);
+  closeSemiAutoLoginModal();
+}
+
+function saveAccountToDevice(username, token) {
+  let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+  saved = saved.filter(item => item.username !== username);
+  saved.unshift({ username, token });
+  localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
+}
+
+function removeSavedAccount(username) {
+  let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+  saved = saved.filter(item => item.username !== username);
+  localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
+  renderSavedAccountsList();
+}
+
+// Terapkan sesi aktif ke seluruh tampilan aplikasi
+function finalizeLoginSession(username) {
+  authenticatedPiUser = { username: username };
+  
   const statusEl = document.getElementById('userStatusDisplay');
   const btnHeaderLogin = document.getElementById('btnHeaderLogin');
   
-  if (statusEl) statusEl.innerText = `User: @${piUsername} (Locked)`;
-  if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔒 <span class="text-emerald-400">@${piUsername}</span>`;
-  
-  if (!isAuto) {
-    alert(`✅ Kunci Sesi Terbuka:\nSelamat datang, @${piUsername}. Identitas Anda terverifikasi aman.`);
-  }
+  if (statusEl) statusEl.innerText = `User: @${username}`;
+  if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${username}</span>`;
 
-  if (typeof checkBuyerStatusInDatabase === 'function') {
-    checkBuyerStatusInDatabase(piUsername);
-  }
+  if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(username);
+  if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
 }
+
+// Hubungkan tombol Login lama ke Modal Pop-Up Semi-Otomatis baru
+function authenticatePiUser(isAuto = false) {
+  if (isAuto) {
+    // Jika auto-login saat halaman dibuka, cek akun terakhir yang tersimpan
+    const saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+    if (saved.length > 0) {
+      quickLoginWithSavedAccount(saved[0].username, saved[0].token);
+      return;
+    }
+  }
+  openSemiAutoLoginModal();
+}
+
 
 
     // Engine Canggih Sertifikat Event Admin
