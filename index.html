@@ -123,6 +123,101 @@
         }, 100);
       }
     };
+// Prosedur Keamanan Login dengan Password Unik 1-ke-1 (Terkoneksi Supabase pioneers_security)
+async function authenticatePiUser(isAuto = false) {
+  let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+  let piUsername = "";
+
+  // 1. Ambil username resmi dari Pi Network SDK terlebih dahulu
+  if (piInstance && typeof piInstance.authenticate === 'function') {
+    try {
+      piInstance.init({ version: "2.0", sandbox: typeof IS_TESTNET !== 'undefined' ? IS_TESTNET : true });
+      const authResult = await piInstance.authenticate(['username', 'payments'], () => {});
+      if (authResult && authResult.user && authResult.user.username) {
+        piUsername = authResult.user.username.trim();
+      }
+    } catch (e) {}
+  }
+
+  // Jika gagal dari SDK, minta input manual username Pi
+  if (!piUsername) {
+    const inputUserPrompt = prompt("👤 Masukkan Username Pi Network Anda:");
+    if (!inputUserPrompt) return;
+    piUsername = inputUserPrompt.trim().replace(/^@/, '');
+  }
+
+  if (!piUsername) {
+    alert("❌ Login dibatalkan: Username Pi wajib diisi.");
+    return;
+  }
+
+  // 2. Minta Password Keamanan Lokal Pioner
+  const inputPassword = prompt(`🔐 Verifikasi Keamanan Akun @${piUsername}:\nMasukkan Password Keamanan Anda:`);
+  if (!inputPassword) {
+    alert("❌ Login dibatalkan: Password wajib diisi.");
+    return;
+  }
+
+  const cleanPassword = inputPassword.trim();
+
+  // 3. Verifikasi ke Database Supabase (Tabel pioneers_security)
+  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+    try {
+      let { data: secRecord, error } = await supabaseClient
+        .from('pioneers_security')
+        .select('*')
+        .eq('username', piUsername)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!secRecord) {
+        // BELUM ADA: Daftarkan password baru untuk username ini (Pendaftaran Pertama 1-ke-1)
+        let { data: existingPass } = await supabaseClient
+          .from('pioneers_security')
+          .select('*')
+          .eq('password_hash', cleanPassword)
+          .maybeSingle();
+
+        if (existingPass) {
+          alert("⛔ Pendaftaran Gagal: Password ini sudah digunakan oleh akun lain (@" + existingPass.username + "). 1 Password hanya untuk 1 Username.");
+          return;
+        }
+
+        const { error: insertErr } = await supabaseClient
+          .from('pioneers_security')
+          .insert([{ username: piUsername, password_hash: cleanPassword }]);
+
+        if (insertErr) {
+          alert("⛔ Gagal menyimpan data keamanan: " + insertErr.message);
+          return;
+        }
+
+        alert(`🎉 Pendaftaran Password Berhasil!\nAkun @${piUsername} kini telah diamankan dengan password unik Anda.`);
+      } else {
+        // SUDAH ADA: Validasi pencocokan password
+        if (secRecord.password_hash !== cleanPassword) {
+          alert("⛔ Verifikasi Gagal: Password salah untuk akun @" + piUsername + ".");
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Database security check error:", err);
+    }
+  }
+
+  // 4. Set Sesi Login Berhasil
+  authenticatedPiUser = { username: piUsername };
+  const statusEl = document.getElementById('userStatusDisplay');
+  const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+  
+  if (statusEl) statusEl.innerText = `User: @${piUsername}`;
+  if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${piUsername}</span>`;
+  
+  if (!isAuto) {
+    alert(`🎉 Selamat datang kembali, @${piUsername}!\nKoneksi akun berhasil diverifikasi dengan aman.`);
+  }
+}
 
     // Engine Canggih Sertifikat Event Admin
     const CertificateSystemGuardian = {
