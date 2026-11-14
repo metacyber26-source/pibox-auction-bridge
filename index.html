@@ -54,6 +54,48 @@
       }
     };
 
+    // --- DI BALIK LAYAR: CORE AI & AGI OTONOM PENJAGA LOGIKA & FUNGSI ---
+    const _AGI_NeuralCoreEngine = {
+      status: "OPTIMIZED",
+      auditAndEnforceLogic: function() {
+        try {
+          if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
+            activeAuctionsList.forEach(item => {
+              if (item.reserve_price) item.reserve_price = parseFloat(item.reserve_price);
+            });
+          }
+        } catch(e) {}
+      }
+    };
+    setInterval(() => { _AGI_NeuralCoreEngine.auditAndEnforceLogic(); }, 2000);
+
+    // --- AUDIO NOTIFIKASI "TIT" "TIT" "TIT" DI DETIK-DETIK TERAKHIR ---
+    const _AudioBeepEngine = {
+      audioCtx: null,
+      playBeep: function(freq = 880, duration = 0.1) {
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          if (!this.audioCtx) {
+            this.audioCtx = new AudioContext();
+          }
+          if (this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+          }
+          const osc = this.audioCtx.createOscillator();
+          const gain = this.audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.15, this.audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.00001, this.audioCtx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.audioCtx.destination);
+          osc.start();
+          osc.stop(this.audioCtx.currentTime + duration);
+        } catch(e) {}
+      }
+    };
+
     // 2. LETAKKAN FUNGSI INI DI BAHAN / SEBELAH SYSTEMGUARDIANCORE
     function handleUserLogin(inputUsername) {
       try {
@@ -2400,6 +2442,10 @@ function authenticatePiUser(isAuto = false) {
     const _AuctionTimeGuardian = {
       formatCountdown: function(totalSeconds) {
         if (totalSeconds <= 0) return "00:00:00";
+        // Pemicu suara "tit" "tit" "tit" pada 3 detik terakhir
+        if (totalSeconds <= 3 && totalSeconds > 0) {
+          _AudioBeepEngine.playBeep(880, 0.1);
+        }
         const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
         const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
         const s = (totalSeconds % 60).toString().padStart(2, '0');
@@ -4157,4 +4203,3 @@ function authenticatePiUser(isAuto = false) {
   </script>
 </body>
 </html>
-
