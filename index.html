@@ -29,27 +29,21 @@
       });
     })();
 
+    // 1. Letakkan SystemGuardianCore yang aman di sini
     const SystemGuardianCore = {
       version: "6.6.0-secure-engine",
-      developerOverride: null, // Dinonaktifkan demi keamanan
-      
+      developerOverride: null,
       enforceRealIdentity: function(username) {
-        // Memastikan username benar-benar valid, tidak kosong, dan murni milik user
         if (!username || typeof username !== 'string' || username.trim() === '') {
           throw new Error("Autentikasi gagal: Username tidak boleh kosong.");
         }
         return username.trim();
       },
-      
       verifyFullAccess: function(username) {
-        // Hanya memberikan hak akses admin jika username benar-benar terdaftar di ADMIN_USERNAMES
         if (!username) return false;
         return ADMIN_USERNAMES.includes(username.trim());
       },
-      
       monitorStream: function() {
-        // Pemantauan hanya memastikan sesi yang aktif adalah milik user yang sah,
-        // tidak melakukan override otomatis ke akun tertentu.
         setInterval(() => {
           try {
             if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
@@ -59,6 +53,30 @@
         }, 5000);
       }
     };
+
+    // 2. LETAKKAN FUNGSI INI DI BAHAN / SEBELAH SYSTEMGUARDIANCORE
+    function handleUserLogin(inputUsername) {
+      try {
+        // Validasi identitas asli menggunakan Guardian Core
+        const verifiedUsername = SystemGuardianCore.enforceRealIdentity(inputUsername);
+        
+        // Simpan sesi atas nama user tersebut secara spesifik
+        authenticatedPiUser = { username: verifiedUsername };
+        
+        // Cek apakah user ini adalah admin yang sah
+        const isAdmin = SystemGuardianCore.verifyFullAccess(verifiedUsername);
+        
+        console.log(`Login berhasil sebagai: ${verifiedUsername} (Admin: ${isAdmin})`);
+        
+        // Lanjutkan memuat data aplikasi sesuai hak akses user
+        fetchActiveAuctions();
+        fetchBuyersList();
+        
+      } catch (error) {
+        alert(error.message); // Memberikan peringatan jika login kosong/tidak sah
+      }
+    }
+
 
 
     document.addEventListener("DOMContentLoaded", () => {
