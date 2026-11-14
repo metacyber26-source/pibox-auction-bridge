@@ -297,13 +297,28 @@
       
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+      const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+      const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
       
       if (statusEl) statusEl.innerText = `User: @${username}`;
       if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${username}</span>`;
 
+      const isAdmin = typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(username);
+      if (isAdmin) {
+        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+      } else {
+        if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
+      }
+
+      if (typeof _AutonomousLogicCore !== 'undefined') {
+        _AutonomousLogicCore.enforceAdminListButtonControl();
+      }
       if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(username);
       if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
     }
+
 
     function authenticatePiUser(isAuto = false) {
       if (isAuto) {
