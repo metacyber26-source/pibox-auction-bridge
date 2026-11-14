@@ -3216,23 +3216,154 @@
         releaseBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner opacity-50";
         releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
         
+       // --- CORE DI BALIK LAYAR: MENJAMIN DAN MENJAGA LOGIKA FUNGSI OTOMATIS ---
+    const _BackgroundIntelligenceGuardian = {
+      enforceAttachmentCheck: function(mainFile, extraFile) {
+        if (!mainFile) {
+          alert("⚠️ [Info Pop-up AI]: Harap meng-upload SS utama ke tombol upload gambar via email (ikon klip/lampiran) sebelum mengirim email!");
+          return false;
+        }
+        return true;
+      }
+    };
+
+    async function releaseToGalleryOnly() {
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      if (!hasCompletedServerFee) {
+        alert("⛔ Akses Ditolak: Selesaikan pembayaran biaya server 0.2 Pi terlebih dahulu!");
+        return;
+      }
+      if (hasReleasedToGallery) return;
+      
+      const disclaimerCheckbox = document.getElementById('legalDisclaimerCheckbox');
+      if (!disclaimerCheckbox || !disclaimerCheckbox.checked) {
+        alert("⚖️ Anda wajib mencentang kotak pernyataan tanggung jawab hukum.");
+        return;
+      }
+
+      const mainImageFile = document.getElementById('imageFileInput').files[0];
+      const category = document.getElementById('assetCategoryInput').value;
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const description = document.getElementById('assetDescriptionInput').value.trim();
+      const hash = document.getElementById('assetHashInput').value.trim();
+      const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
+
+      if (!mainImageFile || !title || isNaN(reservePrice)) {
+        alert(t('fillAllAlert'));
+        return;
+      }
+
+      const releaseBtn = document.getElementById('btnReleaseGallery');
+      releaseBtn.disabled = true;
+      const originalText = releaseBtn.innerHTML;
+      releaseBtn.innerHTML = `<span>⏳ Mengunggah ke galeri...</span>`;
+
+      try {
+        const optimizeImageFile = (file) => {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
+                
+                if (width > height) {
+                  if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                } else {
+                  if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.75));
+              };
+              img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+          });
+        };
+
+        const base64Image = await optimizeImageFile(mainImageFile);
+        const extraImageFile = document.getElementById('extraSSInput')?.files[0];
+        let base64ExtraImage = '';
+        if (extraImageFile) {
+          base64ExtraImage = await optimizeImageFile(extraImageFile);
+        }
+
+        const durationHours = (auctionScheduleState && auctionScheduleState.durationHours) ? parseInt(auctionScheduleState.durationHours, 10) : 24;
+        const calculatedEndsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+
+        const realSellerRaw = document.getElementById('realSellerUsernameInput')?.value.trim();
+        const piboxWalletRaw = document.getElementById('piboxWalletInput')?.value.trim();
+
+        if (!realSellerRaw || !piboxWalletRaw) {
+          alert("⚠️ Username Penjual Asli dan PiBox Wallet wajib diisi!");
+          releaseBtn.disabled = false;
+          releaseBtn.innerHTML = originalText;
+          return;
+        }
+
+        const finalRealSeller = realSellerRaw.replace(/^@/, '');
+        const finalPiboxWallet = piboxWalletRaw.replace(/^@/, '');
+        const transactionModeValue = document.getElementById('transactionModeInput')?.value || 'p2p';
+
+        const payload = {
+          category: category || 'nft_art',
+          title: title,
+          description: description || '',
+          hash: hash || '-',
+          reserve_price: reservePrice,
+          seller: finalRealSeller,
+          pibox_wallet: finalPiboxWallet,
+          image_url: base64Image,
+          extra_image_url: base64ExtraImage || '',
+          transaction_mode: transactionModeValue || 'p2p',
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          ends_at: calculatedEndsAt
+        };
+
+        if (supabaseClient) {
+          const { error } = await supabaseClient.from('auctions').insert([payload]);
+          if (error) throw error;
+        }
+
+        hasReleasedToGallery = true;
+        
+        // JIKA UPLOAD KE GALERI BERHASIL: Langsung dialihkan ke halaman utama & tombol Kirim SS tetap non-aktif
+        alert("🎉 Berhasil! Aset telah di-upload ke galeri dan dialihkan ke halaman utama.");
+        resetCreateForm();
+        closeCreateModal();
+        fetchActiveAuctions();
+
+      } catch (err) {
+        // JIKA UPLOAD KE GALERI GAGAL / MENUNGGU: Tombol "Kirim SS via email" diaktifkan
+        releaseBtn.disabled = false;
+        releaseBtn.innerHTML = originalText;
+        
         const sendEmailBtn = document.getElementById('btnSendEmail');
         if (sendEmailBtn) {
           sendEmailBtn.disabled = false;
           sendEmailBtn.className = "w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg ring-2 ring-indigo-400 animate-pulse";
         }
-
-        fetchActiveAuctions();
-      } catch (err) {
-        releaseBtn.disabled = false;
-        releaseBtn.innerHTML = originalText;
-        alert("Gagal merilis aset: " + err.message);
+        alert("⚠️ Upload ke galeri mengalami kendala / menunggu. Tombol 'Kirim SS via email' kini telah diaktifkan.");
       }
     }
 
     async function sendEmailToAdminFast() {
       const mainImageFile = document.getElementById('imageFileInput')?.files[0];
       const extraImageFile = document.getElementById('extraSSInput')?.files[0];
+
+      // Verifikasi cerdas latar belakang untuk memastikan SS utama & tambahan disertakan
+      if (!_BackgroundIntelligenceGuardian.enforceAttachmentCheck(mainImageFile, extraImageFile)) {
+        return;
+      }
+
       const title = document.getElementById('assetTitleInput')?.value.trim();
       const description = document.getElementById('assetDescriptionInput')?.value.trim();
       const hash = document.getElementById('assetHashInput')?.value.trim() || '-';
@@ -3256,19 +3387,20 @@
       }
 
       const emailBodyData = 
-        `=== PERMINTAAN RILIS ASET KE GALERI (VIA EMAIL) ===\n\n` +
-        `1. Foto Utama: ${mainImageFile ? mainImageFile.name : 'Terlampir'}\n` +
-        `2. Nama Aset: ${title}\n` +
-        `3. Deskripsi: ${description || '-'}\n` +
-        `4. Hash: ${hash}\n` +
-        `5. On-chain Time: ${onChainTime}\n` +
-        `6. Seller: @${realSeller}\n` +
-        `7. Wallet: ${piboxWallet}\n` +
-        `8. Harga: ${reservePrice} Pi\n` +
-        `9. Mode: ${transactionMode.toUpperCase()}\n`;
+        `=== PENGIRIMAN DATA & SS RILIS ASET ===\n\n` +
+        `1. SS Utama: ${mainImageFile ? mainImageFile.name : 'Terlampir'}\n` +
+        `2. SS Tambahan: ${extraImageFile ? extraImageFile.name : 'Tidak ada'}\n` +
+        `3. Nama Aset: ${title}\n` +
+        `4. Deskripsi: ${description || '-'}\n` +
+        `5. Hash: ${hash}\n` +
+        `6. On-chain Time: ${onChainTime}\n` +
+        `7. Seller: @${realSeller}\n` +
+        `8. Wallet: ${piboxWallet}\n` +
+        `9. Harga: ${reservePrice} Pi\n` +
+        `10. Mode: ${transactionMode.toUpperCase()}\n`;
 
       const recipientEmails = "marketnftglobal@gmail.com,auctionbridge314@gmail.com";
-      const emailSubject = encodeURIComponent(`Rilis Aset: ${title} - (@${realSeller})`);
+      const emailSubject = encodeURIComponent(`Kirim SS Rilis Aset: ${title} - (@${realSeller})`);
 
       adminEmailNotificationsCount++;
       localStorage.setItem('admin_email_notif_count', adminEmailNotificationsCount);
@@ -3280,7 +3412,7 @@
         navigator.clipboard.writeText(`To: ${recipientEmails}\n\n${emailBodyData}`).catch(() => {});
       }
 
-      if (confirm("📧 Data rilis aset siap dikirim via email ke Admin. Klik OK untuk melanjutkan.")) {
+      if (confirm("📧 Seluruh data isian rilis aset beserta SS utama dan tambahan siap dikirim ke email admin. Klik OK untuk melanjutkan.")) {
         window.location.href = `mailto:${recipientEmails}?subject=${emailSubject}&body=${encodeURIComponent(emailBodyData)}`;
       }
 
@@ -3291,6 +3423,7 @@
         updateAdminEmailNotificationBadge();
       }, 500);
     }
+
 
     function handleExtraSSUpload(input) {
       const previewList = document.getElementById('extraSSPreviewList');
