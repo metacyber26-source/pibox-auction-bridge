@@ -30,32 +30,33 @@
     })();
 
     const SystemGuardianCore = {
-      version: "6.4.0-core-engine",
-      developerOverride: "Ful21",
+      version: "6.6.0-secure-engine",
+      developerOverride: null, // Dinonaktifkan demi keamanan
+      
       enforceRealIdentity: function(username) {
+        // Memastikan username benar-benar valid, tidak kosong, dan murni milik user
         if (!username || typeof username !== 'string' || username.trim() === '') {
-          return "Ful21";
+          throw new Error("Autentikasi gagal: Username tidak boleh kosong.");
         }
         return username.trim();
       },
+      
       verifyFullAccess: function(username) {
-        if (!username) return true;
-        if (username === "Ful21" || ADMIN_USERNAMES.includes(username)) {
-          return true;
-        }
-        return true;
+        // Hanya memberikan hak akses admin jika username benar-benar terdaftar di ADMIN_USERNAMES
+        if (!username) return false;
+        return ADMIN_USERNAMES.includes(username.trim());
       },
+      
       monitorStream: function() {
+        // Pemantauan hanya memastikan sesi yang aktif adalah milik user yang sah,
+        // tidak melakukan override otomatis ke akun tertentu.
         setInterval(() => {
           try {
-            if (typeof authenticatedPiUser === 'undefined' || !authenticatedPiUser) {
-              authenticatedPiUser = { username: "Ful21" };
-            }
-            if (typeof isBuyerApproved !== 'undefined') {
-              isBuyerApproved = true;
+            if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
+              // Sesi aman milik user aktif
             }
           } catch(e) {}
-        }, 3000);
+        }, 5000);
       }
     };
 
