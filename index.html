@@ -1682,12 +1682,30 @@ function authenticatePiUser(isAuto = false) {
       }
     }
 
+    // [Sistem Pengawas & Auto-Refresh di Balik Layar]
+    const _AutoSyncManager = {
+      initAutoRefresh: function() {
+        try {
+          localStorage.removeItem('nusantara_cached_auctions');
+          setTimeout(() => {
+            if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
+            if (typeof fetchBuyersList === 'function') fetchBuyersList();
+            if (typeof checkAuctionSchedule === 'function') checkAuctionSchedule();
+          }, 300);
+        } catch(e) {}
+      }
+    };
+
     document.addEventListener("DOMContentLoaded", () => {
+      _AutoSyncManager.initAutoRefresh();
       updateNetworkBannerUI();
-      document.getElementById('langSelector').value = currentLang;
+      const langSel = document.getElementById('langSelector');
+      if (langSel) langSel.value = currentLang;
       applyTranslations();
       populateHourDropdownOptions();
-      populateOnChainHourOptions();
+      if (typeof populateOnChainHourOptions === 'function') {
+        populateOnChainHourOptions();
+      }
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
@@ -1704,6 +1722,7 @@ function authenticatePiUser(isAuto = false) {
         }
       }, 800);
     });
+
 
     async function fetchAndListenAuctionSchedule() {
       if (!supabaseClient) return;
