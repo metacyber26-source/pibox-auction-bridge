@@ -53,7 +53,7 @@
       }
     };
 
-    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI (DIJALANKAN SECARA TEGAS & LANCAR) ---
+    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI DENGAN INTEGRASI AGI & MULTI-BAHASA PROFESIONAL ---
     const _NeuralCoreEngine = {
       status: "OPTIMIZED",
       auditAndEnforceLogic: function() {
@@ -198,10 +198,10 @@
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
             <div>
               <p class="text-xs font-bold text-white">@${acc.username}</p>
-              <p class="text-[9px] text-emerald-400">Terverifikasi • Klik untuk masuk</p>
+              <p class="text-[9px] text-emerald-400">${t('verifiedClickToLogin')}</p>
             </div>
           </button>
-          <button onclick="removeSavedAccount('${acc.username}')" title="Hapus dari perangkat ini" class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer">
+          <button onclick="removeSavedAccount('${acc.username}')" title="${t('deleteFromDevice')}" class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer">
             ✕
           </button>
         </div>
@@ -213,7 +213,7 @@
       const rawPass = document.getElementById('manualLoginPassword').value.trim();
 
       if (!rawUser || !rawPass) {
-        alert("⚠️ Harap isi Username dan Password Keamanan Anda.");
+        alert(t('alertFillUserPass'));
         return;
       }
 
@@ -235,7 +235,7 @@
               .maybeSingle();
 
             if (existingPass) {
-              alert(`⛔ Password ini sudah dipakai oleh @${existingPass.username}. Gunakan password lain.`);
+              alert(t('alertPasswordUsed').replace('{username}', existingPass.username));
               return;
             }
 
@@ -245,11 +245,11 @@
 
             if (insertErr) throw insertErr;
           } else if (secRecord.password_hash !== rawPass) {
-            alert(`🚨 Password salah untuk akun @${rawUser}! Akses ditolak.`);
+            alert(t('alertWrongPassword').replace('{username}', rawUser));
             return;
           }
         } catch (err) {
-          alert("Gagal verifikasi ke server: " + err.message);
+          alert(t('alertServerVerificationFailed') + err.message);
           return;
         }
       }
@@ -268,7 +268,7 @@
           .maybeSingle();
 
         if (secRecord && secRecord.password_hash !== savedToken) {
-          alert("⚠️ Sesi kadaluarsa atau password telah diubah. Silakan masukkan password kembali.");
+          alert(t('alertSessionExpired'));
           removeSavedAccount(username);
           return;
         }
@@ -370,11 +370,11 @@
   <div class="w-full max-w-md bg-gray-950 p-2.5 border-b border-gray-800 flex gap-1 text-[10px] mb-2 rounded-xl">
     <a href="index.html" class="flex-1 bg-blue-600 text-white font-bold py-1.5 rounded-lg text-center transition flex flex-col items-center justify-center gap-0.5">
       <span class="text-sm">🔨</span>
-      <span>Lelang</span>
+      <span data-i18n="navAuction">Lelang</span>
     </a>
     <a href="marketplace.html" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 font-bold py-1.5 rounded-lg text-center transition flex flex-col items-center justify-center gap-0.5">
       <span class="text-sm">🛒</span>
-      <span>Marketplace</span>
+      <span data-i18n="navMarketplace">Marketplace</span>
     </a>
   </div>
 
@@ -402,7 +402,7 @@
           🧪<span class="hidden sm:inline"> Dev</span>
         </a>
         <button id="btnToggleTestUser" onclick="toggleTestUserMode()" title="Uji Coba Tampilan & Fitur Sebagai User Biasa" class="text-[9px] bg-blue-950/80 hover:bg-blue-900 text-blue-300 font-bold px-1.5 py-1 rounded-lg border border-blue-500/40 transition flex items-center gap-0.5 cursor-pointer">
-          👤<span class="hidden sm:inline" id="testUserBtnText"> Test User</span>
+          👤<span class="hidden sm:inline" id="testUserBtnText" data-i18n="testUserBtn"> Test User</span>
         </button>
 
         <select id="langSelector" onchange="changeLanguage(this.value)" class="bg-gray-900 text-yellow-400 border border-yellow-500/30 text-[9px] font-bold py-1 px-1 rounded-lg focus:outline-none cursor-pointer">
@@ -430,7 +430,7 @@
           <div>
             <p class="font-bold text-gray-200" data-i18n="buyerStatusTitle">Status Akses Pembeli</p>
             <p id="buyerApprovalStatusText" class="text-amber-300" data-i18n="buyerStatusPending">Menunggu Verifikasi Pendaftaran Admin...</p>
-            <p id="userDepositBalanceDisplay" class="text-emerald-400 font-bold mt-0.5">Saldo Jaminan: 0 Pi</p>
+            <p id="userDepositBalanceDisplay" class="text-emerald-400 font-bold mt-0.5" data-i18n="depositBalanceLabel">Saldo Jaminan: 0 Pi</p>
           </div>
         </div>
 
@@ -462,12 +462,12 @@
     <!-- Banner Sesi Lelang -->
     <div id="sessionBanner" class="bg-gradient-to-r from-purple-900/70 via-indigo-900/70 to-gray-900 border-b border-purple-500/40 p-3 text-center flex flex-col sm:flex-row justify-between items-center px-4 gap-2 shadow-lg">
       <div id="auctionInfoPanel" class="flex items-center gap-1.5 text-left">
-        <span class="text-[11px] font-bold text-purple-300 uppercase tracking-wider">📌 INFO JADWAL:</span>
+        <span class="text-[11px] font-bold text-purple-300 uppercase tracking-wider" data-i18n="scheduleInfoLabel">📌 INFO JADWAL:</span>
         <span id="auctionInfoText" class="text-[10px] font-bold text-yellow-400">Sandbox Standby</span>
       </div>
 
       <div class="flex items-center">
-        <span id="sessionStateBadge" class="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md tracking-wider">Memuat Jadwal...</span>
+        <span id="sessionStateBadge" class="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md tracking-wider" data-i18n="loadingSchedule">Memuat Jadwal...</span>
       </div>
     </div>
 
@@ -515,8 +515,8 @@
 
     <!-- Tombol Khusus Laporan Bulanan On-Chain -->
     <div id="adminMonthlyReportPanel" class="hidden p-2 bg-gray-950 border-b border-gray-800 flex justify-between items-center px-3">
-      <span class="text-[10px] text-purple-400 font-bold">📊 Rekap On-Chain Bulanan</span>
-      <button onclick="openMonthlyReportModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] px-3 py-1 rounded-lg transition shadow cursor-pointer">
+      <span class="text-[10px] text-purple-400 font-bold" data-i18n="monthlyReportPanelTitle">📊 Rekap On-Chain Bulanan</span>
+      <button onclick="openMonthlyReportModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] px-3 py-1 rounded-lg transition shadow cursor-pointer" data-i18n="downloadShareReportBtn">
         📥 Unduh / Share Laporan
       </button>
     </div>
@@ -546,30 +546,30 @@
     <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-gray-800 pb-2">
         <div>
-          <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider">🔑 Akses Akun Pi Network</h2>
-          <p class="text-[9px] text-gray-400">Pilih akun tersimpan atau daftarkan akun baru</p>
+          <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider" data-i18n="modalLoginTitle">🔑 Akses Akun Pi Network</h2>
+          <p class="text-[9px] text-gray-400" data-i18n="modalLoginSub">Pilih akun tersimpan atau daftarkan akun baru</p>
         </div>
         <button onclick="closeSemiAutoLoginModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
       </div>
 
       <div id="savedAccountsContainer" class="space-y-2 hidden">
-        <label class="block text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">⚡ Klik Akun Anda untuk Masuk Cepat:</label>
+        <label class="block text-[10px] font-semibold text-emerald-400 uppercase tracking-wide" data-i18n="quickLoginLabel">⚡ Klik Akun Anda untuk Masuk Cepat:</label>
         <div id="savedAccountsList" class="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar"></div>
         <div class="border-t border-gray-800 my-2 pt-2 text-center">
-          <span class="text-[9px] text-gray-500">Atau masuk dengan akun lain di bawah ini</span>
+          <span class="text-[9px] text-gray-500" data-i18n="orLoginOtherLabel">Atau masuk dengan akun lain di bawah ini</span>
         </div>
       </div>
 
       <div class="space-y-2.5 text-xs">
         <div>
-          <label class="block text-gray-300 font-semibold mb-1 text-[11px]">Username Pi Network:</label>
-          <input type="text" id="manualLoginUsername" placeholder="Contoh: Ful21" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
+          <label class="block text-gray-300 font-semibold mb-1 text-[11px]" data-i18n="usernamePiLabel">Username Pi Network:</label>
+          <input type="text" id="manualLoginUsername" placeholder="Contoh: Ful21" data-i18n-placeholder="usernamePlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
         </div>
         <div>
-          <label class="block text-gray-300 font-semibold mb-1 text-[11px]">Password Keamanan Unik (1-ke-1):</label>
-          <input type="password" id="manualLoginPassword" placeholder="Masukkan / buat password baru..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
+          <label class="block text-gray-300 font-semibold mb-1 text-[11px]" data-i18n="passwordPiLabel">Password Keamanan Unik (1-ke-1):</label>
+          <input type="password" id="manualLoginPassword" placeholder="Masukkan / buat password baru..." data-i18n-placeholder="passwordPlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
         </div>
-        <button onclick="processManualLoginSubmit()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 rounded-xl text-xs transition shadow-lg cursor-pointer">
+        <button onclick="processManualLoginSubmit()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 rounded-xl text-xs transition shadow-lg cursor-pointer" data-i18n="verifySaveAccountBtn">
           🔓 Verifikasi & Simpan Akun
         </button>
       </div>
@@ -594,49 +594,49 @@
         <div>
           <label class="block text-gray-300 font-semibold mb-1" data-i18n="scheduleModeLabel">Status Mode Sesi Lelang Saat Ini:</label>
           <select id="scheduleModeSelect" onchange="toggleScheduleInputVisibility()" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-purple-500 cursor-pointer">
-            <option value="testing_mode">🧪 1. Mode Uji Coba / Sandbox (Standby)</option>
-            <option value="scheduled">⏳ 2. Menggunakan Jadwal Buka & Sesi 1 Jam</option>
-            <option value="instant_one_hour">🚀 3. Buka Lelang Sekarang (Durasi 1 Jam)</option>
+            <option value="testing_mode" data-i18n="optSandbox">🧪 1. Mode Uji Coba / Sandbox (Standby)</option>
+            <option value="scheduled" data-i18n="optScheduled">⏳ 2. Menggunakan Jadwal Buka & Sesi 1 Jam</option>
+            <option value="instant_one_hour" data-i18n="optInstant">🚀 3. Buka Lelang Sekarang (Durasi 1 Jam)</option>
           </select>
         </div>
 
         <div id="scheduledInputsContainer" class="space-y-3 bg-gray-900/80 p-3 rounded-xl border border-gray-800 hidden">
           <div>
             <div id="instantTriggerContainer" class="hidden bg-emerald-950/40 p-3 rounded-xl border border-emerald-500/40 space-y-2">
-              <p class="text-[10px] text-emerald-300 font-semibold">⚡ Mode Instan: Lelang akan langsung aktif terhitung dari sekarang dan otomatis tertutup setelah tepat 60 menit.</p>
-              <button onclick="triggerInstantOneHourAuction()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
+              <p class="text-[10px] text-emerald-300 font-semibold" data-i18n="instantDesc">⚡ Mode Instan: Lelang akan langsung aktif terhitung dari sekarang dan otomatis tertutup setelah tepat 60 menit.</p>
+              <button onclick="triggerInstantOneHourAuction()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer" data-i18n="instantBtn">
                 🚀 Buka Lelang Sekarang (Durasi 60 Menit)
               </button>
             </div>
 
-            <label class="block text-[10px] text-gray-400 font-semibold mb-1">1. Tanggal Buka Lelang:</label>
+            <label class="block text-[10px] text-gray-400 font-semibold mb-1" data-i18n="openDateLabel">1. Tanggal Buka Lelang:</label>
             <div class="grid grid-cols-3 gap-1.5 relative z-30">
               <div>
-                <span class="block text-[9px] text-gray-400 mb-0.5">Tahun</span>
+                <span class="block text-[9px] text-gray-400 mb-0.5" data-i18n="yearLabel">Tahun</span>
                 <input type="number" id="schedYear" value="2026" min="2020" max="2099" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-purple-500 text-center">
               </div>
               <div>
-                <span class="block text-[9px] text-gray-400 mb-0.5">Bulan</span>
+                <span class="block text-[9px] text-gray-400 mb-0.5" data-i18n="monthLabel">Bulan</span>
                 <input type="number" id="schedMonth" value="11" min="1" max="12" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-purple-500 text-center">
               </div>
               <div>
-                <span class="block text-[9px] text-gray-400 mb-0.5">Tanggal</span>
+                <span class="block text-[9px] text-gray-400 mb-0.5" data-i18n="dateLabel">Tanggal</span>
                 <input type="number" id="schedDay" value="01" min="1" max="31" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-purple-500 text-center">
               </div>
             </div>
           </div>
 
           <div>
-            <label class="block text-[10px] text-gray-400 font-semibold mb-1">2. Jam Buka Lelang:</label>
+            <label class="block text-[10px] text-gray-400 font-semibold mb-1" data-i18n="openHourLabel">2. Jam Buka Lelang:</label>
             <select id="scheduleStartHourSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none cursor-pointer relative z-30"></select>
           </div>
 
           <div>
-            <label class="block text-[10px] text-gray-400 font-semibold mb-1">3. Durasi Sesi Lelang:</label>
+            <label class="block text-[10px] text-gray-400 font-semibold mb-1" data-i18n="durationLabel">3. Durasi Sesi Lelang:</label>
             <select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none cursor-pointer relative z-30">
-              <option value="1">Sesi 1 Jam</option>
-              <option value="6">Sesi 6 Jam</option>
-              <option value="12">Sesi 12 Jam</option>
+              <option value="1" data-i18n="dur1H">Sesi 1 Jam</option>
+              <option value="6" data-i18n="dur6H">Sesi 6 Jam</option>
+              <option value="12" data-i18n="dur12H">Sesi 12 Jam</option>
             </select>
           </div>
         </div>
@@ -703,9 +703,9 @@
         </div>
 
         <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-[11px] gap-1">
-          <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer">🌐 Forum</button>
-          <button id="tabBtnAdmin" onclick="switchChatTab('admin')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🛡️ Hubungi Admin</button>
-          <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🔒 P2P</button>
+          <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer" data-i18n="chatTabForum">🌐 Forum</button>
+          <button id="tabBtnAdmin" onclick="switchChatTab('admin')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer" data-i18n="chatTabAdmin">🛡️ Hubungi Admin</button>
+          <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer" data-i18n="chatTabP2P">🔒 P2P</button>
         </div>
 
         <div id="p2pTargetSelectorContainer" class="hidden bg-gray-900 p-2 rounded-xl border border-gray-800 text-xs space-y-1">
@@ -769,7 +769,7 @@
                 <th class="p-2 text-center bg-gray-900" data-i18n="thNotice">Keterangan</th>
                 <th class="p-2 bg-gray-900" data-i18n="thStatus">Status Verifikasi</th>
                 <th class="p-2 text-right bg-gray-900" data-i18n="thAction">Aksi</th>
-                <th class="p-2 text-center bg-gray-900">Pengembalian Jaminan</th>
+                <th class="p-2 text-center bg-gray-900" data-i18n="thRefund">Pengembalian Jaminan</th>
               </tr>
             </thead>
             <tbody id="buyersTableBody" class="overflow-y-auto max-h-[50vh]"></tbody>
@@ -896,30 +896,30 @@
           
           <div class="grid grid-cols-3 gap-1.5 relative z-20">
             <div>
-              <span class="block text-[9px] text-gray-400 mb-0.5">Tahun (Manual)</span>
+              <span class="block text-[9px] text-gray-400 mb-0.5" data-i18n="yearLabel">Tahun (Manual)</span>
               <input type="number" id="ocYear" value="2026" min="2020" max="2099" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500 text-center">
             </div>
             <div>
-              <span class="block text-[9px] text-gray-400 mb-0.5">Bulan (Manual)</span>
+              <span class="block text-[9px] text-gray-400 mb-0.5" data-i18n="monthLabel">Bulan (Manual)</span>
               <input type="number" id="ocMonth" value="11" min="1" max="12" placeholder="1-12" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500 text-center">
             </div>
             <div>
-              <span class="block text-[9px] text-gray-400 mb-0.5">Tanggal (Manual)</span>
+              <span class="block text-[9px] text-gray-400 mb-0.5" data-i18n="dateLabel">Tanggal (Manual)</span>
               <input type="number" id="ocDay" value="11" min="1" max="31" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500 text-center">
             </div>
           </div>
 
           <div class="grid grid-cols-3 gap-1.5 pt-1">
             <div>
-              <span class="block text-[9px] text-gray-400 mb-0.5">Jam (Manual)</span>
+              <span class="block text-[9px] text-gray-400 mb-0.5" data-i18n="hourLabel">Jam (Manual)</span>
               <input type="number" id="ocHour" value="00" min="0" max="23" placeholder="0-23" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500 text-center">
             </div>
             <div>
-              <span class="block text-[9px] text-gray-400 mb-0.5">Menit (Manual)</span>
+              <span class="block text-[9px] text-gray-400 mb-0.5" data-i18n="minuteLabel">Menit (Manual)</span>
               <input type="number" id="ocMinute" value="59" min="0" max="59" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500 text-center">
             </div>
             <div>
-              <span class="block text-[9px] text-gray-400 mb-0.5">Detik (Manual)</span>
+              <span class="block text-[9px] text-gray-400 mb-0.5" data-i18n="secondLabel">Detik (Manual)</span>
               <input type="number" id="ocSecond" value="07" min="0" max="59" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-yellow-500 text-center">
             </div>
           </div>
@@ -980,7 +980,7 @@
           <span data-i18n="sendEmailBtn">📧 Kirim Email Verifikasi ke Admin</span>
         </button>
 
-        <button type="button" onclick="handleClearForm()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2 rounded-xl transition cursor-pointer">🧹 Bersihkan Form</button>
+        <button type="button" onclick="handleClearForm()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2 rounded-xl transition cursor-pointer" data-i18n="clearFormBtn">🧹 Bersihkan Form</button>
       </div>
 
     </div>
@@ -989,14 +989,14 @@
   <!-- SCRIPT UTAMA -->
   <script>
     function handleClearForm() {
-      let warningMessage = "⚠️ Apakah Anda yakin ingin membersihkan seluruh isian form ini?";
+      let warningMessage = t('clearFormWarning1');
       if (hasCompletedServerFee || hasReleasedToGallery) {
-        warningMessage = "⚠️ PERINGATAN:\nAnda telah melakukan pembayaran Biaya Server / Rilis Aset. Jika form dibersihkan, status sesi ini akan di-reset dari awal.\n\nApakah Anda tetap ingin melanjutkan?";
+        warningMessage = t('clearFormWarning2');
       }
 
       if (confirm(warningMessage)) {
         resetCreateForm();
-        alert("🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal.");
+        alert(t('clearFormSuccess'));
       }
     }
   </script>
@@ -1073,6 +1073,9 @@
         appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
         appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
         networkModeLabel: "⚡ MODE JARINGAN:",
+        navAuction: "Lelang",
+        navMarketplace: "Marketplace",
+        testUserBtn: "Test User",
         loginBtn: "Masuk",
         scheduleBtn: "Jadwal",
         releaseAssetBtn: "+ List Aset/Barang",
@@ -1081,8 +1084,9 @@
         buyerStatusTitle: "Status Akses Pembeli",
         buyerStatusPending: "Menunggu Verifikasi Pendaftaran Admin...",
         buyerStatusApproved: "Status Akses: Terverifikasi (Dapat Melihat Galeri & Menawar)",
-        auctionStatusLabel: "⏳ STATUS LELANG:",
-        liveOpenBadge: "BUKA LIVE 24/7",
+        depositBalanceLabel: "Saldo Jaminan: 0 Pi",
+        scheduleInfoLabel: "📌 INFO JADWAL:",
+        loadingSchedule: "Memuat Jadwal...",
         activeSellersLabel: "📦 Penjual Aktif",
         activeBiddersLabel: "🔨 Penawar Aktif",
         searchPlaceholder: "🔍 Cari nama aset, barang, properti...",
@@ -1109,6 +1113,15 @@
         guestUser: "User: Tamu (Belum Login)",
         piLoginBtn: "🔑 Login Pi",
         refreshBtn: "Segarkan",
+        modalLoginTitle: "🔑 Akses Akun Pi Network",
+        modalLoginSub: "Pilih akun tersimpan atau daftarkan akun baru",
+        quickLoginLabel: "⚡ Klik Akun Anda untuk Masuk Cepat:",
+        orLoginOtherLabel: "Atau masuk dengan akun lain di bawah ini",
+        usernamePiLabel: "Username Pi Network:",
+        usernamePlaceholder: "Contoh: Ful21",
+        passwordPiLabel: "Password Keamanan Unik (1-ke-1):",
+        passwordPlaceholder: "Masukkan / buat password baru...",
+        verifySaveAccountBtn: "🔓 Verifikasi & Simpan Akun",
         modalDetailTitle: "Detail Lelang Aset / Barang",
         modalCreateTitle: "Rilis Lelang Baru",
         quotaDisplayMsg: "Maks 3 Listing Aktif Per Username",
@@ -1127,20 +1140,21 @@
         payServerFeeBtn: "💳 Bayar 0.2 Pi (Biaya Server)",
         releaseGalleryBtn: "🚀 Rilis ke Galeri (\"Pending\")",
         sendEmailBtn: "📧 Kirim Email Verifikasi ke Admin",
+        clearFormBtn: "🧹 Bersihkan Form",
         cancelBtn: "Batal",
         closeBtn: "Tutup",
         placeBidBtn: "🔨 Kirim Tawaran",
         bidSuccessMsg: "🎉 Penawaran Anda berhasil dikirim!",
         chatModalTitle: "Pusat Live Chat NFT Global Market",
         chatModalSub: "Pilih Ruang Diskusi & Komunikasi Langsung P2P",
-        chatTabForum: "🌐 Room Forum (Global)",
+        chatTabForum: "🌐 Forum",
         chatTabAdmin: "🛡️ Hubungi Admin",
-        chatTabP2P: "🔒 Room P2P",
+        chatTabP2P: "🔒 P2P",
         p2pSelectLabel: "Pilih Penjual / Lawan Chat P2P:",
         p2pSelectDefault: "-- Pilih User / Seller --",
         p2pStartBtn: "Mulai Chat",
         chatLoading: "Memuat pesan chat...",
-        chatInputPlaceholder: "Ketik pesan chat di sini...",
+        chatInputPlaceholder: "Ketik pesan chat atau upload SS pembayaran...",
         chatSendBtn: "Kirim 🚀",
         buyersModalTitle: "👥 Tabel Daftar Calon Pembeli & Status",
         buyersModalSub: "Admin/Dev dapat memverifikasi & menghapus data pembeli.",
@@ -1149,11 +1163,25 @@
         thUsername: "Username",
         thNotice: "Keterangan",
         thStatus: "Status Verifikasi",
-        thWinCount: "Menang Lelang",
         thAction: "Aksi",
+        thRefund: "Pengembalian Jaminan",
         scheduleModalTitle: "Pengaturan Jadwal Lelang",
         scheduleModalSub: "Khusus Admin & Developer",
         scheduleModeLabel: "Status Mode Sesi Lelang Saat Ini:",
+        optSandbox: "🧪 1. Mode Uji Coba / Sandbox (Standby)",
+        optScheduled: "⏳ 2. Menggunakan Jadwal Buka & Sesi 1 Jam",
+        optInstant: "🚀 3. Buka Lelang Sekarang (Durasi 1 Jam)",
+        instantDesc: "⚡ Mode Instan: Lelang akan langsung aktif terhitung dari sekarang dan otomatis tertutup setelah tepat 60 menit.",
+        instantBtn: "🚀 Buka Lelang Sekarang (Durasi 60 Menit)",
+        openDateLabel: "1. Tanggal Buka Lelang:",
+        yearLabel: "Tahun",
+        monthLabel: "Bulan",
+        dateLabel: "Tanggal",
+        openHourLabel: "2. Jam Buka Lelang:",
+        durationLabel: "3. Durasi Sesi Lelang:",
+        dur1H: "Sesi 1 Jam",
+        dur6H: "Sesi 6 Jam",
+        dur12H: "Sesi 12 Jam",
         saveScheduleBtn: "💾 Simpan Jadwal",
         activeStatus: "Aktif",
         pendingStatus: "⏳ Pending (Menunggu Verifikasi)",
@@ -1183,22 +1211,35 @@
         downloadReportBtn: "🌐 Download File Laporan (Chrome HTML)",
         labelHash: "Kode Ref / Hash",
         onChainTimeLabel: "On-chain Time (Sesuai SS Detail Aset):",
-        yearLabel: "Tahun (Manual)",
-        monthLabel: "Bulan (Drop-down)",
-        dateLabel: "Tanggal (Manual)",
-        hourLabel: "Jam (Drop-down)",
+        hourLabel: "Jam (Manual)",
         minuteLabel: "Menit (Manual)",
         secondLabel: "Detik (Manual)",
         creatorAccountLabel: "Akun Pembuat Listing (Admin/Dev):",
         realSellerLabel: "Username Penjual Asli (Wajib Diisi):",
+        piboxWalletLabel: "PiBox Wallet Penjual Asli (Wajib Diisi):",
         disclaimerTitle: "⚖️ PERINGATAN HUKUM & DISCLAIMER PERANTARA",
         disclaimerText: "Aplikasi ini <strong>hanya bertindak sebagai perantara</strong>. Segala bentuk tuntutan hukum perdata maupun pidana atas keaslian, kepemilikan sah, barang palsu/KW, barang curian, cagar budaya, dokumen palsu, atau wanprestasi sepenuhnya menjadi tanggung jawab hukum penjual pribadi.",
-        disclaimerCheckbox: "Saya menyatakan dengan sesungguhnya bahwa aset/barang ini adalah milik sah saya, tidak melanggar hukum/hak cipta, dan saya membebaskan platform dari segala tuntutan hukum."
+        disclaimerCheckbox: "Saya menyatakan dengan sesungguhnya bahwa aset/barang ini adalah milik sah saya, tidak melanggar hukum/hak cipta, dan saya membebaskan platform dari segala tuntutan hukum.",
+        monthlyReportPanelTitle: "📊 Rekap On-Chain Bulanan",
+        downloadShareReportBtn: "📥 Unduh / Share Laporan",
+        verifiedClickToLogin: "Terverifikasi • Klik untuk masuk",
+        deleteFromDevice: "Hapus dari perangkat ini",
+        alertFillUserPass: "⚠️ Harap isi Username dan Password Keamanan Anda.",
+        alertPasswordUsed: "⛔ Password ini sudah dipakai oleh @{username}. Gunakan password lain.",
+        alertWrongPassword: "🚨 Password salah untuk akun @{username}! Akses ditolak.",
+        alertServerVerificationFailed: "Gagal verifikasi ke server: ",
+        alertSessionExpired: "⚠️ Sesi kadaluarsa atau password telah diubah. Silakan masukkan password kembali.",
+        clearFormWarning1: "⚠️ Apakah Anda yakin ingin membersihkan seluruh isian form ini?",
+        clearFormWarning2: "⚠️ PERINGATAN:\nAnda telah melakukan pembayaran Biaya Server / Rilis Aset. Jika form dibersihkan, status sesi ini akan di-reset dari awal.\n\nApakah Anda tetap ingin melanjutkan?",
+        clearFormSuccess: "🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal."
       },
       en: {
         appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
         appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
         networkModeLabel: "⚡ NETWORK MODE:",
+        navAuction: "Auction",
+        navMarketplace: "Marketplace",
+        testUserBtn: "Test User",
         loginBtn: "Sign In",
         scheduleBtn: "Schedule",
         releaseAssetBtn: "+ List Asset/Item",
@@ -1207,8 +1248,9 @@
         buyerStatusTitle: "Buyer Access Status",
         buyerStatusPending: "Awaiting Admin Registration Verification...",
         buyerStatusApproved: "Access Status: Verified (Authorized to View & Bid)",
-        auctionStatusLabel: "⏳ AUCTION STATUS:",
-        liveOpenBadge: "LIVE 24/7 OPEN",
+        depositBalanceLabel: "Deposit Balance: 0 Pi",
+        scheduleInfoLabel: "📌 SCHEDULE INFO:",
+        loadingSchedule: "Loading Schedule...",
         activeSellersLabel: "📦 Active Sellers",
         activeBiddersLabel: "🔨 Active Bidders",
         searchPlaceholder: "🔍 Search asset title, goods, property...",
@@ -1235,6 +1277,15 @@
         guestUser: "Identity: Guest (Unauthenticated)",
         piLoginBtn: "🔑 Authenticate Pi",
         refreshBtn: "Refresh Data",
+        modalLoginTitle: "🔑 Pi Network Account Access",
+        modalLoginSub: "Select a saved account or register a new one",
+        quickLoginLabel: "⚡ Click Your Account for Fast Login:",
+        orLoginOtherLabel: "Or sign in with another account below",
+        usernamePiLabel: "Pi Network Username:",
+        usernamePlaceholder: "e.g., Ful21",
+        passwordPiLabel: "Unique Security Password (1-to-1):",
+        passwordPlaceholder: "Enter / create new password...",
+        verifySaveAccountBtn: "🔓 Verify & Save Account",
         modalDetailTitle: "Asset Auction Dossier & Bidding Panel",
         modalCreateTitle: "New Auction Protocol Registration",
         quotaDisplayMsg: "Limit: Maximum 3 Active Listings Per Account",
@@ -1253,6 +1304,7 @@
         payServerFeeBtn: "💳 Pay 0.2 Pi Infrastructure Fee",
         releaseGalleryBtn: "🚀 Publish to Gallery (\"Pending State\")",
         sendEmailBtn: "📧 Dispatch Verification Email to Admin",
+        clearFormBtn: "🧹 Clear Form",
         cancelBtn: "Cancel",
         closeBtn: "Dismiss",
         placeBidBtn: "🔨 Submit Bid Offer",
@@ -1275,11 +1327,25 @@
         thUsername: "Account Identity",
         thNotice: "Notice",
         thStatus: "Clearance State",
-        thWinCount: "Win Count",
         thAction: "Administrative Action",
+        thRefund: "Deposit Refund",
         scheduleModalTitle: "Auction Schedule Override Panel",
         scheduleModalSub: "Restricted Executive Dashboard",
         scheduleModeLabel: "Operational Session State:",
+        optSandbox: "🧪 1. Sandbox / Testing Mode (Standby)",
+        optScheduled: "⏳ 2. Scheduled Opening & 1-Hour Session",
+        optInstant: "🚀 3. Open Auction Now (1-Hour Duration)",
+        instantDesc: "⚡ Instant Mode: Auction will start immediately and automatically close after exactly 60 minutes.",
+        instantBtn: "🚀 Open Auction Now (60-Min Duration)",
+        openDateLabel: "1. Auction Opening Date:",
+        yearLabel: "Year",
+        monthLabel: "Month",
+        dateLabel: "Date",
+        openHourLabel: "2. Opening Hour:",
+        durationLabel: "3. Session Duration:",
+        dur1H: "1-Hour Session",
+        dur6H: "6-Hour Session",
+        dur12H: "12-Hour Session",
         saveScheduleBtn: "💾 Apply Schedule Configuration",
         activeStatus: "Active",
         pendingStatus: "⏳ Pending Verification",
@@ -1309,22 +1375,35 @@
         downloadReportBtn: "🌐 Download Report File (Chrome HTML)",
         labelHash: "Ref Code / Hash",
         onChainTimeLabel: "On-chain Time (Per Asset Detail SS):",
-        yearLabel: "Year (Manual)",
-        monthLabel: "Month (Drop-down)",
-        dateLabel: "Date (Manual)",
-        hourLabel: "Hour (Drop-down)",
-        minuteLabel: "Minute (Drop-down)",
-        secondLabel: "Second (Manual)",
+        hourLabel: "Hour",
+        minuteLabel: "Minute",
+        secondLabel: "Second",
         creatorAccountLabel: "Listing Creator Account (Admin/Dev):",
         realSellerLabel: "Real Seller Username (Required):",
+        piboxWalletLabel: "Real Seller PiBox Wallet (Required):",
         disclaimerTitle: "⚖️ LEGAL NOTICE & INTERMEDIARY DISCLAIMER",
         disclaimerText: "This application <strong>acts solely as an intermediary</strong>. Any civil or criminal claims regarding authenticity, legal ownership, counterfeit goods, stolen items, cultural heritage, forged documents, or breach of contract are entirely the legal responsibility of the private seller.",
-        disclaimerCheckbox: "I solemnly declare that this asset/item is legally mine, does not infringe laws/copyrights, and I release the platform from any legal claims."
+        disclaimerCheckbox: "I solemnly declare that this asset/item is legally mine, does not infringe laws/copyrights, and I release the platform from any legal claims.",
+        monthlyReportPanelTitle: "📊 On-Chain Monthly Recap",
+        downloadShareReportBtn: "📥 Download / Share Report",
+        verifiedClickToLogin: "Verified • Click to Sign In",
+        deleteFromDevice: "Remove from this device",
+        alertFillUserPass: "⚠️ Please enter your Username and Security Password.",
+        alertPasswordUsed: "⛔ This password is already used by @{username}. Please use another password.",
+        alertWrongPassword: "🚨 Incorrect password for account @{username}! Access denied.",
+        alertServerVerificationFailed: "Server verification failed: ",
+        alertSessionExpired: "⚠️ Session expired or password changed. Please re-enter your password.",
+        clearFormWarning1: "⚠️ Are you sure you want to clear all form entries?",
+        clearFormWarning2: "⚠️ WARNING:\nYou have completed Server Fee / Asset Release payment. Clearing the form will reset the session state from the beginning.\n\nDo you still want to proceed?",
+        clearFormSuccess: "🧹 Form successfully cleared and reset to initial state."
       },
       zh: {
         appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
         appSubtitle: "PiBox 多资产桥 v5.2 + 安全内核",
         networkModeLabel: "⚡ 网络模式:",
+        navAuction: "拍卖",
+        navMarketplace: "市场",
+        testUserBtn: "测试用户",
         loginBtn: "登录",
         scheduleBtn: "时间表",
         releaseAssetBtn: "+ 上架资产",
@@ -1333,8 +1412,9 @@
         buyerStatusTitle: "买家访问状态",
         buyerStatusPending: "等待管理员审核...",
         buyerStatusApproved: "访问状态: 已验证 (可查看并竞拍)",
-        auctionStatusLabel: "⏳ 拍卖状态:",
-        liveOpenBadge: "24/7 实时开放",
+        depositBalanceLabel: "保证金余额: 0 Pi",
+        scheduleInfoLabel: "📌 时间表信息:",
+        loadingSchedule: "正在加载时间表...",
         activeSellersLabel: "📦 活跃卖家",
         activeBiddersLabel: "🔨 活跃竞标者",
         searchPlaceholder: "🔍 搜索资产名称、商品、物业...",
@@ -1361,6 +1441,15 @@
         guestUser: "身份: 访客 (未登录)",
         piLoginBtn: "🔑 授权 Pi",
         refreshBtn: "刷新数据",
+        modalLoginTitle: "🔑 Pi Network 账户访问",
+        modalLoginSub: "选择保存的账户或注册新账户",
+        quickLoginLabel: "⚡ 点击您的账户快速登录:",
+        orLoginOtherLabel: "或使用下方其他账户登录",
+        usernamePiLabel: "Pi Network 用户名:",
+        usernamePlaceholder: "例如: Ful21",
+        passwordPiLabel: "独特安全密码 (1对1):",
+        passwordPlaceholder: "输入/创建新密码...",
+        verifySaveAccountBtn: "🔓 验证并保存账户",
         modalDetailTitle: "资产拍卖档案与出价面板",
         modalCreateTitle: "新拍卖协议注册",
         quotaDisplayMsg: "限制: 每个账户最多 3 个活跃上架",
@@ -1379,6 +1468,7 @@
         payServerFeeBtn: "💳 支付 0.2 Pi 基础设施费",
         releaseGalleryBtn: "🚀 发布到画廊 (\"待处理状态\")",
         sendEmailBtn: "📧 发送验证邮件至管理员",
+        clearFormBtn: "🧹 清空表单",
         cancelBtn: "取消",
         closeBtn: "关闭",
         placeBidBtn: "🔨 提交出价",
@@ -1401,11 +1491,25 @@
         thUsername: "账户身份",
         thNotice: "备注",
         thStatus: "清关状态",
-        thWinCount: "中标次数",
         thAction: "行政操作",
+        thRefund: "保证金退款",
         scheduleModalTitle: "拍卖时间表覆盖面板",
         scheduleModalSub: "受限高管仪表板",
         scheduleModeLabel: "运营会话状态:",
+        optSandbox: "🧪 1. 沙盒/测试模式 (待机)",
+        optScheduled: "⏳ 2. 定时开启与 1 小时会话",
+        optInstant: "🚀 3. 立即开启拍卖 (1小时时长)",
+        instantDesc: "⚡ 即时模式: 拍卖将立即开始并在正好 60 分钟后自动关闭。",
+        instantBtn: "🚀 立即开启拍卖 (60分钟)",
+        openDateLabel: "1. 拍卖开启日期:",
+        yearLabel: "年份",
+        monthLabel: "月份",
+        dateLabel: "日期",
+        openHourLabel: "2. 开启时间:",
+        durationLabel: "3. 会话时长:",
+        dur1H: "1小时会话",
+        dur6H: "6小时会话",
+        dur12H: "12小时会话",
         saveScheduleBtn: "💾 应用时间表配置",
         activeStatus: "活跃",
         pendingStatus: "⏳ 等待验证",
@@ -1435,22 +1539,35 @@
         downloadReportBtn: "🌐 下载报告文件 (Chrome HTML)",
         labelHash: "参考代码 / 哈希",
         onChainTimeLabel: "链上时间 (按资产详情截图):",
-        yearLabel: "年份 (手动)",
-        monthLabel: "月份 (下拉)",
-        dateLabel: "日期 (手动)",
-        hourLabel: "小时 (下拉)",
-        minuteLabel: "分钟 (下拉)",
-        secondLabel: "秒 (手动)",
+        hourLabel: "小时",
+        minuteLabel: "分钟",
+        secondLabel: "秒",
         creatorAccountLabel: "上架创建者账户 (管理员/开发者):",
         realSellerLabel: "真实卖家用户名 (必填):",
+        piboxWalletLabel: "真实卖家 PiBox 钱包 (必填):",
         disclaimerTitle: "⚖️ 法律声明与中介免责声明",
         disclaimerText: "本应用<strong>仅充当中间人</strong>。对于真实性、合法所有权、假冒伪劣产品、被盗物品、文化遗产、伪造文件或违约的任何民事或刑事法律索赔，均由私人卖家全权承担法律责任。",
-        disclaimerCheckbox: "我庄严声明，该资产/物品为我合法所有，不侵犯法律/版权，并免除平台的一切法律责任。"
+        disclaimerCheckbox: "我庄严声明，该资产/物品为我合法所有，不侵犯法律/版权，并免除平台的一切法律责任。",
+        monthlyReportPanelTitle: "📊 链上月度汇总",
+        downloadShareReportBtn: "📥 下载 / 分享报告",
+        verifiedClickToLogin: "已验证 • 点击登录",
+        deleteFromDevice: "从本设备移除",
+        alertFillUserPass: "⚠️ 请输入您的用户名和安全密码。",
+        alertPasswordUsed: "⛔ 此密码已被 @{username} 使用。请使用其他密码。",
+        alertWrongPassword: "🚨 账户 @{username} 密码错误！拒绝访问。",
+        alertServerVerificationFailed: "服务器验证失败: ",
+        alertSessionExpired: "⚠️ 会话已过期或密码已更改。请重新输入密码。",
+        clearFormWarning1: "⚠️ 您确定要清空所有表单内容吗？",
+        clearFormWarning2: "⚠️ 警告：\n您已完成服务器费用/资产上架支付。清空表单将重置初始会话状态。\n\n是否仍要继续？",
+        clearFormSuccess: "🧹 表单已成功清空并重置为初始状态。"
       },
       es: {
         appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
         appSubtitle: "Puente Multi-Activo PiBox v5.2 + Núcleo Seguro",
         networkModeLabel: "⚡ MODO DE RED:",
+        navAuction: "Subasta",
+        navMarketplace: "Mercado",
+        testUserBtn: "Test User",
         loginBtn: "Iniciar Sesión",
         scheduleBtn: "Horario",
         releaseAssetBtn: "+ Listar Activo",
@@ -1459,8 +1576,9 @@
         buyerStatusTitle: "Estado de Acceso de Comprador",
         buyerStatusPending: "Esperando Verificación de Registro...",
         buyerStatusApproved: "Estado: Verificado (Autorizado para Ver y Pujar)",
-        auctionStatusLabel: "⏳ ESTADO DE SUBASTA:",
-        liveOpenBadge: "EN VIVO 24/7 ABIERTO",
+        depositBalanceLabel: "Saldo de Depósito: 0 Pi",
+        scheduleInfoLabel: "📌 INFO DE HORARIO:",
+        loadingSchedule: "Cargando Horario...",
         activeSellersLabel: "📦 Vendedores Activos",
         activeBiddersLabel: "🔨 Postores Activos",
         searchPlaceholder: "🔍 Buscar título, bienes, propiedad...",
@@ -1487,6 +1605,15 @@
         guestUser: "Identidad: Invitado (No autenticado)",
         piLoginBtn: "🔑 Autenticar Pi",
         refreshBtn: "Actualizar",
+        modalLoginTitle: "🔑 Acceso a Cuenta Pi Network",
+        modalLoginSub: "Seleccione una cuenta guardada o registre una nueva",
+        quickLoginLabel: "⚡ Haga clic en su cuenta para ingresar rápido:",
+        orLoginOtherLabel: "O ingrese con otra cuenta a continuación",
+        usernamePiLabel: "Usuario de Pi Network:",
+        usernamePlaceholder: "ej., Ful21",
+        passwordPiLabel: "Contraseña de Seguridad Única (1 a 1):",
+        passwordPlaceholder: "Ingrese / cree nueva contraseña...",
+        verifySaveAccountBtn: "🔓 Verificar y Guardar Cuenta",
         modalDetailTitle: "Dosier de Subasta y Panel de Pujas",
         modalCreateTitle: "Registro de Nuevo Protocolo",
         quotaDisplayMsg: "Límite: Máximo 3 Listados Activos por Cuenta",
@@ -1505,6 +1632,7 @@
         payServerFeeBtn: "💳 Pagar Tarifa de Infraestructura 0.2 Pi",
         releaseGalleryBtn: "🚀 Publicar en Galería (\"Estado Pendiente\")",
         sendEmailBtn: "📧 Enviar Correo de Verificación al Administrador",
+        clearFormBtn: "🧹 Limpiar Formulario",
         cancelBtn: "Cancelar",
         closeBtn: "Cerrar",
         placeBidBtn: "🔨 Enviar Oferta de Puja",
@@ -1527,11 +1655,25 @@
         thUsername: "Identidad de Cuenta",
         thNotice: "Aviso",
         thStatus: "Estado de Aprobación",
-        thWinCount: "Victorias",
         thAction: "Acción Administrativa",
+        thRefund: "Reembolso de Depósito",
         scheduleModalTitle: "Panel de Anulación de Horario",
         scheduleModalSub: "Panel Ejecutivo Restringido",
         scheduleModeLabel: "Estado de Sesión Operativa:",
+        optSandbox: "🧪 1. Modo de Pruebas / Sandbox (En espera)",
+        optScheduled: "⏳ 2. Apertura Programada y Sesión de 1 Hora",
+        optInstant: "🚀 3. Abrir Subasta Ahora (Duración 1 Hora)",
+        instantDesc: "⚡ Modo Instantáneo: La subasta se activará de inmediato y se cerrará automáticamente después de exactamente 60 minutos.",
+        instantBtn: "🚀 Abrir Subasta Ahora (60 Minutos)",
+        openDateLabel: "1. Fecha de Apertura:",
+        yearLabel: "Año",
+        monthLabel: "Mes",
+        dateLabel: "Fecha",
+        openHourLabel: "2. Hora de Apertura:",
+        durationLabel: "3. Duración de Sesión:",
+        dur1H: "Sesión de 1 Hora",
+        dur6H: "Sesión de 6 Horas",
+        dur12H: "Sesión de 12 Horas",
         saveScheduleBtn: "💾 Aplicar Configuración de Horario",
         activeStatus: "Activo",
         pendingStatus: "⏳ Pendiente de Verificación",
@@ -1561,17 +1703,27 @@
         downloadReportBtn: "🌐 Descargar Archivo (Chrome HTML)",
         labelHash: "Código Ref / Hash",
         onChainTimeLabel: "Hora On-chain (Según Captura de Detalles):",
-        yearLabel: "Año (Manual)",
-        monthLabel: "Mes (Desplegable)",
-        dateLabel: "Fecha (Manual)",
-        hourLabel: "Hora (Desplegable)",
-        minuteLabel: "Minuto (Manual)",
-        secondLabel: "Segundo (Manual)",
+        hourLabel: "Hora",
+        minuteLabel: "Minuto",
+        secondLabel: "Segundo",
         creatorAccountLabel: "Cuenta Creadora del Listado (Admin/Dev):",
         realSellerLabel: "Nombre de Usuario Real del Vendedor (Obligatorio):",
+        piboxWalletLabel: "Billetera PiBox Real del Vendedor (Obligatorio):",
         disclaimerTitle: "⚖️ AVISO LEGAL Y EXENCIÓN DE RESPONSABILIDAD",
         disclaimerText: "Esta aplicación <strong>actúa únicamente como intermediario</strong>. Cualquier reclamación legal civil o penal sobre autenticidad, propiedad legal, productos falsificados, artículos robados, patrimonio cultural, documentos falsificados o incumplimiento de contrato es enteramente responsabilidad legal del vendedor privado.",
-        disclaimerCheckbox: "Declaro solemnemente que este activo/artículo es legalmente mío, no infringe leyes/derechos de autor y libero a la plataforma de cualquier reclamo legal."
+        disclaimerCheckbox: "Declaro solemnemente que este activo/artículo es legalmente mío, no infringe leyes/derechos de autor y libero a la plataforma de cualquier reclamo legal.",
+        monthlyReportPanelTitle: "📊 Resumen On-Chain Mensual",
+        downloadShareReportBtn: "📥 Descargar / Compartir",
+        verifiedClickToLogin: "Verificado • Haga clic para ingresar",
+        deleteFromDevice: "Eliminar de este dispositivo",
+        alertFillUserPass: "⚠️ Ingrese su Nombre de usuario y Contraseña de seguridad.",
+        alertPasswordUsed: "⛔ Esta contraseña ya la usa @{username}. Use otra contraseña.",
+        alertWrongPassword: "🚨 ¡Contraseña incorrecta para la cuenta @{username}! Acceso denegado.",
+        alertServerVerificationFailed: "Error de verificación en el servidor: ",
+        alertSessionExpired: "⚠️ Sesión expirada o contraseña modificada. Ingrese su contraseña nuevamente.",
+        clearFormWarning1: "⚠️ ¿Está seguro de que desea limpiar todos los campos del formulario?",
+        clearFormWarning2: "⚠️ ADVERTENCIA:\nHa completado el pago de Tarifa de Servidor / Publicación de Activo. Limpiar el formulario restablecerá el estado de la sesión desde el inicio.\n\n¿Desea continuar de todos modos?",
+        clearFormSuccess: "🧹 Formulario limpiado y restablecido al estado inicial."
       }
     };
 
@@ -2913,7 +3065,7 @@
           <td class="p-2 text-right space-x-1 bg-gray-950">
             ${isAdminOrDev ? `
               <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">Reset Saldo</button>
-              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
+              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
             ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
           </td>
           <td class="p-2 text-center bg-gray-950">
@@ -3832,12 +3984,11 @@
         return;
       }
 
-      // SEMUA BIAYA / PEMBEBANAN MULAI PENAWARAN KE-6 DAN SETERUSNYA DIHAPUS SEPENUHNYA DI SINI
       let requiredBidFee = 0; 
       if (nextBidNumber === 1) {
         requiredBidFee = 0.2;
       } else {
-        requiredBidFee = 0; // Biaya mulai penawaran ke-6 ditiadakan total
+        requiredBidFee = 0; 
       }
 
       const executeBidProcess = async () => {
