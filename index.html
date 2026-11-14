@@ -3837,7 +3837,37 @@ function authenticatePiUser(isAuto = false) {
       loadChatMessages();
     }
 
+    function closeDetailModal() {
+      const modal = document.getElementById('detailModal');
+      if (modal) modal.classList.add('hidden');
+      selectedAuction = null;
+    }
+
+    const _AutonomousLogicEngine = {
+      isProcessingBid: false,
+      validateBidIntegrity: function(auction, amount, username) {
+        if (!auction || !auction.id) return { valid: false, msg: "Data aset tidak valid." };
+        const numericAmount = parseFloat(amount);
+        if (isNaN(numericAmount) || numericAmount <= 0) return { valid: false, msg: "Nominal tawaran tidak valid." };
+        const currentTop = parseFloat(auction.highest_bid || auction.reserve_price || 0);
+        if (numericAmount <= currentTop) {
+          return { valid: false, msg: `Nilai tawaran harus lebih tinggi dari ${currentTop} Pi!` };
+        }
+        return { valid: true, cleanAmount: parseFloat(numericAmount.toFixed(2)), cleanUser: username.trim() };
+      },
+      syncBidStateLocally: function(auctionId, amount, username) {
+        const idx = activeAuctionsList.findIndex(a => String(a.id) === String(auctionId));
+        if (idx !== -1) {
+          activeAuctionsList[idx].highest_bid = amount;
+          activeAuctionsList[idx].highest_bidder = username;
+          localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+        }
+      }
+    };
+
     async function placeBidOnAuction(auctionId, amount) {
+      if (_AutonomousLogicEngine.isProcessingBid) return;
+
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
@@ -3857,20 +3887,24 @@ function authenticatePiUser(isAuto = false) {
         return;
       }
 
-      const auction = activeAuctionsList.find(a => a.id === auctionId);
-      if (!auction) return;
+      const auction = activeAuctionsList.find(a => String(a.id) === String(auctionId));
+      if (!auction) {
+        alert("⚠️ Aset tidak ditemukan atau telah diperbarui. Silakan segarkan halaman.");
+        return;
+      }
 
-      if (auction.seller === username) {
+      if ((auction.seller || '').trim().toLowerCase() === username.trim().toLowerCase()) {
         alert("🚫 Anda tidak dapat menawar aset milik Anda sendiri!");
         return;
       }
 
-      const currentHighest = parseFloat(auction.highest_bid || auction.reserve_price || 0);
-      if (amount <= currentHighest) {
-        alert(`Nilai tawaran harus lebih tinggi dari ${currentHighest} Pi!`);
+      const checkResult = _AutonomousLogicEngine.validateBidIntegrity(auction, amount, username);
+      if (!checkResult.valid) {
+        alert(checkResult.msg);
         return;
       }
 
+      const finalBidAmount = checkResult.cleanAmount;
       const currentBidCount = getUserBidCount(auctionId, username);
       const nextBidNumber = currentBidCount + 1;
 
@@ -3890,17 +3924,53 @@ function authenticatePiUser(isAuto = false) {
       }
 
       const executeBidProcess = async () => {
+        if (_AutonomousLogicEngine.isProcessingBid) return;
+        _AutonomousLogicEngine.isProcessingBid = true;
+
         try {
           if (supabaseClient) {
-            await supabaseClient.from('auctions').update({ highest_bid: amount, highest_bidder: username }).eq('id', auctionId);
+            const { data: latestRow, error: fetchErr } = await supabaseClient
+              .from('auctions')
+              .select('highest_bid, reserve_price, status')
+              .eq('id', auctionId)
+              .single();
+
+            if (fetchErr) throw new Error("Gagal memverifikasi harga terbaru: " + fetchErr.message);
+
+            const dbCurrentTop = parseFloat(latestRow.highest_bid || latestRow.reserve_price || 0);
+            if (finalBidAmount <= dbCurrentTop) {
+              throw new Error(`Tawaran didahului pengguna lain! Harga tertinggi saat ini sudah menjadi ${dbCurrentTop} Pi.`);
+            }
+
+            const { data: updatedRows, error: updateErr } = await supabaseClient
+              .from('auctions')
+              .update({
+                highest_bid: finalBidAmount,
+                highest_bidder: username
+              })
+              .eq('id', auctionId)
+              .select();
+
+            if (updateErr) throw new Error("Database menolak pembaruan penawaran: " + updateErr.message);
+            if (!updatedRows || updatedRows.length === 0) {
+              throw new Error("Penawaran tidak tersimpan ke server (Izin Update / RLS tertahan).");
+            }
           }
+
+          _AutonomousLogicEngine.syncBidStateLocally(auctionId, finalBidAmount, username);
           localStorage.setItem(getBuyerAgreementKey(auctionId, username), 'true');
           incrementUserBidCount(auctionId, username);
-          alert(t('bidSuccessMsg'));
+
           closeDetailModal();
-          fetchActiveAuctions();
+          updateActiveCounts();
+          filterGallery();
+          await fetchActiveAuctions();
+
+          alert(t('bidSuccessMsg') + `\nNominal Tercatat: ${finalBidAmount} Pi (@${username})`);
         } catch (err) {
-          alert("Gagal: " + err.message);
+          alert("Gagal: " + (err.message || err));
+        } finally {
+          _AutonomousLogicEngine.isProcessingBid = false;
         }
       };
 
@@ -3917,7 +3987,7 @@ function authenticatePiUser(isAuto = false) {
             piInstance.createPayment(paymentData, {
               onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
               onReadyForServerCompletion: async (pid, txid) => { await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); executeBidProcess(); },
-              onCancel: () => {},
+              onCancel: () => { _AutonomousLogicEngine.isProcessingBid = false; },
               onError: () => { executeBidProcess(); }
             });
           } else { executeBidProcess(); }
@@ -3926,7 +3996,7 @@ function authenticatePiUser(isAuto = false) {
         executeBidProcess();
       }
     }
-xxxxxxxx
+
     function submitManualBid(auctionId, currentPrice) {
       const inputEl = document.getElementById('manualBidInput');
       if (!inputEl) return;
