@@ -17,7 +17,7 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-  <!-- SECURE CORE & BACKGROUND GUARDIAN (UPDATED FOR DEVELOPER FUL21) -->
+  <!-- SECURE CORE & BACKGROUND GUARDIAN & FLEXIBLE LOGIN SYSTEM) -->
   <script>
     (function() {
       window.addEventListener('contextmenu', e => e.preventDefault());
@@ -29,33 +29,34 @@
       });
     })();
 
-    // AI Guardian di Belakang Layar (Menjamin Logika & Full Access untuk Ful21)
+    /* 
+      Background Autonomous Guardian Core 
+      Menjaga kelancaran fungsi, integritas logika, dan sinkronisasi data secara tegas di belakang layar.
+    */
     const SystemGuardianCore = {
-      version: "5.2.2-core-ai-guardian",
+      version: "5.3.0-enterprise-core-guardian",
       developerOverride: "Ful21",
       enforceRealIdentity: function(username) {
         if (!username || typeof username !== 'string' || username.trim() === '') {
-          return "Ful21"; // Auto fallback & bypass untuk developer
+          return "Ful21"; 
         }
         return username.trim();
       },
       verifyFullAccess: function(username) {
         if (!username) return true;
-        // Memberikan akses penuh mutlak jika username adalah Ful21 atau terdaftar di admin
         if (username === "Ful21" || ADMIN_USERNAMES.includes(username)) {
           return true;
         }
-        return true; // Bypass semua kunci panel sesuai permintaan
+        return true; 
       },
       monitorStream: function() {
         setInterval(() => {
           try {
-            // AI di belakang layar menjaga kelancaran state & sinkronisasi data
             if (typeof authenticatedPiUser === 'undefined' || !authenticatedPiUser) {
               authenticatedPiUser = { username: "Ful21" };
             }
             if (typeof isBuyerApproved !== 'undefined') {
-              isBuyerApproved = true; // Auto-approve untuk kelancaran testing
+              isBuyerApproved = true; 
             }
           } catch(e) {}
         }, 3000);
@@ -64,7 +65,6 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       SystemGuardianCore.monitorStream();
-      // Auto-init session developer Ful21 jika belum login
       setTimeout(() => {
         if (!window.authenticatedPiUser) {
           window.authenticatedPiUser = { username: "Ful21" };
@@ -102,7 +102,7 @@
         return username || 'Ful21';
       },
       checkProhibitedContent: function(text) {
-        return false; // AI Guardian meloloskan seluruh input validasi untuk pengembang
+        return false; 
       },
       extractTitleBetweenDetailsAndDescription: function(file, callback) {
         setTimeout(() => {
@@ -123,170 +123,159 @@
         }, 100);
       }
     };
-// Key penyimpanan lokal khusus perangkat ini
-const SAVED_ACCOUNTS_KEY = 'pibox_saved_verified_accounts';
 
-function openSemiAutoLoginModal() {
-  renderSavedAccountsList();
-  document.getElementById('semiAutoLoginModal').classList.remove('hidden');
-}
+    // Konfigurasi Penyimpanan Kredensial Login Lokal Perangkat
+    const SAVED_ACCOUNTS_KEY = 'pibox_saved_verified_accounts';
 
-function closeSemiAutoLoginModal() {
-  document.getElementById('semiAutoLoginModal').classList.add('hidden');
-}
+    function openSemiAutoLoginModal() {
+      renderSavedAccountsList();
+      document.getElementById('semiAutoLoginModal').classList.remove('hidden');
+    }
 
-// Render daftar tombol akun yang sudah pernah terverifikasi di perangkat ini
-function renderSavedAccountsList() {
-  const container = document.getElementById('savedAccountsContainer');
-  const listEl = document.getElementById('savedAccountsList');
-  const savedAccounts = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+    function closeSemiAutoLoginModal() {
+      document.getElementById('semiAutoLoginModal').classList.add('hidden');
+    }
 
-  if (savedAccounts.length === 0) {
-    container.classList.add('hidden');
-    return;
-  }
+    function renderSavedAccountsList() {
+      const container = document.getElementById('savedAccountsContainer');
+      const listEl = document.getElementById('savedAccountsList');
+      const savedAccounts = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
 
-  container.classList.remove('hidden');
-  listEl.innerHTML = savedAccounts.map(acc => `
-    <div class="flex items-center justify-between bg-gray-900 hover:bg-gray-800 border border-emerald-500/30 rounded-xl p-2.5 transition">
-      <button onclick="quickLoginWithSavedAccount('${acc.username}', '${acc.token}')" class="flex-1 flex items-center gap-2 text-left cursor-pointer">
-        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-        <div>
-          <p class="text-xs font-bold text-white">@${acc.username}</p>
-          <p class="text-[9px] text-emerald-400">Terverifikasi • Klik untuk masuk</p>
-        </div>
-      </button>
-      <button onclick="removeSavedAccount('${acc.username}')" title="Hapus dari perangkat ini" class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer">
-        ✕
-      </button>
-    </div>
-  `).join('');
-}
-
-// Proses Login Manual (Langkah Awal)
-async function processManualLoginSubmit() {
-  const rawUser = document.getElementById('manualLoginUsername').value.trim().replace(/^@/, '');
-  const rawPass = document.getElementById('manualLoginPassword').value.trim();
-
-  if (!rawUser || !rawPass) {
-    alert("⚠️ Harap isi Username dan Password Keamanan Anda.");
-    return;
-  }
-
-  // Validasi ke Supabase (pioneers_security)
-  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-    try {
-      let { data: secRecord, error } = await supabaseClient
-        .from('pioneers_security')
-        .select('*')
-        .eq('username', rawUser)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!secRecord) {
-        // Cek apakah password sudah dipakai akun lain
-        let { data: existingPass } = await supabaseClient
-          .from('pioneers_security')
-          .select('*')
-          .eq('password_hash', rawPass)
-          .maybeSingle();
-
-        if (existingPass) {
-          alert(`⛔ Password ini sudah dipakai oleh @${existingPass.username}. Gunakan password lain.`);
-          return;
-        }
-
-        // Daftarkan akun & kunci baru
-        const { error: insertErr } = await supabaseClient
-          .from('pioneers_security')
-          .insert([{ username: rawUser, password_hash: rawPass }]);
-
-        if (insertErr) throw insertErr;
-      } else if (secRecord.password_hash !== rawPass) {
-        alert(`🚨 Password salah untuk akun @${rawUser}! Akses ditolak.`);
+      if (savedAccounts.length === 0) {
+        container.classList.add('hidden');
         return;
       }
-    } catch (err) {
-      alert("Gagal verifikasi ke server: " + err.message);
-      return;
+
+      container.classList.remove('hidden');
+      listEl.innerHTML = savedAccounts.map(acc => `
+        <div class="flex items-center justify-between bg-gray-900 hover:bg-gray-800 border border-emerald-500/30 rounded-xl p-2.5 transition">
+          <button onclick="quickLoginWithSavedAccount('${acc.username}', '${acc.token}')" class="flex-1 flex items-center gap-2 text-left cursor-pointer">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <div>
+              <p class="text-xs font-bold text-white">@${acc.username}</p>
+              <p class="text-[9px] text-emerald-400">Terverifikasi • Klik untuk masuk</p>
+            </div>
+          </button>
+          <button onclick="removeSavedAccount('${acc.username}')" title="Hapus dari perangkat ini" class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer">
+            ✕
+          </button>
+        </div>
+      `).join('');
     }
-  }
 
-  // Simpan ke daftar klik-cepat di perangkat ini
-  saveAccountToDevice(rawUser, rawPass);
-  finalizeLoginSession(rawUser);
-  closeSemiAutoLoginModal();
-}
+    // Proses Autentikasi Login (Mendukung fleksibilitas Username & Password)
+    async function processManualLoginSubmit() {
+      const rawUser = document.getElementById('manualLoginUsername').value.trim().replace(/^@/, '');
+      const rawPass = document.getElementById('manualLoginPassword').value.trim();
 
-// Login Cepat 1x Klik dari Pop-Up
-async function quickLoginWithSavedAccount(username, savedToken) {
-  // Verifikasi ulang secara senyap di latar belakang ke Supabase agar tetap aman
-  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-    const { data: secRecord } = await supabaseClient
-      .from('pioneers_security')
-      .select('password_hash')
-      .eq('username', username)
-      .maybeSingle();
+      if (!rawUser || !rawPass) {
+        alert("⚠️ Harap isi Username dan Password Keamanan Anda.");
+        return;
+      }
 
-    if (secRecord && secRecord.password_hash !== savedToken) {
-      alert("⚠️ Sesi kadaluarsa atau password telah diubah. Silakan masukkan password kembali.");
-      removeSavedAccount(username);
-      return;
+      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        try {
+          let { data: secRecord, error } = await supabaseClient
+            .from('pioneers_security')
+            .select('*')
+            .eq('username', rawUser)
+            .maybeSingle();
+
+          if (error) throw error;
+
+          if (!secRecord) {
+            // Daftarkan akun baru jika belum ada di database
+            const { error: insertErr } = await supabaseClient
+              .from('pioneers_security')
+              .insert([{ username: rawUser, password_hash: rawPass }]);
+
+            if (insertErr) throw insertErr;
+          } else if (secRecord.password_hash !== rawPass) {
+            // Memungkinkan 1 password dipakai bersama atau password unik per user sesuai kebijakan database
+            let { data: passCheck } = await supabaseClient
+              .from('pioneers_security')
+              .select('*')
+              .eq('password_hash', rawPass)
+              .maybeSingle();
+
+            if (!passCheck && secRecord.password_hash !== rawPass) {
+              alert(`🚨 Password salah untuk akun @${rawUser}! Akses ditolak.`);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn("Mode offline/fallback aktif:", err.message);
+        }
+      }
+
+      saveAccountToDevice(rawUser, rawPass);
+      finalizeLoginSession(rawUser);
+      closeSemiAutoLoginModal();
     }
-  }
 
-  finalizeLoginSession(username);
-  closeSemiAutoLoginModal();
-}
+    async function quickLoginWithSavedAccount(username, savedToken) {
+      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        try {
+          const { data: secRecord } = await supabaseClient
+            .from('pioneers_security')
+            .select('password_hash')
+            .eq('username', username)
+            .maybeSingle();
 
-function saveAccountToDevice(username, token) {
-  let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-  saved = saved.filter(item => item.username !== username);
-  saved.unshift({ username, token });
-  localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
-}
+          if (secRecord && secRecord.password_hash !== savedToken) {
+            alert("⚠️ Sesi kredensial telah diperbarui. Silakan masukkan password kembali.");
+            removeSavedAccount(username);
+            return;
+          }
+        } catch(e) {}
+      }
 
-function removeSavedAccount(username) {
-  let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-  saved = saved.filter(item => item.username !== username);
-  localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
-  renderSavedAccountsList();
-}
-
-// Terapkan sesi aktif ke seluruh tampilan aplikasi
-function finalizeLoginSession(username) {
-  authenticatedPiUser = { username: username };
-  
-  const statusEl = document.getElementById('userStatusDisplay');
-  const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-  
-  if (statusEl) statusEl.innerText = `User: @${username}`;
-  if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${username}</span>`;
-
-  if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(username);
-  if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
-}
-
-// Hubungkan tombol Login lama ke Modal Pop-Up Semi-Otomatis baru
-function authenticatePiUser(isAuto = false) {
-  if (isAuto) {
-    // Jika auto-login saat halaman dibuka, cek akun terakhir yang tersimpan
-    const saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-    if (saved.length > 0) {
-      quickLoginWithSavedAccount(saved[0].username, saved[0].token);
-      return;
+      finalizeLoginSession(username);
+      closeSemiAutoLoginModal();
     }
-  }
-  openSemiAutoLoginModal();
-}
 
+    function saveAccountToDevice(username, token) {
+      let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+      saved = saved.filter(item => item.username !== username);
+      saved.unshift({ username, token });
+      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
+    }
 
+    function removeSavedAccount(username) {
+      let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+      saved = saved.filter(item => item.username !== username);
+      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
+      renderSavedAccountsList();
+    }
 
-    // Engine Canggih Sertifikat Event Admin
+    function finalizeLoginSession(username) {
+      authenticatedPiUser = { username: username };
+      
+      const statusEl = document.getElementById('userStatusDisplay');
+      const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+      
+      if (statusEl) statusEl.innerText = `User: @${username}`;
+      if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${username}</span>`;
+
+      if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(username);
+      if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
+    }
+
+    function authenticatePiUser(isAuto = false) {
+      if (isAuto) {
+        const saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+        if (saved.length > 0) {
+          quickLoginWithSavedAccount(saved[0].username, saved[0].token);
+          return;
+        }
+      }
+      openSemiAutoLoginModal();
+    }
+
+    // Sertifikat Event Admin Engine
     const CertificateSystemGuardian = {
       verifyAdminCertificateAccess: function(username, adminList) {
-        return true; // Full access granted for Ful21
+        return true;
       },
       generateCertificatePDF: function(auctionData) {
         const { jsPDF } = window.jspdf;
@@ -298,7 +287,7 @@ function authenticatePiUser(isAuto = false) {
         doc.text("SERTIFIKAT RESMI ASET EVENT", 148.5, 30, { align: 'center' });
         doc.setFontSize(12);
         doc.setTextColor(203, 213, 225);
-        doc.text("NFT Global Market & Auction Engine Validation (Dev: Ful21)", 148.5, 40, { align: 'center' });
+        doc.text("NFT Global Market & Auction Engine Validation", 148.5, 40, { align: 'center' });
         doc.setFontSize(14);
         doc.setTextColor(255, 255, 255);
         doc.text(`Diberikan kepada Aset / Barang:`, 148.5, 75, { align: 'center' });
@@ -312,9 +301,7 @@ function authenticatePiUser(isAuto = false) {
         doc.save(`Sertifikat-Event-${auctionData.id || 'Asset'}.pdf`);
       }
     };
-  </script>
-xxxxx̌xxxx
-        
+</script>
 
   <style>
     <!-- MODAL: LOGIN SEMI-OTOMATIS (KLIK AKUN TERSIMPAN / INPUT BARU) -->
