@@ -53,7 +53,7 @@
       }
     };
 
-    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI (AI & AGI OTONOM) ---
+    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI (DIJALANKAN SECARA TEGAS & LANCAR) ---
     const _NeuralCoreEngine = {
       status: "OPTIMIZED",
       auditAndEnforceLogic: function() {
@@ -63,25 +63,10 @@
               if (item.reserve_price) item.reserve_price = parseFloat(item.reserve_price);
             });
           }
-          // Penjaminan tombol List Aset otonom di belakang layar
-          const btnHeaderCreate = document.getElementById('btnHeaderCreate');
-          if (btnHeaderCreate && typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) {
-            const isAdmin = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-            const isTestUser = (typeof isTestUserModeActive !== 'undefined' && isTestUserModeActive);
-            const isOpen = (typeof isAuctionCurrentlyOpen !== 'undefined' && isAuctionCurrentlyOpen);
-            
-            if (isOpen && isAdmin && !isTestUser) {
-              btnHeaderCreate.disabled = false;
-              btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer";
-            } else {
-              btnHeaderCreate.disabled = true;
-              btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-inner flex items-center justify-center gap-1 cursor-not-allowed opacity-50";
-            }
-          }
         } catch(e) {}
       }
     };
-    setInterval(() => { _NeuralCoreEngine.auditAndEnforceLogic(); }, 500);
+    setInterval(() => { _NeuralCoreEngine.auditAndEnforceLogic(); }, 2000);
 
     const _AudioBeepEngine = {
       audioCtx: null,
@@ -2508,17 +2493,14 @@
     function setListButtonState(isOpen, textLabel) {
       const btnHeaderCreate = document.getElementById('btnHeaderCreate');
       if (!btnHeaderCreate) return;
-      const isAdmin = (authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username));
-      const isTestUser = (typeof isTestUserModeActive !== 'undefined' && isTestUserModeActive);
-
-      if (isOpen && isAdmin && !isTestUser) {
+      if (isOpen) {
         btnHeaderCreate.disabled = false;
         btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer";
         btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
       } else {
         btnHeaderCreate.disabled = true;
-        btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-inner flex items-center justify-center gap-1 cursor-not-allowed opacity-50";
-        btnHeaderCreate.innerHTML = `<span>🔒 Khusus Admin</span>`;
+        btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-inner flex items-center justify-center gap-1 cursor-not-allowed";
+        btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
       }
     }
 
@@ -3121,7 +3103,120 @@
       } catch (err) { finishPaymentSuccess(); }
     }
 
-    // --- CORE DI BALIK LAYAR: MENJAMIN & MENJAGA LOGIKA FUNGSI OTOMATIS (AI & AGI OTONOM) ---
+    async function releaseToGalleryOnly() {
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      if (!hasCompletedServerFee) {
+        alert("⛔ Akses Ditolak: Selesaikan pembayaran biaya server 0.2 Pi terlebih dahulu!");
+        return;
+      }
+      if (hasReleasedToGallery) return;
+      
+      const disclaimerCheckbox = document.getElementById('legalDisclaimerCheckbox');
+      if (!disclaimerCheckbox || !disclaimerCheckbox.checked) {
+        alert("⚖️ Anda wajib mencentang kotak pernyataan tanggung jawab hukum.");
+        return;
+      }
+
+      const mainImageFile = document.getElementById('imageFileInput').files[0];
+      const category = document.getElementById('assetCategoryInput').value;
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const description = document.getElementById('assetDescriptionInput').value.trim();
+      const hash = document.getElementById('assetHashInput').value.trim();
+      const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
+
+      if (!mainImageFile || !title || isNaN(reservePrice)) {
+        alert(t('fillAllAlert'));
+        return;
+      }
+
+      const releaseBtn = document.getElementById('btnReleaseGallery');
+      releaseBtn.disabled = true;
+      const originalText = releaseBtn.innerHTML;
+      releaseBtn.innerHTML = `<span>⏳ Mengunggah ke galeri...</span>`;
+
+      try {
+        const optimizeImageFile = (file) => {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
+                
+                if (width > height) {
+                  if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                } else {
+                  if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.75));
+              };
+              img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+          });
+        };
+
+        const base64Image = await optimizeImageFile(mainImageFile);
+        const extraImageFile = document.getElementById('extraSSInput')?.files[0];
+        let base64ExtraImage = '';
+        if (extraImageFile) {
+          base64ExtraImage = await optimizeImageFile(extraImageFile);
+        }
+
+        const durationHours = (auctionScheduleState && auctionScheduleState.durationHours) ? parseInt(auctionScheduleState.durationHours, 10) : 24;
+        const calculatedEndsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+
+        const realSellerRaw = document.getElementById('realSellerUsernameInput')?.value.trim();
+        const piboxWalletRaw = document.getElementById('piboxWalletInput')?.value.trim();
+
+        if (!realSellerRaw || !piboxWalletRaw) {
+          alert("⚠️ Username Penjual Asli dan PiBox Wallet wajib diisi!");
+          releaseBtn.disabled = false;
+          releaseBtn.innerHTML = originalText;
+          return;
+        }
+
+        const finalRealSeller = realSellerRaw.replace(/^@/, '');
+        const finalPiboxWallet = piboxWalletRaw.replace(/^@/, '');
+        const transactionModeValue = document.getElementById('transactionModeInput')?.value || 'p2p';
+
+        const payload = {
+          category: category || 'nft_art',
+          title: title,
+          description: description || '',
+          hash: hash || '-',
+          reserve_price: reservePrice,
+          seller: finalRealSeller,
+          pibox_wallet: finalPiboxWallet,
+          image_url: base64Image,
+          extra_image_url: base64ExtraImage || '',
+          transaction_mode: transactionModeValue || 'p2p',
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          ends_at: calculatedEndsAt
+        };
+
+        if (supabaseClient) {
+          const { error } = await supabaseClient.from('auctions').insert([payload]);
+          if (error) throw error;
+        }
+
+        hasReleasedToGallery = true;
+        alert("🎉 Sukses! Aset berhasil dirilis ke galeri (status Pending).");
+        
+        releaseBtn.disabled = true;
+        releaseBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner opacity-50";
+        releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
+        
+       // --- CORE DI BALIK LAYAR: MENJAMIN DAN MENJAGA LOGIKA FUNGSI OTOMATIS ---
     const _BackgroundIntelligenceGuardian = {
       enforceAttachmentCheck: function(mainFile, extraFile) {
         if (!mainFile) {
@@ -3264,6 +3359,7 @@
       const mainImageFile = document.getElementById('imageFileInput')?.files[0];
       const extraImageFile = document.getElementById('extraSSInput')?.files[0];
 
+      // Verifikasi cerdas latar belakang untuk memastikan SS utama & tambahan disertakan
       if (!_BackgroundIntelligenceGuardian.enforceAttachmentCheck(mainImageFile, extraImageFile)) {
         return;
       }
@@ -3327,6 +3423,7 @@
         updateAdminEmailNotificationBadge();
       }, 500);
     }
+
 
     function handleExtraSSUpload(input) {
       const previewList = document.getElementById('extraSSPreviewList');
@@ -3869,7 +3966,13 @@
         return;
       }
 
-      let requiredBidFee = (nextBidNumber === 1) ? 0.2 : 0;
+      // SEMUA BIAYA / PEMBEBANAN MULAI PENAWARAN KE-6 DAN SETERUSNYA DIHAPUS SEPENUHNYA DI SINI
+      let requiredBidFee = 0; 
+      if (nextBidNumber === 1) {
+        requiredBidFee = 0.2;
+      } else {
+        requiredBidFee = 0; // Biaya mulai penawaran ke-6 ditiadakan total
+      }
 
       const executeBidProcess = async () => {
         if (_AutonomousLogicEngine.isProcessingBid) return;
@@ -3966,11 +4069,6 @@
         return;
       }
       const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      if (!isAdminOrDev) {
-        alert("⛔ Akses Ditolak: Hanya Admin yang dapat merilis/mengaktifkan list aset.");
-        return;
-      }
-      
       const creatorInput = document.getElementById('creatorAdminInput');
       if (creatorInput) creatorInput.value = authenticatedPiUser.username;
       
