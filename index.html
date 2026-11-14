@@ -53,21 +53,20 @@
       }
     };
 
-    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA RILIS ASET & PENGIRIMAN EMAIL ---
+    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI (DIJALANKAN SECARA TEGAS & LANCAR) ---
     const _NeuralCoreEngine = {
-      status: "OPTIMIZED_AGI_ACTIVE",
+      status: "OPTIMIZED",
       auditAndEnforceLogic: function() {
         try {
-          // Tombol list aset/barang selalu aktif untuk semua user, pengaturan eksklusif dikontrol admin di belakang layar
-          const btnHeaderCreate = document.getElementById('btnHeaderCreate');
-          if (btnHeaderCreate) {
-            btnHeaderCreate.disabled = false;
-            btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer";
+          if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
+            activeAuctionsList.forEach(item => {
+              if (item.reserve_price) item.reserve_price = parseFloat(item.reserve_price);
+            });
           }
         } catch(e) {}
       }
     };
-    setInterval(() => { _NeuralCoreEngine.auditAndEnforceLogic(); }, 1500);
+    setInterval(() => { _NeuralCoreEngine.auditAndEnforceLogic(); }, 2000);
 
     const _AudioBeepEngine = {
       audioCtx: null,
@@ -977,9 +976,8 @@
           <span data-i18n="releaseGalleryBtn">🚀 Rilis ke Galeri ("Pending")</span>
         </button>
 
-        <!-- TOMBOL DIUBAH MENJADI: Kirim SS via email -->
         <button id="btnSendEmail" type="button" onclick="sendEmailToAdminFast()" class="w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-not-allowed shadow-inner" disabled>
-          <span>📧 Kirim SS via email</span>
+          <span data-i18n="sendEmailBtn">📧 Kirim Email Verifikasi ke Admin</span>
         </button>
 
         <button type="button" onclick="handleClearForm()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs py-2 rounded-xl transition cursor-pointer">🧹 Bersihkan Form</button>
@@ -1128,7 +1126,7 @@
         txModeMarket: "🛒 Transaksi di Market / Platform",
         payServerFeeBtn: "💳 Bayar 0.2 Pi (Biaya Server)",
         releaseGalleryBtn: "🚀 Rilis ke Galeri (\"Pending\")",
-        sendEmailBtn: "📧 Kirim SS via email",
+        sendEmailBtn: "📧 Kirim Email Verifikasi ke Admin",
         cancelBtn: "Batal",
         closeBtn: "Tutup",
         placeBidBtn: "🔨 Kirim Tawaran",
@@ -1254,7 +1252,7 @@
         txModeMarket: "🛒 Escrow / Platform Settlement",
         payServerFeeBtn: "💳 Pay 0.2 Pi Infrastructure Fee",
         releaseGalleryBtn: "🚀 Publish to Gallery (\"Pending State\")",
-        sendEmailBtn: "📧 Send SS via email",
+        sendEmailBtn: "📧 Dispatch Verification Email to Admin",
         cancelBtn: "Cancel",
         closeBtn: "Dismiss",
         placeBidBtn: "🔨 Submit Bid Offer",
@@ -1380,7 +1378,7 @@
         txModeMarket: "🛒 托管 / 平台结算",
         payServerFeeBtn: "💳 支付 0.2 Pi 基础设施费",
         releaseGalleryBtn: "🚀 发布到画廊 (\"待处理状态\")",
-        sendEmailBtn: "📧 发送截图邮件",
+        sendEmailBtn: "📧 发送验证邮件至管理员",
         cancelBtn: "取消",
         closeBtn: "关闭",
         placeBidBtn: "🔨 提交出价",
@@ -1506,7 +1504,7 @@
         txModeMarket: "🛒 Liquidación en Escrow / Plataforma",
         payServerFeeBtn: "💳 Pagar Tarifa de Infraestructura 0.2 Pi",
         releaseGalleryBtn: "🚀 Publicar en Galería (\"Estado Pendiente\")",
-        sendEmailBtn: "📧 Enviar SS por correo",
+        sendEmailBtn: "📧 Enviar Correo de Verificación al Administrador",
         cancelBtn: "Cancelar",
         closeBtn: "Cerrar",
         placeBidBtn: "🔨 Enviar Oferta de Puja",
@@ -2431,11 +2429,13 @@
 
           badge.innerText = `🔥 LELANG INSTAN: ${countdownStr}`;
           badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
+          setListButtonState(true, "+ List Aset/Barang");
         } else {
           isAuctionCurrentlyOpen = false;
           currentAuctionStatusCode = 4;
           badge.innerText = `🏁 LELANG SELESAI (00:00:00)`;
           badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
+          setListButtonState(false, "🔒 Waktu Lelang 1 Jam Habis");
         }
         return;
       }
@@ -2459,6 +2459,7 @@
             currentAuctionStatusCode = 1;
             badge.innerText = "⏳ MENUNGGU JADWAL (00:00:00)";
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-gray-800 text-gray-400 border border-gray-700 shadow-md tracking-wider";
+            setListButtonState(false, "🔒 List Aset Dikunci");
           } else if (now >= preOpenTime && now < startTime) {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 2;
@@ -2467,6 +2468,7 @@
 
             badge.innerText = `⏱️ BUKA DALAM: ${countdownStr}`;
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-md animate-pulse tracking-wider";
+            setListButtonState(false, "🔒 List Aset Dikunci (Persiapan)");
           } else if (now >= startTime && now <= endTime) {
             isAuctionCurrentlyOpen = true;
             currentAuctionStatusCode = 3;
@@ -2475,13 +2477,29 @@
 
             badge.innerText = `🔥 BERLANGSUNG: ${countdownStr}`;
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
+            setListButtonState(true, "+ List Aset/Barang");
           } else {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 4;
             badge.innerText = `🏁 SESI TUTUP (00:00:00)`;
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
+            setListButtonState(false, "🔒 Sesi Lelang Selesai");
           }
         }
+      }
+    }
+
+    function setListButtonState(isOpen, textLabel) {
+      const btnHeaderCreate = document.getElementById('btnHeaderCreate');
+      if (!btnHeaderCreate) return;
+      if (isOpen) {
+        btnHeaderCreate.disabled = false;
+        btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer";
+        btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
+      } else {
+        btnHeaderCreate.disabled = true;
+        btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-inner flex items-center justify-center gap-1 cursor-not-allowed";
+        btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
       }
     }
 
@@ -3084,7 +3102,6 @@
       } catch (err) { finishPaymentSuccess(); }
     }
 
-    // --- LOGIKA UTAMA: RILIS KE GALERI, PENGALIHAN OTOMATIS, & PENGAKTIFAN TOMBOL EMAIL ---
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       if (!hasCompletedServerFee) {
@@ -3115,8 +3132,6 @@
       releaseBtn.disabled = true;
       const originalText = releaseBtn.innerHTML;
       releaseBtn.innerHTML = `<span>⏳ Mengunggah ke galeri...</span>`;
-
-      const sendEmailBtn = document.getElementById('btnSendEmail');
 
       try {
         const optimizeImageFile = (file) => {
@@ -3188,53 +3203,30 @@
           ends_at: calculatedEndsAt
         };
 
-        let uploadSuccess = false;
         if (supabaseClient) {
           const { error } = await supabaseClient.from('auctions').insert([payload]);
-          if (!error) {
-            uploadSuccess = true;
-          } else {
-            // Jika gagal di database, tetap izinkan fallback lokal agar sukses simulasi
-            uploadSuccess = true; 
-          }
-        } else {
-          uploadSuccess = true;
+          if (error) throw error;
         }
 
-        hasReleasedToGallery = uploadSuccess;
-
-        if (uploadSuccess) {
-          // JIKA UPLOAD KE GALERI BERHASIL: LANGSUNG DIALIHKAN KE HALAMAN UTAMA
-          alert("🎉 Sukses! Aset berhasil di-upload ke galeri utama.");
-          resetCreateForm();
-          closeCreateModal();
-          fetchActiveAuctions();
-          
-          // Tombol "Kirim SS via email" tetap non-aktif
-          if (sendEmailBtn) {
-            sendEmailBtn.disabled = true;
-            sendEmailBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner";
-          }
-          return;
+        hasReleasedToGallery = true;
+        alert("🎉 Sukses! Aset berhasil dirilis ke galeri (status Pending).");
+        
+        releaseBtn.disabled = true;
+        releaseBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner opacity-50";
+        releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
+        
+        const sendEmailBtn = document.getElementById('btnSendEmail');
+        if (sendEmailBtn) {
+          sendEmailBtn.disabled = false;
+          sendEmailBtn.className = "w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg ring-2 ring-indigo-400 animate-pulse";
         }
 
+        fetchActiveAuctions();
       } catch (err) {
-        // JIKA UPLOAD KE GALERI GAGAL ATAU TUNGGU: TOMBOL "KIRIM SS VIA EMAIL" AKAN AKTIF
-        console.warn("Upload galeri tertunda/gagal, mengaktifkan tombol pengiriman email alternatif.", err);
+        releaseBtn.disabled = false;
+        releaseBtn.innerHTML = originalText;
+        alert("Gagal merilis aset: " + err.message);
       }
-
-      // Penanganan Jika Gagal / Pending
-      releaseBtn.disabled = false;
-      releaseBtn.innerHTML = originalText;
-      hasReleasedToGallery = false;
-
-      if (sendEmailBtn) {
-        sendEmailBtn.disabled = false;
-        sendEmailBtn.className = "w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg ring-2 ring-indigo-400 animate-pulse";
-      }
-
-      // Pemanggilan Popup Cerdas (Di belakang layar bertindak sebagai pengawas AGI)
-      alert("⚠️ Pemberitahuan Sistem:\nUpload otomatis ke galeri memerlukan verifikasi lanjutan. Tombol 'Kirim SS via email' telah diaktifkan.\n\nSilakan pastikan Screenshot (SS) utama dan tambahan telah ter-attach/di-upload ke tombol klip pengiriman gambar via email agar data lengkap terkirim.");
     }
 
     async function sendEmailToAdminFast() {
@@ -3262,26 +3254,20 @@
         return;
       }
 
-      // Pengecekan AI/AGI cerdas di belakang layar untuk menjamin lampiran SS utama dan tambahan
-      if (!mainImageFile || !extraImageFile) {
-        alert("📌 Informasi Sistem:\nHarap pastikan SS utama dan SS tambahan telah di-upload ke tombol klip (upload gambar) di sebelah tombol kirim email agar terlampir sempurna.");
-      }
-
       const emailBodyData = 
-        `=== PERMINTAAN RILIS ASET KE GALERI (VIA EMAIL - KIRIM SS UTAMA & TAMBAHAN) ===\n\n` +
-        `1. Foto/SS Utama: ${mainImageFile ? mainImageFile.name : 'Belum Terlampir (Harap Upload ke Tombol Klip)'}\n` +
-        `2. Foto/SS Tambahan: ${extraImageFile ? extraImageFile.name : 'Belum Terlampir (Harap Upload ke Tombol Klip)'}\n` +
-        `3. Nama Aset: ${title}\n` +
-        `4. Deskripsi: ${description || '-'}\n` +
-        `5. Hash: ${hash}\n` +
-        `6. On-chain Time: ${onChainTime}\n` +
-        `7. Seller: @${realSeller}\n` +
-        `8. Wallet: ${piboxWallet}\n` +
-        `9. Harga: ${reservePrice} Pi\n` +
-        `10. Mode: ${transactionMode.toUpperCase()}\n`;
+        `=== PERMINTAAN RILIS ASET KE GALERI (VIA EMAIL) ===\n\n` +
+        `1. Foto Utama: ${mainImageFile ? mainImageFile.name : 'Terlampir'}\n` +
+        `2. Nama Aset: ${title}\n` +
+        `3. Deskripsi: ${description || '-'}\n` +
+        `4. Hash: ${hash}\n` +
+        `5. On-chain Time: ${onChainTime}\n` +
+        `6. Seller: @${realSeller}\n` +
+        `7. Wallet: ${piboxWallet}\n` +
+        `8. Harga: ${reservePrice} Pi\n` +
+        `9. Mode: ${transactionMode.toUpperCase()}\n`;
 
       const recipientEmails = "marketnftglobal@gmail.com,auctionbridge314@gmail.com";
-      const emailSubject = encodeURIComponent(`Kirim SS Rilis Aset: ${title} - (@${realSeller})`);
+      const emailSubject = encodeURIComponent(`Rilis Aset: ${title} - (@${realSeller})`);
 
       adminEmailNotificationsCount++;
       localStorage.setItem('admin_email_notif_count', adminEmailNotificationsCount);
@@ -3293,7 +3279,7 @@
         navigator.clipboard.writeText(`To: ${recipientEmails}\n\n${emailBodyData}`).catch(() => {});
       }
 
-      if (confirm("📧 Semua data isian rilis aset beserta SS utama dan tambahan siap dikirim ke email Admin.\n\nKlik OK untuk membuka aplikasi email.")) {
+      if (confirm("📧 Data rilis aset siap dikirim via email ke Admin. Klik OK untuk melanjutkan.")) {
         window.location.href = `mailto:${recipientEmails}?subject=${emailSubject}&body=${encodeURIComponent(emailBodyData)}`;
       }
 
@@ -3846,11 +3832,12 @@
         return;
       }
 
+      // SEMUA BIAYA / PEMBEBANAN MULAI PENAWARAN KE-6 DAN SETERUSNYA DIHAPUS SEPENUHNYA DI SINI
       let requiredBidFee = 0; 
       if (nextBidNumber === 1) {
         requiredBidFee = 0.2;
       } else {
-        requiredBidFee = 0; 
+        requiredBidFee = 0; // Biaya mulai penawaran ke-6 ditiadakan total
       }
 
       const executeBidProcess = async () => {
