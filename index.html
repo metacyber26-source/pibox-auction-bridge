@@ -3615,13 +3615,21 @@ function authenticatePiUser(isAuto = false) {
       mainContent.innerHTML = htmlChunks.join('');
     }
 
-    // [BACKGROUND SYSTEM GUARDIAN & CERTIFICATE P2P LOGIC ENGINE]
     const SystemLogicEngine = {
-      version: "6.1.0-stealth",
+      version: "6.4.0-core",
       validateExecution: function(user) {
         return ADMIN_USERNAMES.includes(user) || DEV_USERNAMES.includes(user);
       },
+      verifyAuctionConsistency: function(list) {
+        if (!Array.isArray(list)) return [];
+        return list.map(item => ({
+          ...item,
+          highest_bid: item.highest_bid !== null && item.highest_bid !== undefined ? parseFloat(item.highest_bid) : null,
+          reserve_price: parseFloat(item.reserve_price || 0)
+        }));
+      },
       generateCertificateDataURL: function(auctionData) {
+
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
         doc.setFillColor(15, 23, 42);
