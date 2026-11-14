@@ -2337,12 +2337,43 @@
       }
     };
 
+    let adminManualListActive = JSON.parse(localStorage.getItem('admin_manual_list_active') || 'false');
+
+    async function toggleAdminListAssetState() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak: Hanya Admin yang dapat mengaktifkan atau menonaktifkan tombol List Aset/Barang!");
+        return;
+      }
+      adminManualListActive = !adminManualListActive;
+      localStorage.setItem('admin_manual_list_active', JSON.stringify(adminManualListActive));
+      
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from('app_settings').upsert([
+            { key: 'list_asset_active', value: { active: adminManualListActive }, updated_at: new Date().toISOString() }
+          ], { onConflict: 'key' });
+        } catch (e) {}
+      }
+      setListButtonState(adminManualListActive);
+      alert(adminManualListActive ? "✅ Tombol '+ List Aset/Barang' DIAKTIFKAN oleh Admin." : "🔒 Tombol '+ List Aset/Barang' DINONAKTIFKAN oleh Admin.");
+    }
+
     function checkAuctionSchedule() {
       const infoText = document.getElementById('auctionInfoText');
       const badge = document.getElementById('sessionStateBadge');
       if (!infoText || !badge) return;
 
       const mode = auctionScheduleState.mode || 'scheduled';
+
+      if (mode === 'testing_mode') {
+        isAuctionCurrentlyOpen = true;
+        currentAuctionStatusCode = 3;
+        infoText.innerText = "Mode Sandbox Standby";
+        badge.innerText = "🧪 SANDBOX AKTIF";
+        badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/50 shadow-md tracking-wider";
+        setListButtonState(adminManualListActive);
+        return;
+      }
 
       if (mode === 'instant_one_hour') {
         const instantStart = auctionScheduleState.instantTimestamp || new Date(`${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`).getTime();
@@ -2357,26 +2388,24 @@
         if (now <= endTime) {
           isAuctionCurrentlyOpen = true;
           currentAuctionStatusCode = 3;
-
           const diffSec = Math.max(0, Math.floor((endTime - now) / 1000));
           const countdownStr = _AuctionTimeGuardian.formatCountdown(diffSec);
 
           badge.innerText = `🔥 LELANG INSTAN: ${countdownStr}`;
           badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
-          setListButtonState(true, "+ List Aset/Barang");
         } else {
           isAuctionCurrentlyOpen = false;
           currentAuctionStatusCode = 4;
           badge.innerText = `🏁 LELANG SELESAI (00:00:00)`;
           badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
-          setListButtonState(false, "🔒 Waktu Lelang 1 Jam Habis");
         }
+        setListButtonState(adminManualListActive);
         return;
       }
 
       if (mode === 'scheduled') {
         if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
-          infoText.innerText = `Buka: ${auctionScheduleState.startDate} ${auctionScheduleState.startHour} WIB (Sesi 1 Jam)`;
+          infoText.innerText = `Buka: ${auctionScheduleState.startDate} ${auctionScheduleState.startHour} WIB (Sesi ${auctionScheduleState.durationHours || 1} Jam)`;
           
           const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
           const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
@@ -2393,7 +2422,6 @@
             currentAuctionStatusCode = 1;
             badge.innerText = "⏳ MENUNGGU JADWAL (00:00:00)";
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-gray-800 text-gray-400 border border-gray-700 shadow-md tracking-wider";
-            setListButtonState(false, "🔒 List Aset Dikunci");
           } else if (now >= preOpenTime && now < startTime) {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 2;
@@ -2402,7 +2430,6 @@
 
             badge.innerText = `⏱️ BUKA DALAM: ${countdownStr}`;
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-md animate-pulse tracking-wider";
-            setListButtonState(false, "🔒 List Aset Dikunci (Persiapan)");
           } else if (now >= startTime && now <= endTime) {
             isAuctionCurrentlyOpen = true;
             currentAuctionStatusCode = 3;
@@ -2411,31 +2438,50 @@
 
             badge.innerText = `🔥 BERLANGSUNG: ${countdownStr}`;
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
-            setListButtonState(true, "+ List Aset/Barang");
           } else {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 4;
             badge.innerText = `🏁 SESI TUTUP (00:00:00)`;
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
-            setListButtonState(false, "🔒 Sesi Lelang Selesai");
           }
+          setListButtonState(adminManualListActive);
         }
       }
     }
 
-    function setListButtonState(isOpen, textLabel) {
+    function setListButtonState(isOpen) {
       const btnHeaderCreate = document.getElementById('btnHeaderCreate');
       if (!btnHeaderCreate) return;
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdmin = ADMIN_USERNAMES.includes(currentUsr);
+
+      let adminSwitchBtn = document.getElementById('btnAdminToggleListState');
+      if (isAdmin) {
+        if (!adminSwitchBtn) {
+          adminSwitchBtn = document.createElement('button');
+          adminSwitchBtn.id = 'btnAdminToggleListState';
+          adminSwitchBtn.onclick = toggleAdminListAssetState;
+          btnHeaderCreate.parentNode.insertBefore(adminSwitchBtn, btnHeaderCreate);
+        }
+        adminSwitchBtn.className = isOpen
+          ? "text-[9px] bg-emerald-900/80 hover:bg-emerald-800 text-emerald-300 font-bold px-2 py-1 rounded-lg border border-emerald-500/40 cursor-pointer mb-0.5"
+          : "text-[9px] bg-red-900/80 hover:bg-red-800 text-red-300 font-bold px-2 py-1 rounded-lg border border-red-500/40 cursor-pointer mb-0.5";
+        adminSwitchBtn.innerText = isOpen ? "🟢 List Aktif (Klik Nonaktifkan)" : "🔴 List Nonaktif (Klik Aktifkan)";
+      } else if (adminSwitchBtn) {
+        adminSwitchBtn.remove();
+      }
+
       if (isOpen) {
         btnHeaderCreate.disabled = false;
         btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer";
-        btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
+        btnHeaderCreate.innerHTML = `<span>${t('releaseAssetBtn')}</span>`;
       } else {
         btnHeaderCreate.disabled = true;
         btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-inner flex items-center justify-center gap-1 cursor-not-allowed";
-        btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
+        btnHeaderCreate.innerHTML = `<span>🔒 List Aset/Barang (Nonaktif)</span>`;
       }
     }
+
 
     function openMonthlyReportModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
