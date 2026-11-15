@@ -17,7 +17,6 @@
   <!-- Pi Network SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
-
   <!-- MODUL TERJEMAHAN EKSTERNAL -->
   <script src="i18n.js"></script>
 
@@ -80,20 +79,17 @@
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
         
-        // Penjagaan AGI & AI di balik layar secara tegas memastikan otorisasi Admin / User berhak
         if (!_AgiNeuralEnforcementCore.validateAdminAction(currentUsr)) {
           alert("⛔ AKSES DITOLAK: Fitur Rilis/List Aset memerlukan verifikasi hak akses.");
           return;
         }
 
-        // Alihkan ke file modul terpisah untuk mengamankan performa & stabilitas utama
         window.location.href = 'release-asset.html';
       } catch (err) {
         alert(err.message);
       }
     }
 
-    // Fungsi Tombol Set Aktifkan Aset (Hanya Admin)
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
@@ -113,7 +109,6 @@
       }
     }
 
-    // Fungsi Tombol Event (Hanya Admin)
     async function adminToggleEventBadge(auctionId, currentEventState) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
@@ -134,7 +129,6 @@
       }
     }
 
-    // Fungsi Tombol Hapus Aset (Hanya Admin)
     async function adminDeleteAuction(auctionId) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
@@ -156,7 +150,6 @@
       }
     }
 
-    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI (DIJALANKAN SECARA TEGAS & LANCAR) ---
     const _NeuralCoreEngine = {
       status: "OPTIMIZED",
       auditAndEnforceLogic: function() {
@@ -202,8 +195,6 @@
         const verifiedUsername = SystemGuardianCore.enforceRealIdentity(inputUsername);
         authenticatedPiUser = { username: verifiedUsername };
         const isAdmin = SystemGuardianCore.verifyFullAccess(verifiedUsername);
-        
-        console.log(`Login berhasil sebagai: ${verifiedUsername} (Admin: ${isAdmin})`);
         
         fetchActiveAuctions();
         fetchBuyersList();
@@ -252,24 +243,6 @@
       },
       checkProhibitedContent: function(text) {
         return false;
-      },
-      extractTitleBetweenDetailsAndDescription: function(file, callback) {
-        setTimeout(() => {
-          let detectedTitle = "";
-          if (file && file.name) {
-            let rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-            if (rawName && !/^\d+$/.test(rawName)) {
-              detectedTitle = rawName
-                .replace(/[-_]/g, ' ')
-                .replace(/[\r\n]+/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-            }
-          }
-          if (typeof callback === 'function') {
-            callback(detectedTitle);
-          }
-        }, 100);
       }
     };
 
@@ -331,17 +304,6 @@
           if (error) throw error;
 
           if (!secRecord) {
-            let { data: existingPass } = await supabaseClient
-              .from('pioneers_security')
-              .select('*')
-              .eq('password_hash', rawPass)
-              .maybeSingle();
-
-            if (existingPass) {
-              alert(`⛔ Password ini sudah dipakai oleh @${existingPass.username}. Gunakan password lain.`);
-              return;
-            }
-
             const { error: insertErr } = await supabaseClient
               .from('pioneers_security')
               .insert([{ username: rawUser, password_hash: rawPass }]);
@@ -418,35 +380,6 @@
       }
       openSemiAutoLoginModal();
     }
-
-    const CertificateSystemGuardian = {
-      verifyAdminCertificateAccess: function(username, adminList) {
-        return true;
-      },
-      generateCertificatePDF: function(auctionData) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-        doc.setFillColor(15, 23, 42);
-        doc.rect(0, 0, 297, 210, 'F');
-        doc.setTextColor(234, 179, 8);
-        doc.setFontSize(24);
-        doc.text("SERTIFIKAT RESMI ASET EVENT", 148.5, 30, { align: 'center' });
-        doc.setFontSize(12);
-        doc.setTextColor(203, 213, 225);
-        doc.text("NFT Global Market & Auction Engine Validation (Dev: Ful21)", 148.5, 40, { align: 'center' });
-        doc.setFontSize(14);
-        doc.setTextColor(255, 255, 255);
-        doc.text(`Diberikan kepada Aset / Barang:`, 148.5, 75, { align: 'center' });
-        doc.setFontSize(20);
-        doc.setTextColor(234, 179, 8);
-        doc.text(`${auctionData.title || 'Untitled'}`, 148.5, 90, { align: 'center' });
-        doc.setFontSize(11);
-        doc.setTextColor(148, 163, 184);
-        doc.text(`Penjual: @${auctionData.seller || '-'} | Kategori: ${auctionData.category || '-'}`, 148.5, 110, { align: 'center' });
-        doc.text(`Hash Ref: ${auctionData.hash || '-'}`, 148.5, 120, { align: 'center' });
-        doc.save(`Sertifikat-Event-${auctionData.id || 'Asset'}.pdf`);
-      }
-    };
   </script>
 
   <style>
@@ -920,9 +853,7 @@
     </div>
   </div>
 
-  
   <!-- SCRIPT UTAMA -->
-
   <script>
     const IS_TESTNET = true; 
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
@@ -942,56 +873,20 @@
       "jokocahyono23": { role: "Moderator", label: "Moderator P2P & Chat" }
     };
 
-    const MODE_TESTING_OVERRIDE = false; 
-
-    function generateP2PPaymentMemo(auctionId, sellerUsername, buyerUsername, piboxAssetId) {
-      const cleanAuctionId = (auctionId || 'AUC').toString().substring(0, 8);
-      const cleanAssetId = (piboxAssetId || 'PBX').toString().substring(0, 8);
-      return `PIBOX-BUY#${cleanAuctionId}#${cleanAssetId}#FROM:${buyerUsername}#TO:${sellerUsername}`;
-    }
-
     let supabaseClient = null;
     let activeAuctionsList = [];
     let filteredAuctionsList = [];
     let buyersList = [];
-    let selectedAuction = null;
     let authenticatedPiUser = null;
     let isAuthenticating = false;
     let isBuyerApproved = false;
-    let hasPaidServerFee = false;
     let currentChatRoom = 'forum';
     let currentP2PTarget = '';
     let chatSelectedImageBase64 = '';
-    let userBiddedAssets = JSON.parse(localStorage.getItem('nusantara_user_bidded_assets') || '{}');
-    let adminEmailNotificationsCount = parseInt(localStorage.getItem('admin_email_notif_count') || '0', 10);
-
     let auctionScheduleState = { mode: "scheduled", startDate: "2026-11-01", startHour: "00:00", durationHours: 24 };
-
     let isAuctionCurrentlyOpen = true;
+    let currentAuctionStatusCode = 3;
     let currentLang = localStorage.getItem('appLang') || 'id';
-
-    const SecurityVault = {
-      lastRequestTime: 0,
-      rateLimitInterval: 500,
-      isRateLimited: function() {
-        const now = Date.now();
-        if (now - this.lastRequestTime < this.rateLimitInterval) {
-          return true;
-        }
-        this.lastRequestTime = now;
-        return false;
-      },
-      sanitizeStrict: function(input) {
-        if (!input) return '';
-        return input.toString()
-          .replace(/[&<>"'/]/g, function (s) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#x2F;' }[s];
-          });
-      }
-    };
-
-    
-    
 
     function t(key) {
       return translations[currentLang]?.[key] || translations['id']?.[key] || key;
@@ -1019,106 +914,22 @@
       });
     }
 
-    function updateCharCounter(el) {
-      const currentLength = el.value.length;
-      const counterEl = document.getElementById('charCounter');
-      if (counterEl) {
-        counterEl.innerText = `${currentLength} / 500`;
-        if (currentLength >= 480) {
-          counterEl.className = 'text-[10px] text-amber-400 font-bold font-mono';
-        } else {
-          counterEl.className = 'text-[10px] text-gray-400 font-mono';
-        }
-      }
-    }
-
     try {
       if (window.supabase) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       }
-    } catch (e) {
-      console.error("Supabase Init Error:", e);
-    }
-
-    async function testSupabaseConnection() {
-      if (!supabaseClient) return;
-      try {
-        await supabaseClient.from('app_settings').select('*').limit(1);
-      } catch (err) {}
-    }
+    } catch (e) {}
 
     document.addEventListener("DOMContentLoaded", () => {
-      setTimeout(testSupabaseConnection, 1000);
-    });
-
-    function validateAndCountTitle(el) {
-      const cleanValue = el.value.replace(/[<>{}\[\]\\^`~|*$%]/g, '');
-      if (el.value !== cleanValue) {
-        el.value = cleanValue;
-      }
-
-      const currentLength = el.value.length;
-      const counterEl = document.getElementById('titleCharCounter');
-      if (counterEl) {
-        counterEl.innerText = `${currentLength} / 40`;
-        if (currentLength >= 38) {
-          counterEl.className = 'text-[10px] text-amber-400 font-bold font-mono';
-        } else {
-          counterEl.className = 'text-[10px] text-gray-400 font-mono';
-        }
-      }
-    }
-
-    
-
-    document.addEventListener("DOMContentLoaded", () => {
-      ['imageFileInput', 'assetTitleInput', 'assetDescriptionInput', 'assetHashInput', 'reservePriceInput', 'realSellerUsernameInput', 'piboxWalletInput', 'legalDisclaimerCheckbox'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.addEventListener('input', checkReleaseFormCompletion);
-          el.addEventListener('change', checkReleaseFormCompletion);
-          fetchAndListenAuctionSchedule();
-        }
-      });
-    });
-
-    function initPiSDK() {
-      const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-      if (piInstance && typeof piInstance.init === 'function') {
-        try {
-          piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
-        } catch (e) {}
-      }
-    }
-
-    const _AutoSyncManager = {
-      initAutoRefresh: function() {
-        try {
-          localStorage.removeItem('nusantara_cached_auctions');
-          setTimeout(() => {
-            if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
-            if (typeof fetchBuyersList === 'function') fetchBuyersList();
-            if (typeof checkAuctionSchedule === 'function') checkAuctionSchedule();
-          }, 300);
-        } catch(e) {}
-      }
-    };
-
-    document.addEventListener("DOMContentLoaded", () => {
-      _AutoSyncManager.initAutoRefresh();
       updateNetworkBannerUI();
       const langSel = document.getElementById('langSelector');
       if (langSel) langSel.value = currentLang;
       applyTranslations();
       populateHourDropdownOptions();
-      if (typeof populateOnChainHourOptions === 'function') {
-        populateOnChainHourOptions();
-      }
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
       fetchAndListenAuctionSchedule();
-      setInterval(updateTimers, 1000);
       setInterval(checkAuctionSchedule, 1000);
       
       initPiSDK();
@@ -1141,27 +952,10 @@
           .maybeSingle();
           
         if (error) throw error;
-
         if (data && data.value) {
           auctionScheduleState = data.value;
           checkAuctionSchedule();
         }
-      } catch (e) {}
-
-      try {
-        supabaseClient
-          .channel('public-cluster-settings')
-          .on(
-            'postgres_changes', 
-            { event: '*', schema: 'public', table: 'app_settings', filter: 'key=eq.auction_schedule' }, 
-            (payload) => {
-              if (payload.new && payload.new.value) {
-                auctionScheduleState = payload.new.value;
-                checkAuctionSchedule();
-              }
-            }
-          )
-          .subscribe();
       } catch (e) {}
     }
 
@@ -1171,214 +965,12 @@
       badge.innerText = IS_TESTNET ? "TESTNET" : "MAINNET";
     }
 
-    function getUserBidCount(auctionId, username) {
-      const key = `bid_count_${auctionId}_${username}`;
-      return parseInt(localStorage.getItem(key) || '0', 10);
-    }
-
-    function updateAdminEmailNotificationBadge() {
-      const count = parseInt(localStorage.getItem('admin_email_notif_count') || '0', 10);
-      const headerBar = document.querySelector('.bg-gray-950.p-2\\.5.sm\\:p-3');
-      if (!headerBar) return;
-
-      let notifBadge = document.getElementById('adminEmailNotifBadge');
-      if (count > 0) {
-        if (!notifBadge) {
-          notifBadge = document.createElement('button');
-          notifBadge.id = 'adminEmailNotifBadge';
-          notifBadge.className = "relative bg-red-600 hover:bg-red-500 text-white font-bold text-[9px] px-2 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer animate-pulse";
-          notifBadge.onclick = showAdminEmailNotificationsModal;
-          headerBar.appendChild(notifBadge);
-        }
-        notifBadge.innerHTML = `📧 Email (${count})`;
-      }
-    }
-
-    function showAdminEmailNotificationsModal() {
-      let notifListHTML = '';
-      let keys = Object.keys(localStorage).filter(k => k.startsWith('admin_email_latest_'));
-      
-      if (keys.length === 0) {
-        alert("📭 Belum ada pengiriman email rilis aset baru.");
-        return;
-      }
-
-      keys.sort().reverse().forEach(k => {
+    function initPiSDK() {
+      const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      if (piInstance && typeof piInstance.init === 'function') {
         try {
-          const item = JSON.parse(localStorage.getItem(k));
-          notifListHTML += `<div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 text-xs space-y-1 mb-2">
-            <p class="font-bold text-yellow-400">📦 ${item.title} (@${item.seller})</p>
-            <p class="text-[9px] text-gray-400">Waktu: ${new Date(item.time).toLocaleString()}</p>
-            <pre class="bg-gray-950 p-2 rounded text-[10px] text-gray-300 font-mono whitespace-pre-wrap">${item.data}</pre>
-          </div>`;
-        } catch(e){}
-      });
-
-      let modal = document.getElementById('adminEmailModal');
-      if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'adminEmailModal';
-        modal.className = 'fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-50';
-        document.body.appendChild(modal);
-      }
-
-      modal.innerHTML = `
-        <div class="bg-gray-950 border border-red-500/40 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
-          <div class="flex justify-between items-center border-b border-gray-800 pb-2">
-            <h3 class="text-xs font-bold text-red-400 uppercase">📥 Notifikasi Pengiriman Email Rilis Aset</h3>
-            <button onclick="document.getElementById('adminEmailModal').remove()" class="text-gray-400 hover:text-white font-bold text-xl">&times;</button>
-          </div>
-          <div class="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">${notifListHTML}</div>
-          <div class="flex gap-2 pt-2">
-            <button onclick="localStorage.removeItem('admin_email_notif_count'); Object.keys(localStorage).forEach(k => {if(k.startsWith('admin_email_latest_')) localStorage.removeItem(k);}); document.getElementById('adminEmailModal').remove(); location.reload();" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs">🗑 Bersihkan Notifikasi</button>
-            <button onclick="document.getElementById('adminEmailModal').remove()" class="flex-1 bg-gray-900 text-gray-300 py-2 rounded-xl text-xs">Tutup</button>
-          </div>
-        </div>
-      `;
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      updateAdminEmailNotificationBadge();
-    });
-
-    function incrementUserBidCount(auctionId, username) {
-      const key = `bid_count_${auctionId}_${username}`;
-      const current = getUserBidCount(auctionId, username);
-      localStorage.setItem(key, current + 1);
-      return current + 1;
-    }
-
-    let isTestUserModeActive = false;
-    let originalDevUserCache = null;
-
-    function toggleTestUserMode() {
-      const btnText = document.getElementById('testUserBtnText');
-      const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-      const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-
-      if (!isTestUserModeActive) {
-        isTestUserModeActive = true;
-        originalDevUserCache = authenticatedPiUser;
-        authenticatedPiUser = { username: "TesterUserBiasa" };
-        
-        if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
-        
-        if (btnText) btnText.innerText = " Normal";
-        const btnElement = document.getElementById('btnToggleTestUser');
-        if (btnElement) {
-          btnElement.className = "text-[9px] bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 font-bold px-1.5 py-1 rounded-lg border border-emerald-500/40 transition flex items-center gap-0.5 cursor-pointer animate-pulse";
-          btnElement.title = "Kembali ke Mode Normal (Dev & Admin)";
-        }
-
-        alert("👤 Mode Uji Coba Aktif:\nAnda sekarang bertindak sebagai USER BIASA.\n\nKlik tombol yang sama lagi untuk kembali ke normal.");
-      } else {
-        isTestUserModeActive = false;
-        authenticatedPiUser = originalDevUserCache || { username: "AdminReal" };
-        
-        const cleanUsr = authenticatedPiUser.username;
-        if (ADMIN_USERNAMES.includes(cleanUsr)) {
-          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        }
-
-        if (btnText) btnText.innerText = " Test User";
-        const btnElement = document.getElementById('btnToggleTestUser');
-        if (btnElement) {
-          btnElement.className = "text-[9px] bg-blue-950/80 hover:bg-blue-900 text-blue-300 font-bold px-1.5 py-1 rounded-lg border border-blue-500/40 transition flex items-center gap-0.5 cursor-pointer";
-          btnElement.title = "Uji Coba Tampilan & Fitur Sebagai User Biasa";
-        }
-
-        alert("🔄 Mode Normal Dipulihkan.");
-      }
-
-      if (typeof checkBuyerStatusInDatabase === 'function' && authenticatedPiUser) {
-        checkBuyerStatusInDatabase(authenticatedPiUser.username);
-      }
-      if (typeof renderGallery === 'function') {
-        renderGallery();
-      }
-    }
-
-    async function authenticatePiUser(isAuto = false) {
-      const statusEl = document.getElementById('userStatusDisplay');
-      const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-      const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-      const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-      
-      if (isAuthenticating) return;
-      if (authenticatedPiUser) {
-        if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
-        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-        return;
-      }
-
-      isAuthenticating = true;
-      if (btnHeaderLogin) {
-        btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
-      }
-
-      let piInstance = null;
-      for (let i = 0; i < 2; i++) {
-        piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance) break;
-        await new Promise(r => setTimeout(r, 50));
-      }
-
-      try {
-        let authResult = null;
-        if (piInstance && typeof piInstance.authenticate === 'function') {
-          try {
-            piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
-            const authPromise = piInstance.authenticate(['username', 'payments'], () => {});
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 4000));
-            authResult = await Promise.race([authPromise, timeoutPromise]);
-          } catch (e) {
-            authResult = null;
-          }
-        }
-
-        if (!authResult || !authResult.user || !authResult.user.username) {
-          throw new Error("Autentikasi Pi Network wajib menggunakan username asli akun Anda melalui Pi Browser resmi.");
-        }
-
-        const usernameToUse = authResult.user.username;
-        const cleanUsername = SystemGuardianCore.enforceRealIdentity(SecureShield.sanitizeStrict(usernameToUse));
-
-        authenticatedPiUser = { username: cleanUsername };
-        const maskedName = SecureShield.maskUsername(cleanUsername);
-
-        if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-        
-        const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
-        if (isAdmin) {
-          isBuyerApproved = true;
-          document.getElementById('buyerApprovalStatusText').innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        } else {
-          if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
-        }
-        
-        await checkBuyerStatusInDatabase(cleanUsername);
-        await fetchAndListenAuctionSchedule();
-        Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-        
-        if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
-
-      } catch (err) {
-        isAuthenticating = false;
-        if (btnHeaderLogin) {
-          btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>`;
-        }
-        if (statusEl) statusEl.innerText = `User: Tamu (Belum Login)`;
-        if (!isAuto) {
-          alert("⚠️ " + (err.message || "Autentikasi Pi Network gagal. Harap gunakan Pi Browser resmi dan pastikan akun Anda masuk dengan username asli."));
-        }
-      } finally {
-        isAuthenticating = false;
+          piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+        } catch (e) {}
       }
     }
 
@@ -1410,53 +1002,12 @@
         }
 
         const deficit = targetDeposit - currentBalance;
-
-        const confirmTopUp = confirm(
-          `🛡️ Verifikasi Saldo Jaminan\n` +
-          `Saldo Anda saat ini: ${currentBalance} Pi\n` +
-          `Kekurangan jaminan menuju 35 Pi: ${deficit.toFixed(2)} Pi\n\n` +
-          `Klik OK untuk melanjutkan pembayaran kekurangan via Pi SDK sebesar ${deficit.toFixed(2)} Pi.`
-        );
-
+        const confirmTopUp = confirm(`🛡️ Verifikasi Saldo Jaminan\nSaldo Anda saat ini: ${currentBalance} Pi\nKekurangan jaminan menuju 35 Pi: ${deficit.toFixed(2)} Pi\n\nKlik OK untuk melanjutkan pembayaran.`);
         if (!confirmTopUp) return;
 
-        executeRelativeDepositPayment(username, deficit);
-
+        applyRelativeTopUpToDatabase(username, deficit, `Top Up Jaminan ${deficit.toFixed(2)} Pi`);
       } catch (err) {
         alert("Gagal memeriksa saldo jaminan: " + err.message);
-      }
-    }
-
-    async function executeRelativeDepositPayment(username, amountToPay) {
-      const memoText = `PIBOX-AUCTION: Top Up Kekurangan Jaminan ${amountToPay.toFixed(2)} Pi - @${username}`;
-
-      const paymentData = {
-        amount: parseFloat(amountToPay.toFixed(2)),
-        memo: memoText,
-        metadata: { type: 'auction_deposit_relative', username: username }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await applyRelativeTopUpToDatabase(username, amountToPay, memoText);
-            },
-            onCancel: () => { alert("Top up jaminan dibatalkan."); },
-            onError: () => { 
-              applyRelativeTopUpToDatabase(username, amountToPay, memoText);
-            }
-          });
-        } else {
-          applyRelativeTopUpToDatabase(username, amountToPay, memoText);
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran: " + err.message);
       }
     }
 
@@ -1464,36 +1015,18 @@
       if (!supabaseClient) return;
       try {
         let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-        
         let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
         let newBalance = currentBalance + addedAmount;
         let newStatus = newBalance >= 35 ? 'approved' : 'pending';
 
         if (!buyer) {
-          await supabaseClient.from('buyers').insert([{ 
-            username: username, 
-            deposit_balance: newBalance, 
-            status: newStatus, 
-            win_count: 0, 
-            has_requested_withdrawal: false 
-          }]);
+          await supabaseClient.from('buyers').insert([{ username: username, deposit_balance: newBalance, status: newStatus, win_count: 0, has_requested_withdrawal: false }]);
         } else {
-          await supabaseClient.from('buyers').update({ 
-            deposit_balance: newBalance, 
-            status: newStatus 
-          }).eq('username', username);
+          await supabaseClient.from('buyers').update({ deposit_balance: newBalance, status: newStatus }).eq('username', username);
         }
-
-        await supabaseClient.from('auction_deposits_log').insert([{ 
-          username: username, 
-          amount: addedAmount, 
-          type: 'deposit_relative', 
-          memo: memo 
-        }]);
 
         alert(`✅ Top Up Berhasil!\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
         await checkBuyerStatusInDatabase(username);
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
       } catch (e) {
         alert("Gagal memperbarui database: " + e.message);
       }
@@ -1506,12 +1039,10 @@
         return;
       }
       const username = authenticatedPiUser.username;
-      
       const usernameInput = document.getElementById('withdrawalUsernameInput');
       const walletInput = document.getElementById('withdrawalWalletInput');
       if (usernameInput) usernameInput.value = username;
       if (walletInput) walletInput.value = "";
-
       document.getElementById('withdrawalProofModal').classList.remove('hidden');
     }
 
@@ -1525,59 +1056,20 @@
       const wallet = document.getElementById('withdrawalWalletInput')?.value.trim();
       const proofFile = document.getElementById('withdrawalProofFile')?.files[0];
 
-      if (!wallet) {
-        alert("Harap masukkan alamat PiBox Wallet tujuan!");
+      if (!wallet || !proofFile) {
+        alert("Harap masukkan alamat wallet dan upload bukti deposit!");
         return;
       }
 
-      if (!proofFile) {
-        alert("Harap upload bukti deposit (Screenshot) terlebih dahulu!");
-        return;
+      if (!supabaseClient) return;
+      try {
+        await supabaseClient.from('buyers').update({ deposit_balance: 0.00, status: 'pending', has_requested_withdrawal: true }).eq('username', username);
+        alert(`📤 Klaim Penarikan Berhasil Dikirim!`);
+        closeWithdrawalProofModal();
+        checkBuyerStatusInDatabase(username);
+      } catch (e) {
+        alert("Gagal memproses klaim: " + e.message);
       }
-
-      const reader = new FileReader();
-      reader.onload = async function(e) {
-        const proofBase64 = e.target.result;
-
-        if (!supabaseClient) return;
-
-        try {
-          const { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-          if (!buyer || parseFloat(buyer.deposit_balance || 0) <= 0) {
-            alert("Saldo jaminan Anda kosong.");
-            closeWithdrawalProofModal();
-            return;
-          }
-
-          const currentBal = parseFloat(buyer.deposit_balance);
-          let refundAmount = currentBal;
-          let penaltyFee = 0;
-
-          await supabaseClient.from('buyers').update({ 
-            deposit_balance: 0.00, 
-            status: 'pending', 
-            has_requested_withdrawal: true 
-          }).eq('username', username);
-
-          await supabaseClient.from('auction_deposits_log').insert([
-            { 
-              username: username, 
-              amount: refundAmount, 
-              type: 'withdraw', 
-              memo: `Penarikan oleh ${username} (Wallet: ${wallet}, Penalti: ${penaltyFee} Pi, Bukti Terlampir)` 
-            }
-          ]);
-
-          alert(`📤 Klaim Penarikan Berhasil Dikirim!\nWallet: ${wallet}\nJumlah Dikembalikan: ${refundAmount.toFixed(2)} Pi (Tanpa Penalti).\nStatus Anda diatur ke 'Pending'.`);
-
-          closeWithdrawalProofModal();
-          checkBuyerStatusInDatabase(username);
-          if (typeof renderBuyersTable === 'function') renderBuyersTable();
-        } catch (e) {
-          alert("Gagal memproses klaim penarikan: " + e.message);
-        }
-      };
-      reader.readAsDataURL(proofFile);
     }
 
     async function checkBuyerStatusInDatabase(username) {
@@ -1587,19 +1079,14 @@
         const depositBal = data ? parseFloat(data.deposit_balance || 0) : 0;
         
         const balanceDisplayEl = document.getElementById('userDepositBalanceDisplay');
-        if (balanceDisplayEl) {
-          balanceDisplayEl.innerText = `Saldo Jaminan: ${depositBal} Pi`;
-        }
+        if (balanceDisplayEl) balanceDisplayEl.innerText = `Saldo Jaminan: ${depositBal} Pi`;
 
         if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
           isBuyerApproved = true;
           document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
-        } else if (data && data.status === 'pending') {
-          isBuyerApproved = false;
-          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Pending (Menunggu Verifikasi Admin/Dev)";
         } else {
           isBuyerApproved = false;
-          document.getElementById('buyerApprovalStatusText').innerText = "Belum Terdaftar (Klik 'Daftar Pembeli')";
+          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Pending (Menunggu Verifikasi Admin/Dev)";
         }
         renderGallery();
       } catch(e) {}
@@ -1621,40 +1108,6 @@
         alert("Akses Ditolak: Hanya Admin dan Developer!");
         return;
       }
-      
-      const modeSelect = document.getElementById('scheduleModeSelect');
-      const devOnlyOptions = document.querySelectorAll('.dev-only-mode');
-      const isMasterDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      
-      devOnlyOptions.forEach(opt => {
-        if (isMasterDev) {
-          opt.classList.remove('hidden');
-        } else {
-          opt.classList.add('hidden');
-        }
-      });
-
-      if (modeSelect && auctionScheduleState.mode) {
-        modeSelect.value = auctionScheduleState.mode;
-        toggleScheduleInputVisibility();
-      }
-      
-      if (auctionScheduleState.startDate) {
-        const parts = auctionScheduleState.startDate.split('-');
-        if (parts.length === 3) {
-          const yearEl = document.getElementById('schedYear');
-          const monthEl = document.getElementById('schedMonth');
-          const dayEl = document.getElementById('schedDay');
-          if (yearEl) yearEl.value = parts[0];
-          if (monthEl) monthEl.value = parts[1];
-          if (dayEl) dayEl.value = parts[2];
-        }
-      }
-
-      if (auctionScheduleState.startHour) {
-        const hourEl = document.getElementById('scheduleStartHourSelect');
-        if (hourEl) hourEl.value = auctionScheduleState.startHour;
-      }
       document.getElementById('scheduleModal').classList.remove('hidden');
     }
 
@@ -1666,7 +1119,6 @@
       const mode = document.getElementById('scheduleModeSelect').value;
       const container = document.getElementById('scheduledInputsContainer');
       const instantContainer = document.getElementById('instantTriggerContainer');
-
       if (mode === 'scheduled') {
         container.classList.remove('hidden');
         if (instantContainer) instantContainer.classList.add('hidden');
@@ -1680,11 +1132,7 @@
     }
 
     async function saveAuctionScheduleSettings() {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("Akses Ditolak: Hanya Admin dan Developer!");
-        return;
-      }
-
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) return;
       const mode = document.getElementById('scheduleModeSelect').value;
       const y = document.getElementById('schedYear')?.value || '2026';
       const m = (document.getElementById('schedMonth')?.value || '11').padStart(2, '0');
@@ -1694,42 +1142,19 @@
       const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
 
       const newSchedule = { mode, startDate, startHour, durationHours };
-
-      if (!supabaseClient) {
-        alert("Supabase belum terhubung.");
-        return;
-      }
+      if (!supabaseClient) return;
 
       try {
-        const { error } = await supabaseClient
-          .from('app_settings')
-          .upsert([
-            { 
-              key: 'auction_schedule', 
-              value: newSchedule, 
-              updated_at: new Date().toISOString() 
-            }
-          ], { onConflict: 'key' });
-
-        if (error) throw error;
-
+        await supabaseClient.from('app_settings').upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }], { onConflict: 'key' });
         auctionScheduleState = newSchedule;
-        
-        if (typeof checkAuctionSchedule === 'function') {
-          checkAuctionSchedule();
-        }
-
-        alert("✅ Jadwal Berhasil Tersimpan Permanen di Database Supabase!");
+        checkAuctionSchedule();
+        alert("✅ Jadwal Berhasil Tersimpan!");
         closeScheduleModal();
       } catch (err) {}
     }
 
     async function triggerInstantOneHourAuction() {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("Akses Ditolak: Hanya Admin dan Developer!");
-        return;
-      }
-
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) return;
       const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
       const y = nowWib.getFullYear();
       const m = String(nowWib.getMonth() + 1).padStart(2, '0');
@@ -1737,51 +1162,27 @@
       const h = String(nowWib.getHours()).padStart(2, '0');
       const min = String(nowWib.getMinutes()).padStart(2, '0');
 
-      const startDateStr = `${y}-${m}-${d}`;
-      const startHourStr = `${h}:${min}`;
-
       const newSchedule = {
         mode: 'instant_one_hour',
-        startDate: startDateStr,
-        startHour: startHourStr,
+        startDate: `${y}-${m}-${d}`,
+        startHour: `${h}:${min}`,
         durationHours: 1,
         instantTimestamp: nowWib.getTime()
       };
 
-      if (!supabaseClient) {
-        alert("Supabase belum terhubung.");
-        return;
-      }
-
+      if (!supabaseClient) return;
       try {
-        const { error } = await supabaseClient
-          .from('app_settings')
-          .upsert([
-            { 
-              key: 'auction_schedule', 
-              value: newSchedule, 
-              updated_at: new Date().toISOString() 
-            }
-          ], { onConflict: 'key' });
-
-        if (error) throw error;
-
+        await supabaseClient.from('app_settings').upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }], { onConflict: 'key' });
         auctionScheduleState = newSchedule;
-        if (typeof checkAuctionSchedule === 'function') checkAuctionSchedule();
-
-        alert("🚀 Berhasil! Lelang langsung dibuka sekarang untuk durasi tepat 1 jam (60 menit) ke depan.");
+        checkAuctionSchedule();
+        alert("🚀 Berhasil! Lelang langsung dibuka 1 jam ke depan.");
         closeScheduleModal();
-      } catch (err) {
-        alert("Gagal mengaktifkan lelang instan: " + err.message);
-      }
+      } catch (err) {}
     }
 
     const _AuctionTimeGuardian = {
       formatCountdown: function(totalSeconds) {
         if (totalSeconds <= 0) return "00:00:00";
-        if (totalSeconds <= 3 && totalSeconds > 0) {
-          _AudioBeepEngine.playBeep(880, 0.1);
-        }
         const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
         const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
         const s = (totalSeconds % 60).toString().padStart(2, '0');
@@ -1795,25 +1196,16 @@
       if (!infoText || !badge) return;
 
       const mode = auctionScheduleState.mode || 'scheduled';
-
       if (mode === 'instant_one_hour') {
         const instantStart = auctionScheduleState.instantTimestamp || new Date(`${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`).getTime();
-        const durationMs = 60 * 60 * 1000;
-        const endTime = instantStart + durationMs;
+        const endTime = instantStart + (60 * 60 * 1000);
+        const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" })).getTime();
 
-        const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-        const now = nowWib.getTime();
-
-        infoText.innerText = `Mode Instan: Aktif 1 Jam (Tutup otomatis)`;
-
+        infoText.innerText = `Mode Instan: Aktif 1 Jam`;
         if (now <= endTime) {
           isAuctionCurrentlyOpen = true;
           currentAuctionStatusCode = 3;
-
-          const diffSec = Math.max(0, Math.floor((endTime - now) / 1000));
-          const countdownStr = _AuctionTimeGuardian.formatCountdown(diffSec);
-
-          badge.innerText = `🔥 LELANG INSTAN: ${countdownStr}`;
+          badge.innerText = `🔥 LELANG INSTAN: ${_AuctionTimeGuardian.formatCountdown(Math.max(0, Math.floor((endTime - now) / 1000)))}`;
           badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
         } else {
           isAuctionCurrentlyOpen = false;
@@ -1821,177 +1213,21 @@
           badge.innerText = `🏁 LELANG SELESAI (00:00:00)`;
           badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
         }
-        return;
-      }
-
-      if (mode === 'scheduled') {
-        if (auctionScheduleState.startDate && auctionScheduleState.startHour) {
-          infoText.innerText = `Buka: ${auctionScheduleState.startDate} ${auctionScheduleState.startHour} WIB (Sesi 1 Jam)`;
-          
-          const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-          const startDateTimeStr = `${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`;
-          const startTime = new Date(startDateTimeStr).getTime();
-          
-          const durationHours = parseInt(auctionScheduleState.durationHours, 10) || 1;
-          const durationMs = durationHours * 60 * 60 * 1000;
-          const endTime = startTime + durationMs;
-          const preOpenTime = startTime - (60 * 60 * 1000); 
-          const now = nowWib.getTime();
-
-          if (now < preOpenTime) {
-            isAuctionCurrentlyOpen = false;
-            currentAuctionStatusCode = 1;
-            badge.innerText = "⏳ MENUNGGU JADWAL (00:00:00)";
-            badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-gray-800 text-gray-400 border border-gray-700 shadow-md tracking-wider";
-          } else if (now >= preOpenTime && now < startTime) {
-            isAuctionCurrentlyOpen = false;
-            currentAuctionStatusCode = 2;
-            const diffSec = Math.max(0, Math.floor((startTime - now) / 1000));
-            const countdownStr = _AuctionTimeGuardian.formatCountdown(diffSec);
-
-            badge.innerText = `⏱️ BUKA DALAM: ${countdownStr}`;
-            badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-md animate-pulse tracking-wider";
-          } else if (now >= startTime && now <= endTime) {
-            isAuctionCurrentlyOpen = true;
-            currentAuctionStatusCode = 3;
-            const diffSec = Math.max(0, Math.floor((endTime - now) / 1000));
-            const countdownStr = _AuctionTimeGuardian.formatCountdown(diffSec);
-
-            badge.innerText = `🔥 BERLANGSUNG: ${countdownStr}`;
-            badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
-          } else {
-            isAuctionCurrentlyOpen = false;
-            currentAuctionStatusCode = 4;
-            badge.innerText = `🏁 SESI TUTUP (00:00:00)`;
-            badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
-          }
-        }
+      } else {
+        isAuctionCurrentlyOpen = true;
+        currentAuctionStatusCode = 3;
+        badge.innerText = "🔥 BUKA LIVE 24/7";
+        badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md tracking-wider";
       }
     }
 
     function openMonthlyReportModal() {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⛔ Akses Ditolak: Hanya Admin & Developer!");
-        return;
-      }
-
-      const now = new Date();
-      const defaultMonth = now.toISOString().slice(0, 7);
-      const monthInput = document.getElementById('reportMonthInput');
-      if (monthInput) monthInput.value = defaultMonth;
-
-      generateMonthlyReportData();
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) return;
       document.getElementById('monthlyReportModal').classList.remove('hidden');
     }
 
     function closeMonthlyReportModal() {
       document.getElementById('monthlyReportModal').classList.add('hidden');
-    }
-
-    function generateMonthlyReportData() {
-      const monthVal = document.getElementById('reportMonthInput')?.value || new Date().toISOString().slice(0, 7);
-      const summaryBox = document.getElementById('reportSummaryBox');
-      if (!summaryBox) return;
-
-      const [yearStr, monthStr] = monthVal.split('-');
-      const year = parseInt(yearStr, 10);
-      const month = parseInt(monthStr, 10);
-      
-      const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-      const lastDayOfMonth = new Date(year, month, 0).getDate();
-      const endDate = new Date(year, month - 1, lastDayOfMonth, 23, 59, 59, 999);
-
-      const filtered = activeAuctionsList.filter(item => {
-        if (!item.created_at) return true;
-        const itemTime = new Date(item.created_at).getTime();
-        return (itemTime >= startDate.getTime() && itemTime <= endDate.getTime()) || item.status === 'finished' || item.status === 'active';
-      });
-
-      let totalDevWalletIncome = 0;
-      let externalP2PCount = 0;
-      let externalP2PVolume = 0;
-
-      filtered.forEach(ast => {
-        const price = parseFloat(ast.highest_bid || ast.reserve_price || 0);
-        if (!ast.pibox_wallet || ast.pibox_wallet.startsWith("GD52XTI2BXBRUQR227L4LQNO55NKTB5QO2PQMHNKVBSVGST2U5C2S4LD")) {
-          totalDevWalletIncome += price;
-        } else {
-          externalP2PCount++;
-          externalP2PVolume += price;
-        }
-      });
-
-      let reportText = `📊 **REKAP KEUANGAN & ON-CHAIN BULANAN**\n`;
-      reportText += `📅 Periode: ${monthVal}\n`;
-      reportText += `----------------------------------------\n`;
-      reportText += `📥 **MASUK / KELUAR WALLET DEV (PUSAT):**\n`;
-      reportText += `   - Total Volume Masuk (Dev Gateway): ${totalDevWalletIncome.toFixed(2)} Pi\n`;
-      reportText += `   - Status: Terverifikasi On-Time & Tercatat\n\n`;
-      reportText += `🤝 **TRANSAKSI P2P EXTERNAL (Non-Wallet Dev):**\n`;
-      reportText += `   - Jumlah Transaksi: ${externalP2PCount} Aset\n`;
-      reportText += `   - Total Volume P2P: ${externalP2PVolume.toFixed(2)} Pi\n`;
-      reportText += `----------------------------------------\n`;
-      reportText += `📦 **RINCIAN ASET (${filtered.length}):**\n`;
-
-      if (filtered.length === 0) {
-        reportText += `(Tidak ada data aset tercatat)\n`;
-      } else {
-        filtered.forEach((ast, idx) => {
-          const isDevWallet = (!ast.pibox_wallet || ast.pibox_wallet.startsWith("GD52XTI"));
-          reportText += `${idx + 1}. [${ast.status?.toUpperCase()}] ${ast.title || 'Untitled'}\n`;
-          reportText += `   - Seller: @${ast.seller || '-'}\n`;
-          reportText += `   - Jalur: ${isDevWallet ? '⚡ Wallet Dev (Pusat)' : '🤝 P2P Murni'}\n`;
-          reportText += `   - Harga: ${ast.highest_bid || ast.reserve_price || 0} Pi\n\n`;
-        });
-      }
-
-      summaryBox.innerText = reportText;
-      window.currentMonthlyReportText = reportText;
-    }
-
-    function copyMonthlyReportText(btnEl) {
-      const text = window.currentMonthlyReportText || '';
-      if (!text) { alert("Tidak ada data laporan."); return; }
-      navigator.clipboard.writeText(text).then(() => {
-        const orig = btnEl.innerText;
-        btnEl.innerText = "✅ Berhasil Disalin!";
-        setTimeout(() => { btnEl.innerText = orig; }, 1500);
-      }).catch(() => { alert("Gagal menyalin rekapitulasi."); });
-    }
-
-    function downloadMonthlyReportAsHTML() {
-      const text = window.currentMonthlyReportText || 'Laporan Kosong';
-      const monthVal = document.getElementById('reportMonthInput')?.value || 'report';
-      
-      const htmlContent = `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <title>Laporan Bulanan On-Chain - ${monthVal}</title>
-  <style>
-    body { font-family: monospace; background: #0b0f17; color: #f3f4f6; padding: 20px; }
-    .card { background: #111827; border: 1px solid #374151; padding: 20px; border-radius: 10px; max-width: 600px; margin: auto; }
-    h2 { color: #eab308; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h2>📄 NFT-GM OFFICIAL MONTHLY REPORT</h2>
-    <pre style="white-space: pre-wrap;">${text}</pre>
-    <p style="font-size: 10px; color: #9ca3af; margin-top: 20px;">Generated securely via PiBox Auction Bridge Engine</p>
-  </div>
-</body>
-</html>`;
-
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Monthly-OnChain-Report-${monthVal}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
     }
 
     async function handleBuyerRegistrationAction() {
@@ -2004,28 +1240,6 @@
       if (isAdminOrDev) {
         openBuyersTableModal();
         return;
-      }
-      if (!supabaseClient) return;
-      try {
-        const { data: existingBuyer } = await supabaseClient
-          .from('buyers')
-          .select('*')
-          .eq('username', authenticatedPiUser.username)
-          .maybeSingle();
-
-        if (!existingBuyer) {
-          const { error } = await supabaseClient
-            .from('buyers')
-            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
-          
-          if (error) throw error;
-          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
-        } else {
-          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${existingBuyer.status.toUpperCase()}`);
-        }
-        checkBuyerStatusInDatabase(authenticatedPiUser.username);
-      } catch (err) {
-        alert("Gagal memproses pendaftaran: " + err.message);
       }
     }
 
@@ -2040,477 +1254,20 @@
     function openChatModal() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       document.getElementById('chatModal').classList.remove('hidden');
-      loadChatMessages();
     }
 
     function closeChatModal() { document.getElementById('chatModal').classList.add('hidden'); }
 
-    function switchChatTab(roomType) {
-      currentChatRoom = roomType;
-      const btnForum = document.getElementById('tabBtnForum');
-      const btnAdmin = document.getElementById('tabBtnAdmin');
-      const btnP2P = document.getElementById('tabBtnP2P');
-      const selectorContainer = document.getElementById('p2pTargetSelectorContainer');
-
-      btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
-      btnAdmin.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
-      btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
-      selectorContainer.classList.add('hidden');
-
-      if (roomType === 'forum') {
-        btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer";
-      } else if (roomType === 'admin') {
-        btnAdmin.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-purple-600 text-white cursor-pointer";
-        currentP2PTarget = ADMIN_USERNAMES[0];
-      } else {
-        btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-indigo-600 text-white cursor-pointer";
-        selectorContainer.classList.remove('hidden');
-        populateP2PTargetOptions();
-      }
-      loadChatMessages();
-    }
-
-    function populateP2PTargetOptions() {
-      const select = document.getElementById('p2pTargetUserSelect');
-      if (!select) return;
-      const usersSet = new Set();
-      activeAuctionsList.forEach(a => { if (a.seller) usersSet.add(a.seller); });
-      buyersList.forEach(b => { if (b.username) usersSet.add(b.username); });
-      ADMIN_USERNAMES.forEach(adm => usersSet.add(adm));
-
-      let html = `<option value="" data-i18n="p2pSelectDefault">${t('p2pSelectDefault')}</option>`;
-      usersSet.forEach(u => {
-        if (authenticatedPiUser && u !== authenticatedPiUser.username) {
-          const isAdminTag = ADMIN_USERNAMES.includes(u) ? ' [ADMIN]' : '';
-          html += `<option value="${u}">@${SecureShield.maskUsername(u)}${isAdminTag}</option>`;
-        }
-      });
-      select.innerHTML = html;
-    }
-
-    function handleChatImageSelect(input) {
-      if (input.files && input.files[0]) {
-        const file = input.files[0];
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          chatSelectedImageBase64 = e.target.result;
-          const container = document.getElementById('chatImagePreviewContainer');
-          const nameEl = document.getElementById('chatImageFileName');
-          if (container && nameEl) {
-            nameEl.innerText = file.name;
-            container.classList.remove('hidden');
-          }
-        };
-        reader.readAsDataURL(file);
-      }
-    }
-
-    function clearChatImagePreview() {
-      chatSelectedImageBase64 = '';
-      const container = document.getElementById('chatImagePreviewContainer');
-      const fileInput = document.getElementById('chatImageFileInput');
-      if (container) container.classList.add('hidden');
-      if (fileInput) fileInput.value = '';
-    }
-
-    function initP2PChatSession() {
-      const select = document.getElementById('p2pTargetUserSelect');
-      if (!select || !select.value) { 
-        alert("Pilih target user P2P terlebih dahulu!"); 
-        return; 
-      }
-      currentP2PTarget = select.value;
-      loadChatMessages();
-    }
-
-    async function loadChatMessages() {
-      const box = document.getElementById('chatMessagesBox');
-      if (!supabaseClient) return;
-      try {
-        let query = supabaseClient.from('chats').select('*').order('created_at', { ascending: true });
-        if (currentChatRoom === 'forum') {
-          query = query.eq('room_type', 'forum');
-        } else {
-          if (!currentP2PTarget && currentChatRoom === 'p2p') { 
-            box.innerHTML = `<div class="text-center text-indigo-400 py-6">Pilih lawan chat P2P terlebih dahulu.</div>`; 
-            return; 
-          }
-          const targetAdminOrUser = currentChatRoom === 'admin' ? ADMIN_USERNAMES[0] : currentP2PTarget;
-          query = query.eq('room_type', 'p2p').or(`and(sender.eq.${authenticatedPiUser.username},receiver.eq.${targetAdminOrUser}),and(sender.eq.${targetAdminOrUser},receiver.eq.${authenticatedPiUser.username})`);
-        }
-        
-        const { data, error } = await query;
-        if (error) throw error;
-
-        if (!data || data.length === 0) { 
-          box.innerHTML = `<div class="text-center text-gray-500 py-6">Belum ada pesan.</div>`; 
-          return; 
-        }
-        
-        let html = '';
-        data.forEach((msg, idx) => {
-          const isMe = authenticatedPiUser && msg.sender === authenticatedPiUser.username;
-          const maskedSender = SecureShield.maskUsername(msg.sender);
-          const sanitizedText = SecureShield.sanitizeHTML(msg.message);
-          
-          const imgContent = msg.image_url ? `<div class="w-40 h-40 bg-black/40 rounded-lg overflow-hidden cursor-pointer border border-white/20 mt-1" onclick="openImageZoomModal('${msg.image_url}')"><img src="${msg.image_url}" class="w-full h-full object-cover"></div>` : '';
-          
-          html += `<div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-0.5">
-            <span class="text-[9px] text-gray-400 font-bold">@${maskedSender}</span>
-            <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs flex flex-col gap-1.5 ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200'}">
-              ${sanitizedText ? `<span id="msgText-${idx}">${sanitizedText}</span>` : ''}
-              ${imgContent}
-              <div class="flex justify-between items-center pt-1 border-t border-black/10 text-[9px] gap-2">
-                <span class="opacity-60">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                ${sanitizedText ? `<button onclick="copyChatMessage(\`${encodeURIComponent(msg.message)}\`, this)" class="underline opacity-80 hover:opacity-100 cursor-pointer flex items-center gap-1 font-bold">📋 Salin</button>` : ''}
-              </div>
-            </div>
-          `;
-        });
-
-        box.innerHTML = html;
-        box.scrollTop = box.scrollHeight;
-      } catch (e) {}
-    }
-
-    async function sendChatMessage() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      const input = document.getElementById('chatMessageInput');
-      const text = input ? input.value.trim() : '';
-      
-      if (!text && !chatSelectedImageBase64) return;
-
-      if (text && SecureShield.checkProhibitedContent(text)) {
-        alert("🚫 Pesan Anda ditolak karena mengandung unsur konten terlarang, pornografi, atau kekerasan.");
-        return;
-      }
-
-      let receiverTarget = null;
-      if (currentChatRoom === 'p2p') {
-        const selectTarget = document.getElementById('p2pTargetUserSelect');
-        if (selectTarget && selectTarget.value) {
-          currentP2PTarget = selectTarget.value;
-        }
-        if (!currentP2PTarget) { 
-          alert("Pilih target / lawan chat P2P terlebih dahulu melalui dropdown di atas!"); 
-          return; 
-        }
-        receiverTarget = currentP2PTarget;
-      } else if (currentChatRoom === 'admin') {
-        receiverTarget = ADMIN_USERNAMES[0];
-      }
-      
-      const payload = {
-        sender: authenticatedPiUser.username,
-        message: text || '[Foto Bukti Pembayaran]',
-        room_type: currentChatRoom === 'forum' ? 'forum' : 'p2p',
-        receiver: receiverTarget,
-        image_url: chatSelectedImageBase64 || null,
-        created_at: new Date().toISOString()
-      };
-
-      if (input) input.value = "";
-      clearChatImagePreview();
-      
-      try {
-        const { error } = await supabaseClient.from('chats').insert([payload]);
-        if (error) throw error;
-        await loadChatMessages();
-      } catch (e) {
-        alert("Gagal mengirim pesan/gambar: " + e.message);
-      }
-    }
-
     function openBuyersTableModal() {
       fetchBuyersList().then(() => {
-        renderBuyersTable();
         document.getElementById('buyersTableModal').classList.remove('hidden');
-        const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-        if (isAdminOrDev) document.getElementById('adminDeleteBatchContainer').classList.remove('hidden');
       });
     }
 
     function closeBuyersTableModal() { document.getElementById('buyersTableModal').classList.add('hidden'); }
 
-    function renderBuyersTable() {
-      const tbody = document.getElementById('buyersTableBody');
-      const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
-      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
-      
-      if (filtered.length === 0) { 
-        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; 
-        return; 
-      }
-      
-      let html = '';
-      filtered.forEach(b => {
-        const isApproved = b.status === 'approved' || b.status === 'aktif' || b.status === 'active';
-        const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
-        const buyerBalance = parseFloat(b.deposit_balance || 0);
-
-        let withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
-        if (b.status === 'cash_back' || b.has_requested_withdrawal === true || b.is_cashback === true) {
-          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">Cash Back</span>`;
-        } else if (buyerBalance >= 35) {
-          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
-        } else {
-          withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
-        }
-
-        html += `<tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
-          <td class="p-2 text-center sticky left-0 z-20 bg-gray-950 border-r border-gray-800">
-            ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}
-          </td>
-
-          <td class="p-2 font-mono text-yellow-400 sticky left-8 z-20 bg-gray-950 border-r border-gray-800 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.6)]">
-            @${displayedUsername}
-            <div class="text-[9px] text-emerald-400 font-sans">Depo: ${buyerBalance} Pi</div>
-          </td>
-
-          <td class="p-2 text-center bg-gray-950">${withdrawalNotice}</td>
-          <td class="p-2 bg-gray-950"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
-
-          <td class="p-2 text-right space-x-1 bg-gray-950">
-            ${isAdminOrDev ? `
-              <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">Reset Saldo</button>
-              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
-            ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
-          </td>
-          <td class="p-2 text-center bg-gray-950">
-            ${isAdminOrDev ? `
-              <button onclick="sendDepositRefundToUser('${b.username}', ${buyerBalance})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer">
-                🚀 Kirim (34 Pi)
-              </button>
-            ` : '<span class="text-[9px] text-gray-500">-</span>'}
-          </td>
-        </tr>`;
-      });
-
-      tbody.innerHTML = html;
-    }
-
-    function toggleSelectAllBuyers(master) {
-      document.querySelectorAll('.buyer-checkbox').forEach(cb => cb.checked = master.checked);
-    }
-
-    async function updateBuyerStatus(username, newStatus) {
-      if (!supabaseClient) return;
-      try {
-        const { error } = await supabaseClient
-          .from('buyers')
-          .update({ status: newStatus, has_requested_withdrawal: false })
-          .eq('username', username);
-        
-        if (error) throw error;
-        await fetchBuyersList();
-        renderBuyersTable();
-        alert(`✅ Status pembeli @${username} berhasil diubah menjadi ${newStatus.toUpperCase()}!`);
-      } catch(e) { 
-        alert("Gagal memperbarui status: " + e.message); 
-      }
-    }
-
-    async function adminResetBuyerDeposit(username) {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⛔ Akses Ditolak!");
-        return;
-      }
-      if (!confirm(`⚠️ Apakah Anda yakin ingin mereset saldo jaminan akun @${username}?`)) return;
-      if (!supabaseClient) return;
-
-      try {
-        const { error } = await supabaseClient
-          .from('buyers')
-          .update({ deposit_balance: 0.00, status: 'pending' })
-          .eq('username', username);
-
-        if (error) throw error;
-
-        await fetchBuyersList();
-        renderBuyersTable();
-        alert(`✅ Saldo jaminan untuk @${username} berhasil direset.`);
-      } catch (err) {
-        alert("Gagal mereset: " + err.message);
-      }
-    }
-
-    async function sendDepositRefundToUser(username, currentBalance) {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⛔ Akses Ditolak!");
-        return;
-      }
-
-      const refundAmount = 34.00;
-      if (!confirm(`💸 Kirim pengembalian jaminan ${refundAmount} Pi ke wallet @${username}?`)) return;
-
-      const memoText = `PIBOX-REFUND: Pengembalian Jaminan 34 Pi ke @${username}`;
-      const paymentData = {
-        amount: refundAmount,
-        memo: memoText,
-        metadata: { type: 'deposit_refund', username: username }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await finalizeBuyerRefundInDB(username);
-            },
-            onCancel: () => { alert("Dibatalkan."); },
-            onError: () => { finalizeBuyerRefundInDB(username); }
-          });
-        } else {
-          await finalizeBuyerRefundInDB(username);
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran: " + err.message);
-      }
-    }
-
-    async function finalizeBuyerRefundInDB(username) {
-      if (!supabaseClient) return;
-      try {
-        const { error } = await supabaseClient
-          .from('buyers')
-          .update({ deposit_balance: 0.00, status: 'cash_back', has_requested_withdrawal: false })
-          .eq('username', username);
-
-        if (error) throw error;
-
-        await fetchBuyersList();
-        renderBuyersTable();
-        alert(`✅ Sukses! Pengembalian jaminan dikirim ke wallet @${username}.`);
-      } catch (err) {
-        alert("Gagal memperbarui database: " + err.message);
-      }
-    }
-
-    async function deleteSelectedBuyers() {
-      const selectedCheckboxes = document.querySelectorAll('.buyer-checkbox:checked');
-      const selectedUsernames = Array.from(selectedCheckboxes).map(cb => cb.value);
-      
-      if (selectedUsernames.length === 0) {
-        alert("Pilih minimal satu pembeli.");
-        return;
-      }
-
-      if (!confirm(`Hapus ${selectedUsernames.length} pembeli terpilih?`)) return;
-      if (!supabaseClient) return;
-
-      try {
-        const { error } = await supabaseClient
-          .from('buyers')
-          .delete()
-          .in('username', selectedUsernames);
-
-        if (error) throw error;
-
-        await fetchBuyersList();
-        renderBuyersTable();
-        alert("🗑 Data pembeli terpilih berhasil dihapus!");
-      } catch(e) { 
-        alert("Gagal menghapus: " + e.message); 
-      }
-    }
-
-    let hasCompletedServerFee = false;
-    let hasReleasedToGallery = false;
-
-    
-    
-
-        const base64Image = await optimizeImageFile(mainImageFile);
-        const extraImageFile = document.getElementById('extraSSInput')?.files[0];
-        let base64ExtraImage = '';
-        if (extraImageFile) {
-          base64ExtraImage = await optimizeImageFile(extraImageFile);
-        }
-
-        const durationHours = (auctionScheduleState && auctionScheduleState.durationHours) ? parseInt(auctionScheduleState.durationHours, 10) : 24;
-        const calculatedEndsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
-
-        const realSellerRaw = document.getElementById('realSellerUsernameInput')?.value.trim();
-        const piboxWalletRaw = document.getElementById('piboxWalletInput')?.value.trim();
-
-        if (!realSellerRaw || !piboxWalletRaw) {
-          alert("⚠️ Username Penjual Asli dan PiBox Wallet wajib diisi!");
-          releaseBtn.disabled = false;
-          releaseBtn.innerHTML = originalText;
-          return;
-        }
-
-        const finalRealSeller = realSellerRaw.replace(/^@/, '');
-        const finalPiboxWallet = piboxWalletRaw.replace(/^@/, '');
-        const transactionModeValue = document.getElementById('transactionModeInput')?.value || 'p2p';
-
-        const payload = {
-          category: category || 'nft_art',
-          title: title,
-          description: description || '',
-          hash: hash || '-',
-          reserve_price: reservePrice,
-          seller: finalRealSeller,
-          pibox_wallet: finalPiboxWallet,
-          image_url: base64Image,
-          extra_image_url: base64ExtraImage || '',
-          transaction_mode: transactionModeValue || 'p2p',
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          ends_at: calculatedEndsAt
-        };
-
-        if (supabaseClient) {
-          const { error } = await supabaseClient.from('auctions').insert([payload]);
-          if (error) throw error;
-        }
-
-        hasReleasedToGallery = true;
-        alert("🎉 Sukses! Aset berhasil dirilis ke galeri (status Pending).");
-        
-        releaseBtn.disabled = true;
-        releaseBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner opacity-50";
-        releaseBtn.innerHTML = `<span>✅ Berhasil Diupload ke Galeri</span>`;
-        
-        const sendEmailBtn = document.getElementById('btnSendEmail');
-        if (sendEmailBtn) {
-          sendEmailBtn.disabled = false;
-          sendEmailBtn.className = "w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg ring-2 ring-indigo-400 animate-pulse";
-        }
-
-        fetchActiveAuctions();
-      } catch (err) {
-        releaseBtn.disabled = false;
-        releaseBtn.innerHTML = originalText;
-        alert("Gagal merilis aset: " + err.message);
-      }
-    }
-
-    
-
-    
-
     async function fetchActiveAuctions() {
       const mainContent = document.getElementById('mainContent');
-      const cachedData = localStorage.getItem('nusantara_cached_auctions');
-      if (cachedData && (!activeAuctionsList || activeAuctionsList.length === 0)) {
-        try {
-          activeAuctionsList = JSON.parse(cachedData);
-          updateActiveCounts();
-          filterGallery();
-        } catch (e) {}
-      }
-
       if (!supabaseClient) return;
 
       try {
@@ -2521,15 +1278,11 @@
           .limit(100);
 
         if (error) throw error;
-
         activeAuctionsList = data || [];
-        localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
         updateActiveCounts();
         filterGallery();
       } catch (err) {
-        if (!cachedData) {
-          mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Gagal memuat galeri: ${err.message}</div>`;
-        }
+        mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Gagal memuat galeri: ${err.message}</div>`;
       }
     }
 
@@ -2540,7 +1293,6 @@
         if (a.seller) sellersSet.add(a.seller);
         if (a.highest_bidder) biddersSet.add(a.highest_bidder);
       });
-      
       const sellersEl = document.getElementById('activeSellersCount');
       const biddersEl = document.getElementById('activeBiddersCount');
       if (sellersEl) sellersEl.innerText = `${sellersSet.size} User`;
@@ -2594,18 +1346,12 @@
 
         const matchesQuery = (item.title || '').toLowerCase().includes(query) || 
                              (item.description || '').toLowerCase().includes(query) || 
-                             (item.hash || '').toLowerCase().includes(query) || 
                              (item.seller || '').toLowerCase().includes(query);
         
         if (!matchesQuery) return false;
+        if (categoryFilter !== 'all' && item.category && item.category !== categoryFilter) return false;
 
-        if (categoryFilter !== 'all' && item.category && item.category !== categoryFilter) {
-          return false;
-        }
-
-        if (statusFilter === 'all') {
-          return item.status !== 'cancelled';
-        }
+        if (statusFilter === 'all') return item.status !== 'cancelled';
         if (statusFilter === 'active') return item.status === 'active' || !item.status;
         if (statusFilter === 'pending') return item.status === 'pending' || item.status === 'PENDING';
         if (statusFilter === 'my_listings') return currentUsername && item.seller === currentUsername;
@@ -2720,291 +1466,25 @@
       mainContent.innerHTML = htmlChunks.join('');
     }
 
-    const SystemLogicEngine = {
-      version: "6.4.0-core",
-      validateExecution: function(user) {
-        return ADMIN_USERNAMES.includes(user) || DEV_USERNAMES.includes(user);
-      },
-      verifyAuctionConsistency: function(list) {
-        if (!Array.isArray(list)) return [];
-        return list.map(item => ({
-          ...item,
-          highest_bid: item.highest_bid !== null && item.highest_bid !== undefined ? parseFloat(item.highest_bid) : null,
-          reserve_price: parseFloat(item.reserve_price || 0)
-        }));
-      },
-      generateCertificateDataURL: function(auctionData) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-        doc.setFillColor(15, 23, 42);
-        doc.rect(0, 0, 297, 210, 'F');
-        doc.setTextColor(234, 179, 8);
-        doc.setFontSize(24);
-        doc.text("SERTIFIKAT RESMI ASET EVENT", 148.5, 30, { align: 'center' });
-        doc.setFontSize(12);
-        doc.setTextColor(203, 213, 225);
-        doc.text("NFT Global Market & Auction Engine Validation", 148.5, 40, { align: 'center' });
-        doc.setFontSize(14);
-        doc.setTextColor(255, 255, 255);
-        doc.text(`Diberikan kepada Aset / Barang:`, 148.5, 75, { align: 'center' });
-        doc.setFontSize(20);
-        doc.setTextColor(234, 179, 8);
-        doc.text(`${auctionData.title || 'Untitled'}`, 148.5, 90, { align: 'center' });
-        doc.setFontSize(11);
-        doc.setTextColor(148, 163, 184);
-        doc.text(`Penjual: @${auctionData.seller || '-'} | Kategori: ${auctionData.category || '-'}`, 148.5, 110, { align: 'center' });
-        doc.text(`Hash Ref: ${auctionData.hash || '-'}`, 148.5, 120, { align: 'center' });
-        return doc.output('datauristring');
-      }
-    };
-
-    
-
     function openDetailModalWithData(auctionId) {
-      // Mengarahkan ke file modul terpisah auction-detail.html dengan membawa parameter ID aset
       window.location.href = `auction-detail.html?id=${auctionId}`;
     }
-
-
-      const content = document.getElementById('modalDetailContent');
-      const title = SecureShield.sanitizeHTML(selectedAuction.title || 'Untitled');
-      const description = SecureShield.sanitizeHTML(selectedAuction.description || 'Tidak ada deskripsi.');
-      const seller = SecureShield.maskUsername(selectedAuction.seller || 'Anon');
-      const price = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
-      const status = selectedAuction.status || 'active';
-      const categoryLabel = getCategoryLabel(selectedAuction.category);
-      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
-
-      let certificateActionSection = '';
-      if (selectedAuction.is_event) {
-        if (isAdminOrDev) {
-          certificateActionSection = `
-            <div class="bg-purple-950/40 border border-purple-500/40 rounded-xl p-3 space-y-2">
-              <p class="text-[10px] text-purple-300 font-bold">🎖️ Panel Sertifikat Event (Khusus Admin):</p>
-              <div class="flex gap-2">
-                <button onclick="copyCertificateLink('${selectedAuction.id}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5">
-                  📋 Salin Link Browser Sertifikat
-                </button>
-              </div>
-            </div>
-          `;
-        } else {
-          certificateActionSection = `
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
-              <p class="text-[10px] text-gray-500 font-bold">🔒 Sertifikat Event (Akses Terkunci Khusus Admin)</p>
-            </div>
-          `;
-        }
-      }
-
-      let bidActionSection = '';
-      const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
-
-      if (!isBiddingAllowed) {
-        bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">🔒 Penawaran non-aktif.</div>`;
-      } else {
-        const targetPrice5 = price + 5;
-        const targetPrice10 = price + 10;
-        const targetPrice20 = price + 20;
-        const minManualBid = price + 25;
-
-        bidActionSection = `
-          <div class="space-y-3 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
-            <div>
-              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal:</p>
-              <div class="grid grid-cols-3 gap-1.5">
-                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
-                  <span>+5 Pi</span>
-                </button>
-                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
-                  <span>+10 Pi</span>
-                </button>
-                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
-                  <span>+20 Pi</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="pt-2 border-t border-gray-800 space-y-1.5">
-              <div class="flex justify-between items-center text-[10px]">
-                <span class="text-gray-300 font-semibold">Manual:</span>
-                <span class="text-yellow-400 font-mono">Min: ${minManualBid} Pi</span>
-              </div>
-              <div class="flex gap-2">
-                <input type="number" step="0.01" id="manualBidInput" min="${minManualBid}" placeholder="Minimal ${minManualBid} Pi" class="flex-1 bg-gray-950 border border-yellow-500/40 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none">
-                <button onclick="submitManualBid('${selectedAuction.id}', ${price})" class="bg-yellow-500 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs shadow">Kirim 🚀</button>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
-      const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
-      const extraImg = selectedAuction.extra_image_url || selectedAuction.extra_ss_url || '';
-
-      content.innerHTML = `
-        <div class="space-y-3 text-xs">
-          <div class="grid grid-cols-2 gap-2">
-            <div class="space-y-1">
-              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Utama</p>
-              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center cursor-pointer" onclick="openImageZoomModal('${mainImg}')">
-                <img src="${mainImg}" class="w-full h-full object-contain">
-              </div>
-            </div>
-            <div class="space-y-1">
-              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Tambahan</p>
-              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-purple-500/40 flex items-center justify-center">
-                ${extraImg ? `<img src="${extraImg}" class="w-full h-full object-contain cursor-pointer" onclick="openImageZoomModal('${extraImg}')">` : `<div class="text-[10px] text-gray-500">Tidak ada</div>`}
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <span class="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 px-2 py-0.5 rounded-md text-[10px] font-bold">${categoryLabel}</span>
-            <h3 class="font-bold text-sm text-yellow-400 mt-1">${title}</h3>
-            <p class="text-[10px] text-gray-300 bg-gray-900 p-2 rounded-lg border border-gray-800 mt-1">${description}</p>
-          </div>
-
-          ${certificateActionSection}
-
-          <div class="bg-red-950/30 border border-red-500/40 rounded-xl p-2.5 space-y-1.5 text-[10px] text-gray-300">
-            <label class="flex items-start gap-2 cursor-pointer">
-              <input type="checkbox" id="buyerLegalCheckbox" class="mt-0.5 accent-yellow-500 cursor-pointer">
-              <span class="text-white font-semibold">Saya telah membaca dan menyetujui ketentuan hukum perantara transaksi ini.</span>
-            </label>
-          </div>
-
-          <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1">
-            <div class="flex justify-between">
-              <span class="text-gray-400">Penjual:</span>
-              <span class="text-yellow-400 font-mono">@${seller}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-400">Harga Tertinggi:</span>
-              <span class="text-emerald-400 font-bold">${price} Pi</span>
-            </div>
-          </div>
-
-          ${bidActionSection}
-
-          <div class="flex flex-col gap-2 pt-2">
-            <button onclick="openP2PMediatorChat('${selectedAuction.seller}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow cursor-pointer">
-              💬 Chat P2P dengan Penjual & Admin
-            </button>
-            <button onclick="closeDetailModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs">Tutup</button>
-          </div>
-        </div>
-      `;
-
-      document.getElementById('detailModal').classList.remove('hidden');
-    }
-
-    
-
-    // --- DI BALIK LAYAR: CORE OTONOM DISTRIBUSI & KONSISTENSI HARGA (INSTANT SYNC) ---
-    const _RealtimeBidEnforcementCore = {
-      version: "10.0.0-realtime-engine",
-      broadcastBidUpdate: function(auctionId, newBid, bidder) {
-        if (supabaseClient) {
-          try {
-            supabaseClient.channel('public-cluster-auctions').send({
-              type: 'broadcast',
-              event: 'live_bid_update',
-              payload: { auctionId, newBid, bidder, timestamp: Date.now() }
-            });
-          } catch(e) {}
-        }
-      }
-    };
-
-    incrementUserBidCount(auctionId, username);
-
 
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       try {
-        const channel = supabaseClient.channel('public-cluster-auctions');
-        
-        channel
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, (payload) => {
-            // Sinkronisasi instan saat ada perubahan data di tabel
+        supabaseClient.channel('public-cluster-auctions')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
             fetchActiveAuctions();
-          })
-          .on('broadcast', { event: 'live_bid_update' }, (payload) => {
-            // Penanganan terima siaran langsung (Instant Broadcast) antar perangkat
-            if (payload && payload.payload) {
-              const { auctionId, newBid, bidder } = payload.payload;
-              _AutonomousLogicEngine.syncBidStateLocally(auctionId, newBid, bidder);
-              updateActiveCounts();
-              filterGallery();
-            }
           })
           .subscribe();
       } catch (e) {}
     }
 
-        
-
-    function updateTimers() {}
-
     function triggerAggressiveRefresh() {
       fetchActiveAuctions();
       fetchBuyersList();
       if (authenticatedPiUser) checkBuyerStatusInDatabase(authenticatedPiUser.username);
-    }
-
-    function openImageZoomModal(imgSrc) {
-      if (!imgSrc) return;
-      let zoomModal = document.getElementById('imageZoomModal');
-      if (!zoomModal) {
-        zoomModal = document.createElement('div');
-        zoomModal.id = 'imageZoomModal';
-        zoomModal.className = 'fixed inset-0 bg-black/95 backdrop-blur-md hidden flex items-center justify-center p-2 z-[60] cursor-zoom-out';
-        zoomModal.onclick = closeImageZoomModal;
-        zoomModal.innerHTML = `
-          <div class="relative max-w-full max-h-full flex items-center justify-center p-2">
-            <button onclick="closeImageZoomModal()" class="absolute top-2 right-2 text-white bg-gray-800/85 font-bold rounded-full w-8 h-8 flex items-center justify-center text-lg z-10">&times;</button>
-            <img id="zoomedImageElement" class="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl border border-gray-800">
-          </div>
-        `;
-        document.body.appendChild(zoomModal);
-      }
-      document.getElementById('zoomedImageElement').src = imgSrc;
-      zoomModal.classList.remove('hidden');
-    }
-
-    function closeImageZoomModal() {
-      const zoomModal = document.getElementById('imageZoomModal');
-      if (zoomModal) zoomModal.classList.add('hidden');
-    }
-
-    function getBuyerAgreementKey(auctionId, username) {
-      return `buyer_agreed_${auctionId}_${username}`;
-    }
-
-    function isBuyerAlreadyAgreed(auctionId, username) {
-      if (!username) return false;
-      return localStorage.getItem(getBuyerAgreementKey(auctionId, username)) === 'true';
-    }
-
-    function resetCreateForm() {
-      const formElements = [
-        'imageFileInput', 'extraSSInput', 'assetTitleInput', 
-        'assetDescriptionInput', 'assetHashInput', 'reservePriceInput',
-        'realSellerUsernameInput', 'piboxWalletInput', 'legalDisclaimerCheckbox'
-      ];
-      
-      formElements.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          if (el.type === 'checkbox') el.checked = false;
-          else if (el.type === 'file') el.value = '';
-          else el.value = '';
-        }
-      });
-      hasCompletedServerFee = false;
-      hasReleasedToGallery = false;
     }
   </script>
 </body>
