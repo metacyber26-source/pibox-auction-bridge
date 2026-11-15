@@ -53,9 +53,9 @@
       }
     };
 
-    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI (TEGAS & KONSISTEN) ---
+    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA & FUNGSI (TEGAS & KONSISTEN) ---
     const _AgiNeuralEnforcementCore = {
-      version: "9.9.0-guardian",
+      version: "9.9.0-agi-guardian",
       securityState: "STRICT_ENFORCEMENT",
       validateAdminAction: function(username) {
         if (!username || typeof username !== 'string') return false;
@@ -64,17 +64,24 @@
       },
       enforceStrictLogic: function(actionName, username) {
         if (!this.validateAdminAction(username)) {
-          console.warn(`[SECURITY] Akses ilegal terdeteksi pada fungsi [${actionName}] oleh user: @${username}`);
-          throw new Error("⛔ AKSES DITOLAK: Hanya Admin yang berhak mengunci, membuka, atau mengeksekusi fungsi ini.");
+          console.warn(`[AGI-SECURITY] Akses ilegal terdeteksi pada fungsi [${actionName}] oleh user: @${username}`);
+          throw new Error("⛔ AKSES DITOLAK: Hanya Admin yang berhak mengeksekusi fungsi ini.");
         }
         return true;
       }
     };
 
-    // Fungsi Tombol List Aset / Barang (Selalu Aktif, Proteksi Admin untuk Eksekusi/Penguncian)
+    // Fungsi Tombol List Aset / Barang (Tombol selalu terbuka/aktif, eksekusi dilindungi penjaga di balik layar)
     function handleOpenCreateModal() {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        
+        // Penjagaan AGI & AI di balik layar secara tegas memastikan otorisasi Admin
+        if (!_AgiNeuralEnforcementCore.validateAdminAction(currentUsr)) {
+          alert("⛔ AKSES DITOLAK: Tombol terbuka untuk umum, namun fitur Rilis/List Aset hanya dapat dikunci dan dibuka oleh Admin.");
+          return;
+        }
+
         const creatorInput = document.getElementById('creatorAdminInput');
         if (creatorInput) creatorInput.value = currentUsr;
         
@@ -2583,16 +2590,6 @@
       }
     }
 
-    // Tombol list aset selalu aktif/terbuka secara UI, dengan penguncian aksi dilakukan oleh admin di belakang layar.
-    document.addEventListener("DOMContentLoaded", () => {
-      const btnHeaderCreate = document.getElementById('btnHeaderCreate');
-      if (btnHeaderCreate) {
-        btnHeaderCreate.disabled = false;
-        btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer";
-        btnHeaderCreate.innerHTML = `<span>+ List Aset/Barang</span>`;
-      }
-    });
-
     function openMonthlyReportModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("⛔ Akses Ditolak: Hanya Admin & Developer!");
@@ -3727,7 +3724,7 @@
       }
 
       let bidActionSection = '';
-      const isBiddingAllowed = status === 'active';
+      const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
 
       if (!isBiddingAllowed) {
         bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">🔒 Penawaran non-aktif.</div>`;
@@ -3885,6 +3882,11 @@
 
       if (!isAdminOrDev && !isBuyerApproved) {
         alert("⛔ Status akun Anda masih Pending. Harap lakukan Top Up Jaminan minimal 35 Pi.");
+        return;
+      }
+
+      if (!isAuctionCurrentlyOpen) {
+        alert("🔴 Lelang sedang ditutup.");
         return;
       }
 
