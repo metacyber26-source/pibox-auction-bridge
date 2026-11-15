@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tabel Daftar Pembeli & Status - PiBox Bridge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 flex flex-col items-center justify-start min-h-screen p-3">
+
+  <div class="w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4 shadow-2xl">
+    <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+      <div>
+        <h2 class="text-sm font-bold text-yellow-400">👥 Tabel Daftar Calon Pembeli & Status Verifikasi</h2>
+        <p class="text-[10px] text-gray-400">Modul Manajemen Pembeli On-Chain Terpusat</p>
+      </div>
+      <a href="index.html" class="text-gray-400 hover:text-white font-bold text-xs cursor-pointer">&times; Kembali</a>
+    </div>
+
+    <!-- Konten Tabel Pembeli & Pencarian -->
+    <div class="space-y-3 text-xs">
+      <div class="flex justify-between items-center gap-2">
+        <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari username pembeli..." class="flex-1 bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
+        <div id="adminDeleteBatchContainer" class="hidden">
+          <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-3 py-2 rounded-xl transition shadow cursor-pointer">🗑 Hapus Terpilih</button>
+        </div>
+      </div>
+
+      <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[60vh] flex flex-col">
+        <div class="overflow-x-auto custom-scrollbar flex-1">
+          <table class="w-full text-left text-[11px] text-gray-300 min-w-[550px] border-collapse">
+            <thead class="bg-gray-950 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-30 shadow-md">
+              <tr>
+                <th class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-40 border-r border-gray-800"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
+                <th class="p-2.5 bg-gray-950 sticky left-8 z-40 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Username</th>
+                <th class="p-2.5 text-center bg-gray-950">Saldo Jaminan</th>
+                <th class="p-2.5 bg-gray-950">Status Verifikasi</th>
+                <th class="p-2.5 text-right bg-gray-950">Aksi Admin</th>
+                <th class="p-2.5 text-center bg-gray-950">Pengembalian Jaminan</th>
+              </tr>
+            </thead>
+            <tbody id="buyersTableBody" class="overflow-y-auto max-h-[50vh]">
+              <tr><td colspan="6" class="text-center py-10 text-gray-500 animate-pulse">Memuat data pembeli...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
+    const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    const ADMIN_USERNAMES = ["Ful21", "s9t9munah"];
+    let buyersList = [];
+    let authenticatedPiUser = null;
+
+    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA PEMBELI ---
+    const _AgiBuyersGuardianCore = {
+      version: "4.2.0-secure-buyers",
+      verifyAdminAction: function(username) {
+        if (!username) return false;
+        return ADMIN_USERNAMES.includes(username.trim());
+      },
+      enforceAccess: function(username) {
+        if (!this.verifyAdminAction(username)) {
+          throw new Error("⛔ AKSES DITOLAK: Hanya Admin yang dapat memodifikasi status pembeli.");
+        }
+        return true;
+      }
+    };
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const savedAccounts = JSON.parse(localStorage.getItem('pibox_saved_verified_accounts') || '[]');
+      if (savedAccounts.length > 0 && savedAccounts[0].username) {
+        authenticatedPiUser = { username: savedAccounts[0].username };
+      } else {
+        authenticatedPiUser = { username: "Ful21" };
+      }
+
+      await fetchBuyersList();
+    });
+
+    async function fetchBuyersList() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('buyers')
+          .select('*')
+          .order('username', { ascending: true });
+
+        if (error) throw error;
+        buyersList = data || [];
+        renderBuyersTable();
+      } catch (err) {
+        console.error("Gagal memuat daftar pembeli:", err.message);
+      }
+    }
+
+    function renderBuyersTable() {
+      const tbody = document.getElementById('buyersTableBody');
+      const batchContainer = document.getElementById('adminDeleteBatchContainer');
+      const searchInput = document.getElementById('searchBuyerInput');
+      const query = (searchInput?.value || '').toLowerCase().trim();
+
+      if (!tbody) return;
+
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsr);
+
+      if (isAdminOrDev && batchContainer) {
+        batchContainer.classList.remove('hidden');
+      }
+
+      const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Tidak ada data pembeli ditemukan.</td></tr>`;
+        return;
+      }
+
+      const htmlChunks = [];
+      filtered.forEach((b) => {
+        const username = b.username || 'Unknown';
+        const depositBal = parseFloat(b.deposit_balance || 0);
+        const status = (b.status || 'pending').toLowerCase();
+        const hasWithdrawalReq = b.has_requested_withdrawal;
+
+        let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">PENDING</span>`;
+        if (status === 'approved' || status === 'aktif' || status === 'active') {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">AKTIF</span>`;
+        }
+
+        let actionButtons = '';
+        if (isAdminOrDev) {
+          const nextStatus = (status === 'approved' || status === 'aktif' || status === 'active') ? 'pending' : 'approved';
+          const btnText = nextStatus === 'approved' ? 'Verifikasi' : 'Pending-kan';
+          const btnClass = nextStatus === 'approved' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-amber-600 hover:bg-amber-500 text-white';
+
+          actionButtons = `
+            <div class="flex gap-1 justify-end">
+              <button onclick="updateBuyerStatus('${username}', '${nextStatus}')" class="${btnClass} font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">${btnText}</button>
+              <button onclick="deleteBuyerRecord('${username}')" class="bg-red-600 hover:bg-red-500 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">Hapus</button>
+            </div>
+          `;
+        } else {
+          actionButtons = `<span class="text-gray-500 text-[10px]">Terkunci (Admin)</span>`;
+        }
+
+        let withdrawalAction = '<span class="text-gray-500">-</span>';
+        if (hasWithdrawalReq) {
+          if (isAdminOrDev) {
+            withdrawalAction = `<button onclick="processWithdrawalRefund('${username}')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1 rounded-lg text-[9px] transition cursor-pointer">Kirim Refund</button>`;
+          } else {
+            withdrawalAction = `<span class="text-amber-400 font-bold text-[9px]">Menunggu Refund</span>`;
+          }
+        }
+
+        htmlChunks.push(`
+          <tr class="border-b border-gray-800/80 hover:bg-gray-900/50 transition">
+            <td class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-20 border-r border-gray-800"><input type="checkbox" class="buyer-checkbox accent-yellow-500 cursor-pointer" value="${username}"></td>
+            <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">@${username}</td>
+            <td class="p-2.5 text-center font-mono text-emerald-400 font-bold">${depositBal} Pi</td>
+            <td class="p-2.5">${statusBadge}</td>
+            <td class="p-2.5 text-right">${actionButtons}</td>
+            <td class="p-2.5 text-center">${withdrawalAction}</td>
+          </tr>
+        `);
+      });
+
+      tbody.innerHTML = htmlChunks.join('');
+    }
+
+    function toggleSelectAllBuyers(masterCheckbox) {
+      const checkboxes = document.querySelectorAll('.buyer-checkbox');
+      checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+    }
+
+    async function updateBuyerStatus(username, newStatus) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      try {
+        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        if (!supabaseClient) throw new Error("Database tidak terhubung.");
+
+        const { error } = await supabaseClient
+          .from('buyers')
+          .update({ status: newStatus })
+          .eq('username', username);
+
+        if (error) throw error;
+        alert(`✅ Status pembeli @${username} berhasil diubah menjadi: ${newStatus.toUpperCase()}`);
+        await fetchBuyersList();
+      } catch (err) {
+        alert("Gagal memperbarui status: " + err.message);
+      }
+    }
+
+    async function deleteBuyerRecord(username) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      try {
+        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus data pembeli @${username}?`)) return;
+        if (!supabaseClient) throw new Error("Database tidak terhubung.");
+
+        const { error } = await supabaseClient
+          .from('buyers')
+          .delete()
+          .eq('username', username);
+
+        if (error) throw error;
+        alert(`🗑️ Data pembeli @${username} berhasil dihapus.`);
+        await fetchBuyersList();
+      } catch (err) {
+        alert("Gagal menghapus pembeli: " + err.message);
+      }
+    }
+
+    async function deleteSelectedBuyers() {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      try {
+        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        const selected = Array.from(document.querySelectorAll('.buyer-checkbox:checked')).map(cb => cb.value);
+        if (selected.length === 0) {
+          alert("Pilih setidaknya satu pembeli yang ingin dihapus.");
+          return;
+        }
+
+        if (!confirm(`⚠️ Hapus ${selected.length} data pembeli yang dipilih secara permanen?`)) return;
+        if (!supabaseClient) throw new Error("Database tidak terhubung.");
+
+        for (let uname of selected) {
+          await supabaseClient.from('buyers').delete().eq('username', uname);
+        }
+
+        alert("🗑️ Data pembeli terpilih berhasil dihapus.");
+        await fetchBuyersList();
+      } catch (err) {
+        alert("Gagal menghapus data: " + err.message);
+      }
+    }
+
+    async function processWithdrawalRefund(username) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      try {
+        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        if (!confirm(`Proses pengembalian jaminan (refund) untuk @${username}?`)) return;
+        if (!supabaseClient) throw new Error("Database tidak terhubung.");
+
+        const { error } = await supabaseClient
+          .from('buyers')
+          .update({ has_requested_withdrawal: false, deposit_balance: 0.00, status: 'pending' })
+          .eq('username', username);
+
+        if (error) throw error;
+        alert(`✅ Refund jaminan untuk @${username} berhasil disetujui & diselesaikan.`);
+        await fetchBuyersList();
+      } catch (err) {
+        alert("Gagal memproses refund: " + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
