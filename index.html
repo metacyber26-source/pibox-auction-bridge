@@ -20,9 +20,6 @@
   <!-- MODUL TERJEMAHAN EKSTERNAL -->
   <script src="i18n.js"></script>
 
-  <!-- MODUL EKSTERNAL JADWAL LELANG -->
-  <script src="auction-schedule.js"></script>
-
   <!-- SECURE CORE & BACKGROUND GUARDIAN -->
   <script>
     (function() {
@@ -51,7 +48,9 @@
       monitorStream: function() {
         setInterval(() => {
           try {
-            if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {}
+            if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
+              // Sesi aman milik user aktif
+            }
           } catch(e) {}
         }, 5000);
       }
@@ -75,13 +74,16 @@
       }
     };
 
+    // --- MODUL RILIS ASET TERPISAH (SEAN AMAN TANPA MENGGANGGU GALERI UTAMA) ---
     function handleOpenCreateModal() {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        
         if (!_AgiNeuralEnforcementCore.validateAdminAction(currentUsr)) {
           alert("⛔ AKSES DITOLAK: Fitur Rilis/List Aset memerlukan verifikasi hak akses.");
           return;
         }
+
         window.location.href = 'release-asset.html';
       } catch (err) {
         alert(err.message);
@@ -94,7 +96,11 @@
         _AgiNeuralEnforcementCore.enforceStrictLogic("Set Aktifkan Aset", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
-        const { error } = await supabaseClient.from('auctions').update({ status: targetStatus }).eq('id', auctionId);
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ status: targetStatus })
+          .eq('id', auctionId);
+
         if (error) throw error;
         await fetchActiveAuctions();
         alert(`✅ Status aset berhasil diubah menjadi: ${targetStatus.toUpperCase()}`);
@@ -110,7 +116,11 @@
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const newEventState = !currentEventState;
-        const { error } = await supabaseClient.from('auctions').update({ is_event: newEventState }).eq('id', auctionId);
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ is_event: newEventState })
+          .eq('id', auctionId);
+
         if (error) throw error;
         await fetchActiveAuctions();
         alert(`⭐ Status Event aset berhasil diperbarui menjadi: ${newEventState ? 'AKTIF (EVENT)' : 'NON-EVENT'}`);
@@ -127,7 +137,11 @@
         if (!confirm("⚠️ Apakah Anda yakin ingin menghapus aset ini secara permanen dari sistem?")) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
-        const { error } = await supabaseClient.from('auctions').delete().eq('id', auctionId);
+        const { error } = await supabaseClient
+          .from('auctions')
+          .delete()
+          .eq('id', auctionId);
+
         if (error) throw error;
         await fetchActiveAuctions();
         alert("🗑️ Aset berhasil dihapus secara permanen.");
@@ -136,12 +150,100 @@
       }
     }
 
+    const _NeuralCoreEngine = {
+      status: "OPTIMIZED",
+      auditAndEnforceLogic: function() {
+        try {
+          if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
+            activeAuctionsList.forEach(item => {
+              if (item.reserve_price) item.reserve_price = parseFloat(item.reserve_price);
+            });
+          }
+        } catch(e) {}
+      }
+    };
+    setInterval(() => { _NeuralCoreEngine.auditAndEnforceLogic(); }, 2000);
+
+    const _AudioBeepEngine = {
+      audioCtx: null,
+      playBeep: function(freq = 880, duration = 0.1) {
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          if (!this.audioCtx) {
+            this.audioCtx = new AudioContext();
+          }
+          if (this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+          }
+          const osc = this.audioCtx.createOscillator();
+          const gain = this.audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.15, this.audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.00001, this.audioCtx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.audioCtx.destination);
+          osc.start();
+          osc.stop(this.audioCtx.currentTime + duration);
+        } catch(e) {}
+      }
+    };
+
+    function handleUserLogin(inputUsername) {
+      try {
+        const verifiedUsername = SystemGuardianCore.enforceRealIdentity(inputUsername);
+        authenticatedPiUser = { username: verifiedUsername };
+        const isAdmin = SystemGuardianCore.verifyFullAccess(verifiedUsername);
+        
+        fetchActiveAuctions();
+        fetchBuyersList();
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      SystemGuardianCore.monitorStream();
+      setTimeout(() => {
+        if (!window.authenticatedPiUser) {
+          window.authenticatedPiUser = { username: "Ful21" };
+          const statusEl = document.getElementById('userStatusDisplay');
+          const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+          const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+          const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+          
+          if (statusEl) statusEl.innerText = "User: Ful21 (Dev Full Access)";
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@Ful21</span>`;
+          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+        }
+      }, 500);
+    });
+
     window.SecureShield = {
       sanitizeHTML: function(str) {
         if (!str) return '';
-        return str.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        return str.toString()
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
       },
-      maskUsername: function(username) { return username || 'Ful21'; }
+      sanitizeStrict: function(input) {
+        if (!input) return '';
+        return input.toString()
+          .replace(/[&<>"'/]/g, function (s) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#x2F;' }[s];
+          });
+      },
+      maskUsername: function(username) {
+        return username || 'Ful21';
+      },
+      checkProhibitedContent: function(text) {
+        return false;
+      }
     };
 
     const SAVED_ACCOUNTS_KEY = 'pibox_saved_verified_accounts';
@@ -150,75 +252,172 @@
       renderSavedAccountsList();
       document.getElementById('semiAutoLoginModal').classList.remove('hidden');
     }
+
     function closeSemiAutoLoginModal() {
       document.getElementById('semiAutoLoginModal').classList.add('hidden');
     }
+
     function renderSavedAccountsList() {
       const container = document.getElementById('savedAccountsContainer');
       const listEl = document.getElementById('savedAccountsList');
       const savedAccounts = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-      if (savedAccounts.length === 0) { container.classList.add('hidden'); return; }
+
+      if (savedAccounts.length === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
       container.classList.remove('hidden');
       listEl.innerHTML = savedAccounts.map(acc => `
         <div class="flex items-center justify-between bg-gray-900 hover:bg-gray-800 border border-emerald-500/30 rounded-xl p-2.5 transition">
           <button onclick="quickLoginWithSavedAccount('${acc.username}', '${acc.token}')" class="flex-1 flex items-center gap-2 text-left cursor-pointer">
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <div><p class="text-xs font-bold text-white">@${acc.username}</p><p class="text-[9px] text-emerald-400">Terverifikasi</p></div>
+            <div>
+              <p class="text-xs font-bold text-white">@${acc.username}</p>
+              <p class="text-[9px] text-emerald-400">Terverifikasi • Klik untuk masuk</p>
+            </div>
           </button>
-          <button onclick="removeSavedAccount('${acc.username}')" class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer">✕</button>
+          <button onclick="removeSavedAccount('${acc.username}')" title="Hapus dari perangkat ini" class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer">
+            ✕
+          </button>
         </div>
       `).join('');
     }
+
+    async function processManualLoginSubmit() {
+      const rawUser = document.getElementById('manualLoginUsername').value.trim().replace(/^@/, '');
+      const rawPass = document.getElementById('manualLoginPassword').value.trim();
+
+      if (!rawUser || !rawPass) {
+        alert("⚠️ Harap isi Username dan Password Keamanan Anda.");
+        return;
+      }
+
+      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        try {
+          let { data: secRecord, error } = await supabaseClient
+            .from('pioneers_security')
+            .select('*')
+            .eq('username', rawUser)
+            .maybeSingle();
+
+          if (error) throw error;
+
+          if (!secRecord) {
+            const { error: insertErr } = await supabaseClient
+              .from('pioneers_security')
+              .insert([{ username: rawUser, password_hash: rawPass }]);
+
+            if (insertErr) throw insertErr;
+          } else if (secRecord.password_hash !== rawPass) {
+            alert(`🚨 Password salah untuk akun @${rawUser}! Akses ditolak.`);
+            return;
+          }
+        } catch (err) {
+          alert("Gagal verifikasi ke server: " + err.message);
+          return;
+        }
+      }
+
+      saveAccountToDevice(rawUser, rawPass);
+      finalizeLoginSession(rawUser);
+      closeSemiAutoLoginModal();
+    }
+
     async function quickLoginWithSavedAccount(username, savedToken) {
+      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        const { data: secRecord } = await supabaseClient
+          .from('pioneers_security')
+          .select('password_hash')
+          .eq('username', username)
+          .maybeSingle();
+
+        if (secRecord && secRecord.password_hash !== savedToken) {
+          alert("⚠️ Sesi kadaluarsa atau password telah diubah. Silakan masukkan password kembali.");
+          removeSavedAccount(username);
+          return;
+        }
+      }
+
       finalizeLoginSession(username);
       closeSemiAutoLoginModal();
     }
+
+    function saveAccountToDevice(username, token) {
+      let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+      saved = saved.filter(item => item.username !== username);
+      saved.unshift({ username, token });
+      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
+    }
+
     function removeSavedAccount(username) {
       let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
       saved = saved.filter(item => item.username !== username);
       localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
       renderSavedAccountsList();
     }
+
     function finalizeLoginSession(username) {
       authenticatedPiUser = { username: username };
+      
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+      
       if (statusEl) statusEl.innerText = `User: @${username}`;
       if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${username}</span>`;
+
       if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(username);
       if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
     }
+
     function authenticatePiUser(isAuto = false) {
       if (isAuto) {
         const saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-        if (saved.length > 0) { quickLoginWithSavedAccount(saved[0].username, saved[0].token); return; }
+        if (saved.length > 0) {
+          quickLoginWithSavedAccount(saved[0].username, saved[0].token);
+          return;
+        }
       }
       openSemiAutoLoginModal();
     }
   </script>
 
   <style>
-    body { background-color: #0b0f17; color: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; }
-    .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+    body {
+      background-color: #0b0f17;
+      color: #f3f4f6;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #111827;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body class="bg-gray-950 flex flex-col items-center justify-start min-h-screen p-2">
 
   <div class="w-full max-w-md bg-gray-950 p-2.5 border-b border-gray-800 flex gap-1 text-[10px] mb-2 rounded-xl">
     <a href="index.html" class="flex-1 bg-blue-600 text-white font-bold py-1.5 rounded-lg text-center transition flex flex-col items-center justify-center gap-0.5">
-      <span class="text-sm">🔨</span><span>Lelang</span>
+      <span class="text-sm">🔨</span>
+      <span>Lelang</span>
     </a>
     <a href="marketplace.html" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 font-bold py-1.5 rounded-lg text-center transition flex flex-col items-center justify-center gap-0.5">
-      <span class="text-sm">🛒</span><span>Marketplace</span>
+      <span class="text-sm">🛒</span>
+      <span>Marketplace</span>
     </a>
   </div>
 
   <!-- Main Container -->
   <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[90vh]">
     
-    <!-- Banner Mode Jaringan -->
+    <!-- Banner Mode Jaringan TESTNET / MAINNET -->
     <div id="networkModeBanner" class="bg-amber-600/90 text-gray-950 font-black text-[10px] tracking-widest text-center py-1 uppercase shadow-md flex items-center justify-center gap-1.5">
       <span data-i18n="networkModeLabel">⚡ MODE JARINGAN:</span>
       <span id="networkModeBadge" class="bg-black text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-400/40">TESTNET</span>
@@ -235,35 +434,64 @@
       </div>
       
       <div class="flex items-center gap-1 flex-shrink-0">
-        <a href="auction-dev.html" title="Dev" class="text-[9px] bg-red-950/80 hover:bg-red-900 text-red-300 font-bold px-1.5 py-1 rounded-lg border border-red-500/40 transition">🧪 Dev</a>
+        <a href="auction-dev.html" title="Buka Halaman Perbaikan Modular Dev" class="text-[9px] bg-red-950/80 hover:bg-red-900 text-red-300 font-bold px-1.5 py-1 rounded-lg border border-red-500/40 transition flex items-center gap-0.5">
+          🧪<span class="hidden sm:inline"> Dev</span>
+        </a>
+        <button id="btnToggleTestUser" onclick="toggleTestUserMode()" title="Uji Coba Tampilan & Fitur Sebagai User Biasa" class="text-[9px] bg-blue-950/80 hover:bg-blue-900 text-blue-300 font-bold px-1.5 py-1 rounded-lg border border-blue-500/40 transition flex items-center gap-0.5 cursor-pointer">
+          👤<span class="hidden sm:inline" id="testUserBtnText"> Test User</span>
+        </button>
+
         <select id="langSelector" onchange="changeLanguage(this.value)" class="bg-gray-900 text-yellow-400 border border-yellow-500/30 text-[9px] font-bold py-1 px-1 rounded-lg focus:outline-none cursor-pointer">
-          <option value="id">🇮🇩 ID</option><option value="en">🇺🇸 EN</option><option value="zh">🇨🇳 中文</option><option value="es">🇪🇸 ES</option>
+          <option value="id">🇮🇩 ID</option>
+          <option value="en">🇺🇸 EN</option>
+          <option value="zh">🇨🇳 中文</option>
+          <option value="es">🇪🇸 ES</option>
         </select>
-        <button id="btnAdminSchedule" onclick="openScheduleModal()" class="hidden text-[10px] bg-purple-900 hover:bg-purple-800 text-purple-200 font-bold px-1.5 py-1 rounded-lg border border-purple-500/40 transition">⚙️ Jadwal</button>
-        <button id="btnHeaderLogin" onclick="authenticatePiUser()" class="text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold px-2 py-1 rounded-lg shadow-md transition flex items-center gap-1">🔑 Login</button>
+
+        <button id="btnAdminSchedule" onclick="openScheduleModal()" class="hidden text-[10px] bg-purple-900 hover:bg-purple-800 text-purple-200 font-bold px-1.5 py-1 rounded-lg border border-purple-500/40 transition flex items-center gap-1 cursor-pointer">
+          ⚙️ <span data-i18n="scheduleBtn">Jadwal</span>
+        </button>
+
+        <button id="btnHeaderLogin" onclick="authenticatePiUser()" class="text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold px-2 py-1 rounded-lg shadow-md transition duration-200 flex items-center gap-1 cursor-pointer">
+          🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>
+        </button>
       </div>
     </div>
 
-    <!-- Panel Keamanan & Status Pembeli -->
+    <!-- Panel Keamanan & Status Pendaftaran Calon Pembeli -->
     <div id="buyerRegistrationPanel" class="bg-gradient-to-r from-blue-950/60 via-indigo-950/60 to-gray-950 border-b border-indigo-500/30 p-2.5 flex flex-col gap-2 text-[10px]">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <span class="text-yellow-400 text-base">🛡️</span>
           <div>
-            <p class="font-bold text-gray-200">Status Akses Pembeli</p>
-            <p id="buyerApprovalStatusText" class="text-amber-300">Menunggu Verifikasi Pendaftaran Admin...</p>
+            <p class="font-bold text-gray-200" data-i18n="buyerStatusTitle">Status Akses Pembeli</p>
+            <p id="buyerApprovalStatusText" class="text-amber-300" data-i18n="buyerStatusPending">Menunggu Verifikasi Pendaftaran Admin...</p>
             <p id="userDepositBalanceDisplay" class="text-emerald-400 font-bold mt-0.5">Saldo Jaminan: 0 Pi</p>
           </div>
         </div>
+
         <div class="flex flex-col gap-1.5 items-end">
-          <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg shadow-md">
-            <span>+ List Aset/Barang</span>
+          <button id="btnHeaderCreate" onclick="handleOpenCreateModal()" class="text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer">
+            <span data-i18n="releaseAssetBtn">+ List Aset/Barang</span>
           </button>
           <div class="flex gap-1">
-            <button onclick="openChatModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-lg">💬 Chat Room</button>
-            <button onclick="handleBuyerRegistrationAction()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1.5 rounded-lg">📋 Daftar Pembeli</button>
+            <button onclick="openChatModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer flex items-center gap-1">
+              💬 <span data-i18n="chatRoomBtn">Chat Room</span>
+            </button>
+            <button onclick="handleBuyerRegistrationAction()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1.5 rounded-lg transition shadow cursor-pointer" data-i18n="registerBuyerBtn">
+              📋 Daftar Pembeli
+            </button>
           </div>
         </div>
+      </div>
+
+      <div class="flex gap-2 pt-1 border-t border-indigo-500/20">
+        <button onclick="payAuctionDeposit()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition shadow cursor-pointer flex items-center justify-center gap-1" data-i18n="topupDepositBtn">
+          💳 Top Up Jaminan 35 Pi
+        </button>
+        <button onclick="requestDepositWithdrawal()" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition shadow cursor-pointer flex items-center justify-center gap-1" data-i18n="withdrawDepositBtn">
+          📥 Klaim Penarikan Jaminan
+        </button>
       </div>
     </div>
 
@@ -273,22 +501,115 @@
         <span class="text-[11px] font-bold text-purple-300 uppercase tracking-wider">📌 INFO JADWAL:</span>
         <span id="auctionInfoText" class="text-[10px] font-bold text-yellow-400">Sandbox Standby</span>
       </div>
+
       <div class="flex items-center">
-        <span id="sessionStateBadge" class="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md">Memuat Jadwal...</span>
+        <span id="sessionStateBadge" class="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md tracking-wider">Memuat Jadwal...</span>
       </div>
+    </div>
+
+    <!-- Indikator Pengguna Real -->
+    <div class="bg-gray-950/80 border-b border-gray-800 p-2 flex justify-around items-center text-center">
+      <div class="flex flex-col items-center">
+        <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeSellersLabel">📦 Penjual Aktif</span>
+        <span id="activeSellersCount" class="text-xs font-bold text-yellow-400">0 User</span>
+      </div>
+      <div class="h-6 w-[1px] bg-gray-800"></div>
+      <div class="flex flex-col items-center">
+        <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeBiddersLabel">🔨 Penawar Aktif</span>
+        <span id="activeBiddersCount" class="text-xs font-bold text-emerald-400">0 User</span>
+      </div>
+    </div>
+
+    <!-- Fitur Pencarian & Filter Kategori Canggih -->
+    <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
+      <div class="flex gap-2">
+        <input type="text" id="searchInput" oninput="filterGallery()" placeholder="🔍 Cari nama aset, barang, properti..." data-i18n-placeholder="searchPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500 transition">
+        
+        <select id="statusFilter" onchange="filterGallery()" class="bg-gray-900 border border-gray-800 text-gray-300 text-[10px] font-semibold px-2 py-1.5 rounded-xl focus:outline-none cursor-pointer">
+          <option value="all" data-i18n="filterAll">Semua Status</option>
+          <option value="active" data-i18n="filterActive">Aktif</option>
+          <option value="pending" data-i18n="filterPending">⏳ Pending</option>
+          <option value="my_listings" data-i18n="filterMyListings">📦 Aset Saya</option>
+          <option value="my_bids" data-i18n="filterMyBids">🔨 Tawaran Saya</option>
+          <option value="ended" data-i18n="filterEnded">Selesai</option>
+          <option value="cancelled" data-i18n="filterCancelled">Dibatalkan</option>
+        </select>
+      </div>
+
+      <select id="categoryFilter" onchange="filterGallery()" class="w-full bg-gray-900 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold px-2 py-1.5 rounded-xl focus:outline-none cursor-pointer">
+        <option value="all" data-i18n="catAll">🌐 Semua Kategori Lelang</option>
+        <option value="nft_art" data-i18n="catDigital">🎨 Aset Digital & NFT</option>
+        <option value="luxury_items" data-i18n="catLuxury">💎 Barang Mewah (Jam, Perhiasan)</option>
+        <option value="electronics" data-i18n="catElectronics">📱 Elektronik & Gadget</option>
+        <option value="collectibles" data-i18n="catCollectibles">🏛️ Koleksi & Barang Antik</option>
+        <option value="fashion_craft" data-i18n="catFashion">👔 Fashion & Kerajinan Lokal</option>
+        <option value="automotive" data-i18n="catAutomotive">🚗 Otomotif & Kendaraan</option>
+        <option value="property_land" data-i18n="catProperty">🏠 Properti & Real Estate (Rumah, Tanah)</option>
+        <option value="services_tech" data-i18n="catServices">🛠️ Jasa, Layanan & Sewa</option>
+      </select>
+    </div>
+
+    <!-- Tombol Khusus Laporan Bulanan On-Chain -->
+    <div id="adminMonthlyReportPanel" class="hidden p-2 bg-gray-950 border-b border-gray-800 flex justify-between items-center px-3">
+      <span class="text-[10px] text-purple-400 font-bold">📊 Rekap On-Chain Bulanan</span>
+      <button onclick="openMonthlyReportModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] px-3 py-1 rounded-lg transition shadow cursor-pointer">
+        📥 Unduh / Share Laporan
+      </button>
     </div>
 
     <!-- Galeri Content -->
     <div id="mainContent" class="p-4 flex-1 flex flex-col custom-scrollbar overflow-y-auto">
-      <div class="text-center py-10 text-gray-500 text-xs animate-pulse">Memuat Galeri Lelang...</div>
+      <div class="text-center py-10 text-gray-500 text-xs animate-pulse" data-i18n="loadingGallery">Memuat Galeri Lelang...</div>
     </div>
 
     <!-- Bottom Footer -->
     <div class="bg-gray-950 p-3 border-t border-gray-800 text-center text-[10px] text-gray-500 flex justify-between items-center">
-      <span id="userStatusDisplay">User: Tamu (Belum Login)</span>
-      <button onclick="triggerAggressiveRefresh()" class="bg-yellow-500/20 text-yellow-400 text-[9px] font-bold px-2.5 py-1 rounded-lg border border-yellow-500/40">🔄 Segarkan</button>
+      <div class="flex items-center gap-2">
+        <span id="userStatusDisplay" data-i18n="guestUser">User: Tamu (Belum Login)</span>
+        <button id="btnLoginManual" onclick="authenticatePiUser()" class="bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-[9px] px-2 py-0.5 rounded font-bold transition cursor-pointer" data-i18n="piLoginBtn">
+          🔑 Login Pi
+        </button>
+      </div>
+      <button onclick="triggerAggressiveRefresh()" class="bg-yellow-500/20 hover:bg-yellow-400/40 text-yellow-400 text-[9px] font-bold px-2.5 py-1 rounded-lg border border-yellow-500/40 transition cursor-pointer flex items-center gap-1">
+        🔄 <span id="refreshTextBtn" data-i18n="refreshBtn">Segarkan</span>
+      </button>
     </div>
 
+  </div>
+
+  <!-- MODAL: LOGIN SEMI-OTOMATIS -->
+  <div id="semiAutoLoginModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div>
+          <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider">🔑 Akses Akun Pi Network</h2>
+          <p class="text-[9px] text-gray-400">Pilih akun tersimpan atau daftarkan akun baru</p>
+        </div>
+        <button onclick="closeSemiAutoLoginModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <div id="savedAccountsContainer" class="space-y-2 hidden">
+        <label class="block text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">⚡ Klik Akun Anda untuk Masuk Cepat:</label>
+        <div id="savedAccountsList" class="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar"></div>
+        <div class="border-t border-gray-800 my-2 pt-2 text-center">
+          <span class="text-[9px] text-gray-500">Atau masuk dengan akun lain di bawah ini</span>
+        </div>
+      </div>
+
+      <div class="space-y-2.5 text-xs">
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1 text-[11px]">Username Pi Network:</label>
+          <input type="text" id="manualLoginUsername" placeholder="Contoh: Username penjual aslinya" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
+        </div>
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1 text-[11px]">Password Keamanan Unik (1-ke-1):</label>
+          <input type="password" id="manualLoginPassword" placeholder="Masukkan / buat password baru..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
+        </div>
+        <button onclick="processManualLoginSubmit()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 rounded-xl text-xs transition shadow-lg cursor-pointer">
+          🔓 Verifikasi & Simpan Akun
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- MODAL: PENGATURAN JADWAL LELANG -->
@@ -298,8 +619,8 @@
         <div class="flex items-center gap-2">
           <span class="text-purple-400 text-lg">⚙</span>
           <div>
-            <h2 class="text-xs font-bold text-purple-400 uppercase tracking-wider">Pengaturan Jadwal Lelang</h2>
-            <p class="text-[9px] text-gray-400">Khusus Admin & Developer</p>
+            <h2 class="text-xs font-bold text-purple-400 uppercase tracking-wider" data-i18n="scheduleModalTitle">Pengaturan Jadwal Lelang</h2>
+            <p class="text-[9px] text-gray-400" data-i18n="scheduleModalSub">Khusus Admin & Developer</p>
           </div>
         </div>
         <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
@@ -307,7 +628,7 @@
 
       <div class="space-y-3 text-xs">
         <div>
-          <label class="block text-gray-300 font-semibold mb-1">Status Mode Sesi Lelang Saat Ini:</label>
+          <label class="block text-gray-300 font-semibold mb-1" data-i18n="scheduleModeLabel">Status Mode Sesi Lelang Saat Ini:</label>
           <select id="scheduleModeSelect" onchange="toggleScheduleInputVisibility()" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-purple-500 cursor-pointer">
             <option value="testing_mode">🧪 1. Mode Uji Coba / Sandbox (Standby)</option>
             <option value="scheduled">⏳ 2. Menggunakan Jadwal Buka & Sesi 1 Jam</option>
@@ -318,47 +639,280 @@
         <div id="scheduledInputsContainer" class="space-y-3 bg-gray-900/80 p-3 rounded-xl border border-gray-800 hidden">
           <div>
             <div id="instantTriggerContainer" class="hidden bg-emerald-950/40 p-3 rounded-xl border border-emerald-500/40 space-y-2">
-              <p class="text-[10px] text-emerald-300 font-semibold">⚡ Mode Instan: Lelang aktif langsung selama 60 menit.</p>
-              <button onclick="triggerInstantOneHourAuction(supabaseClient, ADMIN_USERNAMES, authenticatedPiUser?.username)" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs">🚀 Buka Lelang Sekarang</button>
+              <p class="text-[10px] text-emerald-300 font-semibold">⚡ Mode Instan: Lelang akan langsung aktif terhitung dari sekarang dan otomatis tertutup setelah tepat 60 menit.</p>
+              <button onclick="triggerInstantOneHourAuction()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
+                🚀 Buka Lelang Sekarang (Durasi 60 Menit)
+              </button>
             </div>
-            <label class="block text-[10px] text-gray-400 font-semibold mb-1">Tanggal Buka Lelang:</label>
-            <div class="grid grid-cols-3 gap-1.5">
-              <input type="number" id="schedYear" value="2026" class="bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white text-center">
-              <input type="number" id="schedMonth" value="11" class="bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white text-center">
-              <input type="number" id="schedDay" value="01" class="bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white text-center">
+
+            <label class="block text-[10px] text-gray-400 font-semibold mb-1">1. Tanggal Buka Lelang:</label>
+            <div class="grid grid-cols-3 gap-1.5 relative z-30">
+              <div>
+                <span class="block text-[9px] text-gray-400 mb-0.5">Tahun</span>
+                <input type="number" id="schedYear" value="2026" min="2020" max="2099" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-purple-500 text-center">
+              </div>
+              <div>
+                <span class="block text-[9px] text-gray-400 mb-0.5">Bulan</span>
+                <input type="number" id="schedMonth" value="11" min="1" max="12" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-purple-500 text-center">
+              </div>
+              <div>
+                <span class="block text-[9px] text-gray-400 mb-0.5">Tanggal</span>
+                <input type="number" id="schedDay" value="01" min="1" max="31" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-[10px] text-white font-mono focus:outline-none focus:border-purple-500 text-center">
+              </div>
             </div>
           </div>
+
           <div>
-            <label class="block text-[10px] text-gray-400 font-semibold mb-1">Jam Buka Lelang:</label>
-            <select id="scheduleStartHourSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white"></select>
+            <label class="block text-[10px] text-gray-400 font-semibold mb-1">2. Jam Buka Lelang:</label>
+            <select id="scheduleStartHourSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none cursor-pointer relative z-30"></select>
           </div>
+
           <div>
-            <label class="block text-[10px] text-gray-400 font-semibold mb-1">Durasi Sesi Lelang:</label>
-            <select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-emerald-400">
-              <option value="1">Sesi 1 Jam</option><option value="6">Sesi 6 Jam</option><option value="12">Sesi 12 Jam</option>
+            <label class="block text-[10px] text-gray-400 font-semibold mb-1">3. Durasi Sesi Lelang:</label>
+            <select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none cursor-pointer relative z-30">
+              <option value="1">Sesi 1 Jam</option>
+              <option value="6">Sesi 6 Jam</option>
+              <option value="12">Sesi 12 Jam</option>
             </select>
           </div>
         </div>
       </div>
 
       <div class="flex gap-2 pt-2">
-        <button onclick="closeScheduleModal()" class="flex-1 bg-gray-900 text-gray-300 text-xs py-2.5 rounded-xl font-semibold">Batal</button>
-        <button onclick="saveAuctionScheduleSettings(supabaseClient, ADMIN_USERNAMES, authenticatedPiUser?.username)" class="flex-1 bg-purple-600 text-white font-bold text-xs py-2.5 rounded-xl shadow-lg">💾 Simpan Jadwal</button>
+        <button onclick="closeScheduleModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer" data-i18n="cancelBtn">Batal</button>
+        <button onclick="saveAuctionScheduleSettings()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs py-2.5 rounded-xl transition cursor-pointer shadow-lg" data-i18n="saveScheduleBtn">💾 Simpan Jadwal</button>
       </div>
     </div>
   </div>
 
-  <!-- SCRIPT UTAMA HALAMAN -->
+  <!-- MODAL: LAPORAN BULANAN ON-CHAIN TIME -->
+  <div id="monthlyReportModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-purple-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-purple-400 text-lg">📊</span>
+          <div>
+            <h2 class="text-xs font-bold text-purple-400 uppercase tracking-wider" data-i18n="monthlyReportTitle">Rekapitulasi Laporan Bulanan On-Chain</h2>
+            <p class="text-[9px] text-gray-400" data-i18n="monthlyReportSub">Unduh & Share Laporan Data On-Time</p>
+          </div>
+        </div>
+        <button onclick="closeMonthlyReportModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1" data-i18n="selectMonthLabel">Pilih Bulan Laporan:</label>
+          <input type="month" id="reportMonthInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-purple-500" onchange="generateMonthlyReportData()">
+        </div>
+
+        <div id="reportSummaryBox" class="bg-gray-900 border border-gray-800 rounded-xl p-3 font-mono text-[11px] text-gray-300 space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar">
+          <p class="text-center text-gray-500 py-4" data-i18n="loadingReport">Memuat data rekapitulasi...</p>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2 pt-2">
+        <button onclick="copyMonthlyReportText(this)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer" data-i18n="copyReportBtn">
+          📋 Salin Laporan ke Clipboard
+        </button>
+        <button onclick="downloadMonthlyReportAsHTML()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer" data-i18n="downloadReportBtn">
+          🌐 Download File Laporan (Chrome HTML)
+        </button>
+        <button onclick="closeMonthlyReportModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs" data-i18n="closeBtn">
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CHAT ROOM -->
+  <div id="chatModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5 w-full max-w-lg space-y-3 shadow-2xl max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-emerald-400 text-lg">💬</span>
+            <div>
+              <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider" data-i18n="chatModalTitle">Pusat Live Chat NFT Global Market</h2>
+              <p class="text-[9px] text-gray-400" data-i18n="chatModalSub">Pilih Ruang Diskusi & Komunikasi Langsung P2P</p>
+            </div>
+          </div>
+          <button onclick="closeChatModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+        </div>
+
+        <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-[11px] gap-1">
+          <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer">🌐 Forum</button>
+          <button id="tabBtnAdmin" onclick="switchChatTab('admin')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🛡️ Hubungi Admin</button>
+          <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🔒 P2P</button>
+        </div>
+
+        <div id="p2pTargetSelectorContainer" class="hidden bg-gray-900 p-2 rounded-xl border border-gray-800 text-xs space-y-1">
+          <label class="block text-[10px] text-gray-400 font-semibold" data-i18n="p2pSelectLabel">Pilih Penjual / Lawan Chat P2P:</label>
+          <div class="flex gap-2">
+            <select id="p2pTargetUserSelect" class="flex-1 bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-xs text-yellow-400 focus:outline-none">
+              <option value="" data-i18n="p2pSelectDefault">-- Pilih User / Seller --</option>
+            </select>
+            <button onclick="initP2PChatSession()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-lg text-[10px] cursor-pointer" data-i18n="p2pStartBtn">Mulai Chat</button>
+          </div>
+        </div>
+
+        <div id="chatMessagesBox" class="flex-1 bg-gray-900/90 border border-gray-800 rounded-xl p-3 h-64 overflow-y-auto custom-scrollbar space-y-2 text-xs">
+          <div class="text-center text-gray-500 text-[11px] py-10" data-i18n="chatLoading">Memuat pesan chat...</div>
+        </div>
+
+        <div class="flex flex-col gap-1.5 pt-1">
+          <div id="chatImagePreviewContainer" class="hidden flex items-center gap-2 bg-gray-900 p-1.5 rounded-lg border border-gray-800 text-[10px]">
+            <span class="text-yellow-400 font-bold" data-i18n="previewSSLabel">Preview SS:</span>
+            <span id="chatImageFileName" class="text-gray-300 truncate flex-1"></span>
+            <button onclick="clearChatImagePreview()" class="text-red-400 hover:text-red-300 font-bold px-1.5" data-i18n="deleteBtn">✕ Hapus</button>
+          </div>
+          <div class="flex gap-2 items-center">
+            <label class="bg-indigo-600 hover:bg-indigo-500 text-white p-2 rounded-xl cursor-pointer transition shadow flex items-center justify-center text-xs" title="Upload SS Pembayaran">
+              📷 <input type="file" id="chatImageFileInput" accept="image/*" onchange="handleChatImageSelect(this)" class="hidden">
+            </label>
+            <input type="text" id="chatMessageInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Ketik pesan chat atau upload SS pembayaran..." data-i18n-placeholder="chatInputPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
+            <button onclick="sendChatMessage()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow" data-i18n="chatSendBtn">Kirim 🚀</button>
+          </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Tabel Calon Pembeli & Status Verifikasi -->
+  <div id="buyersTableModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5 w-full max-w-lg space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div>
+          <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider" data-i18n="buyersModalTitle">👥 Tabel Daftar Calon Pembeli & Status</h2>
+          <p class="text-[9px] text-gray-400" data-i18n="buyersModalSub">Admin/Dev dapat memverifikasi & menghapus data pembeli.</p>
+        </div>
+        <button onclick="closeBuyersTableModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <div class="flex justify-between items-center gap-2">
+          <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari pembeli..." data-i18n-placeholder="buyerSearchPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500">
+          <div id="adminDeleteBatchContainer" class="hidden">
+            <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl transition shadow cursor-pointer" data-i18n="deleteBatchBtn">🗑 Hapus Terpilih</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[60vh] flex flex-col">
+        <div class="overflow-x-auto custom-scrollbar flex-1">
+          <table class="w-full text-left text-[11px] text-gray-300 min-w-[550px] border-collapse">
+            <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-30 shadow-md">
+              <tr>
+                <th class="p-2 text-center w-8 bg-gray-900 sticky left-0 z-40 border-r border-gray-800"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
+                <th class="p-2 bg-gray-900 sticky left-8 z-40 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]" data-i18n="thUsername">Username</th>
+                <th class="p-2 text-center bg-gray-900" data-i18n="thNotice">Keterangan</th>
+                <th class="p-2 bg-gray-900" data-i18n="thStatus">Status Verifikasi</th>
+                <th class="p-2 text-right bg-gray-900" data-i18n="thAction">Aksi</th>
+                <th class="p-2 text-center bg-gray-900">Pengembalian Jaminan</th>
+              </tr>
+            </thead>
+            <tbody id="buyersTableBody" class="overflow-y-auto max-h-[50vh]"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: KLAIM PENARIKAN JAMINAN -->
+  <div id="withdrawalProofModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-amber-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-amber-400 text-lg">📥</span>
+          <div>
+            <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider" data-i18n="withdrawalModalTitle">Klaim Penarikan Jaminan</h2>
+            <p class="text-[9px] text-gray-400" data-i18n="withdrawalModalSub">Kirim bukti deposit, username, dan wallet</p>
+          </div>
+        </div>
+        <button onclick="closeWithdrawalProofModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1" data-i18n="withdrawUsernameLabel">Username Pi Network:</label>
+          <input type="text" id="withdrawalUsernameInput" readonly class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 font-mono cursor-not-allowed">
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1" data-i18n="withdrawWalletLabel">PiBox Wallet Address:</label>
+          <input type="text" id="withdrawalWalletInput" placeholder="Masukkan alamat wallet tujuan..." data-i18n-placeholder="withdrawWalletPlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500">
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-semibold mb-1" data-i18n="withdrawProofLabel">Upload Bukti Deposit (Screenshot):</label>
+          <input type="file" id="withdrawalProofFile" accept="image/*" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-500 file:text-gray-950 cursor-pointer">
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeWithdrawalProofModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer" data-i18n="cancelBtn">Batal</button>
+        <button onclick="submitWithdrawalWithProof()" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-2.5 rounded-xl transition cursor-pointer shadow-lg" data-i18n="submitWithdrawBtn">🚀 Kirim Klaim</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT UTAMA -->
   <script>
+    const IS_TESTNET = true; 
     const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+    
+    const DEV_USERNAMES = ["Ful21"];
+    const ADMIN_APP_USERNAMES = ["Ful21", "Muhammadefendi123", "SIREP74", "s9t9munah", "jokocahyono23"]; 
     const ADMIN_USERNAMES = ["Ful21", "s9t9munah"]; 
+    const BENDAHARA_USERNAMES = ["Ful21", "SIREP74"];
+    const MODERATOR_USERNAMES = ["Ful21", "jokocahyono23"];
   
+    const TEAM_ROLES = {
+      "Ful21": { role: "Admin", label: "System Admin" },
+      "Muhammadefendi123": { role: "Ketua", label: "Ketua Umum" },
+      "SIREP74": { role: "Bendahara", label: "Bendahara Utama" },
+      "s9t9munah": { role: "Admin", label: "Admin Operasional" },
+      "jokocahyono23": { role: "Moderator", label: "Moderator P2P & Chat" }
+    };
+
     let supabaseClient = null;
     let activeAuctionsList = [];
     let filteredAuctionsList = [];
+    let buyersList = [];
     let authenticatedPiUser = null;
+    let isAuthenticating = false;
+    let isBuyerApproved = false;
+    let currentChatRoom = 'forum';
+    let currentP2PTarget = '';
+    let chatSelectedImageBase64 = '';
+    let auctionScheduleState = { mode: "scheduled", startDate: "2026-11-01", startHour: "00:00", durationHours: 24 };
+    let isAuctionCurrentlyOpen = true;
+    let currentAuctionStatusCode = 3;
     let currentLang = localStorage.getItem('appLang') || 'id';
+
+    function t(key) {
+      return translations[currentLang]?.[key] || translations['id']?.[key] || key;
+    }
+
+    function changeLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('appLang', lang);
+      applyTranslations();
+      renderGallery();
+    }
+
+    function applyTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[currentLang]?.[key]) {
+          el.innerText = translations[currentLang][key];
+        }
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (translations[currentLang]?.[key]) {
+          el.placeholder = translations[currentLang][key];
+        }
+      });
+    }
 
     try {
       if (window.supabase) {
@@ -367,58 +921,570 @@
     } catch (e) {}
 
     document.addEventListener("DOMContentLoaded", () => {
+      updateNetworkBannerUI();
+      const langSel = document.getElementById('langSelector');
+      if (langSel) langSel.value = currentLang;
+      applyTranslations();
       populateHourDropdownOptions();
       fetchActiveAuctions();
+      fetchBuyersList();
+      setupRealtimeSubscription();
+      fetchAndListenAuctionSchedule();
+      setInterval(checkAuctionSchedule, 1000);
       
-      // Inisialisasi modul jadwal lelang eksternal
-      fetchAndListenAuctionSchedule(supabaseClient, () => {
-        checkAuctionScheduleUI();
-      });
-      setInterval(checkAuctionScheduleUI, 1000);
+      initPiSDK();
 
       setTimeout(() => {
-        if (!authenticatedPiUser) {
-          authenticatedPiUser = { username: "Ful21" };
-          document.getElementById('userStatusDisplay').innerText = "User: Ful21 (Dev Full Access)";
-          document.getElementById('btnHeaderLogin').innerHTML = `✅ <span class="text-emerald-400">@Ful21</span>`;
-          document.getElementById('btnAdminSchedule').classList.remove('hidden');
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (!authenticatedPiUser && piInstance) {
+          authenticatePiUser(true).catch(() => {});
         }
-      }, 500);
+      }, 800);
     });
+
+    async function fetchAndListenAuctionSchedule() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'auction_schedule')
+          .maybeSingle();
+          
+        if (error) throw error;
+        if (data && data.value) {
+          auctionScheduleState = data.value;
+          checkAuctionSchedule();
+        }
+      } catch (e) {}
+    }
+
+    function updateNetworkBannerUI() {
+      const badge = document.getElementById('networkModeBadge');
+      if (!badge) return;
+      badge.innerText = IS_TESTNET ? "TESTNET" : "MAINNET";
+    }
+
+    function initPiSDK() {
+      const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      if (piInstance && typeof piInstance.init === 'function') {
+        try {
+          piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+        } catch (e) {}
+      }
+    }
+
+    async function payAuctionDeposit() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const username = authenticatedPiUser.username;
+      if (!supabaseClient) return;
+
+      try {
+        let { data: buyer } = await supabaseClient
+          .from('buyers')
+          .select('deposit_balance')
+          .eq('username', username)
+          .maybeSingle();
+
+        const currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
+        const targetDeposit = 35.00;
+
+        if (currentBalance >= targetDeposit) {
+          alert(`✅ Saldo jaminan Anda sudah mencukupi (${currentBalance} Pi >= 35 Pi). Status Anda otomatis AKTIF.`);
+          await supabaseClient.from('buyers').update({ status: 'approved' }).eq('username', username);
+          await checkBuyerStatusInDatabase(username);
+          return;
+        }
+
+        const deficit = targetDeposit - currentBalance;
+        const confirmTopUp = confirm(`🛡️ Verifikasi Saldo Jaminan\nSaldo Anda saat ini: ${currentBalance} Pi\nKekurangan jaminan menuju 35 Pi: ${deficit.toFixed(2)} Pi\n\nKlik OK untuk melanjutkan pembayaran.`);
+        if (!confirmTopUp) return;
+
+        applyRelativeTopUpToDatabase(username, deficit, `Top Up Jaminan ${deficit.toFixed(2)} Pi`);
+      } catch (err) {
+        alert("Gagal memeriksa saldo jaminan: " + err.message);
+      }
+    }
+
+    async function applyRelativeTopUpToDatabase(username, addedAmount, memo) {
+      if (!supabaseClient) return;
+      try {
+        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
+        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
+        let newBalance = currentBalance + addedAmount;
+        let newStatus = newBalance >= 35 ? 'approved' : 'pending';
+
+        if (!buyer) {
+          await supabaseClient.from('buyers').insert([{ username: username, deposit_balance: newBalance, status: newStatus, win_count: 0, has_requested_withdrawal: false }]);
+        } else {
+          await supabaseClient.from('buyers').update({ deposit_balance: newBalance, status: newStatus }).eq('username', username);
+        }
+
+        alert(`✅ Top Up Berhasil!\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
+        await checkBuyerStatusInDatabase(username);
+      } catch (e) {
+        alert("Gagal memperbarui database: " + e.message);
+      }
+    }
+
+    function requestDepositWithdrawal() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+      const username = authenticatedPiUser.username;
+      const usernameInput = document.getElementById('withdrawalUsernameInput');
+      const walletInput = document.getElementById('withdrawalWalletInput');
+      if (usernameInput) usernameInput.value = username;
+      if (walletInput) walletInput.value = "";
+      document.getElementById('withdrawalProofModal').classList.remove('hidden');
+    }
+
+    function closeWithdrawalProofModal() {
+      document.getElementById('withdrawalProofModal').classList.add('hidden');
+    }
+
+    async function submitWithdrawalWithProof() {
+      if (!authenticatedPiUser) return;
+      const username = authenticatedPiUser.username;
+      const wallet = document.getElementById('withdrawalWalletInput')?.value.trim();
+      const proofFile = document.getElementById('withdrawalProofFile')?.files[0];
+
+      if (!wallet || !proofFile) {
+        alert("Harap masukkan alamat wallet dan upload bukti deposit!");
+        return;
+      }
+
+      if (!supabaseClient) return;
+      try {
+        await supabaseClient.from('buyers').update({ deposit_balance: 0.00, status: 'pending', has_requested_withdrawal: true }).eq('username', username);
+        alert(`📤 Klaim Penarikan Berhasil Dikirim!`);
+        closeWithdrawalProofModal();
+        checkBuyerStatusInDatabase(username);
+      } catch (e) {
+        alert("Gagal memproses klaim: " + e.message);
+      }
+    }
+
+    async function checkBuyerStatusInDatabase(username) {
+      if (!supabaseClient || !username) return;
+      try {
+        const { data } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
+        const depositBal = data ? parseFloat(data.deposit_balance || 0) : 0;
+        
+        const balanceDisplayEl = document.getElementById('userDepositBalanceDisplay');
+        if (balanceDisplayEl) balanceDisplayEl.innerText = `Saldo Jaminan: ${depositBal} Pi`;
+
+        if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
+          isBuyerApproved = true;
+          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
+        } else {
+          isBuyerApproved = false;
+          document.getElementById('buyerApprovalStatusText').innerText = "Status Akses: Pending (Menunggu Verifikasi Admin/Dev)";
+        }
+        renderGallery();
+      } catch(e) {}
+    }
+
+    function populateHourDropdownOptions() {
+      const hourSelect = document.getElementById('scheduleStartHourSelect');
+      if (!hourSelect) return;
+      let html = '';
+      for (let h = 0; h < 24; h++) {
+        const hStr = h.toString().padStart(2, '0') + ':00';
+        html += `<option value="${hStr}">${hStr} WIB</option>`;
+      }
+      hourSelect.innerHTML = html;
+    }
+
+    function openScheduleModal() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("Akses Ditolak: Hanya Admin dan Developer!");
+        return;
+      }
+      document.getElementById('scheduleModal').classList.remove('hidden');
+    }
+
+    function closeScheduleModal() {
+      document.getElementById('scheduleModal').classList.add('hidden');
+    }
+
+    function toggleScheduleInputVisibility() {
+      const mode = document.getElementById('scheduleModeSelect').value;
+      const container = document.getElementById('scheduledInputsContainer');
+      const instantContainer = document.getElementById('instantTriggerContainer');
+      if (mode === 'scheduled') {
+        container.classList.remove('hidden');
+        if (instantContainer) instantContainer.classList.add('hidden');
+      } else if (mode === 'instant_one_hour') {
+        container.classList.add('hidden');
+        if (instantContainer) instantContainer.classList.remove('hidden');
+      } else {
+        container.classList.add('hidden');
+        if (instantContainer) instantContainer.classList.add('hidden');
+      }
+    }
+
+    async function saveAuctionScheduleSettings() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) return;
+      const mode = document.getElementById('scheduleModeSelect').value;
+      const y = document.getElementById('schedYear')?.value || '2026';
+      const m = (document.getElementById('schedMonth')?.value || '11').padStart(2, '0');
+      const d = (document.getElementById('schedDay')?.value || '01').padStart(2, '0');
+      const startDate = `${y}-${m}-${d}`;
+      const startHour = document.getElementById('scheduleStartHourSelect').value;
+      const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
+
+      const newSchedule = { mode, startDate, startHour, durationHours };
+      if (!supabaseClient) return;
+
+      try {
+        await supabaseClient.from('app_settings').upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }], { onConflict: 'key' });
+        auctionScheduleState = newSchedule;
+        checkAuctionSchedule();
+        alert("✅ Jadwal Berhasil Tersimpan!");
+        closeScheduleModal();
+      } catch (err) {}
+    }
+
+    async function triggerInstantOneHourAuction() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) return;
+      const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+      const y = nowWib.getFullYear();
+      const m = String(nowWib.getMonth() + 1).padStart(2, '0');
+      const d = String(nowWib.getDate()).padStart(2, '0');
+      const h = String(nowWib.getHours()).padStart(2, '0');
+      const min = String(nowWib.getMinutes()).padStart(2, '0');
+
+      const newSchedule = {
+        mode: 'instant_one_hour',
+        startDate: `${y}-${m}-${d}`,
+        startHour: `${h}:${min}`,
+        durationHours: 1,
+        instantTimestamp: nowWib.getTime()
+      };
+
+      if (!supabaseClient) return;
+      try {
+        await supabaseClient.from('app_settings').upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }], { onConflict: 'key' });
+        auctionScheduleState = newSchedule;
+        checkAuctionSchedule();
+        alert("🚀 Berhasil! Lelang langsung dibuka 1 jam ke depan.");
+        closeScheduleModal();
+      } catch (err) {}
+    }
+
+    const _AuctionTimeGuardian = {
+      formatCountdown: function(totalSeconds) {
+        if (totalSeconds <= 0) return "00:00:00";
+        const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+        const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+        const s = (totalSeconds % 60).toString().padStart(2, '0');
+        return `${h}:${m}:${s}`;
+      }
+    };
+
+    function checkAuctionSchedule() {
+      const infoText = document.getElementById('auctionInfoText');
+      const badge = document.getElementById('sessionStateBadge');
+      if (!infoText || !badge) return;
+
+      const mode = auctionScheduleState.mode || 'scheduled';
+      if (mode === 'instant_one_hour') {
+        const instantStart = auctionScheduleState.instantTimestamp || new Date(`${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`).getTime();
+        const endTime = instantStart + (60 * 60 * 1000);
+        const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" })).getTime();
+
+        infoText.innerText = `Mode Instan: Aktif 1 Jam`;
+        if (now <= endTime) {
+          isAuctionCurrentlyOpen = true;
+          currentAuctionStatusCode = 3;
+          badge.innerText = `🔥 LELANG INSTAN: ${_AuctionTimeGuardian.formatCountdown(Math.max(0, Math.floor((endTime - now) / 1000)))}`;
+          badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
+        } else {
+          isAuctionCurrentlyOpen = false;
+          currentAuctionStatusCode = 4;
+          badge.innerText = `🏁 LELANG SELESAI (00:00:00)`;
+          badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
+        }
+      } else {
+        isAuctionCurrentlyOpen = true;
+        currentAuctionStatusCode = 3;
+        badge.innerText = "🔥 BUKA LIVE 24/7";
+        badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md tracking-wider";
+      }
+    }
+
+    function openMonthlyReportModal() {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) return;
+      document.getElementById('monthlyReportModal').classList.remove('hidden');
+    }
+
+    function closeMonthlyReportModal() {
+      document.getElementById('monthlyReportModal').classList.add('hidden');
+    }
+
+    async function handleBuyerRegistrationAction() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      if (isAdminOrDev) {
+        openBuyersTableModal();
+        return;
+      }
+    }
+
+    async function fetchBuyersList() {
+      if (!supabaseClient) return;
+      try {
+        const { data } = await supabaseClient.from('buyers').select('*').order('username', { ascending: true });
+        buyersList = data || [];
+      } catch(e) { buyersList = []; }
+    }
+
+    function openChatModal() {
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      document.getElementById('chatModal').classList.remove('hidden');
+    }
+
+    function closeChatModal() { document.getElementById('chatModal').classList.add('hidden'); }
+
+    function openBuyersTableModal() {
+      fetchBuyersList().then(() => {
+        document.getElementById('buyersTableModal').classList.remove('hidden');
+      });
+    }
+
+    function closeBuyersTableModal() { document.getElementById('buyersTableModal').classList.add('hidden'); }
 
     async function fetchActiveAuctions() {
       const mainContent = document.getElementById('mainContent');
       if (!supabaseClient) return;
+
       try {
-        const { data, error } = await supabaseClient.from('auctions').select('*').order('created_at', { ascending: false }).limit(100);
+        const { data, error } = await supabaseClient
+          .from('auctions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
         if (error) throw error;
         activeAuctionsList = data || [];
-        renderGallery();
+        updateActiveCounts();
+        filterGallery();
       } catch (err) {
         mainContent.innerHTML = `<div class="text-center py-10 text-red-400 text-xs">Gagal memuat galeri: ${err.message}</div>`;
       }
     }
 
+    function updateActiveCounts() {
+      const sellersSet = new Set();
+      const biddersSet = new Set();
+      activeAuctionsList.forEach(a => {
+        if (a.seller) sellersSet.add(a.seller);
+        if (a.highest_bidder) biddersSet.add(a.highest_bidder);
+      });
+      const sellersEl = document.getElementById('activeSellersCount');
+      const biddersEl = document.getElementById('activeBiddersCount');
+      if (sellersEl) sellersEl.innerText = `${sellersSet.size} User`;
+      if (biddersEl) biddersEl.innerText = `${biddersSet.size} User`;
+    }
+
+    function getCategoryLabel(catKey) {
+      const keyMap = {
+        nft_art: 'catDigital',
+        luxury_items: 'catLuxury',
+        electronics: 'catElectronics',
+        collectibles: 'catCollectibles',
+        fashion_craft: 'catFashion',
+        automotive: 'catAutomotive',
+        property_land: 'catProperty',
+        services_tech: 'catServices'
+      };
+      return t(keyMap[catKey] || 'catDigital');
+    }
+
+    window._Background_Security_Engine = {
+      verifyBidAccess: function(username, registeredBuyers, adminList) {
+        if (!username) return false;
+        if (adminList.includes(username)) return true;
+        const foundBuyer = registeredBuyers.find(b => b.username === username);
+        if (foundBuyer) {
+          const status = (foundBuyer.status || '').toLowerCase();
+          return status === 'approved' || status === 'aktif' || status === 'active';
+        }
+        return false;
+      }
+    };
+
+    function filterGallery() {
+      const query = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+      const statusFilter = document.getElementById('statusFilter')?.value || 'all';
+      const categoryFilter = document.getElementById('categoryFilter')?.value || 'all';
+      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
+
+      filteredAuctionsList = activeAuctionsList.filter(item => {
+        if ((item.status === 'pending' || item.status === 'PENDING') && statusFilter !== 'pending') {
+          const cleanItemSeller = (item.seller || '').trim().toLowerCase();
+          const cleanCurrentUsr = currentUsername.trim().toLowerCase();
+          const isRealSeller = cleanCurrentUsr && cleanItemSeller === cleanCurrentUsr;
+          
+          if (!isAdminOrDev && !isRealSeller && statusFilter !== 'all') {
+            return false;
+          }
+        }
+
+        const matchesQuery = (item.title || '').toLowerCase().includes(query) || 
+                             (item.description || '').toLowerCase().includes(query) || 
+                             (item.seller || '').toLowerCase().includes(query);
+        
+        if (!matchesQuery) return false;
+        if (categoryFilter !== 'all' && item.category && item.category !== categoryFilter) return false;
+
+        if (statusFilter === 'all') return item.status !== 'cancelled';
+        if (statusFilter === 'active') return item.status === 'active' || !item.status;
+        if (statusFilter === 'pending') return item.status === 'pending' || item.status === 'PENDING';
+        if (statusFilter === 'my_listings') return currentUsername && item.seller === currentUsername;
+        if (statusFilter === 'my_bids') return currentUsername && item.highest_bidder === currentUsername;
+        if (statusFilter === 'ended') return item.status === 'ended' || item.status === 'finished';
+        if (statusFilter === 'cancelled') return item.status === 'cancelled';
+
+        return true;
+      });
+
+      renderGallery();
+    }
+
     function renderGallery() {
       const mainContent = document.getElementById('mainContent');
       if (!mainContent) return;
-      if (!activeAuctionsList || activeAuctionsList.length === 0) {
-        mainContent.innerHTML = `<div class="text-center py-12 text-gray-500 text-xs">Belum ada aset lelang tersedia.</div>`;
+
+      if (!filteredAuctionsList || filteredAuctionsList.length === 0) {
+        mainContent.innerHTML = `
+          <div class="text-center py-12 space-y-3">
+            <p class="text-gray-500 text-xs">${t('emptyGallery')}</p>
+            <button onclick="handleOpenCreateModal()" class="bg-yellow-500 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs shadow-lg hover:bg-yellow-400 transition">
+              ${t('firstReleaseBtn')}
+            </button>
+          </div>
+        `;
         return;
       }
-      mainContent.innerHTML = `<div class="grid grid-cols-1 gap-3">` + activeAuctionsList.map(auction => `
-        <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex items-center gap-3">
-          <img src="${auction.image_url || 'https://via.placeholder.com/150'}" class="w-16 h-16 object-cover rounded-lg">
-          <div class="flex-1 min-w-0">
-            <h3 class="font-bold text-xs text-white truncate">${auction.title || 'Untitled'}</h3>
-            <p class="text-[10px] text-emerald-400 font-bold">${auction.highest_bid || auction.reserve_price || 0} Pi</p>
+
+      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
+
+      const htmlChunks = [];
+      htmlChunks.push('<div class="grid grid-cols-1 gap-3">');
+
+      filteredAuctionsList.forEach(auction => {
+        const title = SecureShield.sanitizeHTML(auction.title || 'Untitled');
+        const seller = SecureShield.maskUsername(auction.seller || 'Anon');
+        const price = parseFloat(auction.highest_bid || auction.reserve_price || 0);
+        const catBadgeText = getCategoryLabel(auction.category);
+
+        let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">${t('activeStatus')}</span>`;
+        if (auction.status === 'pending') {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">${t('pendingStatus')}</span>`;
+        } else if (auction.status === 'finished' || auction.status === 'ended') {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-800 text-gray-400">${t('finishedStatus')}</span>`;
+        } else if (auction.status === 'cancelled') {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400 border border-red-500/40">${t('cancelledStatus')}</span>`;
+        }
+
+        const eventBadgeHTML = auction.is_event ? `<span class="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">EVENT</span>` : '';
+
+        let adminActionControls = '';
+        if (isAdminOrDev) {
+          const nextStatus = auction.status === 'active' ? 'pending' : 'active';
+          const btnLabel = auction.status === 'active' ? t('btnSetPending') : t('btnSetActive');
+          adminActionControls = `
+            <div class="flex gap-1 pt-1 border-t border-gray-800/80 mt-1 justify-end">
+              <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold cursor-pointer">
+                ${btnLabel}
+              </button>
+              <button onclick="adminToggleEventBadge('${auction.id}', ${!!auction.is_event})" class="text-[9px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 px-2 py-0.5 rounded font-bold cursor-pointer">
+                ⭐ Event
+              </button>
+              <button onclick="adminDeleteAuction('${auction.id}')" class="text-[9px] bg-red-900/60 hover:bg-red-800 text-red-200 px-2 py-0.5 rounded font-bold cursor-pointer">
+                ${t('btnDeleteAsset')}
+              </button>
+            </div>
+          `;
+        }
+
+        htmlChunks.push(`
+          <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2 hover:border-yellow-500/50 transition shadow-md">
+            <div class="flex gap-3 items-center">
+              <div class="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 border border-gray-800">
+                <img src="${auction.image_url || 'https://via.placeholder.com/150'}" loading="lazy" class="w-full h-full object-cover">
+              </div>
+
+              <div class="flex-1 min-w-0 space-y-1">
+                <div class="flex justify-between items-start gap-1">
+                  <div class="flex flex-col gap-1 min-w-0">
+                    <h3 class="font-bold text-xs text-white truncate">${title}</h3>${eventBadgeHTML}
+                  </div>
+                  ${statusBadge}
+                </div>
+
+                <div class="flex items-center gap-1.5 text-[9px]">
+                  <span class="bg-gray-900 text-yellow-400 px-1.5 py-0.5 rounded border border-gray-800 font-semibold">${catBadgeText}</span>
+                  <span class="text-gray-400">${t('sellerLabel')}: <span class="text-yellow-400 font-mono">@${seller}</span></span>
+                </div>
+                <div class="flex justify-between items-center text-[11px] pt-0.5">
+                  <span class="text-emerald-400 font-bold">${price} Pi</span>
+                  <div class="flex items-center gap-1">
+                    ${(() => {
+                      const verifiedAccess = window._Background_Security_Engine.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES);
+                      if (verifiedAccess) {
+                        return `<button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Details & Bid</button>`;
+                      } else {
+                        return `<button disabled class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-not-allowed opacity-50" title="Akses Details & Bid khusus pembeli terdaftar">🔒 Details & Bid</button>`;
+                      }
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+            ${adminActionControls}
           </div>
-        </div>
-      `).join('') + `</div>`;
+        `);
+      });
+
+      htmlChunks.push('</div>');
+      mainContent.innerHTML = htmlChunks.join('');
+    }
+
+    function openDetailModalWithData(auctionId) {
+      window.location.href = `auction-detail.html?id=${auctionId}`;
+    }
+
+    function setupRealtimeSubscription() {
+      if (!supabaseClient) return;
+      try {
+        supabaseClient.channel('public-cluster-auctions')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
+            fetchActiveAuctions();
+          })
+          .subscribe();
+      } catch (e) {}
     }
 
     function triggerAggressiveRefresh() {
       fetchActiveAuctions();
+      fetchBuyersList();
+      if (authenticatedPiUser) checkBuyerStatusInDatabase(authenticatedPiUser.username);
     }
   </script>
 </body>
