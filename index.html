@@ -249,118 +249,43 @@
       }
     };
 
-    const SAVED_ACCOUNTS_KEY = 'pibox_saved_verified_accounts';
+    // --- MODUL AUTENTIKASI RESMI PI NETWORK SDK (TANPA PASSWORD) ---
+    const _PiAuthGuardianEngine = {
+      version: "2.0.0-pi-native",
+      activeSession: null,
+      enforceStability: function() {
+        return true;
+      }
+    };
 
-    function openSemiAutoLoginModal() {
-      renderSavedAccountsList();
-      document.getElementById('semiAutoLoginModal').classList.remove('hidden');
-    }
-
-    function closeSemiAutoLoginModal() {
-      document.getElementById('semiAutoLoginModal').classList.add('hidden');
-    }
-
-    function renderSavedAccountsList() {
-      const container = document.getElementById('savedAccountsContainer');
-      const listEl = document.getElementById('savedAccountsList');
-      const savedAccounts = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-
-      if (savedAccounts.length === 0) {
-        container.classList.add('hidden');
+    async function authenticatePiUser(isAuto = false) {
+      const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      if (!piInstance) {
+        if (!isAuto) {
+          alert("⚠️ SDK Pi Network tidak terdeteksi. Silakan buka aplikasi ini melalui Pi Browser resmi.");
+        }
         return;
       }
 
-      container.classList.remove('hidden');
-      listEl.innerHTML = savedAccounts.map(acc => `
-        <div class="flex items-center justify-between bg-gray-900 hover:bg-gray-800 border border-emerald-500/30 rounded-xl p-2.5 transition">
-          <button onclick="quickLoginWithSavedAccount('${acc.username}', '${acc.token}')" class="flex-1 flex items-center gap-2 text-left cursor-pointer">
-            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <div>
-              <p class="text-xs font-bold text-white">@${acc.username}</p>
-              <p class="text-[9px] text-emerald-400">Terverifikasi • Klik untuk masuk</p>
-            </div>
-          </button>
-          <button onclick="removeSavedAccount('${acc.username}')" title="Hapus dari perangkat ini" class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer">
-            ✕
-          </button>
-        </div>
-      `).join('');
-    }
+      try {
+        const scopes = ['username', 'payments'];
+        const onIncompletePaymentFound = function(payment) {};
 
-    async function processManualLoginSubmit() {
-      const rawUser = document.getElementById('manualLoginUsername').value.trim().replace(/^@/, '');
-      const rawPass = document.getElementById('manualLoginPassword').value.trim();
-
-      if (!rawUser || !rawPass) {
-        alert("⚠️ Harap isi Username dan Password Keamanan Anda.");
-        return;
-      }
-
-      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-        try {
-          let { data: secRecord, error } = await supabaseClient
-            .from('pioneers_security')
-            .select('*')
-            .eq('username', rawUser)
-            .maybeSingle();
-
-          if (error) throw error;
-
-          if (!secRecord) {
-            const { error: insertErr } = await supabaseClient
-              .from('pioneers_security')
-              .insert([{ username: rawUser, password_hash: rawPass }]);
-
-            if (insertErr) throw insertErr;
-          } else if (secRecord.password_hash !== rawPass) {
-            alert(`🚨 Password salah untuk akun @${rawUser}! Akses ditolak.`);
-            return;
-          }
-        } catch (err) {
-          alert("Gagal verifikasi ke server: " + err.message);
-          return;
+        const authResult = await piInstance.authenticate(scopes, onIncompletePaymentFound);
+        if (authResult && authResult.user && authResult.user.username) {
+          const username = authResult.user.username;
+          finalizePiLoginSession(username);
+        } else {
+          throw new Error("Gagal mendapatkan data pengguna dari jaringan Pi.");
+        }
+      } catch (error) {
+        if (!isAuto) {
+          alert("Autentikasi Pi Gagal: " + (error.message || error));
         }
       }
-
-      saveAccountToDevice(rawUser, rawPass);
-      finalizeLoginSession(rawUser);
-      closeSemiAutoLoginModal();
     }
 
-    async function quickLoginWithSavedAccount(username, savedToken) {
-      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-        const { data: secRecord } = await supabaseClient
-          .from('pioneers_security')
-          .select('password_hash')
-          .eq('username', username)
-          .maybeSingle();
-
-        if (secRecord && secRecord.password_hash !== savedToken) {
-          alert("⚠️ Sesi kadaluarsa atau password telah diubah. Silakan masukkan password kembali.");
-          removeSavedAccount(username);
-          return;
-        }
-      }
-
-      finalizeLoginSession(username);
-      closeSemiAutoLoginModal();
-    }
-
-    function saveAccountToDevice(username, token) {
-      let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-      saved = saved.filter(item => item.username !== username);
-      saved.unshift({ username, token });
-      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
-    }
-
-    function removeSavedAccount(username) {
-      let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-      saved = saved.filter(item => item.username !== username);
-      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
-      renderSavedAccountsList();
-    }
-
-    function finalizeLoginSession(username) {
+    function finalizePiLoginSession(username) {
       authenticatedPiUser = { username: username };
       
       const statusEl = document.getElementById('userStatusDisplay');
@@ -371,17 +296,6 @@
 
       if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(username);
       if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
-    }
-
-    function authenticatePiUser(isAuto = false) {
-      if (isAuto) {
-        const saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-        if (saved.length > 0) {
-          quickLoginWithSavedAccount(saved[0].username, saved[0].token);
-          return;
-        }
-      }
-      openSemiAutoLoginModal();
     }
   </script>
 
@@ -578,41 +492,6 @@
       </button>
     </div>
 
-  </div>
-
-  <!-- MODAL: LOGIN SEMI-OTOMATIS -->
-  <div id="semiAutoLoginModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
-    <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl">
-      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
-        <div>
-          <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider">🔑 Akses Akun Pi Network</h2>
-          <p class="text-[9px] text-gray-400">Pilih akun tersimpan atau daftarkan akun baru</p>
-        </div>
-        <button onclick="closeSemiAutoLoginModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
-      </div>
-
-      <div id="savedAccountsContainer" class="space-y-2 hidden">
-        <label class="block text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">⚡ Klik Akun Anda untuk Masuk Cepat:</label>
-        <div id="savedAccountsList" class="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar"></div>
-        <div class="border-t border-gray-800 my-2 pt-2 text-center">
-          <span class="text-[9px] text-gray-500">Atau masuk dengan akun lain di bawah ini</span>
-        </div>
-      </div>
-
-      <div class="space-y-2.5 text-xs">
-        <div>
-          <label class="block text-gray-300 font-semibold mb-1 text-[11px]">Username Pi Network:</label>
-          <input type="text" id="manualLoginUsername" placeholder="Contoh: Username penjual aslinya" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
-        </div>
-        <div>
-          <label class="block text-gray-300 font-semibold mb-1 text-[11px]">Password Keamanan Unik (1-ke-1):</label>
-          <input type="password" id="manualLoginPassword" placeholder="Masukkan / buat password baru..." class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
-        </div>
-        <button onclick="processManualLoginSubmit()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 rounded-xl text-xs transition shadow-lg cursor-pointer">
-          🔓 Verifikasi & Simpan Akun
-        </button>
-      </div>
-    </div>
   </div>
 
   <!-- MODAL: PENGATURAN JADWAL LELANG -->
@@ -926,7 +805,6 @@
       if (langSel) langSel.value = currentLang;
       applyTranslations();
       
-      // Inisialisasi dropdown jam & fungsi listener dari file eksternal auction-schedule.js
       if (typeof populateHourDropdownOptions === 'function') {
         populateHourDropdownOptions();
       }
