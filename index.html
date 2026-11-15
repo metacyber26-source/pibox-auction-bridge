@@ -53,6 +53,108 @@
       }
     };
 
+    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA & FUNGSI (TEGAS & KONSISTEN) ---
+    const _AgiNeuralEnforcementCore = {
+      version: "9.9.0-agi-guardian",
+      securityState: "STRICT_ENFORCEMENT",
+      validateAdminAction: function(username) {
+        if (!username || typeof username !== 'string') return false;
+        const cleanUser = username.trim();
+        return typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(cleanUser);
+      },
+      enforceStrictLogic: function(actionName, username) {
+        if (!this.validateAdminAction(username)) {
+          console.warn(`[AGI-SECURITY] Akses ilegal terdeteksi pada fungsi [${actionName}] oleh user: @${username}`);
+          throw new Error("⛔ AKSES DITOLAK: Hanya Admin yang berhak mengeksekusi fungsi ini.");
+        }
+        return true;
+      }
+    };
+
+    // Fungsi Tombol List Aset / Barang (Hanya Admin)
+    function handleOpenCreateModal() {
+      try {
+        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        _AgiNeuralEnforcementCore.enforceStrictLogic("List Aset/Barang", currentUsr);
+
+        const creatorInput = document.getElementById('creatorAdminInput');
+        if (creatorInput) creatorInput.value = currentUsr;
+        
+        const realSellerInput = document.getElementById('realSellerUsernameInput');
+        const walletInput = document.getElementById('piboxWalletInput');
+        
+        if (realSellerInput && !realSellerInput.value) realSellerInput.value = currentUsr;
+        if (walletInput && !walletInput.value) walletInput.value = currentUsr;
+
+        document.getElementById('createModal').classList.remove('hidden');
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    // Fungsi Tombol Set Aktifkan Aset (Hanya Admin)
+    async function adminToggleAuctionStatus(auctionId, targetStatus) {
+      try {
+        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        _AgiNeuralEnforcementCore.enforceStrictLogic("Set Aktifkan Aset", currentUsr);
+        if (!supabaseClient) throw new Error("Database tidak terhubung.");
+
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ status: targetStatus })
+          .eq('id', auctionId);
+
+        if (error) throw error;
+        await fetchActiveAuctions();
+        alert(`✅ [AGI Engine] Status aset berhasil diubah menjadi: ${targetStatus.toUpperCase()}`);
+      } catch (err) {
+        alert("Gagal mengubah status: " + err.message);
+      }
+    }
+
+    // Fungsi Tombol Event (Hanya Admin)
+    async function adminToggleEventBadge(auctionId, currentEventState) {
+      try {
+        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        _AgiNeuralEnforcementCore.enforceStrictLogic("Set Event Aset", currentUsr);
+        if (!supabaseClient) throw new Error("Database tidak terhubung.");
+
+        const newEventState = !currentEventState;
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({ is_event: newEventState })
+          .eq('id', auctionId);
+
+        if (error) throw error;
+        await fetchActiveAuctions();
+        alert(`⭐ [AGI Engine] Status Event aset berhasil diperbarui menjadi: ${newEventState ? 'AKTIF (EVENT)' : 'NON-EVENT'}`);
+      } catch (err) {
+        alert("Gagal memperbarui status event: " + err.message);
+      }
+    }
+
+    // Fungsi Tombol Hapus Aset (Hanya Admin)
+    async function adminDeleteAuction(auctionId) {
+      try {
+        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        _AgiNeuralEnforcementCore.enforceStrictLogic("Hapus Aset", currentUsr);
+        
+        if (!confirm("⚠️ [AGI Security Warning] Apakah Anda yakin ingin menghapus aset ini secara permanen dari sistem?")) return;
+        if (!supabaseClient) throw new Error("Database tidak terhubung.");
+
+        const { error } = await supabaseClient
+          .from('auctions')
+          .delete()
+          .eq('id', auctionId);
+
+        if (error) throw error;
+        await fetchActiveAuctions();
+        alert("🗑️ [AGI Engine] Aset berhasil dihapus secara permanen.");
+      } catch (err) {
+        alert("Gagal menghapus aset: " + err.message);
+      }
+    }
+
     // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI (DIJALANKAN SECARA TEGAS & LANCAR) ---
     const _NeuralCoreEngine = {
       status: "OPTIMIZED",
@@ -2799,7 +2901,7 @@
                 ${sanitizedText ? `<button onclick="copyChatMessage(\`${encodeURIComponent(msg.message)}\`, this)" class="underline opacity-80 hover:opacity-100 cursor-pointer flex items-center gap-1 font-bold">📋 Salin</button>` : ''}
               </div>
             </div>
-          </div>`;
+          `;
         });
 
         box.innerHTML = html;
@@ -3832,12 +3934,11 @@
         return;
       }
 
-      // SEMUA BIAYA / PEMBEBANAN MULAI PENAWARAN KE-6 DAN SETERUSNYA DIHAPUS SEPENUHNYA DI SINI
       let requiredBidFee = 0; 
       if (nextBidNumber === 1) {
         requiredBidFee = 0.2;
       } else {
-        requiredBidFee = 0; // Biaya mulai penawaran ke-6 ditiadakan total
+        requiredBidFee = 0; 
       }
 
       const executeBidProcess = async () => {
@@ -3926,31 +4027,6 @@
         return;
       }
       placeBidOnAuction(auctionId, enteredValue);
-    }
-
-    function handleOpenCreateModal() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      const creatorInput = document.getElementById('creatorAdminInput');
-      if (creatorInput) creatorInput.value = authenticatedPiUser.username;
-      
-      const realSellerInput = document.getElementById('realSellerUsernameInput');
-      const walletInput = document.getElementById('piboxWalletInput');
-      
-      if (!isAdminOrDev) {
-        if (realSellerInput) realSellerInput.value = authenticatedPiUser.username;
-        if (walletInput) walletInput.value = authenticatedPiUser.username;
-      }
-
-      document.getElementById('createModal').classList.remove('hidden');
-    }
-
-    function closeCreateModal() {
-      document.getElementById('createModal').classList.add('hidden');
     }
 
     function setupRealtimeSubscription() {
