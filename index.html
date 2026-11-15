@@ -20,6 +20,9 @@
   <!-- MODUL TERJEMAHAN EKSTERNAL -->
   <script src="i18n.js"></script>
 
+  <!-- MODUL EKSTERNAL JADWAL LELANG -->
+  <script src="auction-schedule.js"></script>
+
   <!-- SECURE CORE & BACKGROUND GUARDIAN -->
   <script>
     (function() {
@@ -640,7 +643,7 @@
           <div>
             <div id="instantTriggerContainer" class="hidden bg-emerald-950/40 p-3 rounded-xl border border-emerald-500/40 space-y-2">
               <p class="text-[10px] text-emerald-300 font-semibold">⚡ Mode Instan: Lelang akan langsung aktif terhitung dari sekarang dan otomatis tertutup setelah tepat 60 menit.</p>
-              <button onclick="triggerInstantOneHourAuction()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
+              <button onclick="triggerInstantOneHourAuction(supabaseClient, ADMIN_USERNAMES, authenticatedPiUser?.username)" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
                 🚀 Buka Lelang Sekarang (Durasi 60 Menit)
               </button>
             </div>
@@ -680,7 +683,7 @@
 
       <div class="flex gap-2 pt-2">
         <button onclick="closeScheduleModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer" data-i18n="cancelBtn">Batal</button>
-        <button onclick="saveAuctionScheduleSettings()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs py-2.5 rounded-xl transition cursor-pointer shadow-lg" data-i18n="saveScheduleBtn">💾 Simpan Jadwal</button>
+        <button onclick="saveAuctionScheduleSettings(supabaseClient, ADMIN_USERNAMES, authenticatedPiUser?.username)" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs py-2.5 rounded-xl transition cursor-pointer shadow-lg" data-i18n="saveScheduleBtn">💾 Simpan Jadwal</button>
       </div>
     </div>
   </div>
@@ -883,9 +886,6 @@
     let currentChatRoom = 'forum';
     let currentP2PTarget = '';
     let chatSelectedImageBase64 = '';
-    let auctionScheduleState = { mode: "scheduled", startDate: "2026-11-01", startHour: "00:00", durationHours: 24 };
-    let isAuctionCurrentlyOpen = true;
-    let currentAuctionStatusCode = 3;
     let currentLang = localStorage.getItem('appLang') || 'id';
 
     function t(key) {
@@ -925,12 +925,23 @@
       const langSel = document.getElementById('langSelector');
       if (langSel) langSel.value = currentLang;
       applyTranslations();
-      populateHourDropdownOptions();
+      
+      // Inisialisasi dropdown jam & fungsi listener dari file eksternal auction-schedule.js
+      if (typeof populateHourDropdownOptions === 'function') {
+        populateHourDropdownOptions();
+      }
+      if (typeof fetchAndListenAuctionSchedule === 'function') {
+        fetchAndListenAuctionSchedule(supabaseClient, () => {
+          if (typeof checkAuctionScheduleUI === 'function') checkAuctionScheduleUI();
+        });
+      }
+      setInterval(() => {
+        if (typeof checkAuctionScheduleUI === 'function') checkAuctionScheduleUI();
+      }, 1000);
+
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
-      fetchAndListenAuctionSchedule();
-      setInterval(checkAuctionSchedule, 1000);
       
       initPiSDK();
 
@@ -941,23 +952,6 @@
         }
       }, 800);
     });
-
-    async function fetchAndListenAuctionSchedule() {
-      if (!supabaseClient) return;
-      try {
-        const { data, error } = await supabaseClient
-          .from('app_settings')
-          .select('value')
-          .eq('key', 'auction_schedule')
-          .maybeSingle();
-          
-        if (error) throw error;
-        if (data && data.value) {
-          auctionScheduleState = data.value;
-          checkAuctionSchedule();
-        }
-      } catch (e) {}
-    }
 
     function updateNetworkBannerUI() {
       const badge = document.getElementById('networkModeBadge');
@@ -1092,17 +1086,6 @@
       } catch(e) {}
     }
 
-    function populateHourDropdownOptions() {
-      const hourSelect = document.getElementById('scheduleStartHourSelect');
-      if (!hourSelect) return;
-      let html = '';
-      for (let h = 0; h < 24; h++) {
-        const hStr = h.toString().padStart(2, '0') + ':00';
-        html += `<option value="${hStr}">${hStr} WIB</option>`;
-      }
-      hourSelect.innerHTML = html;
-    }
-
     function openScheduleModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
         alert("Akses Ditolak: Hanya Admin dan Developer!");
@@ -1113,112 +1096,6 @@
 
     function closeScheduleModal() {
       document.getElementById('scheduleModal').classList.add('hidden');
-    }
-
-    function toggleScheduleInputVisibility() {
-      const mode = document.getElementById('scheduleModeSelect').value;
-      const container = document.getElementById('scheduledInputsContainer');
-      const instantContainer = document.getElementById('instantTriggerContainer');
-      if (mode === 'scheduled') {
-        container.classList.remove('hidden');
-        if (instantContainer) instantContainer.classList.add('hidden');
-      } else if (mode === 'instant_one_hour') {
-        container.classList.add('hidden');
-        if (instantContainer) instantContainer.classList.remove('hidden');
-      } else {
-        container.classList.add('hidden');
-        if (instantContainer) instantContainer.classList.add('hidden');
-      }
-    }
-
-    async function saveAuctionScheduleSettings() {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) return;
-      const mode = document.getElementById('scheduleModeSelect').value;
-      const y = document.getElementById('schedYear')?.value || '2026';
-      const m = (document.getElementById('schedMonth')?.value || '11').padStart(2, '0');
-      const d = (document.getElementById('schedDay')?.value || '01').padStart(2, '0');
-      const startDate = `${y}-${m}-${d}`;
-      const startHour = document.getElementById('scheduleStartHourSelect').value;
-      const durationHours = parseInt(document.getElementById('scheduleDurationSelect').value, 10) || 24;
-
-      const newSchedule = { mode, startDate, startHour, durationHours };
-      if (!supabaseClient) return;
-
-      try {
-        await supabaseClient.from('app_settings').upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }], { onConflict: 'key' });
-        auctionScheduleState = newSchedule;
-        checkAuctionSchedule();
-        alert("✅ Jadwal Berhasil Tersimpan!");
-        closeScheduleModal();
-      } catch (err) {}
-    }
-
-    async function triggerInstantOneHourAuction() {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) return;
-      const nowWib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-      const y = nowWib.getFullYear();
-      const m = String(nowWib.getMonth() + 1).padStart(2, '0');
-      const d = String(nowWib.getDate()).padStart(2, '0');
-      const h = String(nowWib.getHours()).padStart(2, '0');
-      const min = String(nowWib.getMinutes()).padStart(2, '0');
-
-      const newSchedule = {
-        mode: 'instant_one_hour',
-        startDate: `${y}-${m}-${d}`,
-        startHour: `${h}:${min}`,
-        durationHours: 1,
-        instantTimestamp: nowWib.getTime()
-      };
-
-      if (!supabaseClient) return;
-      try {
-        await supabaseClient.from('app_settings').upsert([{ key: 'auction_schedule', value: newSchedule, updated_at: new Date().toISOString() }], { onConflict: 'key' });
-        auctionScheduleState = newSchedule;
-        checkAuctionSchedule();
-        alert("🚀 Berhasil! Lelang langsung dibuka 1 jam ke depan.");
-        closeScheduleModal();
-      } catch (err) {}
-    }
-
-    const _AuctionTimeGuardian = {
-      formatCountdown: function(totalSeconds) {
-        if (totalSeconds <= 0) return "00:00:00";
-        const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
-        const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
-        const s = (totalSeconds % 60).toString().padStart(2, '0');
-        return `${h}:${m}:${s}`;
-      }
-    };
-
-    function checkAuctionSchedule() {
-      const infoText = document.getElementById('auctionInfoText');
-      const badge = document.getElementById('sessionStateBadge');
-      if (!infoText || !badge) return;
-
-      const mode = auctionScheduleState.mode || 'scheduled';
-      if (mode === 'instant_one_hour') {
-        const instantStart = auctionScheduleState.instantTimestamp || new Date(`${auctionScheduleState.startDate}T${auctionScheduleState.startHour}:00`).getTime();
-        const endTime = instantStart + (60 * 60 * 1000);
-        const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" })).getTime();
-
-        infoText.innerText = `Mode Instan: Aktif 1 Jam`;
-        if (now <= endTime) {
-          isAuctionCurrentlyOpen = true;
-          currentAuctionStatusCode = 3;
-          badge.innerText = `🔥 LELANG INSTAN: ${_AuctionTimeGuardian.formatCountdown(Math.max(0, Math.floor((endTime - now) / 1000)))}`;
-          badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
-        } else {
-          isAuctionCurrentlyOpen = false;
-          currentAuctionStatusCode = 4;
-          badge.innerText = `🏁 LELANG SELESAI (00:00:00)`;
-          badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
-        }
-      } else {
-        isAuctionCurrentlyOpen = true;
-        currentAuctionStatusCode = 3;
-        badge.innerText = "🔥 BUKA LIVE 24/7";
-        badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md tracking-wider";
-      }
     }
 
     function openMonthlyReportModal() {
