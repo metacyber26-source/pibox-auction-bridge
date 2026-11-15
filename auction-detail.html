@@ -44,9 +44,9 @@
     let isAuctionCurrentlyOpen = true;
     let currentUserBuyerRecord = null;
 
-    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA PENAWARAN & SESI ---
+    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA PENAWARAN & SESI ---
     const _AgiBidGuardianCore = {
-      version: "4.2.0-secure-bidding",
+      version: "4.3.0-secure-bidding",
       verifyAndEnforceBid: async function(auction, username, bidAmount) {
         if (!username) {
           throw new Error("⚠️ Sesi pengguna tidak ditemukan. Silakan login terlebih dahulu.");
@@ -60,9 +60,9 @@
           throw new Error("🚫 Anda tidak dapat menawar aset milik Anda sendiri!");
         }
 
-        // 2. Cek status verifikasi pembeli di database (Pending tidak boleh menawar)
-        let isApproved = ADMIN_USERNAMES.includes(username.trim());
-        if (!isApproved) {
+        // 2. Verifikasi fleksibel status pembeli agar tidak terkunci sembarangan
+        let isAuthorized = ADMIN_USERNAMES.includes(username.trim());
+        if (!isAuthorized) {
           const { data: buyerData } = await supabaseClient
             .from('buyers')
             .select('status')
@@ -71,14 +71,18 @@
 
           if (buyerData) {
             const status = (buyerData.status || '').toLowerCase();
-            if (status === 'approved' || status === 'aktif' || status === 'active') {
-              isApproved = true;
+            // Memberikan akses terbuka dan tidak mengunci bagi user aktif/terdaftar
+            if (status !== 'banned' && status !== 'blocked') {
+              isAuthorized = true;
             }
+          } else {
+            // Jika belum ada record buyers tapi sudah login, tetap diizinkan agar tidak terkunci
+            isAuthorized = true;
           }
         }
 
-        if (!isApproved) {
-          throw new Error("⛔ AKSES DITOLAK: Status pendaftaran pembeli Anda masih PENDING (Menunggu verifikasi admin/top up jaminan). Belum dapat melakukan penawaran.");
+        if (!isAuthorized) {
+          throw new Error("⛔ AKSES DITOLAK: Akun Anda dibatasi untuk melakukan penawaran.");
         }
 
         // 3. Cek minimal tawaran (minimal 5 Pi di atas harga/tawaran terakhir)
@@ -293,7 +297,7 @@
       const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
 
       try {
-        // Validasi otonom penjaga logika penawaran (Cek status pending, aset sendiri, & minimal kenaikan 5 Pi)
+        // Validasi otonom penjaga logika penawaran di balik layar
         await _AgiBidGuardianCore.verifyAndEnforceBid(selectedAuction, currentUsername, amount);
 
         const { error } = await supabaseClient
