@@ -53,9 +53,9 @@
       }
     };
 
-    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA & FUNGSI (TEGAS & KONSISTEN) ---
+    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI (TEGAS & KONSISTEN) ---
     const _AgiNeuralEnforcementCore = {
-      version: "9.9.0-agi-guardian",
+      version: "9.9.0-guardian",
       securityState: "STRICT_ENFORCEMENT",
       validateAdminAction: function(username) {
         if (!username || typeof username !== 'string') return false;
@@ -64,19 +64,17 @@
       },
       enforceStrictLogic: function(actionName, username) {
         if (!this.validateAdminAction(username)) {
-          console.warn(`[AGI-SECURITY] Akses ilegal terdeteksi pada fungsi [${actionName}] oleh user: @${username}`);
-          throw new Error("⛔ AKSES DITOLAK: Hanya Admin yang berhak mengeksekusi fungsi ini.");
+          console.warn(`[SECURITY] Akses ilegal terdeteksi pada fungsi [${actionName}] oleh user: @${username}`);
+          throw new Error("⛔ AKSES DITOLAK: Hanya Admin yang berhak mengunci, membuka, atau mengeksekusi fungsi ini.");
         }
         return true;
       }
     };
 
-    // Fungsi Tombol List Aset / Barang (Hanya Admin)
+    // Fungsi Tombol List Aset / Barang (Selalu Aktif, Proteksi Admin untuk Eksekusi/Penguncian)
     function handleOpenCreateModal() {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        _AgiNeuralEnforcementCore.enforceStrictLogic("List Aset/Barang", currentUsr);
-
         const creatorInput = document.getElementById('creatorAdminInput');
         if (creatorInput) creatorInput.value = currentUsr;
         
@@ -106,7 +104,7 @@
 
         if (error) throw error;
         await fetchActiveAuctions();
-        alert(`✅ [AGI Engine] Status aset berhasil diubah menjadi: ${targetStatus.toUpperCase()}`);
+        alert(`✅ Status aset berhasil diubah menjadi: ${targetStatus.toUpperCase()}`);
       } catch (err) {
         alert("Gagal mengubah status: " + err.message);
       }
@@ -127,7 +125,7 @@
 
         if (error) throw error;
         await fetchActiveAuctions();
-        alert(`⭐ [AGI Engine] Status Event aset berhasil diperbarui menjadi: ${newEventState ? 'AKTIF (EVENT)' : 'NON-EVENT'}`);
+        alert(`⭐ Status Event aset berhasil diperbarui menjadi: ${newEventState ? 'AKTIF (EVENT)' : 'NON-EVENT'}`);
       } catch (err) {
         alert("Gagal memperbarui status event: " + err.message);
       }
@@ -139,7 +137,7 @@
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
         _AgiNeuralEnforcementCore.enforceStrictLogic("Hapus Aset", currentUsr);
         
-        if (!confirm("⚠️ [AGI Security Warning] Apakah Anda yakin ingin menghapus aset ini secara permanen dari sistem?")) return;
+        if (!confirm("⚠️ Apakah Anda yakin ingin menghapus aset ini secara permanen dari sistem?")) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const { error } = await supabaseClient
@@ -149,7 +147,7 @@
 
         if (error) throw error;
         await fetchActiveAuctions();
-        alert("🗑️ [AGI Engine] Aset berhasil dihapus secara permanen.");
+        alert("🗑️ Aset berhasil dihapus secara permanen.");
       } catch (err) {
         alert("Gagal menghapus aset: " + err.message);
       }
@@ -2531,13 +2529,11 @@
 
           badge.innerText = `🔥 LELANG INSTAN: ${countdownStr}`;
           badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
-          setListButtonState(true, "+ List Aset/Barang");
         } else {
           isAuctionCurrentlyOpen = false;
           currentAuctionStatusCode = 4;
           badge.innerText = `🏁 LELANG SELESAI (00:00:00)`;
           badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
-          setListButtonState(false, "🔒 Waktu Lelang 1 Jam Habis");
         }
         return;
       }
@@ -2561,7 +2557,6 @@
             currentAuctionStatusCode = 1;
             badge.innerText = "⏳ MENUNGGU JADWAL (00:00:00)";
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-gray-800 text-gray-400 border border-gray-700 shadow-md tracking-wider";
-            setListButtonState(false, "🔒 List Aset Dikunci");
           } else if (now >= preOpenTime && now < startTime) {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 2;
@@ -2570,7 +2565,6 @@
 
             badge.innerText = `⏱️ BUKA DALAM: ${countdownStr}`;
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-md animate-pulse tracking-wider";
-            setListButtonState(false, "🔒 List Aset Dikunci (Persiapan)");
           } else if (now >= startTime && now <= endTime) {
             isAuctionCurrentlyOpen = true;
             currentAuctionStatusCode = 3;
@@ -2579,31 +2573,25 @@
 
             badge.innerText = `🔥 BERLANGSUNG: ${countdownStr}`;
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md animate-pulse tracking-wider";
-            setListButtonState(true, "+ List Aset/Barang");
           } else {
             isAuctionCurrentlyOpen = false;
             currentAuctionStatusCode = 4;
             badge.innerText = `🏁 SESI TUTUP (00:00:00)`;
             badge.className = "text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-red-500/20 text-red-400 border border-red-500/50 shadow-md tracking-wider";
-            setListButtonState(false, "🔒 Sesi Lelang Selesai");
           }
         }
       }
     }
 
-    function setListButtonState(isOpen, textLabel) {
+    // Tombol list aset selalu aktif/terbuka secara UI, dengan penguncian aksi dilakukan oleh admin di belakang layar.
+    document.addEventListener("DOMContentLoaded", () => {
       const btnHeaderCreate = document.getElementById('btnHeaderCreate');
-      if (!btnHeaderCreate) return;
-      if (isOpen) {
+      if (btnHeaderCreate) {
         btnHeaderCreate.disabled = false;
         btnHeaderCreate.className = "text-center text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-1 cursor-pointer";
-        btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
-      } else {
-        btnHeaderCreate.disabled = true;
-        btnHeaderCreate.className = "text-center text-[10px] bg-gray-800 text-gray-500 font-bold px-3 py-1.5 rounded-lg transition duration-200 shadow-inner flex items-center justify-center gap-1 cursor-not-allowed";
-        btnHeaderCreate.innerHTML = `<span>${textLabel}</span>`;
+        btnHeaderCreate.innerHTML = `<span>+ List Aset/Barang</span>`;
       }
-    }
+    });
 
     function openMonthlyReportModal() {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
@@ -3739,7 +3727,7 @@
       }
 
       let bidActionSection = '';
-      const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
+      const isBiddingAllowed = status === 'active';
 
       if (!isBiddingAllowed) {
         bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">🔒 Penawaran non-aktif.</div>`;
@@ -3897,11 +3885,6 @@
 
       if (!isAdminOrDev && !isBuyerApproved) {
         alert("⛔ Status akun Anda masih Pending. Harap lakukan Top Up Jaminan minimal 35 Pi.");
-        return;
-      }
-
-      if (!isAuctionCurrentlyOpen) {
-        alert("🔴 Lelang sedang ditutup.");
         return;
       }
 
