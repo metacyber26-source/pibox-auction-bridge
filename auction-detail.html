@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detail Lelang & Penawaran Aset - PiBox Bridge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 flex flex-col items-center justify-start min-h-screen p-3">
+
+  <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4 shadow-2xl">
+    <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+      <div>
+        <h2 id="modalDetailTitle" class="text-sm font-bold text-gray-100">Detail Lelang Aset / Barang</h2>
+        <p class="text-[10px] text-yellow-400 font-medium">Modul Penawaran & Verifikasi On-Chain</p>
+      </div>
+      <a href="index.html" class="text-gray-400 hover:text-white font-bold text-lg cursor-pointer">&times; Kembali</a>
+    </div>
+
+    <!-- Konten Detail & Bidding Dinamis -->
+    <div id="modalDetailContent" class="space-y-3 text-xs">
+      <div class="text-center py-10 text-gray-500 animate-pulse">Memuat detail aset...</div>
+    </div>
+  </div>
+
+  <!-- Modal Zoom Gambar -->
+  <div id="imageZoomModal" class="fixed inset-0 bg-black/95 backdrop-blur-md hidden flex items-center justify-center p-2 z-[60] cursor-zoom-out" onclick="closeImageZoomModal()">
+    <div class="relative max-w-full max-h-full flex items-center justify-center p-2">
+      <button onclick="closeImageZoomModal()" class="absolute top-2 right-2 text-white bg-gray-800/85 font-bold rounded-full w-8 h-8 flex items-center justify-center text-lg z-10">&times;</button>
+      <img id="zoomedImageElement" class="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl border border-gray-800">
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
+    const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    const ADMIN_USERNAMES = ["Ful21", "s9t9munah"];
+    let selectedAuction = null;
+    let authenticatedPiUser = { username: "Ful21" }; // Default atau disesuaikan dengan sesi aktif
+    let isAuctionCurrentlyOpen = true;
+
+    // Ambil ID Aset dari URL Parameters (Contoh: auction-detail.html?id=UUID)
+    const urlParams = new URLSearchParams(window.location.search);
+    const auctionIdFromUrl = urlParams.get('id');
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (!auctionIdFromUrl) {
+        alert("ID Aset tidak ditemukan.");
+        window.location.href = "index.html";
+        return;
+      }
+      await fetchAuctionDetails(auctionIdFromUrl);
+    });
+
+    async function fetchAuctionDetails(id) {
+      try {
+        const { data, error } = await supabaseClient
+          .from('auctions')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
+        selectedAuction = data;
+        renderDetailContent();
+      } catch (err) {
+        alert("Gagal memuat detail aset: " + err.message);
+        window.location.href = "index.html";
+      }
+    }
+
+    function renderDetailContent() {
+      if (!selectedAuction) return;
+      const content = document.getElementById('modalDetailContent');
+      
+      const title = selectedAuction.title || 'Untitled';
+      const description = selectedAuction.description || 'Tidak ada deskripsi.';
+      const seller = selectedAuction.seller || 'Anon';
+      const price = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
+      const status = selectedAuction.status || 'active';
+      const categoryLabel = selectedAuction.category || 'nft_art';
+      const currentUsername = authenticatedPiUser.username;
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
+
+      let certificateActionSection = '';
+      if (selectedAuction.is_event) {
+        if (isAdminOrDev) {
+          certificateActionSection = `
+            <div class="bg-purple-950/40 border border-purple-500/40 rounded-xl p-3 space-y-2">
+              <p class="text-[10px] text-purple-300 font-bold">🎖️ Panel Sertifikat Event (Khusus Admin):</p>
+              <button onclick="copyCertificateLink()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5">
+                📋 Salin Link Browser Sertifikat
+              </button>
+            </div>
+          `;
+        } else {
+          certificateActionSection = `
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+              <p class="text-[10px] text-gray-500 font-bold">🔒 Sertifikat Event (Akses Terkunci Khusus Admin)</p>
+            </div>
+          `;
+        }
+      }
+
+      let bidActionSection = '';
+      const isBiddingAllowed = (isAuctionCurrentlyOpen && status === 'active');
+
+      if (!isBiddingAllowed) {
+        bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">🔒 Penawaran non-aktif.</div>`;
+      } else {
+        const targetPrice5 = price + 5;
+        const targetPrice10 = price + 10;
+        const targetPrice20 = price + 20;
+        const minManualBid = price + 25;
+
+        bidActionSection = `
+          <div class="space-y-3 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
+            <div>
+              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal:</p>
+              <div class="grid grid-cols-3 gap-1.5">
+                <button onclick="placeBidOnAuction(${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer"><span>+5 Pi</span></button>
+                <button onclick="placeBidOnAuction(${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer"><span>+10 Pi</span></button>
+                <button onclick="placeBidOnAuction(${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer"><span>+20 Pi</span></button>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-gray-800 space-y-1.5">
+              <div class="flex justify-between items-center text-[10px]">
+                <span class="text-gray-300 font-semibold">Manual:</span>
+                <span class="text-yellow-400 font-mono">Min: ${minManualBid} Pi</span>
+              </div>
+              <div class="flex gap-2">
+                <input type="number" step="0.01" id="manualBidInput" min="${minManualBid}" placeholder="Minimal ${minManualBid} Pi" class="flex-1 bg-gray-950 border border-yellow-500/40 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none">
+                <button onclick="submitManualBid(${price})" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs shadow cursor-pointer">Kirim 🚀</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      const mainImg = selectedAuction.image_url || 'https://via.placeholder.com/300';
+      const extraImg = selectedAuction.extra_image_url || selectedAuction.extra_ss_url || '';
+
+      content.innerHTML = `
+        <div class="space-y-3 text-xs">
+          <div class="grid grid-cols-2 gap-2">
+            <div class="space-y-1">
+              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Utama</p>
+              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center cursor-pointer" onclick="openImageZoomModal('${mainImg}')">
+                <img src="${mainImg}" class="w-full h-full object-contain">
+              </div>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[9px] text-gray-400 font-bold text-center">Foto Tambahan</p>
+              <div class="w-full h-36 bg-gray-900 rounded-xl overflow-hidden border border-purple-500/40 flex items-center justify-center">
+                ${extraImg ? `<img src="${extraImg}" class="w-full h-full object-contain cursor-pointer" onclick="openImageZoomModal('${extraImg}')">` : `<div class="text-[10px] text-gray-500">Tidak ada</div>`}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <span class="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 px-2 py-0.5 rounded-md text-[10px] font-bold">${categoryLabel}</span>
+            <h3 class="font-bold text-sm text-yellow-400 mt-1">${title}</h3>
+            <p class="text-[10px] text-gray-300 bg-gray-900 p-2 rounded-lg border border-gray-800 mt-1">${description}</p>
+          </div>
+
+          ${certificateActionSection}
+
+          <div class="bg-red-950/30 border border-red-500/40 rounded-xl p-2.5 space-y-1.5 text-[10px] text-gray-300">
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" id="buyerLegalCheckbox" class="mt-0.5 accent-yellow-500 cursor-pointer">
+              <span class="text-white font-semibold">Saya telah membaca dan menyetujui ketentuan hukum perantara transaksi ini.</span>
+            </label>
+          </div>
+
+          <div class="bg-gray-900 p-2.5 rounded-xl border border-gray-800 space-y-1">
+            <div class="flex justify-between">
+              <span class="text-gray-400">Penjual:</span>
+              <span class="text-yellow-400 font-mono">@${seller}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Harga Tertinggi:</span>
+              <span class="text-emerald-400 font-bold">${price} Pi</span>
+            </div>
+          </div>
+
+          ${bidActionSection}
+
+          <div class="flex flex-col gap-2 pt-2">
+            <a href="index.html" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 text-center font-semibold py-2 rounded-xl text-xs">Kembali ke Galeri</a>
+          </div>
+        </div>
+      `;
+    }
+
+    function submitManualBid(currentPrice) {
+      const input = document.getElementById('manualBidInput');
+      if (!input) return;
+      const val = parseFloat(input.value);
+      if (isNaN(val) || val <= currentPrice) {
+        alert(`Masukkan nominal tawaran yang valid dan lebih tinggi dari ${currentPrice} Pi!`);
+        return;
+      }
+      placeBidOnAuction(val);
+    }
+
+    async function placeBidOnAuction(amount) {
+      const disclaimerChecked = document.getElementById('buyerLegalCheckbox')?.checked;
+      if (!disclaimerChecked) {
+        alert("⚠️ Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum.");
+        return;
+      }
+
+      if ((selectedAuction.seller || '').trim().toLowerCase() === authenticatedPiUser.username.toLowerCase()) {
+        alert("🚫 Anda tidak dapat menawar aset milik Anda sendiri!");
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient
+          .from('auctions')
+          .update({
+            highest_bid: amount,
+            highest_bidder: authenticatedPiUser.username
+          })
+          .eq('id', selectedAuction.id);
+
+        if (error) throw error;
+
+        alert(`🎉 Penawaran sebesar ${amount} Pi berhasil dikirim!`);
+        window.location.href = "index.html";
+      } catch (err) {
+        alert("Gagal mengirim penawaran: " + err.message);
+      }
+    }
+
+    function copyCertificateLink() {
+      const shortId = selectedAuction.id;
+      const assetTitle = selectedAuction.title || 'Untitled';
+      const sellerName = selectedAuction.seller || 'Pioneer';
+      const refId = selectedAuction.hash || shortId.substring(0, 6).toUpperCase();
+
+      const formattedText = 
+        `📜 *Sertifikat Resmi NFT-GM*\n` +
+        `🔹 Aset: ${assetTitle}\n` +
+        `🔹 Pemenang: @${sellerName}\n` +
+        `🔹 Ref ID: ${refId}\n\n` +
+        `🔗 *Link Sertifikat Resmi:*\n` +
+        `https://pibox-auction-bridge.vercel.app/certificate.html?id=${shortId}`;
+
+      navigator.clipboard.writeText(formattedText).then(() => {
+        alert("📋 Format link sertifikat berhasil disalin!");
+      }).catch(() => {
+        prompt("Salin link berikut:", formattedText);
+      });
+    }
+
+    function openImageZoomModal(imgSrc) {
+      document.getElementById('zoomedImageElement').src = imgSrc;
+      document.getElementById('imageZoomModal').classList.remove('hidden');
+    }
+
+    function closeImageZoomModal() {
+      document.getElementById('imageZoomModal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
