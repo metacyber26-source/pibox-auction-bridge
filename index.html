@@ -93,50 +93,39 @@
       }
     };
 
-    // --- FUNGSI TOGGLE TEST USER (PENGALIH SIKLIK: USER ASLI <-> USER BIASA) ---
-    let isTestUserModeActive = false;
-    let originalUserIdentity = "Ful21"; // Menyimpan username asli sebelum di-toggle ke pengguna biasa
-
+    // --- FUNGSI TOGGLE TEST USER (DEFAULT AKTIF SEBAGAI PENGGUNA BIASA) ---
+    let isTestUserModeActive = true; 
     function toggleTestUserMode() {
+      isTestUserModeActive = !isTestUserModeActive;
       const btnTextEl = document.getElementById('testUserBtnText');
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
       const btnAdminSchedule = document.getElementById('btnAdminSchedule');
       const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
 
-      // Jika saat ini aktif sebagai Test User, kembalikan ke username asli. Jika belum, ubah ke Test User.
       if (isTestUserModeActive) {
-        isTestUserModeActive = false;
-        window.authenticatedPiUser = { username: originalUserIdentity };
-
-        if (btnTextEl) btnTextEl.innerText = " Test User";
-        if (statusEl) statusEl.innerText = `User: ${originalUserIdentity} (Dev Full Access)`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${originalUserIdentity}</span>`;
-        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        alert(`🛡️ Kembali ke username asli: @${originalUserIdentity} (Admin / Dev Utama).`);
-      } else {
-        // Simpan username asli saat ini sebelum beralih
-        if (window.authenticatedPiUser && window.authenticatedPiUser.username && window.authenticatedPiUser.username !== "TestPioneer99") {
-          originalUserIdentity = window.authenticatedPiUser.username;
-        }
-
-        isTestUserModeActive = true;
         window.authenticatedPiUser = { username: "TestPioneer99" };
-
-        if (btnTextEl) btnTextEl.innerText = " Asli (@" + originalUserIdentity + ")";
-        if (statusEl) statusEl.innerText = "User: @TestPioneer99 (Pengguna Biasa)";
+        if (btnTextEl) btnTextEl.innerText = " Exit Test";
+        if (statusEl) statusEl.innerText = "User: @TestPioneer99 (User Biasa)";
         if (btnHeaderLogin) btnHeaderLogin.innerHTML = `👤 <span class="text-blue-400">@TestPioneer99</span>`;
         if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
         if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
-        alert("👤 Beralih ke Pengguna Biasa (@TestPioneer99). Klik tombol ini sekali lagi untuk kembali ke username asli Anda.");
+        alert("👤 Mode Test User Aktif: Anda sekarang bertindak sebagai pengguna biasa (Non-Admin).");
+      } else {
+        window.authenticatedPiUser = { username: "Ful21" };
+        if (btnTextEl) btnTextEl.innerText = " Test User";
+        if (statusEl) statusEl.innerText = "User: Ful21 (Dev Full Access)";
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@Ful21</span>`;
+        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+        alert("🛡️ Kembali ke Mode Administrator / Developer Utama (@Ful21).");
       }
       
       if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
       if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(window.authenticatedPiUser.username);
     }
 
-    // --- MODUL RILIS ASET TERPISAH (SEAN AMAN TANPA MENGGANGGU GALERI UTAMA) ---
+    // --- MODUL RILIS ASET TERPISAH ---
     function handleOpenCreateModal() {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
@@ -256,7 +245,6 @@
       try {
         const verifiedUsername = SystemGuardianCore.enforceRealIdentity(inputUsername);
         authenticatedPiUser = { username: verifiedUsername };
-        originalUserIdentity = verifiedUsername; // Perbarui username asli saat login sukses
         const isAdmin = SystemGuardianCore.verifyFullAccess(verifiedUsername);
         
         fetchActiveAuctions();
@@ -266,22 +254,25 @@
       }
     }
 
+    // --- INISIALISASI DEFAULT SEBAGAI TEST USER (PENGGUNA BIASA) ---
     document.addEventListener("DOMContentLoaded", () => {
       SystemGuardianCore.monitorStream();
       _AutonomousSystemGuardian.initWatchdog();
       setTimeout(() => {
         if (!window.authenticatedPiUser) {
-          window.authenticatedPiUser = { username: "Ful21" };
-          originalUserIdentity = "Ful21";
+          // Set Default Preview Sebagai Pengguna Biasa (TestPioneer99)
+          window.authenticatedPiUser = { username: "TestPioneer99" };
           const statusEl = document.getElementById('userStatusDisplay');
           const btnHeaderLogin = document.getElementById('btnHeaderLogin');
           const btnAdminSchedule = document.getElementById('btnAdminSchedule');
           const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+          const btnTextEl = document.getElementById('testUserBtnText');
           
-          if (statusEl) statusEl.innerText = "User: Ful21 (Dev Full Access)";
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@Ful21</span>`;
-          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+          if (statusEl) statusEl.innerText = "User: @TestPioneer99 (User Biasa)";
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `👤 <span class="text-blue-400">@TestPioneer99</span>`;
+          if (btnTextEl) btnTextEl.innerText = " Exit Test";
+          if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
         }
       }, 500);
     });
@@ -304,14 +295,13 @@
           });
       },
       maskUsername: function(username) {
-        return username || 'Ful21';
+        return username || 'TestPioneer99';
       },
       checkProhibitedContent: function(text) {
         return false;
       }
     };
 
-    // --- MODUL AUTENTIKASI RESMI PI NETWORK SDK (TANPA PASSWORD) ---
     const _PiAuthGuardianEngine = {
       version: "2.0.0-pi-native",
       activeSession: null,
@@ -349,7 +339,6 @@
 
     function finalizePiLoginSession(username) {
       authenticatedPiUser = { username: username };
-      originalUserIdentity = username; // Simpan sebagai identitas asli
       
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
@@ -417,8 +406,8 @@
         <a href="auction-dev.html" title="Buka Halaman Perbaikan Modular Dev" class="text-[9px] bg-red-950/80 hover:bg-red-900 text-red-300 font-bold px-1.5 py-1 rounded-lg border border-red-500/40 transition flex items-center gap-0.5">
           🧪<span class="hidden sm:inline"> Dev</span>
         </a>
-        <button id="btnToggleTestUser" onclick="toggleTestUserMode()" title="Uji Coba Tampilan & Fitur Sebagai User Biasa / Kembali ke Asli" class="text-[9px] bg-blue-950/80 hover:bg-blue-900 text-blue-300 font-bold px-1.5 py-1 rounded-lg border border-blue-500/40 transition flex items-center gap-0.5 cursor-pointer">
-          👤<span class="hidden sm:inline" id="testUserBtnText"> Test User</span>
+        <button id="btnToggleTestUser" onclick="toggleTestUserMode()" title="Uji Coba Tampilan & Fitur Sebagai User Biasa" class="text-[9px] bg-blue-950/80 hover:bg-blue-900 text-blue-300 font-bold px-1.5 py-1 rounded-lg border border-blue-500/40 transition flex items-center gap-0.5 cursor-pointer">
+          👤<span class="hidden sm:inline" id="testUserBtnText"> Exit Test</span>
         </button>
 
         <select id="langSelector" onchange="changeLanguage(this.value)" class="bg-gray-900 text-yellow-400 border border-yellow-500/30 text-[9px] font-bold py-1 px-1 rounded-lg focus:outline-none cursor-pointer">
