@@ -3006,7 +3006,67 @@
       }
     }
 
-    
+    async function sendEmailToAdminFast() {
+      const mainImageFile = document.getElementById('imageFileInput')?.files[0];
+      const extraImageFile = document.getElementById('extraSSInput')?.files[0];
+      const title = document.getElementById('assetTitleInput')?.value.trim();
+      const description = document.getElementById('assetDescriptionInput')?.value.trim();
+      const hash = document.getElementById('assetHashInput')?.value.trim() || '-';
+      
+      const y = document.getElementById('ocYear')?.value || '2026';
+      const m = document.getElementById('ocMonth')?.value || '01';
+      const d = document.getElementById('ocDay')?.value || '01';
+      const h = document.getElementById('ocHour')?.value || '00';
+      const min = document.getElementById('ocMinute')?.value || '00';
+      const s = document.getElementById('ocSecond')?.value || '00';
+      const onChainTime = `${y}-${m}-${d} ${h}:${min}:${s}`;
+
+      const realSeller = document.getElementById('realSellerUsernameInput')?.value.trim();
+      const piboxWallet = document.getElementById('piboxWalletInput')?.value.trim();
+      const reservePrice = document.getElementById('reservePriceInput')?.value.trim();
+      const transactionMode = document.getElementById('transactionModeInput')?.value || 'p2p';
+
+      if (!title || !realSeller || !piboxWallet || !reservePrice) {
+        alert("⚠️ Mohon lengkapi data rilis aset.");
+        return;
+      }
+
+      const emailBodyData = 
+        `=== PERMINTAAN RILIS ASET KE GALERI (VIA EMAIL) ===\n\n` +
+        `1. Foto Utama: ${mainImageFile ? mainImageFile.name : 'Terlampir'}\n` +
+        `2. Nama Aset: ${title}\n` +
+        `3. Deskripsi: ${description || '-'}\n` +
+        `4. Hash: ${hash}\n` +
+        `5. On-chain Time: ${onChainTime}\n` +
+        `6. Seller: @${realSeller}\n` +
+        `7. Wallet: ${piboxWallet}\n` +
+        `8. Harga: ${reservePrice} Pi\n` +
+        `9. Mode: ${transactionMode.toUpperCase()}\n`;
+
+      const recipientEmails = "marketnftglobal@gmail.com,auctionbridge314@gmail.com";
+      const emailSubject = encodeURIComponent(`Rilis Aset: ${title} - (@${realSeller})`);
+
+      adminEmailNotificationsCount++;
+      localStorage.setItem('admin_email_notif_count', adminEmailNotificationsCount);
+      localStorage.setItem(`admin_email_latest_${Date.now()}`, JSON.stringify({
+        title, seller: realSeller, time: new Date().toISOString(), data: emailBodyData
+      }));
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(`To: ${recipientEmails}\n\n${emailBodyData}`).catch(() => {});
+      }
+
+      if (confirm("📧 Data rilis aset siap dikirim via email ke Admin. Klik OK untuk melanjutkan.")) {
+        window.location.href = `mailto:${recipientEmails}?subject=${emailSubject}&body=${encodeURIComponent(emailBodyData)}`;
+      }
+
+      setTimeout(() => {
+        resetCreateForm();
+        closeCreateModal();
+        fetchActiveAuctions();
+        updateAdminEmailNotificationBadge();
+      }, 500);
+    }
 
     function handleExtraSSUpload(input) {
       const previewList = document.getElementById('extraSSPreviewList');
