@@ -3867,7 +3867,23 @@
         }
       }
     };
-xxxxxxx
+
+    // --- DI BALIK LAYAR: CORE OTONOM DISTRIBUSI & KONSISTENSI HARGA (INSTANT SYNC) ---
+    const _RealtimeBidEnforcementCore = {
+      version: "10.0.0-realtime-engine",
+      broadcastBidUpdate: function(auctionId, newBid, bidder) {
+        if (supabaseClient) {
+          try {
+            supabaseClient.channel('public-cluster-auctions').send({
+              type: 'broadcast',
+              event: 'live_bid_update',
+              payload: { auctionId, newBid, bidder, timestamp: Date.now() }
+            });
+          } catch(e) {}
+        }
+      }
+    };
+
     async function placeBidOnAuction(auctionId, amount) {
       if (_AutonomousLogicEngine.isProcessingBid) return;
 
@@ -3890,6 +3906,7 @@ xxxxxxx
         return;
       }
 
+      // Ambil data terbaru langsung dari memori / server untuk validasi harga terakhir yang mutlak
       const auction = activeAuctionsList.find(a => String(a.id) === String(auctionId));
       if (!auction) {
         alert("⚠️ Aset tidak ditemukan atau telah diperbarui. Silakan segarkan halaman.");
@@ -3932,6 +3949,7 @@ xxxxxxx
 
         try {
           if (supabaseClient) {
+            // Validasi lapis kedua di database: pastikan tidak boleh di bawah harga terakhir
             const { data: latestRow, error: fetchErr } = await supabaseClient
               .from('auctions')
               .select('highest_bid, reserve_price, status')
@@ -3942,7 +3960,7 @@ xxxxxxx
 
             const dbCurrentTop = parseFloat(latestRow.highest_bid || latestRow.reserve_price || 0);
             if (finalBidAmount <= dbCurrentTop) {
-              throw new Error(`Tawaran didahului pengguna lain! Harga tertinggi saat ini sudah menjadi ${dbCurrentTop} Pi.`);
+              throw new Error(`⚠️ Tawaran ditolak! Harga tertinggi saat ini sudah naik menjadi ${dbCurrentTop} Pi oleh peserta lain. Tawaran tidak boleh di bawah harga terakhir.`);
             }
 
             const { data: updatedRows, error: updateErr } = await supabaseClient
@@ -3964,6 +3982,9 @@ xxxxxxx
           localStorage.setItem(getBuyerAgreementKey(auctionId, username), 'true');
           incrementUserBidCount(auctionId, username);
 
+          // Picu siaran langsung ke semua perangkat peserta tanpa jeda
+          _RealtimeBidEnforcementCore.broadcastBidUpdate(auctionId, finalBidAmount, username);
+
           closeDetailModal();
           updateActiveCounts();
           filterGallery();
@@ -3972,6 +3993,7 @@ xxxxxxx
           alert(t('bidSuccessMsg') + `\nNominal Tercatat: ${finalBidAmount} Pi (@${username})`);
         } catch (err) {
           alert("Gagal: " + (err.message || err));
+          await fetchActiveAuctions(); // Sinkronisasi ulang jika terjadi konflik harga
         } finally {
           _AutonomousLogicEngine.isProcessingBid = false;
         }
@@ -4000,31 +4022,30 @@ xxxxxxx
       }
     }
 
-    function submitManualBid(auctionId, currentPrice) {
-      const inputEl = document.getElementById('manualBidInput');
-      if (!inputEl) return;
-      const enteredValue = parseFloat(inputEl.value);
-      const minRequired = currentPrice + 25;
-
-      if (isNaN(enteredValue) || enteredValue < minRequired) {
-        alert(`Minimal penawaran saat ini adalah ${minRequired} Pi.`);
-        inputEl.focus();
-        return;
-      }
-      placeBidOnAuction(auctionId, enteredValue);
-    }
-
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       try {
-        supabaseClient
-          .channel('public-cluster-auctions')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
+        const channel = supabaseClient.channel('public-cluster-auctions');
+        
+        channel
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, (payload) => {
+            // Sinkronisasi instan saat ada perubahan data di tabel
             fetchActiveAuctions();
+          })
+          .on('broadcast', { event: 'live_bid_update' }, (payload) => {
+            // Penanganan terima siaran langsung (Instant Broadcast) antar perangkat
+            if (payload && payload.payload) {
+              const { auctionId, newBid, bidder } = payload.payload;
+              _AutonomousLogicEngine.syncBidStateLocally(auctionId, newBid, bidder);
+              updateActiveCounts();
+              filterGallery();
+            }
           })
           .subscribe();
       } catch (e) {}
     }
+
+        
 
     function updateTimers() {}
 
