@@ -59,7 +59,6 @@
       }
     };
 
-    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA & FUNGSI (TEGAS & KONSISTEN) ---
     const _AgiNeuralEnforcementCore = {
       version: "9.9.0-agi-guardian",
       securityState: "STRICT_ENFORCEMENT",
@@ -77,16 +76,13 @@
       }
     };
 
-    // --- MODUL RILIS ASET TERPISAH (SEAN AMAN TANPA MENGGANGGU GALERI UTAMA) ---
     function handleOpenCreateModal() {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        
         if (!_AgiNeuralEnforcementCore.validateAdminAction(currentUsr)) {
           alert("⛔ AKSES DITOLAK: Fitur Rilis/List Aset memerlukan verifikasi hak akses.");
           return;
         }
-
         window.location.href = 'release-asset.html';
       } catch (err) {
         alert(err.message);
@@ -173,12 +169,8 @@
         try {
           const AudioContext = window.AudioContext || window.webkitAudioContext;
           if (!AudioContext) return;
-          if (!this.audioCtx) {
-            this.audioCtx = new AudioContext();
-          }
-          if (this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume();
-          }
+          if (!this.audioCtx) this.audioCtx = new AudioContext();
+          if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
           const osc = this.audioCtx.createOscillator();
           const gain = this.audioCtx.createGain();
           osc.type = 'sine';
@@ -197,8 +189,6 @@
       try {
         const verifiedUsername = SystemGuardianCore.enforceRealIdentity(inputUsername);
         authenticatedPiUser = { username: verifiedUsername };
-        const isAdmin = SystemGuardianCore.verifyFullAccess(verifiedUsername);
-        
         fetchActiveAuctions();
         fetchBuyersList();
       } catch (error) {
@@ -236,10 +226,9 @@
       },
       sanitizeStrict: function(input) {
         if (!input) return '';
-        return input.toString()
-          .replace(/[&<>"'/]/g, function (s) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#x2F;' }[s];
-          });
+        return input.toString().replace(/[&<>"'/]/g, function (s) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '/': '&#x2F;' }[s];
+        });
       },
       maskUsername: function(username) {
         return username || 'Ful21';
@@ -249,45 +238,35 @@
       }
     };
 
-    // --- MODUL AUTENTIKASI RESMI PI NETWORK SDK (TANPA PASSWORD) ---
     const _PiAuthGuardianEngine = {
       version: "2.0.0-pi-native",
       activeSession: null,
-      enforceStability: function() {
-        return true;
-      }
+      enforceStability: function() { return true; }
     };
 
     async function authenticatePiUser(isAuto = false) {
       const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
       if (!piInstance) {
-        if (!isAuto) {
-          alert("⚠️ SDK Pi Network tidak terdeteksi. Silakan buka aplikasi ini melalui Pi Browser resmi.");
-        }
+        if (!isAuto) alert("⚠️ SDK Pi Network tidak terdeteksi. Silakan buka aplikasi ini melalui Pi Browser resmi.");
         return;
       }
 
       try {
         const scopes = ['username', 'payments'];
         const onIncompletePaymentFound = function(payment) {};
-
         const authResult = await piInstance.authenticate(scopes, onIncompletePaymentFound);
         if (authResult && authResult.user && authResult.user.username) {
-          const username = authResult.user.username;
-          finalizePiLoginSession(username);
+          finalizePiLoginSession(authResult.user.username);
         } else {
           throw new Error("Gagal mendapatkan data pengguna dari jaringan Pi.");
         }
       } catch (error) {
-        if (!isAuto) {
-          alert("Autentikasi Pi Gagal: " + (error.message || error));
-        }
+        if (!isAuto) alert("Autentikasi Pi Gagal: " + (error.message || error));
       }
     }
 
     function finalizePiLoginSession(username) {
       authenticatedPiUser = { username: username };
-      
       const statusEl = document.getElementById('userStatusDisplay');
       const btnHeaderLogin = document.getElementById('btnHeaderLogin');
       
@@ -305,17 +284,9 @@
       color: #f3f4f6;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 4px;
-      height: 4px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: #111827;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #374151;
-      border-radius: 4px;
-    }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
   </style>
 </head>
 <body class="bg-gray-950 flex flex-col items-center justify-start min-h-screen p-2">
@@ -334,7 +305,7 @@
   <!-- Main Container -->
   <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[90vh]">
     
-    <!-- Banner Mode Jaringan TESTNET / MAINNET -->
+    <!-- Banner Mode Jaringan -->
     <div id="networkModeBanner" class="bg-amber-600/90 text-gray-950 font-black text-[10px] tracking-widest text-center py-1 uppercase shadow-md flex items-center justify-center gap-1.5">
       <span data-i18n="networkModeLabel">⚡ MODE JARINGAN:</span>
       <span id="networkModeBadge" class="bg-black text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-400/40">TESTNET</span>
@@ -351,24 +322,18 @@
       </div>
       
       <div class="flex items-center gap-1 flex-shrink-0">
-        <a href="auction-dev.html" title="Buka Halaman Perbaikan Modular Dev" class="text-[9px] bg-red-950/80 hover:bg-red-900 text-red-300 font-bold px-1.5 py-1 rounded-lg border border-red-500/40 transition flex items-center gap-0.5">
+        <a href="auction-dev.html" title="Dev" class="text-[9px] bg-red-950/80 hover:bg-red-900 text-red-300 font-bold px-1.5 py-1 rounded-lg border border-red-500/40 transition flex items-center gap-0.5">
           🧪<span class="hidden sm:inline"> Dev</span>
         </a>
-        <button id="btnToggleTestUser" onclick="toggleTestUserMode()" title="Uji Coba Tampilan & Fitur Sebagai User Biasa" class="text-[9px] bg-blue-950/80 hover:bg-blue-900 text-blue-300 font-bold px-1.5 py-1 rounded-lg border border-blue-500/40 transition flex items-center gap-0.5 cursor-pointer">
-          👤<span class="hidden sm:inline" id="testUserBtnText"> Test User</span>
-        </button>
-
         <select id="langSelector" onchange="changeLanguage(this.value)" class="bg-gray-900 text-yellow-400 border border-yellow-500/30 text-[9px] font-bold py-1 px-1 rounded-lg focus:outline-none cursor-pointer">
           <option value="id">🇮🇩 ID</option>
           <option value="en">🇺🇸 EN</option>
           <option value="zh">🇨🇳 中文</option>
           <option value="es">🇪🇸 ES</option>
         </select>
-
         <button id="btnAdminSchedule" onclick="openScheduleModal()" class="hidden text-[10px] bg-purple-900 hover:bg-purple-800 text-purple-200 font-bold px-1.5 py-1 rounded-lg border border-purple-500/40 transition flex items-center gap-1 cursor-pointer">
           ⚙️ <span data-i18n="scheduleBtn">Jadwal</span>
         </button>
-
         <button id="btnHeaderLogin" onclick="authenticatePiUser()" class="text-[10px] bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold px-2 py-1 rounded-lg shadow-md transition duration-200 flex items-center gap-1 cursor-pointer">
           🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>
         </button>
@@ -418,7 +383,6 @@
         <span class="text-[11px] font-bold text-purple-300 uppercase tracking-wider">📌 INFO JADWAL:</span>
         <span id="auctionInfoText" class="text-[10px] font-bold text-yellow-400">Sandbox Standby</span>
       </div>
-
       <div class="flex items-center">
         <span id="sessionStateBadge" class="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md tracking-wider">Memuat Jadwal...</span>
       </div>
@@ -441,7 +405,6 @@
     <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
       <div class="flex gap-2">
         <input type="text" id="searchInput" oninput="filterGallery()" placeholder="🔍 Cari nama aset, barang, properti..." data-i18n-placeholder="searchPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500 transition">
-        
         <select id="statusFilter" onchange="filterGallery()" class="bg-gray-900 border border-gray-800 text-gray-300 text-[10px] font-semibold px-2 py-1.5 rounded-xl focus:outline-none cursor-pointer">
           <option value="all" data-i18n="filterAll">Semua Status</option>
           <option value="active" data-i18n="filterActive">Aktif</option>
@@ -507,7 +470,7 @@
         </div>
         <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
       </div>
-
+      <!-- Form Jadwal -->
       <div class="space-y-3 text-xs">
         <div>
           <label class="block text-gray-300 font-semibold mb-1" data-i18n="scheduleModeLabel">Status Mode Sesi Lelang Saat Ini:</label>
@@ -517,7 +480,6 @@
             <option value="instant_one_hour">🚀 3. Buka Lelang Sekarang (Durasi 1 Jam)</option>
           </select>
         </div>
-
         <div id="scheduledInputsContainer" class="space-y-3 bg-gray-900/80 p-3 rounded-xl border border-gray-800 hidden">
           <div>
             <div id="instantTriggerContainer" class="hidden bg-emerald-950/40 p-3 rounded-xl border border-emerald-500/40 space-y-2">
@@ -526,7 +488,6 @@
                 🚀 Buka Lelang Sekarang (Durasi 60 Menit)
               </button>
             </div>
-
             <label class="block text-[10px] text-gray-400 font-semibold mb-1">1. Tanggal Buka Lelang:</label>
             <div class="grid grid-cols-3 gap-1.5 relative z-30">
               <div>
@@ -543,12 +504,10 @@
               </div>
             </div>
           </div>
-
           <div>
             <label class="block text-[10px] text-gray-400 font-semibold mb-1">2. Jam Buka Lelang:</label>
             <select id="scheduleStartHourSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none cursor-pointer relative z-30"></select>
           </div>
-
           <div>
             <label class="block text-[10px] text-gray-400 font-semibold mb-1">3. Durasi Sesi Lelang:</label>
             <select id="scheduleDurationSelect" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none cursor-pointer relative z-30">
@@ -559,7 +518,6 @@
           </div>
         </div>
       </div>
-
       <div class="flex gap-2 pt-2">
         <button onclick="closeScheduleModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer" data-i18n="cancelBtn">Batal</button>
         <button onclick="saveAuctionScheduleSettings(supabaseClient, ADMIN_USERNAMES, authenticatedPiUser?.username)" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs py-2.5 rounded-xl transition cursor-pointer shadow-lg" data-i18n="saveScheduleBtn">💾 Simpan Jadwal</button>
@@ -580,28 +538,19 @@
         </div>
         <button onclick="closeMonthlyReportModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
       </div>
-
       <div class="space-y-3 text-xs">
         <div>
           <label class="block text-gray-300 font-semibold mb-1" data-i18n="selectMonthLabel">Pilih Bulan Laporan:</label>
           <input type="month" id="reportMonthInput" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-purple-500" onchange="generateMonthlyReportData()">
         </div>
-
         <div id="reportSummaryBox" class="bg-gray-900 border border-gray-800 rounded-xl p-3 font-mono text-[11px] text-gray-300 space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar">
           <p class="text-center text-gray-500 py-4" data-i18n="loadingReport">Memuat data rekapitulasi...</p>
         </div>
       </div>
-
       <div class="flex flex-col gap-2 pt-2">
-        <button onclick="copyMonthlyReportText(this)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer" data-i18n="copyReportBtn">
-          📋 Salin Laporan ke Clipboard
-        </button>
-        <button onclick="downloadMonthlyReportAsHTML()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer" data-i18n="downloadReportBtn">
-          🌐 Download File Laporan (Chrome HTML)
-        </button>
-        <button onclick="closeMonthlyReportModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs" data-i18n="closeBtn">
-          Tutup
-        </button>
+        <button onclick="copyMonthlyReportText(this)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer" data-i18n="copyReportBtn">📋 Salin Laporan ke Clipboard</button>
+        <button onclick="downloadMonthlyReportAsHTML()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer" data-i18n="downloadReportBtn">🌐 Download File Laporan (Chrome HTML)</button>
+        <button onclick="closeMonthlyReportModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs" data-i18n="closeBtn">Tutup</button>
       </div>
     </div>
   </div>
@@ -609,51 +558,47 @@
   <!-- MODAL: CHAT ROOM -->
   <div id="chatModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
     <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5 w-full max-w-lg space-y-3 shadow-2xl max-h-[90vh] flex flex-col">
-        <div class="flex justify-between items-center border-b border-gray-800 pb-2">
-          <div class="flex items-center gap-2">
-            <span class="text-emerald-400 text-lg">💬</span>
-            <div>
-              <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider" data-i18n="chatModalTitle">Pusat Live Chat NFT Global Market</h2>
-              <p class="text-[9px] text-gray-400" data-i18n="chatModalSub">Pilih Ruang Diskusi & Komunikasi Langsung P2P</p>
-            </div>
-          </div>
-          <button onclick="closeChatModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
-        </div>
-
-        <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-[11px] gap-1">
-          <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer">🌐 Forum</button>
-          <button id="tabBtnAdmin" onclick="switchChatTab('admin')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🛡️ Hubungi Admin</button>
-          <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🔒 P2P</button>
-        </div>
-
-        <div id="p2pTargetSelectorContainer" class="hidden bg-gray-900 p-2 rounded-xl border border-gray-800 text-xs space-y-1">
-          <label class="block text-[10px] text-gray-400 font-semibold" data-i18n="p2pSelectLabel">Pilih Penjual / Lawan Chat P2P:</label>
-          <div class="flex gap-2">
-            <select id="p2pTargetUserSelect" class="flex-1 bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-xs text-yellow-400 focus:outline-none">
-              <option value="" data-i18n="p2pSelectDefault">-- Pilih User / Seller --</option>
-            </select>
-            <button onclick="initP2PChatSession()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-lg text-[10px] cursor-pointer" data-i18n="p2pStartBtn">Mulai Chat</button>
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-emerald-400 text-lg">💬</span>
+          <div>
+            <h2 class="text-xs font-bold text-yellow-400 uppercase tracking-wider" data-i18n="chatModalTitle">Pusat Live Chat NFT Global Market</h2>
+            <p class="text-[9px] text-gray-400" data-i18n="chatModalSub">Pilih Ruang Diskusi & Komunikasi Langsung P2P</p>
           </div>
         </div>
-
-        <div id="chatMessagesBox" class="flex-1 bg-gray-900/90 border border-gray-800 rounded-xl p-3 h-64 overflow-y-auto custom-scrollbar space-y-2 text-xs">
-          <div class="text-center text-gray-500 text-[11px] py-10" data-i18n="chatLoading">Memuat pesan chat...</div>
+        <button onclick="closeChatModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+      <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-[11px] gap-1">
+        <button id="tabBtnForum" onclick="switchChatTab('forum')" class="flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer">🌐 Forum</button>
+        <button id="tabBtnAdmin" onclick="switchChatTab('admin')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🛡️ Hubungi Admin</button>
+        <button id="tabBtnP2P" onclick="switchChatTab('p2p')" class="flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer">🔒 P2P</button>
+      </div>
+      <div id="p2pTargetSelectorContainer" class="hidden bg-gray-900 p-2 rounded-xl border border-gray-800 text-xs space-y-1">
+        <label class="block text-[10px] text-gray-400 font-semibold" data-i18n="p2pSelectLabel">Pilih Penjual / Lawan Chat P2P:</label>
+        <div class="flex gap-2">
+          <select id="p2pTargetUserSelect" class="flex-1 bg-gray-950 border border-gray-800 rounded-lg p-1.5 text-xs text-yellow-400 focus:outline-none">
+            <option value="" data-i18n="p2pSelectDefault">-- Pilih User / Seller --</option>
+          </select>
+          <button onclick="initP2PChatSession()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-lg text-[10px] cursor-pointer" data-i18n="p2pStartBtn">Mulai Chat</button>
         </div>
-
-        <div class="flex flex-col gap-1.5 pt-1">
-          <div id="chatImagePreviewContainer" class="hidden flex items-center gap-2 bg-gray-900 p-1.5 rounded-lg border border-gray-800 text-[10px]">
-            <span class="text-yellow-400 font-bold" data-i18n="previewSSLabel">Preview SS:</span>
-            <span id="chatImageFileName" class="text-gray-300 truncate flex-1"></span>
-            <button onclick="clearChatImagePreview()" class="text-red-400 hover:text-red-300 font-bold px-1.5" data-i18n="deleteBtn">✕ Hapus</button>
-          </div>
-          <div class="flex gap-2 items-center">
-            <label class="bg-indigo-600 hover:bg-indigo-500 text-white p-2 rounded-xl cursor-pointer transition shadow flex items-center justify-center text-xs" title="Upload SS Pembayaran">
-              📷 <input type="file" id="chatImageFileInput" accept="image/*" onchange="handleChatImageSelect(this)" class="hidden">
-            </label>
-            <input type="text" id="chatMessageInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Ketik pesan chat atau upload SS pembayaran..." data-i18n-placeholder="chatInputPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
-            <button onclick="sendChatMessage()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow" data-i18n="chatSendBtn">Kirim 🚀</button>
-          </div>
+      </div>
+      <div id="chatMessagesBox" class="flex-1 bg-gray-900/90 border border-gray-800 rounded-xl p-3 h-64 overflow-y-auto custom-scrollbar space-y-2 text-xs">
+        <div class="text-center text-gray-500 text-[11px] py-10" data-i18n="chatLoading">Memuat pesan chat...</div>
+      </div>
+      <div class="flex flex-col gap-1.5 pt-1">
+        <div id="chatImagePreviewContainer" class="hidden flex items-center gap-2 bg-gray-900 p-1.5 rounded-lg border border-gray-800 text-[10px]">
+          <span class="text-yellow-400 font-bold" data-i18n="previewSSLabel">Preview SS:</span>
+          <span id="chatImageFileName" class="text-gray-300 truncate flex-1"></span>
+          <button onclick="clearChatImagePreview()" class="text-red-400 hover:text-red-300 font-bold px-1.5" data-i18n="deleteBtn">✕ Hapus</button>
         </div>
+        <div class="flex gap-2 items-center">
+          <label class="bg-indigo-600 hover:bg-indigo-500 text-white p-2 rounded-xl cursor-pointer transition shadow flex items-center justify-center text-xs" title="Upload SS Pembayaran">
+            📷 <input type="file" id="chatImageFileInput" accept="image/*" onchange="handleChatImageSelect(this)" class="hidden">
+          </label>
+          <input type="text" id="chatMessageInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Ketik pesan chat atau upload SS pembayaran..." data-i18n-placeholder="chatInputPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
+          <button onclick="sendChatMessage()" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow" data-i18n="chatSendBtn">Kirim 🚀</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -667,7 +612,6 @@
         </div>
         <button onclick="closeBuyersTableModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
       </div>
-
       <div class="flex flex-col gap-2">
         <div class="flex justify-between items-center gap-2">
           <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari pembeli..." data-i18n-placeholder="buyerSearchPlaceholder" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-yellow-500">
@@ -676,7 +620,6 @@
           </div>
         </div>
       </div>
-      
       <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[60vh] flex flex-col">
         <div class="overflow-x-auto custom-scrollbar flex-1">
           <table class="w-full text-left text-[11px] text-gray-300 min-w-[550px] border-collapse">
@@ -710,24 +653,20 @@
         </div>
         <button onclick="closeWithdrawalProofModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
       </div>
-
       <div class="space-y-3 text-xs">
         <div>
           <label class="block text-gray-300 font-semibold mb-1" data-i18n="withdrawUsernameLabel">Username Pi Network:</label>
           <input type="text" id="withdrawalUsernameInput" readonly class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 font-mono cursor-not-allowed">
         </div>
-
         <div>
           <label class="block text-gray-300 font-semibold mb-1" data-i18n="withdrawWalletLabel">PiBox Wallet Address:</label>
           <input type="text" id="withdrawalWalletInput" placeholder="Masukkan alamat wallet tujuan..." data-i18n-placeholder="withdrawWalletPlaceholder" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500">
         </div>
-
         <div>
           <label class="block text-gray-300 font-semibold mb-1" data-i18n="withdrawProofLabel">Upload Bukti Deposit (Screenshot):</label>
           <input type="file" id="withdrawalProofFile" accept="image/*" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-500 file:text-gray-950 cursor-pointer">
         </div>
       </div>
-
       <div class="flex gap-2 pt-2">
         <button onclick="closeWithdrawalProofModal()" class="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer" data-i18n="cancelBtn">Batal</button>
         <button onclick="submitWithdrawalWithProof()" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-2.5 rounded-xl transition cursor-pointer shadow-lg" data-i18n="submitWithdrawBtn">🚀 Kirim Klaim</button>
@@ -805,9 +744,7 @@
       if (langSel) langSel.value = currentLang;
       applyTranslations();
       
-      if (typeof populateHourDropdownOptions === 'function') {
-        populateHourDropdownOptions();
-      }
+      if (typeof populateHourDropdownOptions === 'function') populateHourDropdownOptions();
       if (typeof fetchAndListenAuctionSchedule === 'function') {
         fetchAndListenAuctionSchedule(supabaseClient, () => {
           if (typeof checkAuctionScheduleUI === 'function') checkAuctionScheduleUI();
@@ -820,7 +757,6 @@
       fetchActiveAuctions();
       fetchBuyersList();
       setupRealtimeSubscription();
-      
       initPiSDK();
 
       setTimeout(() => {
@@ -852,7 +788,6 @@
         authenticatePiUser();
         return;
       }
-
       const username = authenticatedPiUser.username;
       if (!supabaseClient) return;
 
@@ -1165,15 +1100,9 @@
           const btnLabel = auction.status === 'active' ? t('btnSetPending') : t('btnSetActive');
           adminActionControls = `
             <div class="flex gap-1 pt-1 border-t border-gray-800/80 mt-1 justify-end">
-              <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold cursor-pointer">
-                ${btnLabel}
-              </button>
-              <button onclick="adminToggleEventBadge('${auction.id}', ${!!auction.is_event})" class="text-[9px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 px-2 py-0.5 rounded font-bold cursor-pointer">
-                ⭐ Event
-              </button>
-              <button onclick="adminDeleteAuction('${auction.id}')" class="text-[9px] bg-red-900/60 hover:bg-red-800 text-red-200 px-2 py-0.5 rounded font-bold cursor-pointer">
-                ${t('btnDeleteAsset')}
-              </button>
+              <button onclick="adminToggleAuctionStatus('${auction.id}', '${nextStatus}')" class="text-[9px] bg-blue-900/60 hover:bg-blue-800 text-blue-200 px-2 py-0.5 rounded font-bold cursor-pointer">${btnLabel}</button>
+              <button onclick="adminToggleEventBadge('${auction.id}', ${!!auction.is_event})" class="text-[9px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 px-2 py-0.5 rounded font-bold cursor-pointer">⭐ Event</button>
+              <button onclick="adminDeleteAuction('${auction.id}')" class="text-[9px] bg-red-900/60 hover:bg-red-800 text-red-200 px-2 py-0.5 rounded font-bold cursor-pointer">${t('btnDeleteAsset')}</button>
             </div>
           `;
         }
@@ -1184,7 +1113,6 @@
               <div class="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 border border-gray-800">
                 <img src="${auction.image_url || 'https://via.placeholder.com/150'}" loading="lazy" class="w-full h-full object-cover">
               </div>
-
               <div class="flex-1 min-w-0 space-y-1">
                 <div class="flex justify-between items-start gap-1">
                   <div class="flex flex-col gap-1 min-w-0">
@@ -1192,7 +1120,6 @@
                   </div>
                   ${statusBadge}
                 </div>
-
                 <div class="flex items-center gap-1.5 text-[9px]">
                   <span class="bg-gray-900 text-yellow-400 px-1.5 py-0.5 rounded border border-gray-800 font-semibold">${catBadgeText}</span>
                   <span class="text-gray-400">${t('sellerLabel')}: <span class="text-yellow-400 font-mono">@${seller}</span></span>
