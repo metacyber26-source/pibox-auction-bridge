@@ -44,23 +44,17 @@
     let isAuctionCurrentlyOpen = true;
     let currentUserBuyerRecord = null;
 
-    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA PENAWARAN (CEK KEPEMILIKAN ASET) ---
+    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA PENAWARAN (SEMUA USERNAME DIBEBASKAN MENAWAR) ---
     const _AgiBidGuardianCore = {
-      version: "4.5.0-strict-bidding",
+      version: "4.4.0-open-bidding",
       verifyAndEnforceBid: async function(auction, username, bidAmount) {
         if (!username) {
           throw new Error("⚠️ Sesi pengguna tidak ditemukan. Silakan login terlebih dahulu.");
         }
 
-        const cleanUser = username.trim().toLowerCase();
-        const sellerUser = (auction.seller || '').trim().toLowerCase();
+        // Batasan kepemilikan dihapus: Semua username kini dapat menawar aset apa pun tanpa terkecuali.
 
-        // 1. Validasi Ketat: Jika username login = username penjual aset, maka dilarang menawar
-        if (cleanUser === sellerUser) {
-          throw new Error("🚫 Anda tidak dapat menawar aset milik Anda sendiri!");
-        }
-
-        // 2. Cek minimal tawaran (minimal 5 Pi di atas harga/tawaran terakhir)
+        // Validasi minimal tawaran (minimal 5 Pi di atas harga/tawaran terakhir)
         const currentHighest = parseFloat(auction.highest_bid || auction.reserve_price || 0);
         const minAllowedBid = currentHighest + 5;
 
@@ -272,7 +266,7 @@
       const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
 
       try {
-        // Validasi otonom penjaga logika penawaran (mencegah penawaran aset sendiri)
+        // Validasi penjaga logika penawaran (tanpa batasan kepemilikan aset)
         await _AgiBidGuardianCore.verifyAndEnforceBid(selectedAuction, currentUsername, amount);
 
         const { error } = await supabaseClient
