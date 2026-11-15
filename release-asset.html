@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rilis Lelang Baru - PiBox Bridge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 flex flex-col items-center justify-start min-h-screen p-3">
+
+  <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4 shadow-2xl">
+    <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+      <div>
+        <h2 class="text-sm font-bold text-gray-100">Rilis Lelang Baru (Modul Terpisah)</h2>
+        <p id="quotaDisplay" class="text-[10px] text-yellow-400 font-medium">Maks 3 Listing Aktif Per Username</p>
+      </div>
+      <a href="index.html" class="text-gray-400 hover:text-white font-bold text-lg cursor-pointer">&times; Kembali</a>
+    </div>
+
+    <div class="space-y-3 text-xs">
+      <div>
+        <label class="block font-semibold text-gray-300 mb-1">Pilih Kategori Lelang</label>
+        <select id="assetCategoryInput" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2.5 text-xs text-yellow-400 focus:outline-none focus:border-yellow-500 cursor-pointer">
+          <option value="nft_art">🎨 Aset Digital & NFT</option>
+          <option value="luxury_items">💎 Barang Mewah (Jam, Perhiasan)</option>
+          <option value="electronics">📱 Elektronik & Gadget</option>
+          <option value="collectibles">🏛️ Koleksi & Barang Antik</option>
+          <option value="fashion_craft">👔 Fashion & Kerajinan Lokal</option>
+          <option value="automotive">🚗 Otomotif & Kendaraan</option>
+          <option value="property_land">🏠 Properti & Real Estate (Rumah, Tanah)</option>
+          <option value="services_tech">🛠️ Jasa, Layanan & Sewa</option>
+        </select>
+      </div>
+
+      <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 space-y-2">
+        <span class="font-semibold text-gray-200 text-[11px]">Foto / Screenshot Utama</span>
+        <input type="file" id="imageFileInput" accept="image/*" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2 text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-yellow-500 file:text-gray-950 cursor-pointer">
+      </div>
+
+      <div>
+        <label class="block font-semibold text-gray-300 mb-1">Nama Aset / Barang / Jasa</label>
+        <input type="text" id="assetTitleInput" maxlength="40" placeholder="Masukkan nama barang atau properti..." class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
+      </div>
+
+      <div>
+        <label class="block font-semibold text-gray-300 mb-1">Deskripsi Singkat</label>
+        <textarea id="assetDescriptionInput" rows="3" maxlength="500" placeholder="Tuliskan detail kondisi atau lokasi..." class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-500 resize-none"></textarea>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-gray-300 mb-1">Kode Ref / Hash</label>
+        <input type="text" id="assetHashInput" placeholder="Hash/Kode Unik (diisi '-' jika tidak ada)" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2.5 text-xs font-mono text-yellow-400 focus:outline-none">
+      </div>
+
+      <div class="space-y-2 bg-gray-950 p-3 rounded-xl border border-gray-800">
+        <div>
+          <label class="block font-semibold text-gray-300 mb-1 text-[11px]">Akun Pembuat Listing:</label>
+          <input type="text" id="creatorAdminInput" readonly class="w-full bg-gray-900 border border-gray-800 rounded-lg p-2 text-xs text-purple-400 font-mono">
+        </div>
+        <div>
+          <label class="block font-semibold text-yellow-400 mb-1 text-[11px]">Username Penjual Asli (Wajib):</label>
+          <input type="text" id="realSellerUsernameInput" placeholder="Contoh: namapenjual_asli" class="w-full bg-gray-900 border border-yellow-500/40 rounded-lg p-2 text-xs text-white">
+        </div>
+        <div>
+          <label class="block font-semibold text-yellow-400 mb-1 text-[11px]">PiBox Wallet Penjual Asli (Wajib):</label>
+          <input type="text" id="piboxWalletInput" placeholder="Wallet Address" class="w-full bg-gray-900 border border-yellow-500/40 rounded-lg p-2 text-xs text-white font-mono">
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-gray-300 mb-1">Harga Awal Penawaran (Reserve Price in Pi)</label>
+        <input type="number" step="0.01" id="reservePriceInput" placeholder="Contoh: 150" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2.5 text-xs text-white focus:outline-none">
+      </div>
+
+      <div class="bg-red-950/30 border border-red-500/40 rounded-xl p-3 space-y-2 text-[10px] text-gray-300">
+        <p class="font-bold text-red-400">⚖️ PERINGATAN HUKUM & DISCLAIMER</p>
+        <label class="flex items-start gap-2 cursor-pointer pt-1 border-t border-red-500/20">
+          <input type="checkbox" id="legalDisclaimerCheckbox" class="mt-0.5 accent-yellow-500 cursor-pointer" onchange="checkReleaseFormCompletion()">
+          <span class="text-white font-semibold">Saya menyatakan bahwa aset ini milik sah saya dan membebaskan platform dari segala tuntutan hukum.</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2 pt-2">
+      <button id="btnPayServerFee" type="button" onclick="payServerFeeAndProceed()" class="w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl cursor-not-allowed" disabled>💳 Bayar 0.2 Pi (Biaya Server)</button>
+      <button id="btnReleaseGallery" type="button" onclick="releaseToGalleryOnly()" class="w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl cursor-not-allowed" disabled>🚀 Rilis ke Galeri ("Pending")</button>
+      <a href="index.html" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 text-center py-2 rounded-xl text-xs">Selesai / Kembali ke Galeri</a>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
+    const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    let hasCompletedServerFee = false;
+
+    function checkReleaseFormCompletion() {
+      const mainImage = document.getElementById('imageFileInput').files[0];
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const price = document.getElementById('reservePriceInput').value.trim();
+      const realSeller = document.getElementById('realSellerUsernameInput').value.trim();
+      const wallet = document.getElementById('piboxWalletInput').value.trim();
+      const disclaimer = document.getElementById('legalDisclaimerCheckbox').checked;
+      const btnPay = document.getElementById('btnPayServerFee');
+
+      if (mainImage && title && price && realSeller && wallet && disclaimer) {
+        btnPay.disabled = false;
+        btnPay.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl cursor-pointer shadow-lg";
+      } else {
+        btnPay.disabled = true;
+        btnPay.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl cursor-not-allowed";
+      }
+    }
+
+    document.querySelectorAll('input, textarea').forEach(el => el.addEventListener('input', checkReleaseFormCompletion));
+
+    async function payServerFeeAndProceed() {
+      const payBtn = document.getElementById('btnPayServerFee');
+      payBtn.disabled = true;
+      payBtn.innerText = "⏳ Memproses Pembayaran 0.2 Pi...";
+
+      setTimeout(() => {
+        hasCompletedServerFee = true;
+        payBtn.innerText = "✅ Biaya Server Terbayar";
+        const releaseBtn = document.getElementById('btnReleaseGallery');
+        releaseBtn.disabled = false;
+        releaseBtn.className = "w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl cursor-pointer shadow-lg";
+        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil!");
+      }, 1000);
+    }
+
+    async function releaseToGalleryOnly() {
+      if (!hasCompletedServerFee) {
+        alert("Selesaikan pembayaran biaya server terlebih dahulu!");
+        return;
+      }
+
+      const mainImageFile = document.getElementById('imageFileInput').files[0];
+      const category = document.getElementById('assetCategoryInput').value;
+      const title = document.getElementById('assetTitleInput').value.trim();
+      const description = document.getElementById('assetDescriptionInput').value.trim();
+      const hash = document.getElementById('assetHashInput').value.trim() || '-';
+      const reservePrice = parseFloat(document.getElementById('reservePriceInput').value);
+      const seller = document.getElementById('realSellerUsernameInput').value.trim();
+      const piboxWallet = document.getElementById('piboxWalletInput').value.trim();
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const base64Image = e.target.result;
+        try {
+          const { error } = await supabaseClient.from('auctions').insert([{
+            category, title, description, hash, reserve_price: reservePrice,
+            seller, pibox_wallet: piboxWallet, image_url: base64Image,
+            status: 'pending', created_at: new Date().toISOString()
+          }]);
+          if (error) throw error;
+          alert("🎉 Sukses! Aset berhasil dirilis ke galeri utama.");
+          window.location.href = "index.html";
+        } catch (err) {
+          alert("Gagal merilis aset: " + err.message);
+        }
+      };
+      reader.readAsDataURL(mainImageFile);
+    }
+  </script>
+</body>
+</html>
