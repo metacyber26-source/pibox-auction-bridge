@@ -40,10 +40,60 @@
     
     const ADMIN_USERNAMES = ["Ful21", "s9t9munah"];
     let selectedAuction = null;
-    let authenticatedPiUser = { username: "Ful21" }; // Default atau disesuaikan dengan sesi aktif
+    let authenticatedPiUser = null; 
     let isAuctionCurrentlyOpen = true;
+    let currentUserBuyerRecord = null;
 
-    // Ambil ID Aset dari URL Parameters (Contoh: auction-detail.html?id=UUID)
+    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA PENAWARAN & SESI ---
+    const _AgiBidGuardianCore = {
+      version: "4.2.0-secure-bidding",
+      verifyAndEnforceBid: async function(auction, username, bidAmount) {
+        if (!username) {
+          throw new Error("⚠️ Sesi pengguna tidak ditemukan. Silakan login terlebih dahulu.");
+        }
+
+        const cleanUser = username.trim().toLowerCase();
+        const sellerUser = (auction.seller || '').trim().toLowerCase();
+
+        // 1. Cek apakah menawar aset sendiri
+        if (cleanUser === sellerUser) {
+          throw new Error("🚫 Anda tidak dapat menawar aset milik Anda sendiri!");
+        }
+
+        // 2. Cek status verifikasi pembeli di database (Pending tidak boleh menawar)
+        let isApproved = ADMIN_USERNAMES.includes(username.trim());
+        if (!isApproved) {
+          const { data: buyerData } = await supabaseClient
+            .from('buyers')
+            .select('status')
+            .eq('username', username.trim())
+            .maybeSingle();
+
+          if (buyerData) {
+            const status = (buyerData.status || '').toLowerCase();
+            if (status === 'approved' || status === 'aktif' || status === 'active') {
+              isApproved = true;
+            }
+          }
+        }
+
+        if (!isApproved) {
+          throw new Error("⛔ AKSES DITOLAK: Status pendaftaran pembeli Anda masih PENDING (Menunggu verifikasi admin/top up jaminan). Belum dapat melakukan penawaran.");
+        }
+
+        // 3. Cek minimal tawaran (minimal 5 Pi di atas harga/tawaran terakhir)
+        const currentHighest = parseFloat(auction.highest_bid || auction.reserve_price || 0);
+        const minAllowedBid = currentHighest + 5;
+
+        if (bidAmount < minAllowedBid) {
+          throw new Error(`⚠️ Penawaran minimal harus ${minAllowedBid} Pi (Minimal kenaikan 5 Pi di atas harga saat ini: ${currentHighest} Pi).`);
+        }
+
+        return true;
+      }
+    };
+
+    // Ambil ID Aset dari URL Parameters
     const urlParams = new URLSearchParams(window.location.search);
     const auctionIdFromUrl = urlParams.get('id');
 
@@ -53,8 +103,32 @@
         window.location.href = "index.html";
         return;
       }
+
+      // Deteksi sesi user aktif dari localStorage atau default fallback aman
+      const savedAccounts = JSON.parse(localStorage.getItem('pibox_saved_verified_accounts') || '[]');
+      if (savedAccounts.length > 0 && savedAccounts[0].username) {
+        authenticatedPiUser = { username: savedAccounts[0].username };
+      } else {
+        authenticatedPiUser = { username: "Ful21" };
+      }
+
+      await fetchBuyerStatus(authenticatedPiUser.username);
       await fetchAuctionDetails(auctionIdFromUrl);
     });
+
+    async function fetchBuyerStatus(username) {
+      if (!supabaseClient || !username) return;
+      try {
+        const { data } = await supabaseClient
+          .from('buyers')
+          .select('*')
+          .eq('username', username)
+          .maybeSingle();
+        currentUserBuyerRecord = data;
+      } catch (e) {
+        currentUserBuyerRecord = null;
+      }
+    }
 
     async function fetchAuctionDetails(id) {
       try {
@@ -83,7 +157,7 @@
       const price = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
       const status = selectedAuction.status || 'active';
       const categoryLabel = selectedAuction.category || 'nft_art';
-      const currentUsername = authenticatedPiUser.username;
+      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
       const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsername);
 
       let certificateActionSection = '';
@@ -115,12 +189,12 @@
         const targetPrice5 = price + 5;
         const targetPrice10 = price + 10;
         const targetPrice20 = price + 20;
-        const minManualBid = price + 25;
+        const minManualBid = price + 5;
 
         bidActionSection = `
           <div class="space-y-3 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
             <div>
-              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal:</p>
+              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal (Min. +5 Pi):</p>
               <div class="grid grid-cols-3 gap-1.5">
                 <button onclick="placeBidOnAuction(${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer"><span>+5 Pi</span></button>
                 <button onclick="placeBidOnAuction(${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer"><span>+10 Pi</span></button>
@@ -130,7 +204,7 @@
 
             <div class="pt-2 border-t border-gray-800 space-y-1.5">
               <div class="flex justify-between items-center text-[10px]">
-                <span class="text-gray-300 font-semibold">Manual:</span>
+                <span class="text-gray-300 font-semibold">Manual Bid:</span>
                 <span class="text-yellow-400 font-mono">Min: ${minManualBid} Pi</span>
               </div>
               <div class="flex gap-2">
@@ -201,8 +275,9 @@
       const input = document.getElementById('manualBidInput');
       if (!input) return;
       const val = parseFloat(input.value);
-      if (isNaN(val) || val <= currentPrice) {
-        alert(`Masukkan nominal tawaran yang valid dan lebih tinggi dari ${currentPrice} Pi!`);
+      const minVal = currentPrice + 5;
+      if (isNaN(val) || val < minVal) {
+        alert(`Masukkan nominal tawaran minimal ${minVal} Pi (kenaikan minimal 5 Pi di atas harga terakhir)`);
         return;
       }
       placeBidOnAuction(val);
@@ -215,17 +290,17 @@
         return;
       }
 
-      if ((selectedAuction.seller || '').trim().toLowerCase() === authenticatedPiUser.username.toLowerCase()) {
-        alert("🚫 Anda tidak dapat menawar aset milik Anda sendiri!");
-        return;
-      }
+      const currentUsername = authenticatedPiUser ? authenticatedPiUser.username : '';
 
       try {
+        // Validasi otonom penjaga logika penawaran (Cek status pending, aset sendiri, & minimal kenaikan 5 Pi)
+        await _AgiBidGuardianCore.verifyAndEnforceBid(selectedAuction, currentUsername, amount);
+
         const { error } = await supabaseClient
           .from('auctions')
           .update({
             highest_bid: amount,
-            highest_bidder: authenticatedPiUser.username
+            highest_bidder: currentUsername
           })
           .eq('id', selectedAuction.id);
 
@@ -234,7 +309,7 @@
         alert(`🎉 Penawaran sebesar ${amount} Pi berhasil dikirim!`);
         window.location.href = "index.html";
       } catch (err) {
-        alert("Gagal mengirim penawaran: " + err.message);
+        alert(err.message);
       }
     }
 
