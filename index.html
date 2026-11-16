@@ -3858,6 +3858,92 @@
         }
         return { valid: true, cleanAmount: parseFloat(numericAmount.toFixed(2)), cleanUser: username.trim() };
       },
+          // --- DI BALIK LAYAR: CORE OTONOM DISTRIBUSI & KONSISTENSI HARGA (INSTANT SYNC & GUARDIAN) ---
+    const _RealtimeBidEnforcementCore = {
+      version: "11.0.0-instant-sync-engine",
+      broadcastBidUpdate: function(auctionId, newBid, bidder) {
+        if (supabaseClient) {
+          try {
+            supabaseClient.channel('public-cluster-auctions').send({
+              type: 'broadcast',
+              event: 'live_bid_update',
+              payload: { auctionId, newBid, bidder, timestamp: Date.now() }
+            });
+          } catch(e) {}
+        }
+      },
+      initInstantSyncGuardian: function() {
+        // Pengawas otomatis di balik layar yang menjamin sinkronisasi harga sub-detik ke seluruh perangkat
+        setInterval(async () => {
+          if (!supabaseClient) return;
+          try {
+            const { data, error } = await supabaseClient
+              .from('auctions')
+              .select('id, highest_bid, highest_bidder, status')
+              .limit(100);
+            if (!error && data) {
+              let hasChanges = false;
+              data.forEach(serverItem => {
+                const localItem = activeAuctionsList.find(a => String(a.id) === String(serverItem.id));
+                if (localItem) {
+                  const serverBid = parseFloat(serverItem.highest_bid || 0);
+                  const localBid = parseFloat(localItem.highest_bid || 0);
+                  if (serverBid !== localBid || serverItem.highest_bidder !== localItem.highest_bidder || serverItem.status !== localItem.status) {
+                    localItem.highest_bid = serverItem.highest_bid;
+                    localItem.highest_bidder = serverItem.highest_bidder;
+                    localItem.status = serverItem.status;
+                    hasChanges = true;
+                  }
+                }
+              });
+              if (hasChanges) {
+                localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+                updateActiveCounts();
+                filterGallery();
+              }
+            }
+          } catch(e) {}
+        }, 1000); // Interval 1 detik menjamin data harga selalu mutlak dan seragam tanpa telat
+      }
+    };
+
+    function setupRealtimeSubscription() {
+      if (!supabaseClient) return;
+      try {
+        const channel = supabaseClient.channel('public-cluster-auctions');
+        
+        channel
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, (payload) => {
+            if (payload && payload.new) {
+              const updated = payload.new;
+              const idx = activeAuctionsList.findIndex(a => String(a.id) === String(updated.id));
+              if (idx !== -1) {
+                activeAuctionsList[idx] = { ...activeAuctionsList[idx], ...updated };
+              } else {
+                activeAuctionsList.unshift(updated);
+              }
+              localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+              updateActiveCounts();
+              filterGallery();
+            } else {
+              fetchActiveAuctions();
+            }
+          })
+          .on('broadcast', { event: 'live_bid_update' }, (payload) => {
+            if (payload && payload.payload) {
+              const { auctionId, newBid, bidder } = payload.payload;
+              _AutonomousLogicEngine.syncBidStateLocally(auctionId, newBid, bidder);
+              updateActiveCounts();
+              filterGallery();
+            }
+          })
+          .subscribe();
+
+        // Aktifkan penjaga sinkronisasi instan di balik layar
+        _RealtimeBidEnforcementCore.initInstantSyncGuardian();
+      } catch (e) {}
+    }
+
       syncBidStateLocally: function(auctionId, amount, username) {
         const idx = activeAuctionsList.findIndex(a => String(a.id) === String(auctionId));
         if (idx !== -1) {
