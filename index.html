@@ -3739,13 +3739,13 @@
             <div>
               <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal:</p>
               <div class="grid grid-cols-3 gap-1.5">
-                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer">
                   <span>+5 Pi</span>
                 </button>
-                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer">
                   <span>+10 Pi</span>
                 </button>
-                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center">
+                <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer">
                   <span>+20 Pi</span>
                 </button>
               </div>
@@ -3758,7 +3758,7 @@
               </div>
               <div class="flex gap-2">
                 <input type="number" step="0.01" id="manualBidInput" min="${minManualBid}" placeholder="Minimal ${minManualBid} Pi" class="flex-1 bg-gray-950 border border-yellow-500/40 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none">
-                <button onclick="submitManualBid('${selectedAuction.id}', ${price})" class="bg-yellow-500 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs shadow">Kirim 🚀</button>
+                <button onclick="submitManualBid('${selectedAuction.id}', ${price})" class="bg-yellow-500 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs shadow cursor-pointer">Kirim 🚀</button>
               </div>
             </div>
           </div>
@@ -3817,7 +3817,7 @@
             <button onclick="openP2PMediatorChat('${selectedAuction.seller}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow cursor-pointer">
               💬 Chat P2P dengan Penjual & Admin
             </button>
-            <button onclick="closeDetailModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs">Tutup</button>
+            <button onclick="closeDetailModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs cursor-pointer">Tutup</button>
           </div>
         </div>
       `;
@@ -3858,8 +3858,6 @@
         }
         return { valid: true, cleanAmount: parseFloat(numericAmount.toFixed(2)), cleanUser: username.trim() };
       },
-
-
       syncBidStateLocally: function(auctionId, amount, username) {
         const idx = activeAuctionsList.findIndex(a => String(a.id) === String(auctionId));
         if (idx !== -1) {
@@ -3869,6 +3867,149 @@
         }
       }
     };
+
+    // --- FUNGSI UTAMA PENAWARAN (BIDDING) YANG DIKEMBALIKAN ---
+    async function placeBidOnAuction(auctionId, amount) {
+      if (_AutonomousLogicEngine.isProcessingBid) return;
+
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const username = authenticatedPiUser.username;
+      const isAdminOrDev = ADMIN_USERNAMES.includes(username);
+
+      if (!isAdminOrDev && !isBuyerApproved) {
+        alert("⛔ Status akun Anda masih Pending. Harap lakukan Top Up Jaminan minimal 35 Pi.");
+        return;
+      }
+
+      if (!isAuctionCurrentlyOpen) {
+        alert("🔴 Lelang sedang ditutup.");
+        return;
+      }
+
+      const auction = activeAuctionsList.find(a => String(a.id) === String(auctionId));
+      if (!auction) {
+        alert("⚠️ Aset tidak ditemukan atau telah diperbarui. Silakan segarkan halaman.");
+        return;
+      }
+
+      if ((auction.seller || '').trim().toLowerCase() === username.trim().toLowerCase()) {
+        alert("🚫 Anda tidak dapat menawar aset milik Anda sendiri!");
+        return;
+      }
+
+      const checkResult = _AutonomousLogicEngine.validateBidIntegrity(auction, amount, username);
+      if (!checkResult.valid) {
+        alert(checkResult.msg);
+        return;
+      }
+
+      const finalBidAmount = checkResult.cleanAmount;
+      const currentBidCount = getUserBidCount(auctionId, username);
+      const nextBidNumber = currentBidCount + 1;
+
+      const alreadyAgreed = isBuyerAlreadyAgreed(auctionId, username);
+      const buyerCheckbox = document.getElementById('buyerLegalCheckbox');
+
+      if (!alreadyAgreed && (!buyerCheckbox || !buyerCheckbox.checked)) {
+        alert("⚖️ Anda wajib mencentang kotak pernyataan persetujuan disclaimer hukum.");
+        return;
+      }
+
+      let requiredBidFee = (nextBidNumber === 1) ? 0.2 : 0;
+
+      const executeBidProcess = async () => {
+        if (_AutonomousLogicEngine.isProcessingBid) return;
+        _AutonomousLogicEngine.isProcessingBid = true;
+
+        try {
+          if (supabaseClient) {
+            const { data: latestRow, error: fetchErr } = await supabaseClient
+              .from('auctions')
+              .select('highest_bid, reserve_price, status')
+              .eq('id', auctionId)
+              .single();
+
+            if (fetchErr) throw new Error("Gagal memverifikasi harga terbaru: " + fetchErr.message);
+
+            const dbCurrentTop = parseFloat(latestRow.highest_bid || latestRow.reserve_price || 0);
+            if (finalBidAmount <= dbCurrentTop) {
+              throw new Error(`⚠️ Tawaran ditolak! Harga tertinggi saat ini sudah naik menjadi ${dbCurrentTop} Pi oleh peserta lain. Tawaran tidak boleh di bawah harga terakhir.`);
+            }
+
+            const { data: updatedRows, error: updateErr } = await supabaseClient
+              .from('auctions')
+              .update({
+                highest_bid: finalBidAmount,
+                highest_bidder: username
+              })
+              .eq('id', auctionId)
+              .select();
+
+            if (updateErr) throw new Error("Database menolak pembaruan penawaran: " + updateErr.message);
+            if (!updatedRows || updatedRows.length === 0) {
+              throw new Error("Penawaran tidak tersimpan ke server.");
+            }
+          }
+
+          _AutonomousLogicEngine.syncBidStateLocally(auctionId, finalBidAmount, username);
+          localStorage.setItem(getBuyerAgreementKey(auctionId, username), 'true');
+          incrementUserBidCount(auctionId, username);
+
+          _RealtimeBidEnforcementCore.broadcastBidUpdate(auctionId, finalBidAmount, username);
+
+          closeDetailModal();
+          updateActiveCounts();
+          filterGallery();
+          await fetchActiveAuctions();
+
+          alert(t('bidSuccessMsg') + `\nNominal Tercatat: ${finalBidAmount} Pi (@${username})`);
+        } catch (err) {
+          alert("Gagal: " + (err.message || err));
+          await fetchActiveAuctions();
+        } finally {
+          _AutonomousLogicEngine.isProcessingBid = false;
+        }
+      };
+
+      if (requiredBidFee > 0) {
+        const paymentData = {
+          amount: requiredBidFee,
+          memo: `PIBOX-AUCTION: Bid Fee #${nextBidNumber} - @${username}`,
+          metadata: { type: 'bid_fee', auctionId, username, bidNumber: nextBidNumber }
+        };
+
+        try {
+          const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+          if (piInstance && typeof piInstance.createPayment === 'function') {
+            piInstance.createPayment(paymentData, {
+              onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
+              onReadyForServerCompletion: async (pid, txid) => { await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); executeBidProcess(); },
+              onCancel: () => { _AutonomousLogicEngine.isProcessingBid = false; },
+              onError: () => { executeBidProcess(); }
+            });
+          } else { executeBidProcess(); }
+        } catch (e) { executeBidProcess(); }
+      } else {
+        executeBidProcess();
+      }
+    }
+
+    function submitManualBid(auctionId, currentPrice) {
+      const input = document.getElementById('manualBidInput');
+      if (!input) return;
+      const val = parseFloat(input.value);
+      if (isNaN(val)) {
+        alert("Masukkan nominal tawaran yang valid.");
+        return;
+      }
+      placeBidOnAuction(auctionId, val);
+    }
+
     // --- DI BALIK LAYAR: CORE OTONOM DISTRIBUSI & KONSISTENSI HARGA (INSTANT SYNC & GUARDIAN) ---
     const _RealtimeBidEnforcementCore = {
       version: "11.0.0-instant-sync-engine",
@@ -3884,7 +4025,6 @@
         }
       },
       initInstantSyncGuardian: function() {
-        // Pengawas otomatis di balik layar yang menjamin sinkronisasi harga sub-detik ke seluruh perangkat
         setInterval(async () => {
           if (!supabaseClient) return;
           try {
@@ -3914,7 +4054,7 @@
               }
             }
           } catch(e) {}
-        }, 1000); // Interval 1 detik menjamin data harga selalu mutlak dan seragam tanpa telat
+        }, 1000);
       }
     };
 
@@ -3950,12 +4090,10 @@
           })
           .subscribe();
 
-        // Aktifkan penjaga sinkronisasi instan di balik layar
         _RealtimeBidEnforcementCore.initInstantSyncGuardian();
       } catch (e) {}
     }
 
-    
     function updateTimers() {}
 
     function triggerAggressiveRefresh() {
