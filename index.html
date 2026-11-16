@@ -3858,7 +3858,18 @@
         }
         return { valid: true, cleanAmount: parseFloat(numericAmount.toFixed(2)), cleanUser: username.trim() };
       },
-          // --- DI BALIK LAYAR: CORE OTONOM DISTRIBUSI & KONSISTENSI HARGA (INSTANT SYNC & GUARDIAN) ---
+
+
+      syncBidStateLocally: function(auctionId, amount, username) {
+        const idx = activeAuctionsList.findIndex(a => String(a.id) === String(auctionId));
+        if (idx !== -1) {
+          activeAuctionsList[idx].highest_bid = amount;
+          activeAuctionsList[idx].highest_bidder = username;
+          localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+        }
+      }
+    };
+    // --- DI BALIK LAYAR: CORE OTONOM DISTRIBUSI & KONSISTENSI HARGA (INSTANT SYNC & GUARDIAN) ---
     const _RealtimeBidEnforcementCore = {
       version: "11.0.0-instant-sync-engine",
       broadcastBidUpdate: function(auctionId, newBid, bidder) {
@@ -3943,16 +3954,6 @@
         _RealtimeBidEnforcementCore.initInstantSyncGuardian();
       } catch (e) {}
     }
-
-      syncBidStateLocally: function(auctionId, amount, username) {
-        const idx = activeAuctionsList.findIndex(a => String(a.id) === String(auctionId));
-        if (idx !== -1) {
-          activeAuctionsList[idx].highest_bid = amount;
-          activeAuctionsList[idx].highest_bidder = username;
-          localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
-        }
-      }
-    };
 
     
     function updateTimers() {}
