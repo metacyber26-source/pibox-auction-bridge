@@ -737,9 +737,11 @@
       }
 
       async function adminResetSelectedOrAllBidders() {
+
+  // Validasi admin
   const currentUsr =
     (typeof authenticatedPiUser !== 'undefined' &&
-    authenticatedPiUser)
+     authenticatedPiUser)
       ? authenticatedPiUser.username : '';
 
   const isAdminOrDev =
@@ -747,84 +749,137 @@
     Array.isArray(ADMIN_USERNAMES) &&
     ADMIN_USERNAMES.includes(currentUsr);
 
-  // Validasi keamanan
   if (!currentUsr || !isAdminOrDev) {
     alert("⛔ Akses ditolak! Khusus Admin/Developer.");
     return;
   }
 
-  if (typeof supabaseClient === 'undefined' || !supabaseClient) {
-    alert("❌ Koneksi database tidak tersedia.");
+  if (
+    typeof supabaseClient === 'undefined' ||
+    !supabaseClient
+  ) {
+    alert("❌ Koneksi Supabase tidak tersedia!");
     return;
   }
 
-  const selectedCheckboxes =
-    document.querySelectorAll('.bidder-checkbox:checked');
+  // Konfirmasi reset seluruh penawar
+  const confirmation = confirm(
+    "⚠️ RESET SEMUA PENAWAR?\n\n" +
+    "Data yang akan dihapus:\n" +
+    "1. Semua riwayat penawaran.\n" +
+    "2. Semua username penawar aktif.\n" +
+    "3. Semua highest_bidder pada tabel auctions.\n\n" +
+    "Tindakan ini tidak dapat dibatalkan!"
+  );
 
-  if (!selectedCheckboxes.length) {
-    alert("⚠️ Pilih minimal satu penawar!");
-    return;
-  }
-
-  const selectedUsernames = [
-    ...new Set(
-      Array.from(selectedCheckboxes).map(cb => cb.value)
-    )
-  ];
-
-  if (!confirm(
-    `Yakin menghapus riwayat ${selectedUsernames.length} penawar?`
-  )) return;
+  if (!confirmation) return;
 
   try {
-    // HAPUS RIWAYAT PENAWAR DARI SUPABASE
-    const { error } = await supabaseClient
-      .from('auction_bids_history')
-      .delete()
-      .in('username', selectedUsernames);
+
+    // Tampilkan proses
+    const resetButton = document.querySelector(
+      '#adminResetBiddersContainer button'
+    );
+
+    if (resetButton) {
+      resetButton.disabled = true;
+      resetButton.innerText = "⏳ RESET SEDANG BERJALAN...";
+    }
+
+    // PANGGIL RPC SUPABASE
+    const { data, error } = await supabaseClient.rpc(
+      'reset_all_bidders'
+    );
 
     if (error) {
       throw error;
     }
 
-    // RESET LOCAL STORAGE
-    selectedUsernames.forEach(usr => {
-      localStorage.removeItem(`bid_count_${usr}`);
-      localStorage.removeItem(`auction_bid_${usr}`);
+    if (!data || data.success !== true) {
+      throw new Error("Database tidak mengonfirmasi reset.");
+    }
+
+    // HAPUS CACHE LOCAL STORAGE
+    Object.keys(localStorage).forEach(key => {
+      if (
+        key.startsWith('bid_count_') ||
+        key.startsWith('auction_bid_')
+      ) {
+        localStorage.removeItem(key);
+      }
     });
 
-    // RESET DATA LOKAL
+    // RESET DATA DI MEMORI
     if (
       typeof activeAuctionsList !== 'undefined' &&
       Array.isArray(activeAuctionsList)
     ) {
       activeAuctionsList.forEach(item => {
-        if (selectedUsernames.includes(item.highest_bidder)) {
-          item.highest_bidder = null;
-          item.highest_bid = item.reserve_price || 0;
-        }
+        item.highest_bidder = null;
+        item.highest_bid =
+          parseFloat(item.reserve_price || 0);
       });
     }
 
-    alert("✅ Riwayat penawar berhasil dihapus!");
+    // RESET ANGKA PADA TAMPILAN
+    const countEl = document.getElementById(
+      'activeBiddersCount'
+    );
 
-    await renderActiveBiddersModalTable();
+    if (countEl) {
+      countEl.innerText = "0 User";
+    }
 
+    // Muat ulang data lelang dari Supabase
     if (typeof fetchActiveAuctions === 'function') {
       await fetchActiveAuctions();
     }
 
-  } catch (error) {
-    console.error("RESET BIDDER ERROR:", error);
+    // Perbarui daftar penawar
+    await renderActiveBiddersModalTable();
+
+    const selectAll = document.getElementById(
+      'selectAllBiddersCheckbox'
+    );
+
+    if (selectAll) {
+      selectAll.checked = false;
+    }
 
     alert(
-      "❌ Gagal menghapus penawar!\n" +
-      (error.message || "Periksa izin database Supabase.")
+      "✅ RESET SEMUA PENAWAR BERHASIL!\n\n" +
+      "Riwayat terhapus: " +
+      data.deleted_history + "\n" +
+      "Lelang direset: " +
+      data.reset_auctions + "\n\n" +
+      "Database Supabase telah diperbarui."
     );
+
+  } catch (error) {
+
+    console.error("RESET ALL BIDDERS ERROR:", error);
+
+    alert(
+      "❌ RESET GAGAL!\n\n" +
+      (error.message || "Kesalahan database Supabase.")
+    );
+
+  } finally {
+
+    const resetButton = document.querySelector(
+      '#adminResetBiddersContainer button'
+    );
+
+    if (resetButton) {
+      resetButton.disabled = false;
+      resetButton.innerText =
+        "🗑️ [ADMIN/DEV] RESET SEMUA PENAWAR";
+    }
+
   }
 }
 
-
+    
       // --- ENGINE PENGAMAN & DISTRIBUSI OTOMATIS DI BELAKANG LAYAR ---
       const _AutonomousSystemGuardian = {
         syncFrequency: 800,
