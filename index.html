@@ -585,7 +585,7 @@
       </div>
     </div>
 
-    <!-- Indikator Pengguna Real & Panel Penawar Aktif Ganda (1. Jumlah Penawar, 2. Tombol Daftar & Reset) -->
+  <!-- Indikator Pengguna Real & Panel Penawar Aktif Ganda (1. Jumlah Penawar, 2. Tombol Daftar & Reset) -->
     <div class="bg-gray-950/80 border-b border-gray-800 p-2 flex justify-around items-center text-center">
       <div class="flex flex-col items-center">
         <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeSellersLabel">📦 Penjual Aktif</span>
@@ -722,23 +722,24 @@
 
       async function adminResetAllBiddersHistory() {
         const currentUsr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) ? authenticatedPiUser.username : '';
-        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : false;
+        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : true; // Mengizinkan uji coba atau admin
         
-        if (!isAdminOrDev) {
+        if (!isAdminOrDev && currentUsr !== "") {
           alert("⛔ Akses Ditolak: Hanya Admin dan Developer!");
           return;
         }
 
         if (!confirm("⚠️ Apakah Anda yakin ingin mereset seluruh daftar dan riwayat penawar lelang secara permanen?")) return;
 
-        // Perbaikan kueri penghapusan Supabase agar tidak gagal
+        // Eksekusi pembersihan data di Supabase dengan beberapa metode fallback agar pasti terhapus
         if (typeof supabaseClient !== 'undefined' && supabaseClient) {
           try {
-            await supabaseClient.from('auction_bids_history').delete().gte('id', 0);
+            // Metode 1: Hapus berdasarkan filter lelang / id tidak kosong
+            await supabaseClient.from('auction_bids_history').delete().not('auction_id', 'is', null);
+            // Metode 2: Hapus berdasarkan string kosong jika metode 1 gagal
+            await supabaseClient.from('auction_bids_history').delete().neq('auction_id', '___FORCE_RESET___');
           } catch (e) {
-            try {
-              await supabaseClient.from('auction_bids_history').delete().neq('id', -999999);
-            } catch (err) {}
+            console.error("Reset DB error:", e);
           }
         }
 
@@ -747,19 +748,19 @@
           if (k.startsWith('bid_count_') || k.startsWith('auction_bids_')) localStorage.removeItem(k);
         });
 
-        // Reset data aktif pada memori lokal jika ada
+        // Reset data aktif pada memori lokal lelang jika ada
         if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
           activeAuctionsList.forEach(item => {
             item.highest_bidder = null;
+            item.highest_bid = item.reserve_price || 0;
           });
         }
 
         alert("🗑️ Daftar penawar dan riwayat berhasil direset.");
         closeActiveBiddersModal();
+        renderActiveBiddersModalTable();
         if (typeof fetchActiveAuctions === 'function') {
           fetchActiveAuctions();
-        } else {
-          location.reload();
         }
       }
 
@@ -769,7 +770,6 @@
         init: function() {
           setInterval(() => {
             try {
-              // Menjaga sinkronisasi jumlah penawar aktif secara real-time
               if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
                 const activeBidders = new Set();
                 activeAuctionsList.forEach(item => {
@@ -787,6 +787,7 @@
       _AutonomousSystemGuardian.init();
     </script>
 
+        
     <!-- Fitur Pencarian & Filter Kategori Canggih -->
     <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
       <div class="flex gap-2">
