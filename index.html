@@ -68,7 +68,7 @@
         }
         return true;
       },
-      syncActiveBiddersCount: function(auctionsList, monthlyReportData) {
+      syncActiveBiddersCount: function(auctionsList) {
         try {
           if (!Array.isArray(auctionsList)) return 0;
           const activeBidders = new Set();
@@ -78,6 +78,28 @@
           return activeBidders.size;
         } catch(e) {
           return 0;
+        }
+      },
+      getActiveBiddersDetails: function(auctionsList) {
+        try {
+          if (!Array.isArray(auctionsList)) return [];
+          const bidderStats = {};
+          auctionsList.forEach(item => {
+            if (item.highest_bidder) {
+              const bidder = item.highest_bidder;
+              if (!bidderStats[bidder]) {
+                bidderStats[bidder] = { username: bidder, totalBids: 0, lastBidAmount: 0 };
+              }
+              bidderStats[bidder].totalBids += 1;
+              const currentBid = parseFloat(item.highest_bid || item.reserve_price || 0);
+              if (currentBid > bidderStats[bidder].lastBidAmount) {
+                bidderStats[bidder].lastBidAmount = currentBid;
+              }
+            }
+          });
+          return Object.values(bidderStats);
+        } catch(e) {
+          return [];
         }
       }
     };
@@ -585,19 +607,18 @@
       </div>
     </div>
 
-    <!-- Indikator Pengguna Real -->
+    <!-- Indikator Pengguna Real & Panel Penawar Aktif Klik-able -->
     <div class="bg-gray-950/80 border-b border-gray-800 p-2 flex justify-around items-center text-center">
       <div class="flex flex-col items-center">
         <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeSellersLabel">📦 Penjual Aktif</span>
         <span id="activeSellersCount" class="text-xs font-bold text-yellow-400">0 User</span>
       </div>
       <div class="h-6 w-[1px] bg-gray-800"></div>
-      <div onclick="openActiveBiddersModal()" class="flex flex-col items-center cursor-pointer hover:opacity-80 transition group" title="Klik untuk melihat daftar penawar aktif">
-        <span class="text-[9px] text-gray-400 font-medium group-hover:text-emerald-300" data-i18n="activeBiddersLabel">🔨 Penawar Aktif</span>
+      <div class="flex flex-col items-center cursor-pointer hover:opacity-80 transition group" onclick="openActiveBiddersModal()" title="Klik untuk melihat daftar penawar aktif">
+        <span class="text-[9px] text-gray-400 font-medium group-hover:text-emerald-300" data-i18n="activeBiddersLabel">🔨 Penawar Aktif (Klik)</span>
         <span id="activeBiddersCount" class="text-xs font-bold text-emerald-400 underline">0 User</span>
       </div>
     </div>
-
 
     <!-- Fitur Pencarian & Filter Kategori Canggih -->
     <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
@@ -654,6 +675,36 @@
       </button>
     </div>
 
+  </div>
+
+  <!-- MODAL: DAFTAR PENAWAR AKTIF -->
+  <div id="activeBiddersModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-emerald-400 text-lg">🔨</span>
+          <div>
+            <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Daftar Penawar Aktif</h2>
+            <p class="text-[9px] text-gray-400">Total partisipan penawaran real-time</p>
+          </div>
+        </div>
+        <button onclick="closeActiveBiddersModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div id="activeBiddersListContainer" class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+          <p class="text-center text-gray-500 py-4">Memuat data penawar...</p>
+        </div>
+
+        <div id="adminBiddersResetContainer" class="hidden pt-2 border-t border-gray-800">
+          <button onclick="adminResetAllBiddersData()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
+            🗑️ Reset Semua Data Penawar (Khusus Admin/Dev)
+          </button>
+        </div>
+      </div>
+
+      <button onclick="closeActiveBiddersModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs cursor-pointer">Tutup</button>
+    </div>
   </div>
 
   <!-- MODAL: LOGIN SEMI-OTOMATIS -->
@@ -1114,96 +1165,6 @@
         alert("🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal.");
       }
     }
-        // --- DI BALIK LAYAR: GUARDIAN & LOGIKA PENAWAR AKTIF ---
-    function openActiveBiddersModal() {
-      renderActiveBiddersList();
-      document.getElementById('activeBiddersModal').classList.remove('hidden');
-    }
-
-    function closeActiveBiddersModal() {
-      document.getElementById('activeBiddersModal').classList.add('hidden');
-    }
-
-    function renderActiveBiddersList() {
-      const container = document.getElementById('activeBiddersListContainer');
-      const adminResetBox = document.getElementById('adminResetBiddersContainer');
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsr);
-
-      if (isAdminOrDev) {
-        adminResetBox.classList.remove('hidden');
-      } else {
-        adminResetBox.classList.add('hidden');
-      }
-
-      const activeBiddersMap = {};
-      
-      if (Array.isArray(activeAuctionsList)) {
-        activeAuctionsList.forEach(item => {
-          if (item.highest_bidder) {
-            const bidder = item.highest_bidder;
-            if (!activeBiddersMap[bidder]) {
-              activeBiddersMap[bidder] = { count: 0, latestBid: item.highest_bid || item.reserve_price || 0, assetTitle: item.title };
-            }
-            activeBiddersMap[bidder].count += getUserBidCount(item.id, bidder) || 1;
-          }
-        });
-      }
-
-      const biddersKeys = Object.keys(activeBiddersMap);
-      if (biddersKeys.length === 0) {
-        container.innerHTML = `<p class="text-center text-gray-500 py-6 text-xs">Belum ada penawar real yang tercatat.</p>`;
-        return;
-      }
-
-      let html = '';
-      biddersKeys.forEach((bidder, idx) => {
-        const info = activeBiddersMap[bidder];
-        html += `
-          <div class="flex items-center justify-between bg-gray-900 border border-emerald-500/30 rounded-xl p-3">
-            <div>
-              <p class="text-xs font-bold text-white">@${SecureShield.maskUsername(bidder)}</p>
-              <p class="text-[10px] text-emerald-400">Total Penawaran: <span class="font-bold">${info.count}x</span></p>
-              <p class="text-[9px] text-gray-400 truncate">Aset Terakhir: ${info.assetTitle || '-'}</p>
-            </div>
-            <span class="text-xs font-bold text-yellow-400">${info.latestBid} Pi</span>
-          </div>
-        `;
-      });
-
-      container.innerHTML = html;
-    }
-
-    async function adminResetAllBidsData() {
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      if (!ADMIN_USERNAMES.includes(currentUsr)) {
-        alert("⛔ Akses Ditolak: Hanya Admin dan Developer.");
-        return;
-      }
-
-      if (!confirm("⚠️ Apakah Anda yakin ingin mereset seluruh data penawar aktif secara permanen?")) return;
-
-      try {
-        // Bersihkan localStorage terkait tawaran
-        Object.keys(localStorage).forEach(k => {
-          if (k.startsWith('bid_count_') || k.startsWith('buyer_agreed_')) {
-            localStorage.removeItem(k);
-          }
-        });
-
-        if (supabaseClient) {
-          // Reset highest_bidder di database jika diperlukan
-          await supabaseClient.from('auctions').update({ highest_bidder: null }).neq('id', '0');
-        }
-
-        alert("🗑️ Data penawar aktif berhasil direset sepenuhnya.");
-        closeActiveBiddersModal();
-        await fetchActiveAuctions();
-      } catch (err) {
-        alert("Gagal mereset data: " + err.message);
-      }
-    }
-
   </script>
 
   <script>
@@ -2730,7 +2691,6 @@
       let externalP2PCount = 0;
       let externalP2PVolume = 0;
 
-      // Integrasi data jumlah penawar aktif secara otomatis dari laporan bulanan
       const activeBiddersCountTotal = _SystemAutonomousGuardian.syncActiveBiddersCount(activeAuctionsList);
 
       filtered.forEach(ast => {
@@ -3103,7 +3063,7 @@
           <td class="p-2 text-right space-x-1 bg-gray-950">
             ${isAdminOrDev ? `
               <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">Reset Saldo</button>
-              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
+              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
             ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
           </td>
           <td class="p-2 text-center bg-gray-950">
@@ -3532,16 +3492,90 @@
 
     function updateActiveCounts() {
       const sellersSet = new Set();
-      const biddersSet = new Set();
       activeAuctionsList.forEach(a => {
         if (a.seller) sellersSet.add(a.seller);
-        if (a.highest_bidder) biddersSet.add(a.highest_bidder);
       });
       
+      const biddersCountTotal = _SystemAutonomousGuardian.syncActiveBiddersCount(activeAuctionsList);
+
       const sellersEl = document.getElementById('activeSellersCount');
       const biddersEl = document.getElementById('activeBiddersCount');
       if (sellersEl) sellersEl.innerText = `${sellersSet.size} User`;
-      if (biddersEl) biddersEl.innerText = `${biddersSet.size} User`;
+      if (biddersEl) biddersEl.innerText = `${biddersCountTotal} User`;
+    }
+
+    function openActiveBiddersModal() {
+      const container = document.getElementById('activeBiddersListContainer');
+      const adminResetBox = document.getElementById('adminBiddersResetContainer');
+      
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsr);
+
+      if (isAdminOrDev) {
+        adminResetBox.classList.remove('hidden');
+      } else {
+        adminResetBox.classList.add('hidden');
+      }
+
+      const biddersDetails = _SystemAutonomousGuardian.getActiveBiddersDetails(activeAuctionsList);
+
+      if (biddersDetails.length === 0) {
+        container.innerHTML = `<p class="text-center text-gray-500 py-4">Belum ada penawar aktif.</p>`;
+      } else {
+        let html = '';
+        biddersDetails.forEach((b, idx) => {
+          html += `
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-2.5 flex justify-between items-center">
+              <div>
+                <p class="font-bold text-yellow-400 text-xs">${idx + 1}. @${SecureShield.maskUsername(b.username)}</p>
+                <p class="text-[9px] text-gray-400">Jumlah Penawaran: <span class="text-emerald-400 font-bold">${b.totalBids}x</span></p>
+              </div>
+              <div class="text-right">
+                <span class="text-xs font-bold text-emerald-400">${b.lastBidAmount} Pi</span>
+              </div>
+            </div>
+          `;
+        });
+        container.innerHTML = html;
+      }
+
+      document.getElementById('activeBiddersModal').classList.remove('hidden');
+    }
+
+    function closeActiveBiddersModal() {
+      document.getElementById('activeBiddersModal').classList.add('hidden');
+    }
+
+    async function adminResetAllBiddersData() {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      _SystemAutonomousGuardian.enforceStrictLogic("Reset Penawar Aktif", currentUsr);
+
+      if (!confirm("⚠️ Apakah Anda yakin ingin mereset seluruh data penawar aktif dan riwayat tawaran?")) return;
+
+      try {
+        if (supabaseClient) {
+          // Reset highest_bidder dan kembalikan highest_bid ke reserve_price atau null
+          for (let item of activeAuctionsList) {
+            await supabaseClient
+              .from('auctions')
+              .update({ highest_bidder: null, highest_bid: null })
+              .eq('id', item.id);
+          }
+        }
+        
+        // Bersihkan counter local storage terkait tawaran
+        Object.keys(localStorage).forEach(k => {
+          if (k.startsWith('bid_count_') || k.startsWith('buyer_agreed_')) {
+            localStorage.removeItem(k);
+          }
+        });
+
+        await fetchActiveAuctions();
+        closeActiveBiddersModal();
+        alert("✅ Data penawar aktif berhasil di-reset oleh Admin/Dev.");
+      } catch (err) {
+        alert("Gagal mereset data penawar: " + err.message);
+      }
     }
 
     function getCategoryLabel(catKey) {
@@ -3755,7 +3789,6 @@
       }
     };
 
-    // --- PERBAIKAN: PENANGANAN VARIABEL PEMENANG LELANG PADA SERTIFIKAT ---
     function copyCertificateLink(auctionId) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       if (!currentUsr || !SystemLogicEngine.validateExecution(currentUsr)) {
@@ -3974,7 +4007,6 @@
       }
     };
 
-    // --- FUNGSI UTAMA PENAWARAN (BIDDING) YANG DIKEMBALIKAN ---
     async function placeBidOnAuction(auctionId, amount) {
       if (_AutonomousLogicEngine.isProcessingBid) return;
 
@@ -4260,34 +4292,5 @@
       hasReleasedToGallery = false;
     }
   </script>
-    <!-- MODAL: DAFTAR PENAWAR AKTIF -->
-  <div id="activeBiddersModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
-    <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
-      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
-        <div class="flex items-center gap-2">
-          <span class="text-emerald-400 text-lg">🔨</span>
-          <div>
-            <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Daftar Penawar Aktif</h2>
-            <p class="text-[9px] text-gray-400">Menunjukkan penawar real dan jumlah penawaran</p>
-          </div>
-        </div>
-        <button onclick="closeActiveBiddersModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
-      </div>
-
-      <div class="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar" id="activeBiddersListContainer">
-        <p class="text-center text-gray-500 py-4 text-xs">Memuat daftar penawar...</p>
-      </div>
-
-      <div id="adminResetBiddersContainer" class="hidden pt-2 border-t border-gray-800">
-        <button onclick="adminResetAllBidsData()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer">
-          ⚠️ Reset Semua Data Penawar (Admin/Dev)
-        </button>
-      </div>
-
-      <button onclick="closeActiveBiddersModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs">
-        Tutup
-      </button>
-    </div>
-  </div>
 </body>
 </html>
