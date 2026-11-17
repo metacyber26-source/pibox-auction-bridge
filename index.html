@@ -678,7 +678,7 @@
 
         let biddersMap = {};
 
-        // Ambil data dari tabel riwayat penawaran Supabase
+        // 1. Ambil data dari tabel riwayat penawaran Supabase
         if (typeof supabaseClient !== 'undefined' && supabaseClient) {
           try {
             const { data, error } = await supabaseClient.from('auction_bids_history').select('*');
@@ -697,15 +697,16 @@
           } catch (e) {}
         }
 
-        // Sinkronisasi fallback dengan activeAuctionsList jika tabel kosong
-        if (Object.keys(biddersMap).length === 0 && typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
+        // 2. Ambil juga dari activeAuctionsList (jika data disimpan langsung di objek lelang)
+        if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
           activeAuctionsList.forEach(item => {
             if (item.highest_bidder) {
               const usr = item.highest_bidder;
               if (!biddersMap[usr]) {
                 biddersMap[usr] = { count: 0, lastBid: parseFloat(item.highest_bid || item.reserve_price || 0) };
+              } else {
+                biddersMap[usr].count = Math.max(biddersMap[usr].count, 1);
               }
-              biddersMap[usr].count += 1;
             }
           });
         }
@@ -754,29 +755,30 @@
 
         const selectedUsernames = Array.from(selectedCheckboxes).map(cb => cb.value);
 
-        // Hapus data penawar terpilih dari database Supabase
+        // 1. Hapus dari database Supabase
         if (typeof supabaseClient !== 'undefined' && supabaseClient) {
           try {
             for (let usr of selectedUsernames) {
               await supabaseClient.from('auction_bids_history').delete().eq('username', usr);
             }
-          } catch (e) {
-            console.error("Supabase delete error:", e);
-          }
+          } catch (e) {}
         }
 
-        // Hapus dari cache lokal
+        // 2. Hapus dari localStorage terkait penawar
         selectedUsernames.forEach(usr => {
           localStorage.removeItem(`bid_count_${usr}`);
+          localStorage.removeItem(`auction_bid_${usr}`);
         });
 
-        // Reset data tertinggi pada activeAuctionsList jika penawar tersebut yang memegang bid tertinggi
+        // 3. Reset langsung pada objek lelang aktif (`activeAuctionsList`) agar datanya benar-benar kosong
         if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
           activeAuctionsList.forEach(item => {
             if (selectedUsernames.includes(item.highest_bidder)) {
               item.highest_bidder = null;
               if (item.reserve_price !== undefined) {
                 item.highest_bid = item.reserve_price;
+              } else {
+                item.highest_bid = 0;
               }
             }
           });
@@ -784,8 +786,11 @@
 
         alert("🗑️ Penawar terpilih berhasil dihapus bersih.");
         renderActiveBiddersModalTable();
+        
         if (typeof fetchActiveAuctions === 'function') {
           fetchActiveAuctions();
+        } else {
+          location.reload();
         }
       }
 
