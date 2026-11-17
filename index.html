@@ -1114,6 +1114,96 @@
         alert("🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal.");
       }
     }
+        // --- DI BALIK LAYAR: GUARDIAN & LOGIKA PENAWAR AKTIF ---
+    function openActiveBiddersModal() {
+      renderActiveBiddersList();
+      document.getElementById('activeBiddersModal').classList.remove('hidden');
+    }
+
+    function closeActiveBiddersModal() {
+      document.getElementById('activeBiddersModal').classList.add('hidden');
+    }
+
+    function renderActiveBiddersList() {
+      const container = document.getElementById('activeBiddersListContainer');
+      const adminResetBox = document.getElementById('adminResetBiddersContainer');
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsr);
+
+      if (isAdminOrDev) {
+        adminResetBox.classList.remove('hidden');
+      } else {
+        adminResetBox.classList.add('hidden');
+      }
+
+      const activeBiddersMap = {};
+      
+      if (Array.isArray(activeAuctionsList)) {
+        activeAuctionsList.forEach(item => {
+          if (item.highest_bidder) {
+            const bidder = item.highest_bidder;
+            if (!activeBiddersMap[bidder]) {
+              activeBiddersMap[bidder] = { count: 0, latestBid: item.highest_bid || item.reserve_price || 0, assetTitle: item.title };
+            }
+            activeBiddersMap[bidder].count += getUserBidCount(item.id, bidder) || 1;
+          }
+        });
+      }
+
+      const biddersKeys = Object.keys(activeBiddersMap);
+      if (biddersKeys.length === 0) {
+        container.innerHTML = `<p class="text-center text-gray-500 py-6 text-xs">Belum ada penawar real yang tercatat.</p>`;
+        return;
+      }
+
+      let html = '';
+      biddersKeys.forEach((bidder, idx) => {
+        const info = activeBiddersMap[bidder];
+        html += `
+          <div class="flex items-center justify-between bg-gray-900 border border-emerald-500/30 rounded-xl p-3">
+            <div>
+              <p class="text-xs font-bold text-white">@${SecureShield.maskUsername(bidder)}</p>
+              <p class="text-[10px] text-emerald-400">Total Penawaran: <span class="font-bold">${info.count}x</span></p>
+              <p class="text-[9px] text-gray-400 truncate">Aset Terakhir: ${info.assetTitle || '-'}</p>
+            </div>
+            <span class="text-xs font-bold text-yellow-400">${info.latestBid} Pi</span>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    async function adminResetAllBidsData() {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      if (!ADMIN_USERNAMES.includes(currentUsr)) {
+        alert("⛔ Akses Ditolak: Hanya Admin dan Developer.");
+        return;
+      }
+
+      if (!confirm("⚠️ Apakah Anda yakin ingin mereset seluruh data penawar aktif secara permanen?")) return;
+
+      try {
+        // Bersihkan localStorage terkait tawaran
+        Object.keys(localStorage).forEach(k => {
+          if (k.startsWith('bid_count_') || k.startsWith('buyer_agreed_')) {
+            localStorage.removeItem(k);
+          }
+        });
+
+        if (supabaseClient) {
+          // Reset highest_bidder di database jika diperlukan
+          await supabaseClient.from('auctions').update({ highest_bidder: null }).neq('id', '0');
+        }
+
+        alert("🗑️ Data penawar aktif berhasil direset sepenuhnya.");
+        closeActiveBiddersModal();
+        await fetchActiveAuctions();
+      } catch (err) {
+        alert("Gagal mereset data: " + err.message);
+      }
+    }
+
   </script>
 
   <script>
