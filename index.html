@@ -643,14 +643,14 @@
       </div>
     </div>
 
-    <!-- SCRIPT TAMBAHAN PENDUKUNG PANEL PENAWAR AKTIF & AGI PENJAGA -->
+    <!-- SCRIPT UTAMA & ENGINE OTOMATISASI DI BALIK LAYAR -->
     <script>
       function openActiveBiddersModal() {
         renderActiveBiddersModalTable();
         document.getElementById('activeBiddersModal').classList.remove('hidden');
         
-        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsr);
+        const currentUsr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) ? authenticatedPiUser.username : '';
+        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : false;
         const resetContainer = document.getElementById('adminResetBiddersContainer');
         if (resetContainer) {
           if (isAdminOrDev) resetContainer.classList.remove('hidden');
@@ -668,8 +668,8 @@
 
         let biddersMap = {};
 
-        // Ambil data dari riwayat penawaran Supabase jika ada, atau fallback ke data lokal/cache aktif
-        if (supabaseClient) {
+        // Ambil data dari tabel riwayat penawaran Supabase
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
           try {
             const { data, error } = await supabaseClient.from('auction_bids_history').select('*');
             if (!error && data && data.length > 0) {
@@ -687,8 +687,8 @@
           } catch (e) {}
         }
 
-        // Fallback / Gabungkan dengan activeAuctionsList
-        if (Object.keys(biddersMap).length === 0 && Array.isArray(activeAuctionsList)) {
+        // Sinkronisasi fallback dengan activeAuctionsList jika tabel kosong
+        if (Object.keys(biddersMap).length === 0 && typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
           activeAuctionsList.forEach(item => {
             if (item.highest_bidder) {
               const usr = item.highest_bidder;
@@ -708,7 +708,7 @@
 
         let html = '';
         entries.forEach(([usr, stats]) => {
-          const maskedUsr = SecureShield.maskUsername(usr);
+          const maskedUsr = (typeof SecureShield !== 'undefined' && SecureShield.maskUsername) ? SecureShield.maskUsername(usr) : usr;
           html += `
             <tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
               <td class="p-2 font-mono text-yellow-400">@${maskedUsr}</td>
@@ -721,52 +721,71 @@
       }
 
       async function adminResetAllBiddersHistory() {
-        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        if (!ADMIN_USERNAMES.includes(currentUsr)) {
+        const currentUsr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) ? authenticatedPiUser.username : '';
+        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : false;
+        
+        if (!isAdminOrDev) {
           alert("⛔ Akses Ditolak: Hanya Admin dan Developer!");
           return;
         }
 
         if (!confirm("⚠️ Apakah Anda yakin ingin mereset seluruh daftar dan riwayat penawar lelang secara permanen?")) return;
 
-        if (supabaseClient) {
+        // Perbaikan kueri penghapusan Supabase agar tidak gagal
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
           try {
-            await supabaseClient.from('auction_bids_history').delete().neq('id', 0);
-          } catch (e) {}
+            await supabaseClient.from('auction_bids_history').delete().gte('id', 0);
+          } catch (e) {
+            try {
+              await supabaseClient.from('auction_bids_history').delete().neq('id', -999999);
+            } catch (err) {}
+          }
         }
 
-        // Bersihkan cache lokal penawar
+        // Bersihkan seluruh cache lokal terkait penawar
         Object.keys(localStorage).forEach(k => {
-          if (k.startsWith('bid_count_')) localStorage.removeItem(k);
+          if (k.startsWith('bid_count_') || k.startsWith('auction_bids_')) localStorage.removeItem(k);
         });
+
+        // Reset data aktif pada memori lokal jika ada
+        if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
+          activeAuctionsList.forEach(item => {
+            item.highest_bidder = null;
+          });
+        }
 
         alert("🗑️ Daftar penawar dan riwayat berhasil direset.");
         closeActiveBiddersModal();
-        fetchActiveAuctions();
+        if (typeof fetchActiveAuctions === 'function') {
+          fetchActiveAuctions();
+        } else {
+          location.reload();
+        }
       }
 
-      // --- ENGINE AI/AGI OTONOM DI BALIK LAYAR (MENJAMIN LOGIKA KONSISTEN & CEPAT) ---
-      const _AutonomousAGIGuardianCore = {
-        version: "12.0.0-agigardian",
-        monitorAndEnforce: function() {
-          try {
-            // Sinkronisasi otomatis jumlah penawar aktif secara konsisten
-            if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
-              const activeBidders = new Set();
-              activeAuctionsList.forEach(item => {
-                if (item.highest_bidder) activeBidders.add(item.highest_bidder);
-              });
-              const countEl = document.getElementById('activeBiddersCount');
-              if (countEl && countEl.innerText !== `${activeBidders.size} User`) {
-                countEl.innerText = `${activeBidders.size} User`;
+      // --- ENGINE PENGAMAN & DISTRIBUSI HARGA OTOMATIS DI BELAKANG LAYAR ---
+      const _AutonomousSystemGuardian = {
+        syncFrequency: 1000,
+        init: function() {
+          setInterval(() => {
+            try {
+              // Menjaga sinkronisasi jumlah penawar aktif secara real-time
+              if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
+                const activeBidders = new Set();
+                activeAuctionsList.forEach(item => {
+                  if (item.highest_bidder) activeBidders.add(item.highest_bidder);
+                });
+                const countEl = document.getElementById('activeBiddersCount');
+                if (countEl && countEl.innerText !== `${activeBidders.size} User`) {
+                  countEl.innerText = `${activeBidders.size} User`;
+                }
               }
-            }
-          } catch(e) {}
+            } catch(e) {}
+          }, this.syncFrequency);
         }
       };
-      setInterval(() => { _AutonomousAGIGuardianCore.monitorAndEnforce(); }, 1500);
+      _AutonomousSystemGuardian.init();
     </script>
-
 
     <!-- Fitur Pencarian & Filter Kategori Canggih -->
     <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
