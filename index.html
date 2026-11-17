@@ -737,62 +737,93 @@
       }
 
       async function adminResetSelectedOrAllBidders() {
-        const currentUsr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) ? authenticatedPiUser.username : '';
-        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : true;
-        
-        if (!isAdminOrDev && currentUsr !== "") {
-          alert("⛔ Akses Ditolak: Hanya Admin dan Developer!");
-          return;
+  const currentUsr =
+    (typeof authenticatedPiUser !== 'undefined' &&
+    authenticatedPiUser)
+      ? authenticatedPiUser.username : '';
+
+  const isAdminOrDev =
+    typeof ADMIN_USERNAMES !== 'undefined' &&
+    Array.isArray(ADMIN_USERNAMES) &&
+    ADMIN_USERNAMES.includes(currentUsr);
+
+  // Validasi keamanan
+  if (!currentUsr || !isAdminOrDev) {
+    alert("⛔ Akses ditolak! Khusus Admin/Developer.");
+    return;
+  }
+
+  if (typeof supabaseClient === 'undefined' || !supabaseClient) {
+    alert("❌ Koneksi database tidak tersedia.");
+    return;
+  }
+
+  const selectedCheckboxes =
+    document.querySelectorAll('.bidder-checkbox:checked');
+
+  if (!selectedCheckboxes.length) {
+    alert("⚠️ Pilih minimal satu penawar!");
+    return;
+  }
+
+  const selectedUsernames = [
+    ...new Set(
+      Array.from(selectedCheckboxes).map(cb => cb.value)
+    )
+  ];
+
+  if (!confirm(
+    `Yakin menghapus riwayat ${selectedUsernames.length} penawar?`
+  )) return;
+
+  try {
+    // HAPUS RIWAYAT PENAWAR DARI SUPABASE
+    const { error } = await supabaseClient
+      .from('auction_bids_history')
+      .delete()
+      .in('username', selectedUsernames);
+
+    if (error) {
+      throw error;
+    }
+
+    // RESET LOCAL STORAGE
+    selectedUsernames.forEach(usr => {
+      localStorage.removeItem(`bid_count_${usr}`);
+      localStorage.removeItem(`auction_bid_${usr}`);
+    });
+
+    // RESET DATA LOKAL
+    if (
+      typeof activeAuctionsList !== 'undefined' &&
+      Array.isArray(activeAuctionsList)
+    ) {
+      activeAuctionsList.forEach(item => {
+        if (selectedUsernames.includes(item.highest_bidder)) {
+          item.highest_bidder = null;
+          item.highest_bid = item.reserve_price || 0;
         }
+      });
+    }
 
-        const selectedCheckboxes = document.querySelectorAll('.bidder-checkbox:checked');
-        if (selectedCheckboxes.length === 0) {
-          alert("⚠️ Silakan centang minimal satu penawar atau centang 'Pilih Semua' di atas!");
-          return;
-        }
+    alert("✅ Riwayat penawar berhasil dihapus!");
 
-        if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus bersih riwayat untuk ${selectedCheckboxes.length} penawar terpilih?`)) return;
+    await renderActiveBiddersModalTable();
 
-        const selectedUsernames = Array.from(selectedCheckboxes).map(cb => cb.value);
+    if (typeof fetchActiveAuctions === 'function') {
+      await fetchActiveAuctions();
+    }
 
-        // 1. Hapus dari database Supabase
-        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-          try {
-            for (let usr of selectedUsernames) {
-              await supabaseClient.from('auction_bids_history').delete().eq('username', usr);
-            }
-          } catch (e) {}
-        }
+  } catch (error) {
+    console.error("RESET BIDDER ERROR:", error);
 
-        // 2. Hapus dari localStorage terkait penawar
-        selectedUsernames.forEach(usr => {
-          localStorage.removeItem(`bid_count_${usr}`);
-          localStorage.removeItem(`auction_bid_${usr}`);
-        });
+    alert(
+      "❌ Gagal menghapus penawar!\n" +
+      (error.message || "Periksa izin database Supabase.")
+    );
+  }
+}
 
-        // 3. Reset langsung pada objek lelang aktif (`activeAuctionsList`) agar datanya benar-benar kosong
-        if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
-          activeAuctionsList.forEach(item => {
-            if (selectedUsernames.includes(item.highest_bidder)) {
-              item.highest_bidder = null;
-              if (item.reserve_price !== undefined) {
-                item.highest_bid = item.reserve_price;
-              } else {
-                item.highest_bid = 0;
-              }
-            }
-          });
-        }
-
-        alert("🗑️ Penawar terpilih berhasil dihapus bersih.");
-        renderActiveBiddersModalTable();
-        
-        if (typeof fetchActiveAuctions === 'function') {
-          fetchActiveAuctions();
-        } else {
-          location.reload();
-        }
-      }
 
       // --- ENGINE PENGAMAN & DISTRIBUSI OTOMATIS DI BELAKANG LAYAR ---
       const _AutonomousSystemGuardian = {
