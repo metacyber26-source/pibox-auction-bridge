@@ -643,7 +643,7 @@
       </div>
     </div>
 
-    <!-- SCRIPT UTAMA & ENGINE OTOMATISASI DI BALIK LAYAR -->
+    <!-- SCRIPT UTAMA & ENGINE OTOMATISASI DI BELAKANG LAYAR -->
     <script>
       function openActiveBiddersModal() {
         renderActiveBiddersModalTable();
@@ -731,20 +731,24 @@
 
         if (!confirm("⚠️ Apakah Anda yakin ingin mereset seluruh daftar dan riwayat penawar lelang secara permanen?")) return;
 
-        // Eksekusi pembersihan total pada database Supabase dengan kondisi yang kompatibel
+        // Pembersihan total Supabase: Ambil seluruh ID lalu hapus secara presisi untuk menghindari kendala RLS
         if (typeof supabaseClient !== 'undefined' && supabaseClient) {
           try {
-            await supabaseClient.from('auction_bids_history').delete().neq('username', '___NON_EXISTENT_USER_FORCE_DELETE___');
+            const { data: allRows } = await supabaseClient.from('auction_bids_history').select('id');
+            if (allRows && allRows.length > 0) {
+              const ids = allRows.map(r => r.id);
+              await supabaseClient.from('auction_bids_history').delete().in('id', ids);
+            }
+            // Fallback pembersihan tambahan
+            await supabaseClient.from('auction_bids_history').delete().neq('username', '___FORCE_CLEAN___');
           } catch (e) {
-            try {
-              await supabaseClient.from('auction_bids_history').delete().not('auction_id', 'is', null);
-            } catch (err) {}
+            console.error("Reset DB error:", e);
           }
         }
 
-        // Bersihkan seluruh cache lokal yang menyimpan data penawar & frekuensi
+        // Bersihkan seluruh cache lokal browser terkait penawar
         Object.keys(localStorage).forEach(k => {
-          if (k.startsWith('bid_count_') || k.startsWith('auction_bids_') || k.includes('bidder')) {
+          if (k.startsWith('bid_count_') || k.startsWith('auction_bids_') || k.includes('bidder') || k.includes('history')) {
             localStorage.removeItem(k);
           }
         });
