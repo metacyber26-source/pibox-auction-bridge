@@ -53,21 +53,32 @@
       }
     };
 
-    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA & FUNGSI (TEGAS & KONSISTEN) ---
-    const _AgiNeuralEnforcementCore = {
-      version: "9.9.0-agi-guardian",
-      securityState: "STRICT_ENFORCEMENT",
-      validateAdminAction: function(username) {
+    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI MASING-MASING (TEGAS, KONSISTEN & OTOMATIS) ---
+    const _SystemAutonomousGuardian = {
+      version: "10.5.0-autonomous-guardian",
+      validateExecution: function(actionName, username) {
         if (!username || typeof username !== 'string') return false;
         const cleanUser = username.trim();
         return typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(cleanUser);
       },
       enforceStrictLogic: function(actionName, username) {
-        if (!this.validateAdminAction(username)) {
-          console.warn(`[AGI-SECURITY] Akses ilegal terdeteksi pada fungsi [${actionName}] oleh user: @${username}`);
-          throw new Error("⛔ AKSES DITOLAK: Hanya Admin yang berhak mengeksekusi fungsi ini.");
+        if (!this.validateExecution(actionName, username)) {
+          console.warn(`[SYSTEM-SECURITY] Blokir otomatis pada fungsi [${actionName}] oleh: @${username}`);
+          throw new Error("⛔ AKSES DITOLAK: Fungsi ini dikontrol secara ketat oleh sistem otomatis di balik layar.");
         }
         return true;
+      },
+      syncActiveBiddersCount: function(auctionsList, monthlyReportData) {
+        try {
+          if (!Array.isArray(auctionsList)) return 0;
+          const activeBidders = new Set();
+          auctionsList.forEach(item => {
+            if (item.highest_bidder) activeBidders.add(item.highest_bidder);
+          });
+          return activeBidders.size;
+        } catch(e) {
+          return 0;
+        }
       }
     };
 
@@ -76,9 +87,8 @@
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
         
-        // Penjagaan AGI & AI di balik layar secara tegas memastikan otorisasi Admin
-        if (!_AgiNeuralEnforcementCore.validateAdminAction(currentUsr)) {
-          alert("⛔ AKSES DITOLAK: Tombol terbuka untuk umum, namun fitur Rilis/List Aset hanya dapat dikunci dan dibuka oleh Admin.");
+        if (!_SystemAutonomousGuardian.validateExecution("List Aset", currentUsr)) {
+          alert("⛔ AKSES DITOLAK: Fitur Rilis/List Aset dikunci secara otomatis oleh sistem penjaga di balik layar.");
           return;
         }
 
@@ -101,7 +111,7 @@
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        _AgiNeuralEnforcementCore.enforceStrictLogic("Set Aktifkan Aset", currentUsr);
+        _SystemAutonomousGuardian.enforceStrictLogic("Set Aktifkan Aset", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const { error } = await supabaseClient
@@ -121,7 +131,7 @@
     async function adminToggleEventBadge(auctionId, currentEventState) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        _AgiNeuralEnforcementCore.enforceStrictLogic("Set Event Aset", currentUsr);
+        _SystemAutonomousGuardian.enforceStrictLogic("Set Event Aset", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const newEventState = !currentEventState;
@@ -142,7 +152,7 @@
     async function adminDeleteAuction(auctionId) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        _AgiNeuralEnforcementCore.enforceStrictLogic("Hapus Aset", currentUsr);
+        _SystemAutonomousGuardian.enforceStrictLogic("Hapus Aset", currentUsr);
         
         if (!confirm("⚠️ Apakah Anda yakin ingin menghapus aset ini secara permanen dari sistem?")) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
@@ -160,7 +170,6 @@
       }
     }
 
-    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI (DIJALANKAN SECARA TEGAS & LANCAR) ---
     const _NeuralCoreEngine = {
       status: "OPTIMIZED",
       auditAndEnforceLogic: function() {
@@ -206,8 +215,6 @@
         const verifiedUsername = SystemGuardianCore.enforceRealIdentity(inputUsername);
         authenticatedPiUser = { username: verifiedUsername };
         const isAdmin = SystemGuardianCore.verifyFullAccess(verifiedUsername);
-        
-        console.log(`Login berhasil sebagai: ${verifiedUsername} (Admin: ${isAdmin})`);
         
         fetchActiveAuctions();
         fetchBuyersList();
@@ -2632,6 +2639,9 @@
       let externalP2PCount = 0;
       let externalP2PVolume = 0;
 
+      // Integrasi data jumlah penawar aktif secara otomatis dari laporan bulanan
+      const activeBiddersCountTotal = _SystemAutonomousGuardian.syncActiveBiddersCount(activeAuctionsList);
+
       filtered.forEach(ast => {
         const price = parseFloat(ast.highest_bid || ast.reserve_price || 0);
         if (!ast.pibox_wallet || ast.pibox_wallet.startsWith("GD52XTI2BXBRUQR227L4LQNO55NKTB5QO2PQMHNKVBSVGST2U5C2S4LD")) {
@@ -2644,6 +2654,7 @@
 
       let reportText = `📊 **REKAP KEUANGAN & ON-CHAIN BULANAN**\n`;
       reportText += `📅 Periode: ${monthVal}\n`;
+      reportText += `🔨 Jumlah Penawar Aktif: ${activeBiddersCountTotal} User\n`;
       reportText += `----------------------------------------\n`;
       reportText += `📥 **MASUK / KELUAR WALLET DEV (PUSAT):**\n`;
       reportText += `   - Total Volume Masuk (Dev Gateway): ${totalDevWalletIncome.toFixed(2)} Pi\n`;
@@ -2661,6 +2672,7 @@
           const isDevWallet = (!ast.pibox_wallet || ast.pibox_wallet.startsWith("GD52XTI"));
           reportText += `${idx + 1}. [${ast.status?.toUpperCase()}] ${ast.title || 'Untitled'}\n`;
           reportText += `   - Seller: @${ast.seller || '-'}\n`;
+          reportText += `   - Pemenang / Penawar Tertinggi: @${ast.highest_bidder || '-'}\n`;
           reportText += `   - Jalur: ${isDevWallet ? '⚡ Wallet Dev (Pusat)' : '🤝 P2P Murni'}\n`;
           reportText += `   - Harga: ${ast.highest_bid || ast.reserve_price || 0} Pi\n\n`;
         });
@@ -3652,6 +3664,7 @@
       }
     };
 
+    // --- PERBAIKAN: PENANGANAN VARIABEL PEMENANG LELANG PADA SERTIFIKAT ---
     function copyCertificateLink(auctionId) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       if (!currentUsr || !SystemLogicEngine.validateExecution(currentUsr)) {
@@ -3667,13 +3680,14 @@
         const shortId = (asset.id || '').toString();
         const assetTitle = asset.title || 'Untitled';
         const sellerName = asset.seller || 'Pioneer';
+        const winnerName = asset.highest_bidder ? asset.highest_bidder : 'Belum Ada / Reserve Price';
         const refId = asset.hash || shortId.substring(0, 6).toUpperCase();
 
         const formattedText = 
           `📜 *Sertifikat Resmi NFT-GM*\n` +
           `🔹 Aset: ${assetTitle}\n` +
           `🔹 Penjual: @${sellerName}\n` +
-          `🔹 Pemenang: @${bid}\n` +
+          `🔹 Pemenang: @${winnerName}\n` +
           `🔹 Ref ID: ${refId}\n\n` +
           `🔗 *Link Sertifikat Resmi:*\n` +
           `https://pibox-auction-bridge.vercel.app/certificate.html?id=${shortId}`;
@@ -4011,7 +4025,6 @@
       placeBidOnAuction(auctionId, val);
     }
 
-    // --- DI BALIK LAYAR: CORE OTONOM DISTRIBUSI & KONSISTENSI HARGA (INSTANT SYNC & GUARDIAN) ---
     const _RealtimeBidEnforcementCore = {
       version: "11.0.0-instant-sync-engine",
       broadcastBidUpdate: function(auctionId, newBid, bidder) {
