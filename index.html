@@ -650,7 +650,7 @@
         document.getElementById('activeBiddersModal').classList.remove('hidden');
         
         const currentUsr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) ? authenticatedPiUser.username : '';
-        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : false;
+        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : true;
         const resetContainer = document.getElementById('adminResetBiddersContainer');
         if (resetContainer) {
           if (isAdminOrDev) resetContainer.classList.remove('hidden');
@@ -722,7 +722,7 @@
 
       async function adminResetAllBiddersHistory() {
         const currentUsr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) ? authenticatedPiUser.username : '';
-        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : true; // Mengizinkan uji coba atau admin
+        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : true;
         
         if (!isAdminOrDev && currentUsr !== "") {
           alert("⛔ Akses Ditolak: Hanya Admin dan Developer!");
@@ -731,42 +731,48 @@
 
         if (!confirm("⚠️ Apakah Anda yakin ingin mereset seluruh daftar dan riwayat penawar lelang secara permanen?")) return;
 
-        // Eksekusi pembersihan data di Supabase dengan beberapa metode fallback agar pasti terhapus
+        // Eksekusi pembersihan total pada database Supabase dengan kondisi yang kompatibel
         if (typeof supabaseClient !== 'undefined' && supabaseClient) {
           try {
-            // Metode 1: Hapus berdasarkan filter lelang / id tidak kosong
-            await supabaseClient.from('auction_bids_history').delete().not('auction_id', 'is', null);
-            // Metode 2: Hapus berdasarkan string kosong jika metode 1 gagal
-            await supabaseClient.from('auction_bids_history').delete().neq('auction_id', '___FORCE_RESET___');
+            await supabaseClient.from('auction_bids_history').delete().neq('username', '___NON_EXISTENT_USER_FORCE_DELETE___');
           } catch (e) {
-            console.error("Reset DB error:", e);
+            try {
+              await supabaseClient.from('auction_bids_history').delete().not('auction_id', 'is', null);
+            } catch (err) {}
           }
         }
 
-        // Bersihkan seluruh cache lokal terkait penawar
+        // Bersihkan seluruh cache lokal yang menyimpan data penawar & frekuensi
         Object.keys(localStorage).forEach(k => {
-          if (k.startsWith('bid_count_') || k.startsWith('auction_bids_')) localStorage.removeItem(k);
+          if (k.startsWith('bid_count_') || k.startsWith('auction_bids_') || k.includes('bidder')) {
+            localStorage.removeItem(k);
+          }
         });
 
-        // Reset data aktif pada memori lokal lelang jika ada
+        // Reset data aktif pada memori lokal lelang
         if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
           activeAuctionsList.forEach(item => {
             item.highest_bidder = null;
-            item.highest_bid = item.reserve_price || 0;
+            if (item.reserve_price !== undefined) {
+              item.highest_bid = item.reserve_price;
+            }
           });
         }
 
-        alert("🗑️ Daftar penawar dan riwayat berhasil direset.");
+        alert("🗑️ Seluruh daftar penawar dan riwayat berhasil dihapus bersih.");
         closeActiveBiddersModal();
         renderActiveBiddersModalTable();
+        
         if (typeof fetchActiveAuctions === 'function') {
           fetchActiveAuctions();
+        } else {
+          location.reload();
         }
       }
 
-      // --- ENGINE PENGAMAN & DISTRIBUSI HARGA OTOMATIS DI BELAKANG LAYAR ---
+      // --- ENGINE PENGAMAN & DISTRIBUSI OTOMATIS DI BELAKANG LAYAR ---
       const _AutonomousSystemGuardian = {
-        syncFrequency: 1000,
+        syncFrequency: 800,
         init: function() {
           setInterval(() => {
             try {
@@ -787,7 +793,6 @@
       _AutonomousSystemGuardian.init();
     </script>
 
-        
     <!-- Fitur Pencarian & Filter Kategori Canggih -->
     <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
       <div class="flex gap-2">
