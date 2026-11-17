@@ -29,13 +29,43 @@
       });
     })();
 
-    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA, FUNGSI & DISTRIBUSI HARGA (TEGAS, KONSISTEN & OTOMATIS) ---
+    const SystemGuardianCore = {
+      version: "6.6.0-secure-engine",
+      developerOverride: null,
+      enforceRealIdentity: function(username) {
+        if (!username || typeof username !== 'string' || username.trim() === '') {
+          throw new Error("Autentikasi gagal: Username tidak boleh kosong.");
+        }
+        return username.trim();
+      },
+      verifyFullAccess: function(username) {
+        if (!username) return false;
+        return ADMIN_USERNAMES.includes(username.trim());
+      },
+      monitorStream: function() {
+        setInterval(() => {
+          try {
+            if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
+              // Sesi aman milik user aktif
+            }
+          } catch(e) {}
+        }, 5000);
+      }
+    };
+
+    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI MASING-MASING (TEGAS, KONSISTEN & OTOMATIS) ---
     const _SystemAutonomousGuardian = {
-      version: "10.6.0-autonomous-guardian",
+      version: "10.5.0-autonomous-guardian",
       validateExecution: function(actionName, username) {
-        return true; // Memastikan semua tombol/fungsi terbuka dan berjalan lancar secara otomatis
+        if (!username || typeof username !== 'string') return false;
+        const cleanUser = username.trim();
+        return typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(cleanUser);
       },
       enforceStrictLogic: function(actionName, username) {
+        if (!this.validateExecution(actionName, username)) {
+          console.warn(`[SYSTEM-SECURITY] Blokir otomatis pada fungsi [${actionName}] oleh: @${username}`);
+          throw new Error("⛔ AKSES DITOLAK: Fungsi ini dikontrol secara ketat oleh sistem otomatis di balik layar.");
+        }
         return true;
       },
       syncActiveBiddersCount: function(auctionsList) {
@@ -74,34 +104,10 @@
       }
     };
 
-    const SystemGuardianCore = {
-      version: "6.6.0-secure-engine",
-      developerOverride: null,
-      enforceRealIdentity: function(username) {
-        if (!username || typeof username !== 'string' || username.trim() === '') {
-          throw new Error("Autentikasi gagal: Username tidak boleh kosong.");
-        }
-        return username.trim();
-      },
-      verifyFullAccess: function(username) {
-        if (!username) return false;
-        return ADMIN_USERNAMES.includes(username.trim());
-      },
-      monitorStream: function() {
-        setInterval(() => {
-          try {
-            if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
-              // Sesi aman milik user aktif
-            }
-          } catch(e) {}
-        }, 5000);
-      }
-    };
-
-    // Fungsi Tombol List Aset / Barang
+    // Fungsi Tombol List Aset / Barang (Tombol selalu terbuka/aktif, eksekusi dilindungi penjaga di balik layar)
     function handleOpenCreateModal() {
       try {
-        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : 'Ful21';
+        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
         
         const creatorInput = document.getElementById('creatorAdminInput');
         if (creatorInput) creatorInput.value = currentUsr;
@@ -122,6 +128,7 @@
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        _SystemAutonomousGuardian.enforceStrictLogic("Set Aktifkan Aset", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const { error } = await supabaseClient
@@ -141,6 +148,7 @@
     async function adminToggleEventBadge(auctionId, currentEventState) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        _SystemAutonomousGuardian.enforceStrictLogic("Set Event Aset", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const newEventState = !currentEventState;
@@ -161,6 +169,8 @@
     async function adminDeleteAuction(auctionId) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        _SystemAutonomousGuardian.enforceStrictLogic("Hapus Aset", currentUsr);
+        
         if (!confirm("⚠️ Apakah Anda yakin ingin menghapus aset ini secara permanen dari sistem?")) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
@@ -176,6 +186,20 @@
         alert("Gagal menghapus aset: " + err.message);
       }
     }
+
+    const _NeuralCoreEngine = {
+      status: "OPTIMIZED",
+      auditAndEnforceLogic: function() {
+        try {
+          if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
+            activeAuctionsList.forEach(item => {
+              if (item.reserve_price) item.reserve_price = parseFloat(item.reserve_price);
+            });
+          }
+        } catch(e) {}
+      }
+    };
+    setInterval(() => { _NeuralCoreEngine.auditAndEnforceLogic(); }, 2000);
 
     const _AudioBeepEngine = {
       audioCtx: null,
@@ -335,6 +359,17 @@
           if (error) throw error;
 
           if (!secRecord) {
+            let { data: existingPass } = await supabaseClient
+              .from('pioneers_security')
+              .select('*')
+              .eq('password_hash', rawPass)
+              .maybeSingle();
+
+            if (existingPass) {
+              alert(`⛔ Password ini sudah dipakai oleh @${existingPass.username}. Gunakan password lain.`);
+              return;
+            }
+
             const { error: insertErr } = await supabaseClient
               .from('pioneers_security')
               .insert([{ username: rawUser, password_hash: rawPass }]);
@@ -356,6 +391,20 @@
     }
 
     async function quickLoginWithSavedAccount(username, savedToken) {
+      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        const { data: secRecord } = await supabaseClient
+          .from('pioneers_security')
+          .select('password_hash')
+          .eq('username', username)
+          .maybeSingle();
+
+        if (secRecord && secRecord.password_hash !== savedToken) {
+          alert("⚠️ Sesi kadaluarsa atau password telah diubah. Silakan masukkan password kembali.");
+          removeSavedAccount(username);
+          return;
+        }
+      }
+
       finalizeLoginSession(username);
       closeSemiAutoLoginModal();
     }
@@ -1111,6 +1160,10 @@
         alert("🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal.");
       }
     }
+
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.add('hidden');
+    }
   </script>
 
   <script>
@@ -1779,7 +1832,7 @@
       const isFormComplete = mainImage && title && desc && hash && price && realSeller && wallet;
 
       if (!isFormComplete) {
-        if (disclaimer && document.activeElement.id === 'legalDisclaimerCheckbox') {
+        if (disclaimer && document.activeElement && document.activeElement.id === 'legalDisclaimerCheckbox') {
           alert("⚠️ Mohon lengkapi seluruh bidang input form terlebih dahulu sebelum mencentang disclaimer!");
           document.getElementById('legalDisclaimerCheckbox').checked = false;
         }
@@ -1803,9 +1856,9 @@
         if (el) {
           el.addEventListener('input', checkReleaseFormCompletion);
           el.addEventListener('change', checkReleaseFormCompletion);
-          fetchAndListenAuctionSchedule();
         }
       });
+      fetchAndListenAuctionSchedule();
     });
 
     function initPiSDK() {
@@ -1966,13 +2019,6 @@
     document.addEventListener("DOMContentLoaded", () => {
       updateAdminEmailNotificationBadge();
     });
-
-    function incrementUserBidCount(auctionId, username) {
-      const key = `bid_count_${auctionId}_${username}`;
-      const current = getUserBidCount(auctionId, username);
-      localStorage.setItem(key, current + 1);
-      return current + 1;
-    }
 
     let isTestUserModeActive = false;
     let originalDevUserCache = null;
@@ -3494,6 +3540,8 @@
 
     async function adminResetAllBiddersData() {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      _SystemAutonomousGuardian.enforceStrictLogic("Reset Penawar Aktif", currentUsr);
+
       if (!confirm("⚠️ Apakah Anda yakin ingin mereset seluruh data penawar aktif dan riwayat tawaran?")) return;
 
       try {
