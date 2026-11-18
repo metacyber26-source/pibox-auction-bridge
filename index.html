@@ -585,7 +585,7 @@
       </div>
     </div>
 
-  <!-- Indikator Pengguna Real & Panel Penawar Aktif Ganda (1. Jumlah Penawar, 2. Tombol Daftar & Reset) -->
+  <!-- Indikator Pengguna Real & Panel Penawar Aktif (Terhubung langsung ke bidders-tracker.js) -->
     <div class="bg-gray-950/80 border-b border-gray-800 p-2 flex justify-around items-center text-center">
       <div class="flex flex-col items-center">
         <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeSellersLabel">📦 Penjual Aktif</span>
@@ -594,13 +594,14 @@
       <div class="h-6 w-[1px] bg-gray-800"></div>
       <div class="flex flex-col items-center">
         <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeBiddersLabel">🔨 Penawar Aktif</span>
-        <button onclick="openActiveBiddersModal()" class="text-xs font-bold text-emerald-400 hover:underline cursor-pointer flex items-center gap-1 transition">
-          <span id="activeBiddersCount">0 User</span> <span class="text-[9px] bg-emerald-500/20 px-1.5 py-0.2 rounded border border-emerald-500/40">🔍 Detail</span>
+        <button type="button" onclick="openActiveBiddersModal()" class="text-xs font-bold text-emerald-400 hover:underline cursor-pointer flex items-center gap-1.5 transition">
+          <span id="activeBiddersCount">0 User</span> 
+          <span class="text-[9px] bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">🔍 Detail</span>
         </button>
       </div>
     </div>
 
-    <!-- MODAL: DAFTAR PENAWAR & FREKUENSI MENAWAR (DENGAN CHECKBOX & RESET SELEKTIF/SEMUA) -->
+    <!-- MODAL: DAFTAR PENAWAR LELANG & FREKUENSI (DIKENDALIKAN OLEH bidders-tracker.js) -->
     <div id="activeBiddersModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
       <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
         <div class="flex justify-between items-center border-b border-gray-800 pb-2">
@@ -608,14 +609,14 @@
             <span class="text-emerald-400 text-lg">🔨</span>
             <div>
               <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Daftar Penawar Lelang & Frekuensi</h2>
-              <p class="text-[9px] text-gray-400">Semua username yang melakukan penawaran dari awal sampai akhir</p>
+              <p class="text-[9px] text-gray-400">Urutan penawar pertama hingga terakhir beserta frekuensi</p>
             </div>
           </div>
-          <button onclick="closeActiveBiddersModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+          <button type="button" onclick="closeActiveBiddersModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
         </div>
 
         <div id="adminResetBiddersContainer" class="hidden">
-          <button onclick="adminResetSelectedOrAllBidders()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5">
+          <button type="button" onclick="adminResetSelectedOrAllBidders()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5">
             🗑️ [ADMIN/DEV] Hapus / Reset Penawar Terpilih
           </button>
         </div>
@@ -626,11 +627,11 @@
               <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-20">
                 <tr>
                   <th class="p-2 text-center w-8">
-                    <input type="checkbox" id="selectAllBiddersCheckbox" onclick="toggleSelectAllBidders(this)" class="cursor-pointer accent-emerald-500">
+                    <input type="checkbox" id="selectAllBiddersCheckbox" onclick="toggleSelectAllBidders(this)" class="cursor-pointer accent-emerald-500" title="Pilih Semua">
                   </th>
-                  <th class="p-2">USERNAME PENAWAR</th>
-                  <th class="p-2 text-center">JUMLAH MENAWAR</th>
-                  <th class="p-2 text-right">TAWARAN TERAKHIR</th>
+                  <th class="p-2">Username Penawar</th>
+                  <th class="p-2 text-center">Jumlah Menawar</th>
+                  <th class="p-2 text-right">Tawaran Terakhir</th>
                 </tr>
               </thead>
               <tbody id="activeBiddersModalTableBody">
@@ -640,189 +641,11 @@
           </div>
         </div>
 
-        <button onclick="closeActiveBiddersModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs cursor-pointer">
+        <button type="button" onclick="closeActiveBiddersModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs cursor-pointer">
           Tutup
         </button>
       </div>
     </div>
-
-    <!-- SCRIPT UTAMA & ENGINE OTOMATISASI DI BELAKANG LAYAR -->
-    <script>
-      function openActiveBiddersModal() {
-        renderActiveBiddersModalTable();
-        document.getElementById('activeBiddersModal').classList.remove('hidden');
-        
-        const currentUsr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) ? authenticatedPiUser.username : '';
-        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : true;
-        const resetContainer = document.getElementById('adminResetBiddersContainer');
-        if (resetContainer) {
-          if (isAdminOrDev) resetContainer.classList.remove('hidden');
-          else resetContainer.classList.add('hidden');
-        }
-      }
-
-      function closeActiveBiddersModal() {
-        document.getElementById('activeBiddersModal').classList.add('hidden');
-      }
-
-      function toggleSelectAllBidders(source) {
-        const checkboxes = document.querySelectorAll('.bidder-checkbox');
-        checkboxes.forEach(cb => {
-          cb.checked = source.checked;
-        });
-      }
-
-      async function renderActiveBiddersModalTable() {
-        const tbody = document.getElementById('activeBiddersModalTableBody');
-        if (!tbody) return;
-
-        let biddersMap = {};
-
-        // 1. Ambil seluruh riwayat dari tabel Supabase auction_bids_history
-        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-          try {
-            const { data, error } = await supabaseClient.from('auction_bids_history').select('*');
-            if (!error && data && data.length > 0) {
-              data.forEach(row => {
-                let usr = row.username;
-                if (!usr) return;
-                usr = usr.replace(/^@/, ''); // Bersihkan simbol @ jika tersimpan
-                
-                if (!biddersMap[usr]) {
-                  biddersMap[usr] = { count: 0, lastBid: parseFloat(row.bid_amount || row.bid || 0) };
-                }
-                biddersMap[usr].count += 1;
-                const currentBidAmount = parseFloat(row.bid_amount || row.bid || 0);
-                if (currentBidAmount > biddersMap[usr].lastBid) {
-                  biddersMap[usr].lastBid = currentBidAmount;
-                }
-              });
-            }
-          } catch (e) {}
-        }
-
-        // 2. Fallback / Gabungkan dengan activeAuctionsList agar mencakup penawar aktif saat ini
-        if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
-          activeAuctionsList.forEach(item => {
-            if (item.highest_bidder) {
-              let usr = item.highest_bidder.replace(/^@/, '');
-              if (!biddersMap[usr]) {
-                biddersMap[usr] = { count: 1, lastBid: parseFloat(item.highest_bid || item.reserve_price || 0) };
-              } else {
-                if (biddersMap[usr].count === 0) biddersMap[usr].count = 1;
-                const amt = parseFloat(item.highest_bid || 0);
-                if (amt > biddersMap[usr].lastBid) biddersMap[usr].lastBid = amt;
-              }
-            }
-          });
-        }
-
-        const entries = Object.entries(biddersMap);
-        if (entries.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Belum ada penawar tercatat dari awal sampai akhir.</td></tr>`;
-          return;
-        }
-
-        let html = '';
-        entries.forEach(([usr, stats]) => {
-          const cleanUsr = usr.replace(/^@/, '');
-          const maskedUsr = (typeof SecureShield !== 'undefined' && SecureShield.maskUsername) ? SecureShield.maskUsername(cleanUsr) : cleanUsr;
-          html += `
-            <tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
-              <td class="p-2 text-center">
-                <input type="checkbox" value="${cleanUsr}" class="bidder-checkbox cursor-pointer accent-emerald-500">
-              </td>
-              <td class="p-2 font-mono text-yellow-400">@${maskedUsr}</td>
-              <td class="p-2 text-center font-bold text-emerald-400">${stats.count}x Menawar</td>
-              <td class="p-2 text-right font-bold text-white">${stats.lastBid} Pi</td>
-            </tr>
-          `;
-        });
-        tbody.innerHTML = html;
-        const selectAll = document.getElementById('selectAllBiddersCheckbox');
-        if (selectAll) selectAll.checked = false;
-      }
-
-      async function adminResetSelectedOrAllBidders() {
-        const currentUsr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) ? authenticatedPiUser.username : '';
-        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : true;
-        
-        if (!isAdminOrDev && currentUsr !== "") {
-          alert("⛔ Akses Ditolak: Hanya Admin dan Developer!");
-          return;
-        }
-
-        const selectedCheckboxes = document.querySelectorAll('.bidder-checkbox:checked');
-        if (selectedCheckboxes.length === 0) {
-          alert("⚠️ Silakan centang minimal satu penawar atau centang 'Pilih Semua' di atas!");
-          return;
-        }
-
-        if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus bersih riwayat untuk ${selectedCheckboxes.length} penawar terpilih?`)) return;
-
-        const selectedUsernames = Array.from(selectedCheckboxes).map(cb => cb.value);
-
-        // 1. Hapus dari database Supabase secara menyeluruh
-        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-          try {
-            for (let usr of selectedUsernames) {
-              await supabaseClient.from('auction_bids_history').delete().eq('username', usr);
-              await supabaseClient.from('auction_bids_history').delete().eq('username', '@' + usr);
-            }
-          } catch (e) {}
-        }
-
-        // 2. Hapus dari localStorage
-        selectedUsernames.forEach(usr => {
-          localStorage.removeItem(`bid_count_${usr}`);
-          localStorage.removeItem(`bid_count_@${usr}`);
-        });
-
-        // 3. Reset pada activeAuctionsList
-        if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
-          activeAuctionsList.forEach(item => {
-            if (item.highest_bidder) {
-              let hUsr = item.highest_bidder.replace(/^@/, '');
-              if (selectedUsernames.includes(hUsr)) {
-                item.highest_bidder = null;
-                item.highest_bid = item.reserve_price || 0;
-              }
-            }
-          });
-        }
-
-        alert("🗑️ Penawar terpilih berhasil dihapus bersih.");
-        renderActiveBiddersModalTable();
-        
-        if (typeof fetchActiveAuctions === 'function') {
-          fetchActiveAuctions();
-        } else {
-          location.reload();
-        }
-      }
-
-      // --- ENGINE PENGAMAN & PENCATATAN OTOMATIS DI BELAKANG LAYAR ---
-      const _AutonomousSystemGuardian = {
-        syncFrequency: 1000,
-        init: function() {
-          setInterval(() => {
-            try {
-              if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
-                const activeBidders = new Set();
-                activeAuctionsList.forEach(item => {
-                  if (item.highest_bidder) activeBidders.add(item.highest_bidder);
-                });
-                const countEl = document.getElementById('activeBiddersCount');
-                if (countEl && countEl.innerText !== `${activeBidders.size} User`) {
-                  countEl.innerText = `${activeBidders.size} User`;
-                }
-              }
-            } catch(e) {}
-          }, this.syncFrequency);
-        }
-      };
-      _AutonomousSystemGuardian.init();
-    </script>
 
     <!-- Fitur Pencarian & Filter Kategori Canggih -->
     <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
