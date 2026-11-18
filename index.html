@@ -608,7 +608,7 @@
             <span class="text-emerald-400 text-lg">🔨</span>
             <div>
               <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Daftar Penawar Lelang & Frekuensi</h2>
-              <p class="text-[9px] text-gray-400">Pilih penawar yang ingin dihapus atau centang semua</p>
+              <p class="text-[9px] text-gray-400">Semua username yang melakukan penawaran dari awal sampai akhir</p>
             </div>
           </div>
           <button onclick="closeActiveBiddersModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
@@ -628,9 +628,9 @@
                   <th class="p-2 text-center w-8">
                     <input type="checkbox" id="selectAllBiddersCheckbox" onclick="toggleSelectAllBidders(this)" class="cursor-pointer accent-emerald-500">
                   </th>
-                  <th class="p-2">Username Penawar</th>
-                  <th class="p-2 text-center">Jumlah Menawar</th>
-                  <th class="p-2 text-right">Tawaran Terakhir</th>
+                  <th class="p-2">USERNAME PENAWAR</th>
+                  <th class="p-2 text-center">JUMLAH MENAWAR</th>
+                  <th class="p-2 text-right">TAWARAN TERAKHIR</th>
                 </tr>
               </thead>
               <tbody id="activeBiddersModalTableBody">
@@ -678,34 +678,40 @@
 
         let biddersMap = {};
 
-        // 1. Ambil data dari tabel riwayat penawaran Supabase
+        // 1. Ambil seluruh riwayat dari tabel Supabase auction_bids_history
         if (typeof supabaseClient !== 'undefined' && supabaseClient) {
           try {
             const { data, error } = await supabaseClient.from('auction_bids_history').select('*');
             if (!error && data && data.length > 0) {
               data.forEach(row => {
-                const usr = row.username;
+                let usr = row.username;
+                if (!usr) return;
+                usr = usr.replace(/^@/, ''); // Bersihkan simbol @ jika tersimpan
+                
                 if (!biddersMap[usr]) {
-                  biddersMap[usr] = { count: 0, lastBid: parseFloat(row.bid_amount || 0) };
+                  biddersMap[usr] = { count: 0, lastBid: parseFloat(row.bid_amount || row.bid || 0) };
                 }
                 biddersMap[usr].count += 1;
-                if (parseFloat(row.bid_amount || 0) > biddersMap[usr].lastBid) {
-                  biddersMap[usr].lastBid = parseFloat(row.bid_amount || 0);
+                const currentBidAmount = parseFloat(row.bid_amount || row.bid || 0);
+                if (currentBidAmount > biddersMap[usr].lastBid) {
+                  biddersMap[usr].lastBid = currentBidAmount;
                 }
               });
             }
           } catch (e) {}
         }
 
-        // 2. Ambil juga dari activeAuctionsList (jika data disimpan langsung di objek lelang)
+        // 2. Fallback / Gabungkan dengan activeAuctionsList agar mencakup penawar aktif saat ini
         if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
           activeAuctionsList.forEach(item => {
             if (item.highest_bidder) {
-              const usr = item.highest_bidder;
+              let usr = item.highest_bidder.replace(/^@/, '');
               if (!biddersMap[usr]) {
-                biddersMap[usr] = { count: 0, lastBid: parseFloat(item.highest_bid || item.reserve_price || 0) };
+                biddersMap[usr] = { count: 1, lastBid: parseFloat(item.highest_bid || item.reserve_price || 0) };
               } else {
-                biddersMap[usr].count = Math.max(biddersMap[usr].count, 1);
+                if (biddersMap[usr].count === 0) biddersMap[usr].count = 1;
+                const amt = parseFloat(item.highest_bid || 0);
+                if (amt > biddersMap[usr].lastBid) biddersMap[usr].lastBid = amt;
               }
             }
           });
@@ -713,17 +719,18 @@
 
         const entries = Object.entries(biddersMap);
         if (entries.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Belum ada penawar tercatat.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Belum ada penawar tercatat dari awal sampai akhir.</td></tr>`;
           return;
         }
 
         let html = '';
         entries.forEach(([usr, stats]) => {
-          const maskedUsr = (typeof SecureShield !== 'undefined' && SecureShield.maskUsername) ? SecureShield.maskUsername(usr) : usr;
+          const cleanUsr = usr.replace(/^@/, '');
+          const maskedUsr = (typeof SecureShield !== 'undefined' && SecureShield.maskUsername) ? SecureShield.maskUsername(cleanUsr) : cleanUsr;
           html += `
             <tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
               <td class="p-2 text-center">
-                <input type="checkbox" value="${usr}" class="bidder-checkbox cursor-pointer accent-emerald-500">
+                <input type="checkbox" value="${cleanUsr}" class="bidder-checkbox cursor-pointer accent-emerald-500">
               </td>
               <td class="p-2 font-mono text-yellow-400">@${maskedUsr}</td>
               <td class="p-2 text-center font-bold text-emerald-400">${stats.count}x Menawar</td>
@@ -737,152 +744,66 @@
       }
 
       async function adminResetSelectedOrAllBidders() {
+        const currentUsr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser) ? authenticatedPiUser.username : '';
+        const isAdminOrDev = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES.includes(currentUsr) : true;
+        
+        if (!isAdminOrDev && currentUsr !== "") {
+          alert("⛔ Akses Ditolak: Hanya Admin dan Developer!");
+          return;
+        }
 
-  // Validasi admin
-  const currentUsr =
-    (typeof authenticatedPiUser !== 'undefined' &&
-     authenticatedPiUser)
-      ? authenticatedPiUser.username : '';
+        const selectedCheckboxes = document.querySelectorAll('.bidder-checkbox:checked');
+        if (selectedCheckboxes.length === 0) {
+          alert("⚠️ Silakan centang minimal satu penawar atau centang 'Pilih Semua' di atas!");
+          return;
+        }
 
-  const isAdminOrDev =
-    typeof ADMIN_USERNAMES !== 'undefined' &&
-    Array.isArray(ADMIN_USERNAMES) &&
-    ADMIN_USERNAMES.includes(currentUsr);
+        if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus bersih riwayat untuk ${selectedCheckboxes.length} penawar terpilih?`)) return;
 
-  if (!currentUsr || !isAdminOrDev) {
-    alert("⛔ Akses ditolak! Khusus Admin/Developer.");
-    return;
-  }
+        const selectedUsernames = Array.from(selectedCheckboxes).map(cb => cb.value);
 
-  if (
-    typeof supabaseClient === 'undefined' ||
-    !supabaseClient
-  ) {
-    alert("❌ Koneksi Supabase tidak tersedia!");
-    return;
-  }
+        // 1. Hapus dari database Supabase secara menyeluruh
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+          try {
+            for (let usr of selectedUsernames) {
+              await supabaseClient.from('auction_bids_history').delete().eq('username', usr);
+              await supabaseClient.from('auction_bids_history').delete().eq('username', '@' + usr);
+            }
+          } catch (e) {}
+        }
 
-  // Konfirmasi reset seluruh penawar
-  const confirmation = confirm(
-    "⚠️ RESET SEMUA PENAWAR?\n\n" +
-    "Data yang akan dihapus:\n" +
-    "1. Semua riwayat penawaran.\n" +
-    "2. Semua username penawar aktif.\n" +
-    "3. Semua highest_bidder pada tabel auctions.\n\n" +
-    "Tindakan ini tidak dapat dibatalkan!"
-  );
+        // 2. Hapus dari localStorage
+        selectedUsernames.forEach(usr => {
+          localStorage.removeItem(`bid_count_${usr}`);
+          localStorage.removeItem(`bid_count_@${usr}`);
+        });
 
-  if (!confirmation) return;
+        // 3. Reset pada activeAuctionsList
+        if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
+          activeAuctionsList.forEach(item => {
+            if (item.highest_bidder) {
+              let hUsr = item.highest_bidder.replace(/^@/, '');
+              if (selectedUsernames.includes(hUsr)) {
+                item.highest_bidder = null;
+                item.highest_bid = item.reserve_price || 0;
+              }
+            }
+          });
+        }
 
-  try {
-
-    // Tampilkan proses
-    const resetButton = document.querySelector(
-      '#adminResetBiddersContainer button'
-    );
-
-    if (resetButton) {
-      resetButton.disabled = true;
-      resetButton.innerText = "⏳ RESET SEDANG BERJALAN...";
-    }
-
-    // PANGGIL RPC SUPABASE
-    const { data, error } = await supabaseClient.rpc(
-      'reset_all_bidders'
-    );
-
-    if (error) {
-      throw error;
-    }
-
-    if (!data || data.success !== true) {
-      throw new Error("Database tidak mengonfirmasi reset.");
-    }
-
-    // HAPUS CACHE LOCAL STORAGE
-    Object.keys(localStorage).forEach(key => {
-      if (
-        key.startsWith('bid_count_') ||
-        key.startsWith('auction_bid_')
-      ) {
-        localStorage.removeItem(key);
+        alert("🗑️ Penawar terpilih berhasil dihapus bersih.");
+        renderActiveBiddersModalTable();
+        
+        if (typeof fetchActiveAuctions === 'function') {
+          fetchActiveAuctions();
+        } else {
+          location.reload();
+        }
       }
-    });
 
-    // RESET DATA DI MEMORI
-    if (
-      typeof activeAuctionsList !== 'undefined' &&
-      Array.isArray(activeAuctionsList)
-    ) {
-      activeAuctionsList.forEach(item => {
-        item.highest_bidder = null;
-        item.highest_bid =
-          parseFloat(item.reserve_price || 0);
-      });
-    }
-
-    // RESET ANGKA PADA TAMPILAN
-    const countEl = document.getElementById(
-      'activeBiddersCount'
-    );
-
-    if (countEl) {
-      countEl.innerText = "0 User";
-    }
-
-    // Muat ulang data lelang dari Supabase
-    if (typeof fetchActiveAuctions === 'function') {
-      await fetchActiveAuctions();
-    }
-
-    // Perbarui daftar penawar
-    await renderActiveBiddersModalTable();
-
-    const selectAll = document.getElementById(
-      'selectAllBiddersCheckbox'
-    );
-
-    if (selectAll) {
-      selectAll.checked = false;
-    }
-
-    alert(
-      "✅ RESET SEMUA PENAWAR BERHASIL!\n\n" +
-      "Riwayat terhapus: " +
-      data.deleted_history + "\n" +
-      "Lelang direset: " +
-      data.reset_auctions + "\n\n" +
-      "Database Supabase telah diperbarui."
-    );
-
-  } catch (error) {
-
-    console.error("RESET ALL BIDDERS ERROR:", error);
-
-    alert(
-      "❌ RESET GAGAL!\n\n" +
-      (error.message || "Kesalahan database Supabase.")
-    );
-
-  } finally {
-
-    const resetButton = document.querySelector(
-      '#adminResetBiddersContainer button'
-    );
-
-    if (resetButton) {
-      resetButton.disabled = false;
-      resetButton.innerText =
-        "🗑️ [ADMIN/DEV] RESET SEMUA PENAWAR";
-    }
-
-  }
-}
-
-    
-      // --- ENGINE PENGAMAN & DISTRIBUSI OTOMATIS DI BELAKANG LAYAR ---
+      // --- ENGINE PENGAMAN & PENCATATAN OTOMATIS DI BELAKANG LAYAR ---
       const _AutonomousSystemGuardian = {
-        syncFrequency: 800,
+        syncFrequency: 1000,
         init: function() {
           setInterval(() => {
             try {
