@@ -3487,8 +3487,27 @@
         }
       }
     }
+    
+    function updateActiveCounts() {
+      const sellersSet = new Set();
+      activeAuctionsList.forEach(a => {
+        if (a.seller) sellersSet.add(a.seller);
+      });
 
-    function 
+      const sellersEl = document.getElementById('activeSellersCount');
+      if (sellersEl) sellersEl.innerText = `${sellersSet.size} User`;
+
+      if (window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.syncViews === 'function') {
+        window.BidderFrequencyEngine.syncViews();
+      } else {
+        const biddersSet = new Set();
+        activeAuctionsList.forEach(a => {
+          if (a.highest_bidder) biddersSet.add(a.highest_bidder);
+        });
+        const biddersEl = document.getElementById('activeBiddersCount');
+        if (biddersEl) biddersEl.innerText = `${biddersSet.size} User`;
+      }
+    }
 
     function getCategoryLabel(catKey) {
       const keyMap = {
