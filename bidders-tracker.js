@@ -3,6 +3,150 @@
 // FUNGSI: Pencatatan & Manajemen Semua Penawar (Pertama s/d Terakhir)
 // ============================================================================
 
+const _AutonomousBidGuardianCore = {
+  version: "8.4.0-strict-sync",
+  realtimeChannel: null,
+  isHooked: false,
+
+  normalizeLogEntry: function(entry) {
+    if (!entry || !entry.username) return null;
+    const cleanUser = String(entry.username).trim();
+    if (!cleanUser) return null;
+    const numericBid = parseFloat(entry.bid_amount);
+    const validBid = !isNaN(numericBid) && isFinite(numericBid) ? numericBid : 0;
+    const timestamp = entry.created_at ? new Date(entry.created_at).getTime() : Date.now();
+    return {
+      id: String(entry.id || (timestamp + '_' + Math.random().toString(36).slice(2, 7))),
+      auction_id: String(entry.auction_id || 'general'),
+      username: cleanUser,
+      bid_amount: validBid,
+      created_at: entry.created_at || new Date(timestamp).toISOString(),
+      _ts: isNaN(timestamp) ? Date.now() : timestamp
+    };
+  },
+
+  deduplicateAndSortLogs: function(logs) {
+    const mapById = new Map();
+    (Array.isArray(logs) ? logs : []).forEach(raw => {
+      const norm = this.normalizeLogEntry(raw);
+      if (!norm) return;
+      if (!mapById.has(norm.id)) {
+        mapById.set(norm.id, norm);
+      }
+    });
+    return Array.from(mapById.values()).sort((a, b) => a._ts - b._ts);
+  },
+
+  propagatePriceInstant: function(auctionId, username, bidAmount) {
+    try {
+      const numericBid = parseFloat(bidAmount);
+      if (isNaN(numericBid) || numericBid <= 0) return;
+
+      if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
+        let changed = false;
+        activeAuctionsList.forEach(item => {
+          if (String(item.id) === String(auctionId)) {
+            const currentTop = parseFloat(item.highest_bid || item.reserve_price || 0);
+            if (numericBid >= currentTop) {
+              item.highest_bid = numericBid;
+              item.highest_bidder = username;
+              changed = true;
+            }
+          }
+        });
+
+        if (changed) {
+          try {
+            localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+          } catch (e) {}
+
+          if (typeof filterGallery === 'function') {
+            filterGallery();
+          } else if (typeof renderGallery === 'function') {
+            renderGallery();
+          }
+        }
+      }
+    } catch (e) {}
+  },
+
+  installBidHook: function() {
+    if (this.isHooked) return;
+    if (typeof window.placeBidOnAuction === 'function') {
+      const originalPlaceBid = window.placeBidOnAuction;
+      window.placeBidOnAuction = async function(auctionId, amount) {
+        const result = await originalPlaceBid.apply(this, arguments);
+        try {
+          const usr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username)
+            ? authenticatedPiUser.username
+            : '';
+          const numAmt = parseFloat(amount);
+          if (usr && !isNaN(numAmt) && numAmt > 0) {
+            await BiddersTrackerModule.recordBid(auctionId, usr, numAmt);
+          }
+        } catch (e) {}
+        return result;
+      };
+      this.isHooked = true;
+    }
+  },
+
+  initRealtimeSync: function() {
+    if (this.realtimeChannel) return;
+    if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.channel === 'function') {
+      try {
+        this.realtimeChannel = supabaseClient
+          .channel('bidders-tracker-realtime-sync')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'auction_bids_history' },
+            async (payload) => {
+              if (payload && payload.new) {
+                const norm = _AutonomousBidGuardianCore.normalizeLogEntry(payload.new);
+                if (norm) {
+                  const currentLocal = BiddersTrackerModule.getLocalLogs();
+                  const merged = _AutonomousBidGuardianCore.deduplicateAndSortLogs([...currentLocal, norm]);
+                  localStorage.setItem(BiddersTrackerModule.storageKey, JSON.stringify(merged));
+                  _AutonomousBidGuardianCore.propagatePriceInstant(norm.auction_id, norm.username, norm.bid_amount);
+                }
+              }
+              await BiddersTrackerModule.syncIndicatorCount();
+              if (!document.getElementById('activeBiddersModal')?.classList.contains('hidden')) {
+                await BiddersTrackerModule.renderTable();
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'auctions' },
+            async (payload) => {
+              if (payload && payload.new) {
+                const row = payload.new;
+                if (row.highest_bidder && row.highest_bid !== null && row.highest_bid !== undefined) {
+                  _AutonomousBidGuardianCore.propagatePriceInstant(row.id, row.highest_bidder, row.highest_bid);
+                }
+              }
+              await BiddersTrackerModule.syncIndicatorCount();
+              if (!document.getElementById('activeBiddersModal')?.classList.contains('hidden')) {
+                await BiddersTrackerModule.renderTable();
+              }
+            }
+          )
+          .subscribe();
+      } catch (e) {}
+    }
+  },
+
+  enforceConsistency: async function() {
+    this.installBidHook();
+    this.initRealtimeSync();
+    await BiddersTrackerModule.syncIndicatorCount();
+    if (!document.getElementById('activeBiddersModal')?.classList.contains('hidden')) {
+      await BiddersTrackerModule.renderTable();
+    }
+  }
+};
+
 const BiddersTrackerModule = {
   storageKey: 'auction_all_bidders_log_v1',
 
@@ -15,19 +159,26 @@ const BiddersTrackerModule = {
   recordBid: async function(auctionId, username, bidAmount) {
     if (!username) return;
     const cleanUser = String(username).trim();
-    const numericBid = parseFloat(bidAmount) || 0;
+    if (!cleanUser) return;
+    const numericBid = parseFloat(bidAmount);
+    const validBid = !isNaN(numericBid) && isFinite(numericBid) ? numericBid : 0;
     const nowIso = new Date().toISOString();
+    const entryId = Date.now() + '_' + Math.random().toString(36).substr(2, 7);
 
     // A. Simpan ke LocalStorage agar langsung tercatat instan tanpa jeda
-    let localLogs = this.getLocalLogs();
-    localLogs.push({
-      id: Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    const localLogs = this.getLocalLogs();
+    const newEntry = {
+      id: entryId,
       auction_id: String(auctionId || 'general'),
       username: cleanUser,
-      bid_amount: numericBid,
+      bid_amount: validBid,
       created_at: nowIso
-    });
-    localStorage.setItem(this.storageKey, JSON.stringify(localLogs));
+    };
+    const updatedLocal = _AutonomousBidGuardianCore.deduplicateAndSortLogs([...localLogs, newEntry]);
+    localStorage.setItem(this.storageKey, JSON.stringify(updatedLocal));
+
+    // Distribusi perubahan harga instan ke UI aktif
+    _AutonomousBidGuardianCore.propagatePriceInstant(auctionId, cleanUser, validBid);
 
     // B. Simpan ke Database Supabase (jika tersedia) agar terdistribusi ke semua perangkat
     if (typeof supabaseClient !== 'undefined' && supabaseClient) {
@@ -35,7 +186,7 @@ const BiddersTrackerModule = {
         await supabaseClient.from('auction_bids_history').insert([{
           auction_id: String(auctionId || 'general'),
           username: cleanUser,
-          bid_amount: numericBid,
+          bid_amount: validBid,
           created_at: nowIso
         }]);
       } catch (e) {
@@ -44,9 +195,9 @@ const BiddersTrackerModule = {
     }
 
     // C. Perbarui indikator & tabel secara otomatis
-    this.syncIndicatorCount();
+    await this.syncIndicatorCount();
     if (!document.getElementById('activeBiddersModal')?.classList.contains('hidden')) {
-      this.renderTable();
+      await this.renderTable();
     }
   },
 
@@ -54,7 +205,8 @@ const BiddersTrackerModule = {
    * 2. MENGAMBIL SEMUA DATA LOG PENAWAR (URUT DARI PERTAMA SAMPAI TERAKHIR)
    */
   getAllBiddersChronological: async function() {
-    let rawLogs = [];
+    let dbLogs = [];
+    const localLogs = _AutonomousBidGuardianCore.deduplicateAndSortLogs(this.getLocalLogs());
 
     // Ambil dari Supabase jika terkoneksi
     if (typeof supabaseClient !== 'undefined' && supabaseClient) {
@@ -62,23 +214,20 @@ const BiddersTrackerModule = {
         const { data, error } = await supabaseClient
           .from('auction_bids_history')
           .select('*')
-          .order('created_at', { ascending: true }); // Urut dari yang pertama menawar
+          .order('created_at', { ascending: true });
         if (!error && Array.isArray(data)) {
-          rawLogs = data;
+          dbLogs = _AutonomousBidGuardianCore.deduplicateAndSortLogs(data);
         }
       } catch (e) {}
     }
 
-    // Gabungkan dengan log lokal yang mungkin belum tersinkronisasi
-    const localLogs = this.getLocalLogs();
-    if (rawLogs.length === 0 && localLogs.length > 0) {
-      rawLogs = localLogs;
-    }
+    // Gabungkan log DB dan log lokal secara kronologis agar data terbaru tidak pernah hilang
+    let combinedLogs = _AutonomousBidGuardianCore.deduplicateAndSortLogs([...dbLogs, ...localLogs]);
 
     // Agregasi per username dengan mempertahankan urutan kemunculan pertama kali menawar
     const orderedBidders = new Map();
 
-    rawLogs.forEach(row => {
+    combinedLogs.forEach(row => {
       const usr = row.username;
       if (!usr) return;
       const amount = parseFloat(row.bid_amount || 0);
@@ -100,18 +249,21 @@ const BiddersTrackerModule = {
       }
     });
 
-    // Fallback jika tabel history masih kosong namun ada penawar aktif di lelang berjalan
+    // Fallback jika history kosong namun ada penawar aktif di lelang berjalan
     if (orderedBidders.size === 0 && typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
       activeAuctionsList.forEach(item => {
         if (item.highest_bidder) {
-          const usr = item.highest_bidder;
+          const usr = String(item.highest_bidder).trim();
           const amount = parseFloat(item.highest_bid || item.reserve_price || 0);
+          if (!usr) return;
           if (!orderedBidders.has(usr)) {
             orderedBidders.set(usr, {
               username: usr,
               count: 1,
               firstBid: amount,
-              lastBid: amount
+              lastBid: amount,
+              firstTime: item.created_at || '',
+              lastTime: item.created_at || ''
             });
           } else {
             const existing = orderedBidders.get(usr);
@@ -230,7 +382,7 @@ const BiddersTrackerModule = {
 
     alert('🗑️ Daftar dan riwayat penawar terpilih berhasil dihapus bersih.');
     await this.renderTable();
-    this.syncIndicatorCount();
+    await this.syncIndicatorCount();
 
     if (typeof fetchActiveAuctions === 'function') {
       fetchActiveAuctions();
@@ -242,7 +394,8 @@ const BiddersTrackerModule = {
    */
   getLocalLogs: function() {
     try {
-      return JSON.parse(localStorage.getItem(this.storageKey)) || [];
+      const parsed = JSON.parse(localStorage.getItem(this.storageKey));
+      return Array.isArray(parsed) ? parsed : [];
     } catch (e) {
       return [];
     }
@@ -262,9 +415,9 @@ const BiddersTrackerModule = {
   },
 
   initAutonomousWatcher: function() {
-    // Memantau perubahan data secara otomatis setiap 1 detik di balik layar
+    _AutonomousBidGuardianCore.enforceConsistency();
     setInterval(() => {
-      this.syncIndicatorCount();
+      _AutonomousBidGuardianCore.enforceConsistency();
     }, 1000);
   }
 };
