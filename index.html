@@ -4027,15 +4027,154 @@
             }
           }
 
+          const BID_AUDIT_STORAGE_KEY = 'pibox_all_bids_audit_ledger_v1';
+
+          const _BidLedgerAndDistributionCore = {
+            readAllRecords: function() {
+              try {
+                const rawLocal = localStorage.getItem(BID_AUDIT_STORAGE_KEY);
+                if (rawLocal) {
+                  const parsed = JSON.parse(rawLocal);
+                  if (Array.isArray(parsed)) return parsed;
+                }
+              } catch (_) {}
+              try {
+                if (window.name && window.name.startsWith('PIBOX_LEDGER:')) {
+                  const parsedName = JSON.parse(window.name.slice('PIBOX_LEDGER:'.length));
+                  if (Array.isArray(parsedName)) return parsedName;
+                }
+              } catch (_) {}
+              return [];
+            },
+            writeAllRecords: function(records) {
+              try {
+                localStorage.setItem(BID_AUDIT_STORAGE_KEY, JSON.stringify(records));
+              } catch (_) {}
+              try {
+                window.name = 'PIBOX_LEDGER:' + JSON.stringify(records.slice(-500));
+              } catch (_) {}
+            },
+            recordSingleBid: async function(itemAuction, bidAmount, bidderUsername) {
+              const cleanAuctionId = String(itemAuction && itemAuction.id ? itemAuction.id : '');
+              const cleanBidder = String(bidderUsername || '').trim();
+              const numericBid = parseFloat(bidAmount);
+              if (!cleanAuctionId || !cleanBidder || isNaN(numericBid)) return null;
+
+              const currentRecords = this.readAllRecords();
+              const priorForUserOnAsset = currentRecords.filter(
+                r => String(r.auction_id) === cleanAuctionId && String(r.username).toLowerCase() === cleanBidder.toLowerCase()
+              );
+              const frequencyCount = priorForUserOnAsset.length + 1;
+
+              const entry = {
+                id: 'bid_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                auction_id: cleanAuctionId,
+                asset_title: (itemAuction && itemAuction.title) ? itemAuction.title : 'Untitled',
+                username: cleanBidder,
+                bid_amount: numericBid,
+                bid_count: frequencyCount,
+                created_at: new Date().toISOString()
+              };
+
+              currentRecords.push(entry);
+              this.writeAllRecords(currentRecords);
+
+              if (window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.recordBid === 'function') {
+                try {
+                  window.BidderFrequencyEngine.recordBid(cleanBidder, numericBid, cleanAuctionId);
+                } catch (_) {}
+              }
+
+              if (supabaseClient) {
+                try {
+                  await supabaseClient.from('auction_bids_log').insert([{
+                    auction_id: cleanAuctionId,
+                    asset_title: entry.asset_title,
+                    username: cleanBidder,
+                    bid_amount: numericBid,
+                    bid_count: frequencyCount,
+                    created_at: entry.created_at
+                  }]);
+                } catch (_) {}
+              }
+
+              return entry;
+            },
+            getSummaryByAsset: function(auctionId) {
+              const records = this.readAllRecords().filter(
+                r => String(r.auction_id) === String(auctionId)
+              );
+              const perUserMap = new Map();
+              records.forEach((rec, idx) => {
+                const key = String(rec.username).trim();
+                const existing = perUserMap.get(key);
+                if (!existing) {
+                  perUserMap.set(key, {
+                    order: perUserMap.size + 1,
+                    username: key,
+                    count: 1,
+                    lastAmount: parseFloat(rec.bid_amount || 0),
+                    lastTime: rec.created_at,
+                    seqIndex: idx
+                  });
+                } else {
+                  existing.count += 1;
+                  existing.lastAmount = parseFloat(rec.bid_amount || 0);
+                  existing.lastTime = rec.created_at;
+                  existing.seqIndex = idx;
+                }
+              });
+              return Array.from(perUserMap.values());
+            },
+            buildReportText: function(auctionObj) {
+              const id = auctionObj ? auctionObj.id : '';
+              const title = auctionObj && auctionObj.title ? auctionObj.title : 'Semua Aset';
+              const rows = id ? this.getSummaryByAsset(id) : [];
+              if (!rows.length) {
+                return `📋 Laporan Penawar (${title}): Belum ada penawaran tercatat.`;
+              }
+              let lines = [`📋 Laporan Penawar — ${title} (Total ${rows.length} Penawar):`];
+              rows.forEach((r, i) => {
+                lines.push(`${i + 1}. @${r.username} — ${r.count}x penawaran (Terakhir: ${r.lastAmount} Pi)`);
+              });
+              return lines.join('\n');
+            },
+            pushImmediateDistribution: function(auctionId, newBid, bidder, ledgerEntry) {
+              if (typeof _SilentLogicEngine !== 'undefined' && typeof _SilentLogicEngine.applyLiveBidToAllViews === 'function') {
+                _SilentLogicEngine.applyLiveBidToAllViews(auctionId, newBid, bidder);
+              }
+              if (supabaseClient) {
+                try {
+                  supabaseClient.channel('public-cluster-auctions').send({
+                    type: 'broadcast',
+                    event: 'live_bid_update',
+                    payload: {
+                      auctionId: String(auctionId),
+                      newBid: parseFloat(newBid),
+                      bidder: bidder,
+                      ledgerEntry: ledgerEntry || null,
+                      timestamp: Date.now()
+                    }
+                  });
+                } catch (_) {}
+              }
+              const biddersModal = document.getElementById('activeBiddersModal');
+              if (biddersModal && !biddersModal.classList.contains('hidden')) {
+                if (typeof renderActiveBiddersModalTable === 'function') {
+                  try { renderActiveBiddersModalTable(); } catch (_) {}
+                }
+              }
+            }
+          };
+
+          window._BidLedgerAndDistributionCore = _BidLedgerAndDistributionCore;
+
           _AutonomousLogicEngine.syncBidStateLocally(auctionId, finalBidAmount, username);
           localStorage.setItem(getBuyerAgreementKey(auctionId, username), 'true');
           incrementUserBidCount(auctionId, username);
 
-          if (window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.recordBid === 'function') {
-            window.BidderFrequencyEngine.recordBid(username, finalBidAmount, auctionId);
-          }
-
-          _RealtimeBidEnforcementCore.broadcastBidUpdate(auctionId, finalBidAmount, username);
+          const recordedEntry = await _BidLedgerAndDistributionCore.recordSingleBid(auction, finalBidAmount, username);
+          _BidLedgerAndDistributionCore.pushImmediateDistribution(auctionId, finalBidAmount, username, recordedEntry);
 
           closeDetailModal();
           updateActiveCounts();
