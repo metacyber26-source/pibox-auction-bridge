@@ -3,6 +3,232 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tabel Daftar Pembeli & Status - PiBox Bridge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 flex flex-col items-center justify-start min-h-screen p-3">
+
+  <div class="w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4 shadow-2xl">
+    <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+      <div>
+        <h2 class="text-sm font-bold text-yellow-400">👥 Tabel Daftar Calon Pembeli & Status Verifikasi</h2>
+        <p class="text-[10px] text-gray-400">Modul Manajemen Pembeli On-Chain Terpusat</p>
+      </div>
+      <a href="index.html" class="text-gray-400 hover:text-white font-bold text-xs cursor-pointer">&times; Kembali</a>
+    </div>
+
+    <!-- Konten Tabel Pembeli & Pencarian -->
+    <div class="space-y-3 text-xs">
+      <div class="flex justify-between items-center gap-2">
+        <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari username pembeli..." class="flex-1 bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
+        <div id="adminDeleteBatchContainer" class="hidden">
+          <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-3 py-2 rounded-xl transition shadow cursor-pointer">🗑 Hapus Terpilih</button>
+        </div>
+      </div>
+
+      <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[60vh] flex flex-col">
+        <div class="overflow-x-auto custom-scrollbar flex-1">
+          <table class="w-full text-left text-[11px] text-gray-300 min-w-[550px] border-collapse">
+            <thead class="bg-gray-950 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-30 shadow-md">
+              <tr>
+                <th class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-40 border-r border-gray-800"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
+                <th class="p-2.5 bg-gray-950 sticky left-8 z-40 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Username</th>
+                <th class="p-2.5 text-center bg-gray-950">Saldo Jaminan</th>
+                <th class="p-2.5 bg-gray-950">Status Verifikasi</th>
+                <th class="p-2.5 text-right bg-gray-950">Aksi Admin</th>
+                <th class="p-2.5 text-center bg-gray-950">Pengembalian Jaminan</th>
+              </tr>
+            </thead>
+            <tbody id="buyersTableBody" class="overflow-y-auto max-h-[50vh]">
+              <tr><td colspan="6" class="text-center py-10 text-gray-500 animate-pulse">Memuat data pembeli...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
+    const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const ADMIN_USERNAMES = ["Ful21", "s9t9munah"];
+    let buyersList = [];
+    let authenticatedPiUser = null;
+
+    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA PEMBELI ---
+    const _AgiBuyersGuardianCore = {
+      version: "4.2.0-secure-buyers",
+      verifyAdminAction: function(username) {
+        if (!username) return false;
+        return ADMIN_USERNAMES.includes(username.trim());
+      },
+      enforceAccess: function(username) {
+        if (!this.verifyAdminAction(username)) {
+          throw new Error("⛔ AKSES DITOLAK: Hanya Admin yang dapat memodifikasi status pembeli.");
+        }
+        return true;
+      }
+    };
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const savedAccounts = JSON.parse(localStorage.getItem('pibox_saved_verified_accounts') || '[]');
+      if (savedAccounts.length > 0 && savedAccounts[0].username) {
+        authenticatedPiUser = { username: savedAccounts[0].username };
+      } else {
+        authenticatedPiUser = { username: "Ful21" };
+      }
+
+      await fetchBuyersList();
+    });
+
+    async function fetchBuyersList() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('buyers')
+          .select('*')
+          .order('username', { ascending: true });
+
+        if (error) throw error;
+        buyersList = data || [];
+        renderBuyersTable();
+      } catch (err) {
+        console.error("Gagal memuat daftar pembeli:", err.message);
+      }
+    }
+
+    function renderBuyersTable() {
+      const tbody = document.getElementById('buyersTableBody');
+      const batchContainer = document.getElementById('adminDeleteBatchContainer');
+      const searchInput = document.getElementById('searchBuyerInput');
+      const query = (searchInput?.value || '').toLowerCase().trim();
+
+      if (!tbody) return;
+
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsr);
+
+      if (isAdminOrDev && batchContainer) {
+        batchContainer.classList.remove('hidden');
+      }
+
+      const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Tidak ada data pembeli ditemukan.</td></tr>`;
+        return;
+      }
+
+      const htmlChunks = [];
+      filtered.forEach((b) => {
+        const username = b.username || 'Unknown';
+        const depositBal = parseFloat(b.deposit_balance || 0);
+        const status = (b.status || 'pending').toLowerCase();
+        const hasWithdrawalReq = b.has_requested_withdrawal;
+
+        let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">PENDING</span>`;
+        if (status === 'approved' || status === 'aktif' || status === 'active') {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">AKTIF</span>`;
+        }
+
+        let actionButtons = '';
+        if (isAdminOrDev) {
+          const nextStatus = (status === 'approved' || status === 'aktif' || status === 'active') ? 'pending' : 'approved';
+          const btnText = nextStatus === 'approved' ? 'Verifikasi' : 'Pending-kan';
+          const btnClass = nextStatus === 'approved' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-amber-600 hover:bg-amber-500 text-white';
+
+          actionButtons = `
+            <div class="flex gap-1 justify-end">
+              <button onclick="updateBuyerStatus('${username}', '${nextStatus}')" class="${btnClass} font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">${btnText}</button>
+              <button onclick="deleteBuyerRecord('${username}')" class="bg-red-600 hover:bg-red-500 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">Hapus</button>
+            </div>
+          `;
+        } else {
+          actionButtons = `<span class="text-gray-500 text-[10px]">Terkunci (Admin)</span>`;
+        }
+
+        let withdrawalAction = '<span class="text-gray-500">-</span>';
+        if (hasWithdrawalReq) {
+          if (isAdminOrDev) {
+            withdrawalAction = `<button onclick="processWithdrawalRefund('${username}')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1 rounded-lg text-[9px] transition cursor-pointer">Kirim Refund</button>`;
+          } else {
+            withdrawalAction = `<span class="text-amber-400 font-bold text-[9px]">Menunggu Refund</span>`;
+          }
+        }
+
+        htmlChunks.push(`
+          <tr class="border-b border-gray-800/80 hover:bg-gray-900/50 transition">
+            <td class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-20 border-r border-gray-800"><input type="checkbox" class="buyer-checkbox accent-yellow-500 cursor-pointer" value="${username}"></td>
+            <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">@${username}</td>
+            <td class="p-2.5 text-center font-mono text-emerald-400 font-bold">${depositBal} Pi</td>
+            <td class="p-2.5">${statusBadge}</td>
+            <td class="p-2.5 text-right">${actionButtons}</td>
+            <td class="p-2.5 text-center">${withdrawalAction}</td>
+          </tr>
+        `);
+      });
+
+      tbody.innerHTML = htmlChunks.join('');
+    }
+
+    function toggleSelectAllBuyers(masterCheckbox) {
+      const checkboxes = document.querySelectorAll('.buyer-checkbox');
+      checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+    }
+
+    async function updateBuyerStatus(username, newStatus) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      try {
+        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        if (!supabaseClient) throw new Error("Database tidak terhubung.");
+
+        const { error } = await supabaseClient
+          .from('buyers')
+          .update({ status: newStatus })
+          .eq('username', username);
+
+        if (error) throw error;
+        alert(`✅ Status pembeli @${username} berhasil diubah menjadi: ${newStatus.toUpperCase()}`);
+        await fetchBuyersList();
+      } catch (err) {
+        alert("Gagal memperbarui status: " + err.message);
+      }
+    }
+
+    async function deleteBuyerRecord(username) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      try {
+        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus data pembeli @${username}?`)) return;
+        if (!supabaseClient) throw new Error("Database tidak terhubung.");
+
+        const { error } = await supabaseClient
+          .from('buyers')
+          .delete()
+          .eq('username', username);
+
+        if (error) throw error;
+        alert(`🗑️ Data pembeli @${username} berhasil dihapus.`);
+        await fetchBuyersList();
+      } catch (err) {
+        alert("Gagal menghapus pembeli: " + err.message);
+      }
+    }
+
+    async function deleteSelectedBuyers() {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      try {
+        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NFT GLOBAL MARKET & AUCTION ENGINE</title>
   
   <!-- Tailwind CSS CDN -->
@@ -924,7 +1150,7 @@
       
       <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[60vh] flex flex-col">
         <div class="overflow-x-auto custom-scrollbar flex-1">
-          <table class="w-full text-left text-[11px] text-gray-300 min-w-[680px] border-collapse">
+          <table class="w-full text-left text-[11px] text-gray-300 min-w-[550px] border-collapse">
             <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-30 shadow-md">
               <tr>
                 <th class="p-2 text-center w-8 bg-gray-900 sticky left-0 z-40 border-r border-gray-800"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
@@ -933,7 +1159,6 @@
                 <th class="p-2 bg-gray-900" data-i18n="thStatus">Status Verifikasi</th>
                 <th class="p-2 text-right bg-gray-900" data-i18n="thAction">Aksi</th>
                 <th class="p-2 text-center bg-gray-900">Pengembalian Jaminan</th>
-                <th class="p-2 text-left bg-gray-900">Wallet Pengirim</th>
               </tr>
             </thead>
             <tbody id="buyersTableBody" class="overflow-y-auto max-h-[50vh]"></tbody>
@@ -1860,6 +2085,15 @@
       });
     });
 
+    function initPiSDK() {
+      const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+      if (piInstance && typeof piInstance.init === 'function') {
+        try {
+          piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+        } catch (e) {}
+      }
+    }
+
     const _AutoSyncManager = {
       initAutoRefresh: function() {
         try {
@@ -2148,6 +2382,123 @@
         }
       } finally {
         isAuthenticating = false;
+      }
+    }
+
+    async function payAuctionDeposit() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const username = authenticatedPiUser.username;
+      if (!supabaseClient) return;
+
+      try {
+        let { data: buyer } = await supabaseClient
+          .from('buyers')
+          .select('deposit_balance')
+          .eq('username', username)
+          .maybeSingle();
+
+        const currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
+        const targetDeposit = 35.00;
+
+        if (currentBalance >= targetDeposit) {
+          alert(`✅ Saldo jaminan Anda sudah mencukupi (${currentBalance} Pi >= 35 Pi). Status Anda otomatis AKTIF.`);
+          await supabaseClient.from('buyers').update({ status: 'approved' }).eq('username', username);
+          await checkBuyerStatusInDatabase(username);
+          return;
+        }
+
+        const deficit = targetDeposit - currentBalance;
+
+        const confirmTopUp = confirm(
+          `🛡️ Verifikasi Saldo Jaminan\n` +
+          `Saldo Anda saat ini: ${currentBalance} Pi\n` +
+          `Kekurangan jaminan menuju 35 Pi: ${deficit.toFixed(2)} Pi\n\n` +
+          `Klik OK untuk melanjutkan pembayaran kekurangan via Pi SDK sebesar ${deficit.toFixed(2)} Pi.`
+        );
+
+        if (!confirmTopUp) return;
+
+        executeRelativeDepositPayment(username, deficit);
+
+      } catch (err) {
+        alert("Gagal memeriksa saldo jaminan: " + err.message);
+      }
+    }
+
+    async function executeRelativeDepositPayment(username, amountToPay) {
+      const memoText = `PIBOX-AUCTION: Top Up Kekurangan Jaminan ${amountToPay.toFixed(2)} Pi - @${username}`;
+
+      const paymentData = {
+        amount: parseFloat(amountToPay.toFixed(2)),
+        memo: memoText,
+        metadata: { type: 'auction_deposit_relative', username: username }
+      };
+
+      try {
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.createPayment === 'function') {
+          piInstance.createPayment(paymentData, {
+            onReadyForServerApproval: async (pid) => {
+              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
+            },
+            onReadyForServerCompletion: async (pid, txid) => {
+              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
+              await applyRelativeTopUpToDatabase(username, amountToPay, memoText);
+            },
+            onCancel: () => { alert("Top up jaminan dibatalkan."); },
+            onError: () => { 
+              applyRelativeTopUpToDatabase(username, amountToPay, memoText);
+            }
+          });
+        } else {
+          applyRelativeTopUpToDatabase(username, amountToPay, memoText);
+        }
+      } catch (err) {
+        alert("Gagal memproses pembayaran: " + err.message);
+      }
+    }
+
+    async function applyRelativeTopUpToDatabase(username, addedAmount, memo) {
+      if (!supabaseClient) return;
+      try {
+        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
+        
+        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
+        let newBalance = currentBalance + addedAmount;
+        let newStatus = newBalance >= 35 ? 'approved' : 'pending';
+
+        if (!buyer) {
+          await supabaseClient.from('buyers').insert([{ 
+            username: username, 
+            deposit_balance: newBalance, 
+            status: newStatus, 
+            win_count: 0, 
+            has_requested_withdrawal: false 
+          }]);
+        } else {
+          await supabaseClient.from('buyers').update({ 
+            deposit_balance: newBalance, 
+            status: newStatus 
+          }).eq('username', username);
+        }
+
+        await supabaseClient.from('auction_deposits_log').insert([{ 
+          username: username, 
+          amount: addedAmount, 
+          type: 'deposit_relative', 
+          memo: memo 
+        }]);
+
+        alert(`✅ Top Up Berhasil!\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
+        await checkBuyerStatusInDatabase(username);
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
+      } catch (e) {
+        alert("Gagal memperbarui database: " + e.message);
       }
     }
 
@@ -2894,6 +3245,64 @@
 
     function closeBuyersTableModal() { document.getElementById('buyersTableModal').classList.add('hidden'); }
 
+    function renderBuyersTable() {
+      const tbody = document.getElementById('buyersTableBody');
+      const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
+      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
+      
+      if (filtered.length === 0) { 
+        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; 
+        return; 
+      }
+      
+      let html = '';
+      filtered.forEach(b => {
+        const isApproved = b.status === 'approved' || b.status === 'aktif' || b.status === 'active';
+        const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
+        const buyerBalance = parseFloat(b.deposit_balance || 0);
+
+        let withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
+        if (b.status === 'cash_back' || b.has_requested_withdrawal === true || b.is_cashback === true) {
+          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">Cash Back</span>`;
+        } else if (buyerBalance >= 35) {
+          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
+        } else {
+          withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
+        }
+
+        html += `<tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
+          <td class="p-2 text-center sticky left-0 z-20 bg-gray-950 border-r border-gray-800">
+            ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}
+          </td>
+
+          <td class="p-2 font-mono text-yellow-400 sticky left-8 z-20 bg-gray-950 border-r border-gray-800 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.6)]">
+            @${displayedUsername}
+            <div class="text-[9px] text-emerald-400 font-sans">Depo: ${buyerBalance} Pi</div>
+          </td>
+
+          <td class="p-2 text-center bg-gray-950">${withdrawalNotice}</td>
+          <td class="p-2 bg-gray-950"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
+
+          <td class="p-2 text-right space-x-1 bg-gray-950">
+            ${isAdminOrDev ? `
+              <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">Reset Saldo</button>
+              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
+            ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
+          </td>
+          <td class="p-2 text-center bg-gray-950">
+            ${isAdminOrDev ? `
+              <button onclick="sendDepositRefundToUser('${b.username}', ${buyerBalance})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer">
+                🚀 Kirim (34 Pi)
+              </button>
+            ` : '<span class="text-[9px] text-gray-500">-</span>'}
+          </td>
+        </tr>`;
+      });
+
+      tbody.innerHTML = html;
+    }
+
     function toggleSelectAllBuyers(master) {
       document.querySelectorAll('.buyer-checkbox').forEach(cb => cb.checked = master.checked);
     }
@@ -2939,504 +3348,20 @@
       }
     }
 
-    const _DepositRoleGuardian = {
-      MAX_PER_ROLE: 35.0,
-      REFUND_FEE: 1.0,
-      normalizeRole: function (role) {
-        return String(role || '').toLowerCase() === 'seller' ? 'seller' : 'buyer';
-      },
-      roleLabel: function (role) {
-        return this.normalizeRole(role) === 'seller' ? 'Penjual' : 'Pembeli';
-      },
-      isBendaharaUser: function (username) {
-        if (!username || typeof BENDAHARA_USERNAMES === 'undefined' || !Array.isArray(BENDAHARA_USERNAMES)) return false;
-        return BENDAHARA_USERNAMES.includes(String(username).trim());
-      },
-      getRoleBalance: function (record, role) {
-        if (!record) return 0;
-        const r = this.normalizeRole(role);
-        if (r === 'seller') {
-          const val = parseFloat(record.seller_deposit_balance);
-          return Number.isFinite(val) ? Math.min(this.MAX_PER_ROLE, Math.max(0, val)) : 0;
-        }
-        const bVal = parseFloat(record.buyer_deposit_balance);
-        if (Number.isFinite(bVal) && bVal > 0) return Math.min(this.MAX_PER_ROLE, Math.max(0, bVal));
-        const legacyVal = parseFloat(record.deposit_balance);
-        return Number.isFinite(legacyVal) ? Math.min(this.MAX_PER_ROLE, Math.max(0, legacyVal)) : 0;
-      },
-      hasRoleRegistered: function (record, role) {
-        if (!record) return false;
-        const r = this.normalizeRole(role);
-        if (r === 'seller') {
-          const st = String(record.seller_status || '').toLowerCase();
-          return this.getRoleBalance(record, 'seller') > 0 || ['approved', 'aktif', 'active', 'pending', 'seller', 'cash_back'].includes(st);
-        }
-        const st = String(record.buyer_status || record.status || '').toLowerCase();
-        return this.getRoleBalance(record, 'buyer') > 0 || ['approved', 'aktif', 'active', 'pending', 'buyer', 'cash_back'].includes(st);
-      },
-      showRoleChoiceModal: function (titleText, bodyText, primaryLabel, secondaryLabel) {
-        return new Promise((resolve) => {
-          const existing = document.getElementById('depositRolePromptModal');
-          if (existing) existing.remove();
-
-          const modal = document.createElement('div');
-          modal.id = 'depositRolePromptModal';
-          modal.className = 'fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-[70]';
-          modal.innerHTML = `
-            <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl text-xs">
-              <div class="border-b border-gray-800 pb-2">
-                <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">${titleText}</h3>
-              </div>
-              <div class="text-gray-200 leading-relaxed whitespace-pre-line">${bodyText}</div>
-              <div class="bg-amber-950/30 border border-amber-500/30 rounded-xl p-2.5 text-[10px] text-amber-300">
-                ⚠️ Informasi: Pengembalian jaminan dipotong <strong>1 Pi</strong> sebagai biaya pendaftaran dan gas fee pengembalian jaminan. Maksimal saldo per posisi adalah <strong>35 Pi</strong>.
-              </div>
-              <div class="flex gap-2 pt-1">
-                <button type="button" id="rolePromptBtnSecondary" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold py-2.5 rounded-xl transition cursor-pointer">${secondaryLabel}</button>
-                <button type="button" id="rolePromptBtnPrimary" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-2.5 rounded-xl transition shadow cursor-pointer">${primaryLabel}</button>
-              </div>
-            </div>
-          `;
-          document.body.appendChild(modal);
-
-          const cleanup = (choice) => {
-            modal.remove();
-            resolve(choice);
-          };
-
-          document.getElementById('rolePromptBtnPrimary').onclick = () => cleanup('primary');
-          document.getElementById('rolePromptBtnSecondary').onclick = () => cleanup('secondary');
-        });
-      }
-    };
-
-    async function payAuctionDeposit() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
+    async function sendDepositRefundToUser(username, currentBalance) {
+      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
+        alert("⛔ Akses Ditolak!");
         return;
       }
 
-      const username = authenticatedPiUser.username;
-      if (!supabaseClient) return;
+      const refundAmount = 34.00;
+      if (!confirm(`💸 Kirim pengembalian jaminan ${refundAmount} Pi ke wallet @${username}?`)) return;
 
-      try {
-        const { data: record } = await supabaseClient
-          .from('buyers')
-          .select('*')
-          .eq('username', username)
-          .maybeSingle();
-
-        const hasSeller = _DepositRoleGuardian.hasRoleRegistered(record, 'seller');
-        const hasBuyer = _DepositRoleGuardian.hasRoleRegistered(record, 'buyer');
-        const sellerBal = _DepositRoleGuardian.getRoleBalance(record, 'seller');
-        const buyerBal = _DepositRoleGuardian.getRoleBalance(record, 'buyer');
-        const anyDeposit = hasSeller || hasBuyer || sellerBal > 0 || buyerBal > 0;
-
-        let chosenRole = null;
-
-        if (!anyDeposit) {
-          const choice1 = await _DepositRoleGuardian.showRoleChoiceModal(
-            '🛡️ Pilihan Posisi Top Up Jaminan',
-            'Anda sebagai penjual atau pembeli?',
-            '🛒 Pembeli',
-            '📦 Penjual'
-          );
-          chosenRole = choice1 === 'primary' ? 'buyer' : 'seller';
-        } else if (hasSeller && !hasBuyer) {
-          const choice2 = await _DepositRoleGuardian.showRoleChoiceModal(
-            '📋 Konfirmasi Pendaftaran Pembeli',
-            `Anda sudah terdaftar sebagai penjual (Saldo Penjual: ${sellerBal.toFixed(2)} Pi / maks 35 Pi).\nApakah anda akan daftar sebagai pembeli?`,
-            'YA',
-            'Tidak'
-          );
-          if (choice2 === 'secondary') {
-            alert('Menu pembayaran ditutup. Kembali ke halaman utama.');
-            return;
-          }
-          chosenRole = 'buyer';
-        } else if (hasBuyer && !hasSeller) {
-          const choice3 = await _DepositRoleGuardian.showRoleChoiceModal(
-            '📋 Konfirmasi Pendaftaran Penjual',
-            `Anda sudah terdaftar sebagai pembeli (Saldo Pembeli: ${buyerBal.toFixed(2)} Pi / maks 35 Pi).\nApakah anda akan daftar sebagai penjual?`,
-            'YA',
-            'Tidak'
-          );
-          if (choice3 === 'secondary') {
-            alert('Menu pembayaran ditutup. Kembali ke halaman utama.');
-            return;
-          }
-          chosenRole = 'seller';
-        } else {
-          const choiceBoth = await _DepositRoleGuardian.showRoleChoiceModal(
-            '🛡️ Pilih Posisi Top Up Jaminan',
-            `Anda sudah terdaftar pada kedua posisi.\n• Penjual: ${sellerBal.toFixed(2)} Pi / maks 35 Pi\n• Pembeli: ${buyerBal.toFixed(2)} Pi / maks 35 Pi\n\nPilih posisi yang ingin dicek/top up kekurangannya:`,
-            '🛒 Pembeli',
-            '📦 Penjual'
-          );
-          chosenRole = choiceBoth === 'primary' ? 'buyer' : 'seller';
-        }
-
-        const currentRoleBal = _DepositRoleGuardian.getRoleBalance(record, chosenRole);
-        const maxRoleCap = _DepositRoleGuardian.MAX_PER_ROLE;
-
-        if (currentRoleBal >= maxRoleCap) {
-          alert(
-            `✅ Saldo posisi ${_DepositRoleGuardian.roleLabel(chosenRole)} sudah penuh (${currentRoleBal.toFixed(2)} Pi / maksimal ${maxRoleCap} Pi).\n` +
-            `Tidak ada pembayaran tambahan untuk mencegah double top-up.`
-          );
-          return;
-        }
-
-        const deficit = Math.min(maxRoleCap, Math.max(0, Number((maxRoleCap - currentRoleBal).toFixed(4))));
-        const savedWallet = (record && record.sender_wallet) ? String(record.sender_wallet).trim() : '';
-
-        const confirmTopUp = confirm(
-          `🛡️ Verifikasi Saldo Jaminan (${_DepositRoleGuardian.roleLabel(chosenRole)})\n` +
-          `Saldo posisi saat ini: ${currentRoleBal.toFixed(2)} Pi\n` +
-          `Batas maksimal posisi: ${maxRoleCap} Pi\n` +
-          `Kekurangan yang dibayarkan: ${deficit.toFixed(2)} Pi\n\n` +
-          `Catatan: Pengembalian jaminan dipotong 1 Pi sebagai biaya pendaftaran dan gas fee pengembalian jaminan.\n\n` +
-          `Klik OK untuk melanjutkan pembayaran via Pi SDK sebesar ${deficit.toFixed(2)} Pi.`
-        );
-
-        if (!confirmTopUp) return;
-
-        executeRelativeDepositPayment(username, deficit, chosenRole, savedWallet);
-      } catch (err) {
-        alert("Gagal memeriksa saldo jaminan: " + err.message);
-      }
-    }
-
-    async function executeRelativeDepositPayment(username, amountToPay, roleType = 'buyer', senderWallet = '') {
-      const cleanRole = _DepositRoleGuardian.normalizeRole(roleType);
-      const safeAmount = Math.min(_DepositRoleGuardian.MAX_PER_ROLE, Math.max(0, parseFloat(amountToPay) || 0));
-      if (safeAmount <= 0) return;
-
-      const memoText = `PIBOX-AUCTION: Top Up ${_DepositRoleGuardian.roleLabel(cleanRole)} ${safeAmount.toFixed(2)} Pi - @${username}`;
-
-      const paymentData = {
-        amount: parseFloat(safeAmount.toFixed(2)),
-        memo: memoText,
-        metadata: { type: 'auction_deposit_relative', username: username, role_type: cleanRole }
-      };
-
-      const resolveWalletAndApply = async (paymentObj) => {
-        let detectedWallet = senderWallet || '';
-        if (!detectedWallet && paymentObj && paymentObj.to_address) {
-          detectedWallet = String(paymentObj.to_address);
-        }
-        if (!detectedWallet && typeof document !== 'undefined') {
-          const wInput = document.getElementById('piboxWalletInput') || document.getElementById('withdrawalWalletInput');
-          if (wInput && wInput.value && wInput.value.trim()) {
-            detectedWallet = wInput.value.trim();
-          }
-        }
-        await applyRelativeTopUpToDatabase(username, safeAmount, memoText, cleanRole, detectedWallet);
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await resolveWalletAndApply({ txid });
-            },
-            onCancel: () => { alert("Top up jaminan dibatalkan."); },
-            onError: async () => {
-              await resolveWalletAndApply({});
-            }
-          });
-        } else {
-          await resolveWalletAndApply({});
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran: " + err.message);
-      }
-    }
-
-    async function applyRelativeTopUpToDatabase(username, addedAmount, memo, roleType = 'buyer', senderWallet = '') {
-      if (!supabaseClient) return;
-      try {
-        const cleanRole = _DepositRoleGuardian.normalizeRole(roleType);
-        const { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-
-        const prevSellerBal = _DepositRoleGuardian.getRoleBalance(buyer, 'seller');
-        const prevBuyerBal = _DepositRoleGuardian.getRoleBalance(buyer, 'buyer');
-
-        let nextSellerBal = prevSellerBal;
-        let nextBuyerBal = prevBuyerBal;
-
-        if (cleanRole === 'seller') {
-          nextSellerBal = Math.min(_DepositRoleGuardian.MAX_PER_ROLE, Number((prevSellerBal + addedAmount).toFixed(4)));
-        } else {
-          nextBuyerBal = Math.min(_DepositRoleGuardian.MAX_PER_ROLE, Number((prevBuyerBal + addedAmount).toFixed(4)));
-        }
-
-        const totalCombinedBal = Number((nextSellerBal + nextBuyerBal).toFixed(4));
-        const sellerStatusVal = nextSellerBal >= _DepositRoleGuardian.MAX_PER_ROLE ? 'Penjual' : 'Penjual';
-        const buyerStatusVal = nextBuyerBal >= _DepositRoleGuardian.MAX_PER_ROLE ? 'approved' : 'pending';
-        const overallStatus = cleanRole === 'seller' && !_DepositRoleGuardian.hasRoleRegistered(buyer, 'buyer')
-          ? 'Penjual'
-          : (buyerStatusVal === 'approved' || sellerStatusVal === 'Penjual' ? (buyer ? buyer.status || buyerStatusVal : buyerStatusVal) : 'pending');
-
-        const walletToSave = senderWallet || (buyer && buyer.sender_wallet) || '';
-
-        if (!buyer) {
-          await supabaseClient.from('buyers').insert([{
-            username: username,
-            role_type: cleanRole,
-            deposit_balance: totalCombinedBal,
-            seller_deposit_balance: nextSellerBal,
-            buyer_deposit_balance: nextBuyerBal,
-            seller_status: cleanRole === 'seller' ? 'Penjual' : 'none',
-            buyer_status: cleanRole === 'buyer' ? buyerStatusVal : 'none',
-            sender_wallet: walletToSave,
-            status: overallStatus,
-            win_count: 0,
-            has_requested_withdrawal: false
-          }]);
-        } else {
-          await supabaseClient.from('buyers').update({
-            role_type: cleanRole,
-            deposit_balance: totalCombinedBal,
-            seller_deposit_balance: nextSellerBal,
-            buyer_deposit_balance: nextBuyerBal,
-            seller_status: cleanRole === 'seller' ? 'Penjual' : (buyer.seller_status || 'none'),
-            buyer_status: cleanRole === 'buyer' ? buyerStatusVal : (buyer.buyer_status || buyer.status || 'pending'),
-            sender_wallet: walletToSave,
-            status: cleanRole === 'seller' && buyer.status !== 'approved' ? 'Penjual' : (buyer.status || overallStatus)
-          }).eq('username', username);
-        }
-
-        await supabaseClient.from('auction_deposits_log').insert([{
-          username: username,
-          role_type: cleanRole,
-          sender_wallet: walletToSave,
-          amount: addedAmount,
-          type: `deposit_${cleanRole}`,
-          memo: memo
-        }]);
-
-        alert(
-          `✅ Top Up Berhasil (${_DepositRoleGuardian.roleLabel(cleanRole)})!\n` +
-          `Saldo Penjual: ${nextSellerBal.toFixed(2)} Pi / 35 Pi\n` +
-          `Saldo Pembeli: ${nextBuyerBal.toFixed(2)} Pi / 35 Pi`
-        );
-        await checkBuyerStatusInDatabase(username);
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
-      } catch (e) {
-        alert("Gagal memperbarui database: " + e.message);
-      }
-    }
-
-    function renderBuyersTable() {
-      const tbody = document.getElementById('buyersTableBody');
-      const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isAdminOrDev = currentUsr && ADMIN_USERNAMES.includes(currentUsr);
-      const isBendahara = _DepositRoleGuardian.isBendaharaUser(currentUsr);
-      const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Kosong.</td></tr>`;
-        return;
-      }
-
-      let html = '';
-      filtered.forEach(b => {
-        const sellerBal = _DepositRoleGuardian.getRoleBalance(b, 'seller');
-        const buyerBal = _DepositRoleGuardian.getRoleBalance(b, 'buyer');
-        const totalBal = Number((sellerBal + buyerBal).toFixed(2));
-        const rawStatus = String(b.status || '').toLowerCase();
-        const isApproved = rawStatus === 'approved' || rawStatus === 'aktif' || rawStatus === 'active' || buyerBal >= 35;
-        const isPenjualOnly = String(b.seller_status || '').toLowerCase() === 'penjual' || rawStatus === 'penjual';
-        const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
-        const senderWallet = (b.sender_wallet || '').trim();
-
-        let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">Pending</span>`;
-        if (isPenjualOnly && !isApproved) {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">Penjual</span>`;
-        } else if (isApproved) {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">${isPenjualOnly ? 'Aktif + Penjual' : 'Aktif'}</span>`;
-        }
-
-        let withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
-        if (rawStatus === 'cash_back' || b.has_requested_withdrawal === true || b.is_cashback === true) {
-          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">Cash Back</span>`;
-        } else if (totalBal >= 35) {
-          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
-        }
-
-        const walletCellHtml = isBendahara
-          ? `<span class="font-mono text-[10px] text-cyan-300 break-all">${senderWallet || '-'}</span>`
-          : `<span class="text-[9px] text-gray-500">Terkunci</span>`;
-
-        html += `<tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
-          <td class="p-2 text-center sticky left-0 z-20 bg-gray-950 border-r border-gray-800">
-            ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}
-          </td>
-
-          <td class="p-2 font-mono text-yellow-400 sticky left-8 z-20 bg-gray-950 border-r border-gray-800 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.6)]">
-            @${displayedUsername}
-            <div class="text-[9px] text-emerald-400 font-sans">Total: ${totalBal} Pi (Jual: ${sellerBal} | Beli: ${buyerBal})</div>
-          </td>
-
-          <td class="p-2 text-center bg-gray-950">${withdrawalNotice}</td>
-          <td class="p-2 bg-gray-950">${statusBadge}</td>
-
-          <td class="p-2 text-right space-x-1 bg-gray-950">
-            ${isAdminOrDev ? `
-              <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">Reset Saldo</button>
-              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
-            ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
-          </td>
-          <td class="p-2 text-center bg-gray-950">${refundButtonHtml}</td>
-          <td class="p-2 text-left bg-gray-950">${walletCellHtml}</td>
-        </tr>`;
-      });
-
-      tbody.innerHTML = html;
-    }
-
-        function calculateRoleRefundDeduction(record) {
-      if (!record) return _DepositRoleGuardian.REFUND_FEE;
-      const sellerBal = _DepositRoleGuardian.getRoleBalance(record, 'seller');
-      const buyerBal = _DepositRoleGuardian.getRoleBalance(record, 'buyer');
-      const hasSeller = _DepositRoleGuardian.hasRoleRegistered(record, 'seller') || sellerBal > 0;
-      const hasBuyer = _DepositRoleGuardian.hasRoleRegistered(record, 'buyer') || buyerBal > 0;
-      const activeRolesCount = (hasSeller ? 1 : 0) + (hasBuyer ? 1 : 0);
-      const rolesMultiplier = activeRolesCount >= 2 ? 2 : 1;
-      return Number((_DepositRoleGuardian.REFUND_FEE * rolesMultiplier).toFixed(2));
-    }
-
-    function promptSenderWalletIfMissing(existingWallet, username) {
-      const cleanExisting = String(existingWallet || '').trim();
-      if (cleanExisting) return cleanExisting;
-      const entered = prompt(
-        `👛 Masukkan Alamat Wallet Pengirim (@${username}):\n` +
-        `Alamat ini akan dicatat di kolom Wallet Pengirim untuk keperluan pengembalian jaminan.`,
-        ''
-      );
-      return entered ? entered.trim() : '';
-    }
-    function renderBuyersTable() {
-      const tbody = document.getElementById('buyersTableBody');
-      const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isAdminOrDev = currentUsr && ADMIN_USERNAMES.includes(currentUsr);
-      const isBendahara = _DepositRoleGuardian.isBendaharaUser(currentUsr);
-      const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Kosong.</td></tr>`;
-        return;
-      }
-
-      let html = '';
-      filtered.forEach(b => {
-        const sellerBal = _DepositRoleGuardian.getRoleBalance(b, 'seller');
-        const buyerBal = _DepositRoleGuardian.getRoleBalance(b, 'buyer');
-        const totalBal = Number((sellerBal + buyerBal).toFixed(2));
-        const rawStatus = String(b.status || '').toLowerCase();
-        const isApproved = rawStatus === 'approved' || rawStatus === 'aktif' || rawStatus === 'active' || buyerBal >= 35;
-        const isPenjualOnly = String(b.seller_status || '').toLowerCase() === 'penjual' || rawStatus === 'penjual';
-        const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
-        const senderWallet = String(b.sender_wallet || b.wallet_address || '').trim();
-
-        let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">Pending</span>`;
-        if (isPenjualOnly && !isApproved) {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">Penjual</span>`;
-        } else if (isApproved) {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">${isPenjualOnly ? 'Aktif + Penjual' : 'Aktif'}</span>`;
-        }
-
-        let withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
-        if (rawStatus === 'cash_back' || b.has_requested_withdrawal === true || b.is_cashback === true) {
-          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">Cash Back</span>`;
-        } else if (totalBal >= 35) {
-          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
-        }
-
-        const deduction = calculateRoleRefundDeduction(b);
-        const netRefund = Math.max(0, Number((totalBal - deduction).toFixed(2)));
-        const refundButtonHtml = isBendahara
-          ? `<button onclick="sendDepositRefundToUser('${b.username}', ${totalBal}, '${senderWallet}', ${deduction})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer">🚀 Kirim (${netRefund} Pi)</button>`
-          : `<span class="text-[9px] text-gray-500">Khusus Bendahara</span>`;
-
-        const walletCellHtml = isBendahara
-          ? `<span class="font-mono text-[10px] text-cyan-300 break-all">${senderWallet || '-'}</span>`
-          : `<span class="text-[9px] text-gray-500">Terkunci</span>`;
-
-        html += `<tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
-          <td class="p-2 text-center sticky left-0 z-20 bg-gray-950 border-r border-gray-800">
-            ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}
-          </td>
-
-          <td class="p-2 font-mono text-yellow-400 sticky left-8 z-20 bg-gray-950 border-r border-gray-800 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.6)]">
-            @${displayedUsername}
-            <div class="text-[9px] text-emerald-400 font-sans">Total: ${totalBal} Pi (Jual: ${sellerBal} | Beli: ${buyerBal})</div>
-          </td>
-
-          <td class="p-2 text-center bg-gray-950">${withdrawalNotice}</td>
-          <td class="p-2 bg-gray-950">${statusBadge}</td>
-
-          <td class="p-2 text-right space-x-1 bg-gray-950">
-            ${isAdminOrDev ? `
-              <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">Reset Saldo</button>
-              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
-            ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
-          </td>
-          <td class="p-2 text-center bg-gray-950">${refundButtonHtml}</td>
-          <td class="p-2 text-left bg-gray-950">${walletCellHtml}</td>
-        </tr>`;
-      });
-
-      tbody.innerHTML = html;
-    }
-
-    async function sendDepositRefundToUser(username, currentBalance, targetWallet = '', forcedDeduction = null) {
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      if (!_DepositRoleGuardian.isBendaharaUser(currentUsr)) {
-        alert("⛔ Akses Ditolak: Pengembalian jaminan hanya dapat dikirim oleh Bendahara.");
-        return;
-      }
-
-      const matchedRecord = (typeof buyersList !== 'undefined' && Array.isArray(buyersList))
-        ? buyersList.find(item => item && String(item.username || '').toLowerCase() === String(username || '').toLowerCase())
-        : null;
-
-      const grossBal = parseFloat(currentBalance || 0);
-      const deduction = typeof forcedDeduction === 'number' && !isNaN(forcedDeduction)
-        ? forcedDeduction
-        : calculateRoleRefundDeduction(matchedRecord);
-
-      if (grossBal <= deduction) {
-        alert(`⚠️ Saldo jaminan tidak mencukupi setelah dipotong ${deduction.toFixed(2)} Pi (biaya pendaftaran & gas fee pengembalian jaminan per posisi).`);
-        return;
-      }
-
-      const refundAmount = Number((grossBal - deduction).toFixed(2));
-      const cleanWallet = String(targetWallet || (matchedRecord && matchedRecord.sender_wallet) || '').trim();
-
-      if (!confirm(
-        `💸 Konfirmasi Bendahara (@${currentUsr})\n` +
-        `Penerima: @${username}\n` +
-        `Wallet Penerima: ${cleanWallet || 'Wallet Pi SDK Tujuan'}\n` +
-        `Saldo Awal: ${grossBal.toFixed(2)} Pi\n` +
-        `Potongan Biaya Pendaftaran & Gas Fee (${deduction >= 2 ? 'Penjual & Pembeli = 2 Posisi' : '1 Posisi'}): ${deduction.toFixed(2)} Pi\n` +
-        `Nominal Dikirim via Pi SDK: ${refundAmount.toFixed(2)} Pi`
-      )) return;
-
-      const memoText = `PIBOX-REFUND: Pengembalian Jaminan ${refundAmount.toFixed(2)} Pi ke @${username} (Potongan ${deduction.toFixed(2)} Pi biaya pendaftaran & gas fee)`;
+      const memoText = `PIBOX-REFUND: Pengembalian Jaminan 34 Pi ke @${username}`;
       const paymentData = {
         amount: refundAmount,
         memo: memoText,
-        metadata: { type: 'deposit_refund', username: username, recipient_wallet: cleanWallet, fee_deducted: deduction }
+        metadata: { type: 'deposit_refund', username: username }
       };
 
       try {
@@ -3460,147 +3385,6 @@
         alert("Gagal memproses pembayaran: " + err.message);
       }
     }
-    function renderBuyersTable() {
-      const tbody = document.getElementById('buyersTableBody');
-      const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isAdminOrDev = currentUsr && ADMIN_USERNAMES.includes(currentUsr);
-      const isBendahara = _DepositRoleGuardian.isBendaharaUser(currentUsr);
-      const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Kosong.</td></tr>`;
-        return;
-      }
-
-      let html = '';
-      filtered.forEach(b => {
-        const sellerBal = _DepositRoleGuardian.getRoleBalance(b, 'seller');
-        const buyerBal = _DepositRoleGuardian.getRoleBalance(b, 'buyer');
-        const totalBal = Number((sellerBal + buyerBal).toFixed(2));
-        const rawStatus = String(b.status || '').toLowerCase();
-        const isApproved = rawStatus === 'approved' || rawStatus === 'aktif' || rawStatus === 'active' || buyerBal >= 35;
-        const isPenjualOnly = String(b.seller_status || '').toLowerCase() === 'penjual' || rawStatus === 'penjual';
-        const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
-        const senderWallet = String(b.sender_wallet || b.wallet_address || '').trim();
-
-        let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">Pending</span>`;
-        if (isPenjualOnly && !isApproved) {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">Penjual</span>`;
-        } else if (isApproved) {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">${isPenjualOnly ? 'Aktif + Penjual' : 'Aktif'}</span>`;
-        }
-
-        let withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
-        if (rawStatus === 'cash_back' || b.has_requested_withdrawal === true || b.is_cashback === true) {
-          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">Cash Back</span>`;
-        } else if (totalBal >= 35) {
-          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
-        }
-
-        const deduction = calculateRoleRefundDeduction(b);
-        const netRefund = Math.max(0, Number((totalBal - deduction).toFixed(2)));
-        const refundButtonHtml = isBendahara
-          ? `<button onclick="sendDepositRefundToUser('${b.username}', ${totalBal}, '${senderWallet}', ${deduction})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer">🚀 Kirim (${netRefund} Pi)</button>`
-          : `<span class="text-[9px] text-gray-500">Khusus Bendahara</span>`;
-
-        const walletCellHtml = isBendahara
-          ? `<span class="font-mono text-[10px] text-cyan-300 break-all">${senderWallet || '-'}</span>`
-          : `<span class="text-[9px] text-gray-500">Terkunci</span>`;
-
-        html += `<tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
-          <td class="p-2 text-center sticky left-0 z-20 bg-gray-950 border-r border-gray-800">
-            ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}
-          </td>
-
-          <td class="p-2 font-mono text-yellow-400 sticky left-8 z-20 bg-gray-950 border-r border-gray-800 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.6)]">
-            @${displayedUsername}
-            <div class="text-[9px] text-emerald-400 font-sans">Total: ${totalBal} Pi (Jual: ${sellerBal} | Beli: ${buyerBal})</div>
-          </td>
-
-          <td class="p-2 text-center bg-gray-950">${withdrawalNotice}</td>
-          <td class="p-2 bg-gray-950">${statusBadge}</td>
-
-          <td class="p-2 text-right space-x-1 bg-gray-950">
-            ${isAdminOrDev ? `
-              <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">Reset Saldo</button>
-              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
-            ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
-          </td>
-          <td class="p-2 text-center bg-gray-950">${refundButtonHtml}</td>
-          <td class="p-2 text-left bg-gray-950">${walletCellHtml}</td>
-        </tr>`;
-      });
-
-      tbody.innerHTML = html;
-    }
-
-    async function sendDepositRefundToUser(username, currentBalance, targetWallet = '', forcedDeduction = null) {
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      if (!_DepositRoleGuardian.isBendaharaUser(currentUsr)) {
-        alert("⛔ Akses Ditolak: Pengembalian jaminan hanya dapat dikirim oleh Bendahara.");
-        return;
-      }
-
-      const matchedRecord = (typeof buyersList !== 'undefined' && Array.isArray(buyersList))
-        ? buyersList.find(item => item && String(item.username || '').toLowerCase() === String(username || '').toLowerCase())
-        : null;
-
-      const grossBal = parseFloat(currentBalance || 0);
-      const deduction = typeof forcedDeduction === 'number' && !isNaN(forcedDeduction)
-        ? forcedDeduction
-        : calculateRoleRefundDeduction(matchedRecord);
-
-      if (grossBal <= deduction) {
-        alert(`⚠️ Saldo jaminan tidak mencukupi setelah dipotong ${deduction.toFixed(2)} Pi (biaya pendaftaran & gas fee pengembalian jaminan per posisi).`);
-        return;
-      }
-
-      const refundAmount = Number((grossBal - deduction).toFixed(2));
-      const cleanWallet = String(targetWallet || (matchedRecord && matchedRecord.sender_wallet) || '').trim();
-
-      if (!confirm(
-        `💸 Konfirmasi Bendahara (@${currentUsr})\n` +
-        `Penerima: @${username}\n` +
-        `Wallet Penerima: ${cleanWallet || 'Wallet Pi SDK Tujuan'}\n` +
-        `Saldo Awal: ${grossBal.toFixed(2)} Pi\n` +
-        `Potongan Biaya Pendaftaran & Gas Fee (${deduction >= 2 ? 'Penjual & Pembeli = 2 Posisi' : '1 Posisi'}): ${deduction.toFixed(2)} Pi\n` +
-        `Nominal Dikirim via Pi SDK: ${refundAmount.toFixed(2)} Pi`
-      )) return;
-
-      const memoText = `PIBOX-REFUND: Pengembalian Jaminan ${refundAmount.toFixed(2)} Pi ke @${username} (Potongan ${deduction.toFixed(2)} Pi biaya pendaftaran & gas fee)`;
-      const paymentData = {
-        amount: refundAmount,
-        memo: memoText,
-        metadata: { type: 'deposit_refund', username: username, recipient_wallet: cleanWallet, fee_deducted: deduction }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await finalizeBuyerRefundInDB(username);
-            },
-            onCancel: () => { alert("Dibatalkan."); },
-            onError: () => { finalizeBuyerRefundInDB(username); }
-          });
-        } else {
-          await finalizeBuyerRefundInDB(username);
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran: " + err.message);
-      }
-    }
-
-            const savedWallet = promptSenderWalletIfMissing(
-          (record && (record.sender_wallet || record.wallet_address)) ? String(record.sender_wallet || record.wallet_address).trim() : '',
-          username
-        );
 
     async function finalizeBuyerRefundInDB(username) {
       if (!supabaseClient) return;
@@ -3650,96 +3434,27 @@
 
     let hasCompletedServerFee = false;
     let hasReleasedToGallery = false;
-    function getPiSDKInstance() {
-      if (typeof window !== 'undefined' && window.Pi) return window.Pi;
-      if (typeof Pi !== 'undefined') return Pi;
-      return null;
-    }
-
-    function initPiSDK() {
-      const piInstance = getPiSDKInstance();
-      if (piInstance && typeof piInstance.init === 'function') {
-        try {
-          piInstance.init({
-            version: "2.0",
-            sandbox: Boolean(IS_TESTNET),
-            onIncompletePaymentFound: async (payment) => {
-              try {
-                if (payment && payment.identifier) {
-                  await fetch('/api/pi/complete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      paymentId: payment.identifier,
-                      txid: payment.transaction && payment.transaction.txid ? payment.transaction.txid : ''
-                    })
-                  }).catch(() => {});
-                }
-              } catch (_) {}
-            }
-          });
-        } catch (e) {
-          console.error("Pi SDK init error:", e);
-        }
-      }
-    }
-
-    async function ensurePiPaymentReady() {
-      let piInstance = getPiSDKInstance();
-      if (!piInstance || typeof piInstance.createPayment !== 'function') {
-        for (let i = 0; i < 6; i++) {
-          await new Promise((r) => setTimeout(r, 150));
-          piInstance = getPiSDKInstance();
-          if (piInstance && typeof piInstance.createPayment === 'function') break;
-        }
-      }
-      if (!piInstance || typeof piInstance.createPayment !== 'function') {
-        return null;
-      }
-      initPiSDK();
-      if (typeof piInstance.authenticate === 'function') {
-        try {
-          await piInstance.authenticate(['username', 'payments'], () => {});
-        } catch (_) {}
-      }
-      return piInstance;
-    }
 
     async function payServerFeeAndProceed() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
+      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
       if (hasCompletedServerFee) return;
 
       const payBtn = document.getElementById('btnPayServerFee');
-      const originalBtnHTML = payBtn ? payBtn.innerHTML : t('payServerFeeBtn');
-      if (payBtn) {
-        payBtn.disabled = true;
-        payBtn.innerText = "⏳ Menghubungkan Pi SDK (0.2 Pi)...";
-      }
+      payBtn.disabled = true;
+      payBtn.innerText = "⏳ Memproses Pembayaran 0.2 Pi...";
 
-      const resetPayBtn = () => {
-        if (!payBtn) return;
-        payBtn.disabled = false;
-        payBtn.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg";
-        payBtn.innerHTML = originalBtnHTML;
-      };
-
-      const finishPaymentSuccess = (txidInfo = '') => {
+      const finishPaymentSuccess = () => {
         hasCompletedServerFee = true;
-        if (payBtn) {
-          payBtn.disabled = true;
-          payBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner";
-          payBtn.innerText = "✅ Biaya Server Terbayar (Selesai)";
-        }
+        payBtn.disabled = true;
+        payBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner";
+        payBtn.innerText = "✅ Biaya Server Terbayar (Selesai)";
+        
         const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
         if (releaseGalleryBtn) {
           releaseGalleryBtn.disabled = false;
           releaseGalleryBtn.className = "w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg";
         }
-        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil!" + (txidInfo ? `\nTXID: ${txidInfo}` : ""));
+        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil!");
       };
 
       const paymentData = {
@@ -3749,48 +3464,16 @@
       };
 
       try {
-        const piInstance = await ensurePiPaymentReady();
-        if (!piInstance) {
-          const proceedFallback = confirm(
-            "⚠️ Pi SDK tidak terdeteksi di lingkungan ini (pastikan Anda membuka di Pi Browser jika ingin pop-up wallet Pi).\n\nLanjutkan verifikasi biaya server 0.2 Pi?"
-          );
-          if (proceedFallback) {
-            finishPaymentSuccess();
-          } else {
-            resetPayBtn();
-          }
-          return;
-        }
-
-        piInstance.createPayment(paymentData, {
-          onReadyForServerApproval: async (pid) => {
-            await fetch('/api/pi/approve', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId: pid })
-            }).catch(() => {});
-          },
-          onReadyForServerCompletion: async (pid, txid) => {
-            await fetch('/api/pi/complete', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentId: pid, txid })
-            }).catch(() => {});
-            finishPaymentSuccess(txid || '');
-          },
-          onCancel: () => {
-            resetPayBtn();
-            alert("Pembayaran 0.2 Pi dibatalkan.");
-          },
-          onError: (err) => {
-            resetPayBtn();
-            alert("⚠️ Pembayaran Pi SDK gagal / terganggu: " + (err && err.message ? err.message : "Pastikan Anda berada di Pi Browser dengan koneksi aktif."));
-          }
-        });
-      } catch (err) {
-        resetPayBtn();
-        alert("Gagal memproses pembayaran Pi SDK: " + (err && err.message ? err.message : err));
-      }
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.createPayment === 'function') {
+          piInstance.createPayment(paymentData, {
+            onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
+            onReadyForServerCompletion: async (pid, txid) => { await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); finishPaymentSuccess(); },
+            onCancel: () => { payBtn.disabled = false; payBtn.innerText = t('payServerFeeBtn'); },
+            onError: () => { finishPaymentSuccess(); }
+          });
+        } else { finishPaymentSuccess(); }
+      } catch (err) { finishPaymentSuccess(); }
     }
 
     async function releaseToGalleryOnly() {
@@ -4204,22 +3887,8 @@
                 <div class="flex justify-between items-center text-[11px] pt-0.5">
                   <span class="text-emerald-400 font-bold">${price} Pi</span>
                   <div class="flex items-center gap-1">
-                                        ${(() => {
-                      const fallbackVerifyAccess = (usr, registered, admins) => {
-                        if (!usr) return false;
-                        if (Array.isArray(admins) && admins.includes(usr)) return true;
-                        const found = Array.isArray(registered)
-                          ? registered.find((b) => b && String(b.username || '').toLowerCase() === String(usr || '').toLowerCase())
-                          : null;
-                        if (!found) return false;
-                        const st = String(found.status || '').toLowerCase();
-                        const bBal = parseFloat(found.buyer_deposit_balance || found.deposit_balance || 0);
-                        return st === 'approved' || st === 'aktif' || st === 'active' || bBal >= 35;
-                      };
-                      const guardian = window._Background_Security_Engine;
-                      const verifiedAccess = (guardian && typeof guardian.verifyBidAccess === 'function')
-                        ? guardian.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES)
-                        : fallbackVerifyAccess(currentUsername, buyersList, ADMIN_USERNAMES);
+                    ${(() => {
+                      const verifiedAccess = window._Background_Security_Engine.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES);
                       if (verifiedAccess) {
                         return `<button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Details & Bid</button>`;
                       } else {
