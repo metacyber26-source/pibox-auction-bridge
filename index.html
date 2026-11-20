@@ -3650,6 +3650,148 @@
 
     let hasCompletedServerFee = false;
     let hasReleasedToGallery = false;
+    function getPiSDKInstance() {
+      if (typeof window !== 'undefined' && window.Pi) return window.Pi;
+      if (typeof Pi !== 'undefined') return Pi;
+      return null;
+    }
+
+    function initPiSDK() {
+      const piInstance = getPiSDKInstance();
+      if (piInstance && typeof piInstance.init === 'function') {
+        try {
+          piInstance.init({
+            version: "2.0",
+            sandbox: Boolean(IS_TESTNET),
+            onIncompletePaymentFound: async (payment) => {
+              try {
+                if (payment && payment.identifier) {
+                  await fetch('/api/pi/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      paymentId: payment.identifier,
+                      txid: payment.transaction && payment.transaction.txid ? payment.transaction.txid : ''
+                    })
+                  }).catch(() => {});
+                }
+              } catch (_) {}
+            }
+          });
+        } catch (e) {
+          console.error("Pi SDK init error:", e);
+        }
+      }
+    }
+
+    async function ensurePiPaymentReady() {
+      let piInstance = getPiSDKInstance();
+      if (!piInstance || typeof piInstance.createPayment !== 'function') {
+        for (let i = 0; i < 6; i++) {
+          await new Promise((r) => setTimeout(r, 150));
+          piInstance = getPiSDKInstance();
+          if (piInstance && typeof piInstance.createPayment === 'function') break;
+        }
+      }
+      if (!piInstance || typeof piInstance.createPayment !== 'function') {
+        return null;
+      }
+      initPiSDK();
+      if (typeof piInstance.authenticate === 'function') {
+        try {
+          await piInstance.authenticate(['username', 'payments'], () => {});
+        } catch (_) {}
+      }
+      return piInstance;
+    }
+
+    async function payServerFeeAndProceed() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+      if (hasCompletedServerFee) return;
+
+      const payBtn = document.getElementById('btnPayServerFee');
+      const originalBtnHTML = payBtn ? payBtn.innerHTML : t('payServerFeeBtn');
+      if (payBtn) {
+        payBtn.disabled = true;
+        payBtn.innerText = "⏳ Menghubungkan Pi SDK (0.2 Pi)...";
+      }
+
+      const resetPayBtn = () => {
+        if (!payBtn) return;
+        payBtn.disabled = false;
+        payBtn.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg";
+        payBtn.innerHTML = originalBtnHTML;
+      };
+
+      const finishPaymentSuccess = (txidInfo = '') => {
+        hasCompletedServerFee = true;
+        if (payBtn) {
+          payBtn.disabled = true;
+          payBtn.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition cursor-not-allowed shadow-inner";
+          payBtn.innerText = "✅ Biaya Server Terbayar (Selesai)";
+        }
+        const releaseGalleryBtn = document.getElementById('btnReleaseGallery');
+        if (releaseGalleryBtn) {
+          releaseGalleryBtn.disabled = false;
+          releaseGalleryBtn.className = "w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg";
+        }
+        alert("✅ Pembayaran Biaya Server 0.2 Pi Berhasil!" + (txidInfo ? `\nTXID: ${txidInfo}` : ""));
+      };
+
+      const paymentData = {
+        amount: 0.2,
+        memo: `PIBOX-AUCTION: Server Fee - @${authenticatedPiUser.username}`,
+        metadata: { type: 'server_fee', username: authenticatedPiUser.username }
+      };
+
+      try {
+        const piInstance = await ensurePiPaymentReady();
+        if (!piInstance) {
+          const proceedFallback = confirm(
+            "⚠️ Pi SDK tidak terdeteksi di lingkungan ini (pastikan Anda membuka di Pi Browser jika ingin pop-up wallet Pi).\n\nLanjutkan verifikasi biaya server 0.2 Pi?"
+          );
+          if (proceedFallback) {
+            finishPaymentSuccess();
+          } else {
+            resetPayBtn();
+          }
+          return;
+        }
+
+        piInstance.createPayment(paymentData, {
+          onReadyForServerApproval: async (pid) => {
+            await fetch('/api/pi/approve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentId: pid })
+            }).catch(() => {});
+          },
+          onReadyForServerCompletion: async (pid, txid) => {
+            await fetch('/api/pi/complete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentId: pid, txid })
+            }).catch(() => {});
+            finishPaymentSuccess(txid || '');
+          },
+          onCancel: () => {
+            resetPayBtn();
+            alert("Pembayaran 0.2 Pi dibatalkan.");
+          },
+          onError: (err) => {
+            resetPayBtn();
+            alert("⚠️ Pembayaran Pi SDK gagal / terganggu: " + (err && err.message ? err.message : "Pastikan Anda berada di Pi Browser dengan koneksi aktif."));
+          }
+        });
+      } catch (err) {
+        resetPayBtn();
+        alert("Gagal memproses pembayaran Pi SDK: " + (err && err.message ? err.message : err));
+      }
+    }
 
     async function releaseToGalleryOnly() {
       if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
