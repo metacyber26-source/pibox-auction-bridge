@@ -3043,6 +3043,428 @@
         alert("Gagal memproses pembayaran: " + err.message);
       }
     }
+    const _DepositRoleGuardian = {
+      MAX_PER_ROLE: 35.0,
+      REFUND_FEE: 1.0,
+      normalizeRole: function (role) {
+        return String(role || '').toLowerCase() === 'seller' ? 'seller' : 'buyer';
+      },
+      roleLabel: function (role) {
+        return this.normalizeRole(role) === 'seller' ? 'Penjual' : 'Pembeli';
+      },
+      isBendaharaUser: function (username) {
+        if (!username || typeof BENDAHARA_USERNAMES === 'undefined' || !Array.isArray(BENDAHARA_USERNAMES)) return false;
+        return BENDAHARA_USERNAMES.includes(String(username).trim());
+      },
+      getRoleBalance: function (record, role) {
+        if (!record) return 0;
+        const r = this.normalizeRole(role);
+        if (r === 'seller') {
+          const val = parseFloat(record.seller_deposit_balance);
+          return Number.isFinite(val) ? Math.min(this.MAX_PER_ROLE, Math.max(0, val)) : 0;
+        }
+        const bVal = parseFloat(record.buyer_deposit_balance);
+        if (Number.isFinite(bVal) && bVal > 0) return Math.min(this.MAX_PER_ROLE, Math.max(0, bVal));
+        const legacyVal = parseFloat(record.deposit_balance);
+        return Number.isFinite(legacyVal) ? Math.min(this.MAX_PER_ROLE, Math.max(0, legacyVal)) : 0;
+      },
+      hasRoleRegistered: function (record, role) {
+        if (!record) return false;
+        const r = this.normalizeRole(role);
+        if (r === 'seller') {
+          const st = String(record.seller_status || '').toLowerCase();
+          return this.getRoleBalance(record, 'seller') > 0 || ['approved', 'aktif', 'active', 'pending', 'seller', 'cash_back'].includes(st);
+        }
+        const st = String(record.buyer_status || record.status || '').toLowerCase();
+        return this.getRoleBalance(record, 'buyer') > 0 || ['approved', 'aktif', 'active', 'pending', 'buyer', 'cash_back'].includes(st);
+      },
+      showRoleChoiceModal: function (titleText, bodyText, primaryLabel, secondaryLabel) {
+        return new Promise((resolve) => {
+          const existing = document.getElementById('depositRolePromptModal');
+          if (existing) existing.remove();
+
+          const modal = document.createElement('div');
+          modal.id = 'depositRolePromptModal';
+          modal.className = 'fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-[70]';
+          modal.innerHTML = `
+            <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-sm space-y-4 shadow-2xl text-xs">
+              <div class="border-b border-gray-800 pb-2">
+                <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">${titleText}</h3>
+              </div>
+              <div class="text-gray-200 leading-relaxed whitespace-pre-line">${bodyText}</div>
+              <div class="bg-amber-950/30 border border-amber-500/30 rounded-xl p-2.5 text-[10px] text-amber-300">
+                ⚠️ Informasi: Pengembalian jaminan dipotong <strong>1 Pi</strong> sebagai biaya pendaftaran dan gas fee pengembalian jaminan. Maksimal saldo per posisi adalah <strong>35 Pi</strong>.
+              </div>
+              <div class="flex gap-2 pt-1">
+                <button type="button" id="rolePromptBtnSecondary" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold py-2.5 rounded-xl transition cursor-pointer">${secondaryLabel}</button>
+                <button type="button" id="rolePromptBtnPrimary" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-2.5 rounded-xl transition shadow cursor-pointer">${primaryLabel}</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+
+          const cleanup = (choice) => {
+            modal.remove();
+            resolve(choice);
+          };
+
+          document.getElementById('rolePromptBtnPrimary').onclick = () => cleanup('primary');
+          document.getElementById('rolePromptBtnSecondary').onclick = () => cleanup('secondary');
+        });
+      }
+    };
+
+    async function payAuctionDeposit() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const username = authenticatedPiUser.username;
+      if (!supabaseClient) return;
+
+      try {
+        const { data: record } = await supabaseClient
+          .from('buyers')
+          .select('*')
+          .eq('username', username)
+          .maybeSingle();
+
+        const hasSeller = _DepositRoleGuardian.hasRoleRegistered(record, 'seller');
+        const hasBuyer = _DepositRoleGuardian.hasRoleRegistered(record, 'buyer');
+        const sellerBal = _DepositRoleGuardian.getRoleBalance(record, 'seller');
+        const buyerBal = _DepositRoleGuardian.getRoleBalance(record, 'buyer');
+        const anyDeposit = hasSeller || hasBuyer || sellerBal > 0 || buyerBal > 0;
+
+        let chosenRole = null;
+
+        if (!anyDeposit) {
+          const choice1 = await _DepositRoleGuardian.showRoleChoiceModal(
+            '🛡️ Pilihan Posisi Top Up Jaminan',
+            'Anda sebagai penjual atau pembeli?',
+            '🛒 Pembeli',
+            '📦 Penjual'
+          );
+          chosenRole = choice1 === 'primary' ? 'buyer' : 'seller';
+        } else if (hasSeller && !hasBuyer) {
+          const choice2 = await _DepositRoleGuardian.showRoleChoiceModal(
+            '📋 Konfirmasi Pendaftaran Pembeli',
+            `Anda sudah terdaftar sebagai penjual (Saldo Penjual: ${sellerBal.toFixed(2)} Pi / maks 35 Pi).\nApakah anda akan daftar sebagai pembeli?`,
+            'YA',
+            'Tidak'
+          );
+          if (choice2 === 'secondary') {
+            alert('Menu pembayaran ditutup. Kembali ke halaman utama.');
+            return;
+          }
+          chosenRole = 'buyer';
+        } else if (hasBuyer && !hasSeller) {
+          const choice3 = await _DepositRoleGuardian.showRoleChoiceModal(
+            '📋 Konfirmasi Pendaftaran Penjual',
+            `Anda sudah terdaftar sebagai pembeli (Saldo Pembeli: ${buyerBal.toFixed(2)} Pi / maks 35 Pi).\nApakah anda akan daftar sebagai penjual?`,
+            'YA',
+            'Tidak'
+          );
+          if (choice3 === 'secondary') {
+            alert('Menu pembayaran ditutup. Kembali ke halaman utama.');
+            return;
+          }
+          chosenRole = 'seller';
+        } else {
+          const choiceBoth = await _DepositRoleGuardian.showRoleChoiceModal(
+            '🛡️ Pilih Posisi Top Up Jaminan',
+            `Anda sudah terdaftar pada kedua posisi.\n• Penjual: ${sellerBal.toFixed(2)} Pi / maks 35 Pi\n• Pembeli: ${buyerBal.toFixed(2)} Pi / maks 35 Pi\n\nPilih posisi yang ingin dicek/top up kekurangannya:`,
+            '🛒 Pembeli',
+            '📦 Penjual'
+          );
+          chosenRole = choiceBoth === 'primary' ? 'buyer' : 'seller';
+        }
+
+        const currentRoleBal = _DepositRoleGuardian.getRoleBalance(record, chosenRole);
+        const maxRoleCap = _DepositRoleGuardian.MAX_PER_ROLE;
+
+        if (currentRoleBal >= maxRoleCap) {
+          alert(
+            `✅ Saldo posisi ${_DepositRoleGuardian.roleLabel(chosenRole)} sudah penuh (${currentRoleBal.toFixed(2)} Pi / maksimal ${maxRoleCap} Pi).\n` +
+            `Tidak ada pembayaran tambahan untuk mencegah double top-up.`
+          );
+          return;
+        }
+
+        const deficit = Math.min(maxRoleCap, Math.max(0, Number((maxRoleCap - currentRoleBal).toFixed(4))));
+        const savedWallet = (record && record.sender_wallet) ? String(record.sender_wallet).trim() : '';
+
+        const confirmTopUp = confirm(
+          `🛡️ Verifikasi Saldo Jaminan (${_DepositRoleGuardian.roleLabel(chosenRole)})\n` +
+          `Saldo posisi saat ini: ${currentRoleBal.toFixed(2)} Pi\n` +
+          `Batas maksimal posisi: ${maxRoleCap} Pi\n` +
+          `Kekurangan yang dibayarkan: ${deficit.toFixed(2)} Pi\n\n` +
+          `Catatan: Pengembalian jaminan dipotong 1 Pi sebagai biaya pendaftaran dan gas fee pengembalian jaminan.\n\n` +
+          `Klik OK untuk melanjutkan pembayaran via Pi SDK sebesar ${deficit.toFixed(2)} Pi.`
+        );
+
+        if (!confirmTopUp) return;
+
+        executeRelativeDepositPayment(username, deficit, chosenRole, savedWallet);
+      } catch (err) {
+        alert("Gagal memeriksa saldo jaminan: " + err.message);
+      }
+    }
+
+    async function executeRelativeDepositPayment(username, amountToPay, roleType = 'buyer', senderWallet = '') {
+      const cleanRole = _DepositRoleGuardian.normalizeRole(roleType);
+      const safeAmount = Math.min(_DepositRoleGuardian.MAX_PER_ROLE, Math.max(0, parseFloat(amountToPay) || 0));
+      if (safeAmount <= 0) return;
+
+      const memoText = `PIBOX-AUCTION: Top Up ${_DepositRoleGuardian.roleLabel(cleanRole)} ${safeAmount.toFixed(2)} Pi - @${username}`;
+
+      const paymentData = {
+        amount: parseFloat(safeAmount.toFixed(2)),
+        memo: memoText,
+        metadata: { type: 'auction_deposit_relative', username: username, role_type: cleanRole }
+      };
+
+      const resolveWalletAndApply = async (paymentObj) => {
+        let detectedWallet = senderWallet || '';
+        if (!detectedWallet && paymentObj && paymentObj.to_address) {
+          detectedWallet = String(paymentObj.to_address);
+        }
+        if (!detectedWallet && typeof document !== 'undefined') {
+          const wInput = document.getElementById('piboxWalletInput') || document.getElementById('withdrawalWalletInput');
+          if (wInput && wInput.value && wInput.value.trim()) {
+            detectedWallet = wInput.value.trim();
+          }
+        }
+        await applyRelativeTopUpToDatabase(username, safeAmount, memoText, cleanRole, detectedWallet);
+      };
+
+      try {
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.createPayment === 'function') {
+          piInstance.createPayment(paymentData, {
+            onReadyForServerApproval: async (pid) => {
+              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
+            },
+            onReadyForServerCompletion: async (pid, txid) => {
+              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
+              await resolveWalletAndApply({ txid });
+            },
+            onCancel: () => { alert("Top up jaminan dibatalkan."); },
+            onError: async () => {
+              await resolveWalletAndApply({});
+            }
+          });
+        } else {
+          await resolveWalletAndApply({});
+        }
+      } catch (err) {
+        alert("Gagal memproses pembayaran: " + err.message);
+      }
+    }
+
+    async function applyRelativeTopUpToDatabase(username, addedAmount, memo, roleType = 'buyer', senderWallet = '') {
+      if (!supabaseClient) return;
+      try {
+        const cleanRole = _DepositRoleGuardian.normalizeRole(roleType);
+        const { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
+
+        const prevSellerBal = _DepositRoleGuardian.getRoleBalance(buyer, 'seller');
+        const prevBuyerBal = _DepositRoleGuardian.getRoleBalance(buyer, 'buyer');
+
+        let nextSellerBal = prevSellerBal;
+        let nextBuyerBal = prevBuyerBal;
+
+        if (cleanRole === 'seller') {
+          nextSellerBal = Math.min(_DepositRoleGuardian.MAX_PER_ROLE, Number((prevSellerBal + addedAmount).toFixed(4)));
+        } else {
+          nextBuyerBal = Math.min(_DepositRoleGuardian.MAX_PER_ROLE, Number((prevBuyerBal + addedAmount).toFixed(4)));
+        }
+
+        const totalCombinedBal = Number((nextSellerBal + nextBuyerBal).toFixed(4));
+        const sellerStatusVal = nextSellerBal >= _DepositRoleGuardian.MAX_PER_ROLE ? 'Penjual' : 'Penjual';
+        const buyerStatusVal = nextBuyerBal >= _DepositRoleGuardian.MAX_PER_ROLE ? 'approved' : 'pending';
+        const overallStatus = cleanRole === 'seller' && !_DepositRoleGuardian.hasRoleRegistered(buyer, 'buyer')
+          ? 'Penjual'
+          : (buyerStatusVal === 'approved' || sellerStatusVal === 'Penjual' ? (buyer ? buyer.status || buyerStatusVal : buyerStatusVal) : 'pending');
+
+        const walletToSave = senderWallet || (buyer && buyer.sender_wallet) || '';
+
+        if (!buyer) {
+          await supabaseClient.from('buyers').insert([{
+            username: username,
+            role_type: cleanRole,
+            deposit_balance: totalCombinedBal,
+            seller_deposit_balance: nextSellerBal,
+            buyer_deposit_balance: nextBuyerBal,
+            seller_status: cleanRole === 'seller' ? 'Penjual' : 'none',
+            buyer_status: cleanRole === 'buyer' ? buyerStatusVal : 'none',
+            sender_wallet: walletToSave,
+            status: overallStatus,
+            win_count: 0,
+            has_requested_withdrawal: false
+          }]);
+        } else {
+          await supabaseClient.from('buyers').update({
+            role_type: cleanRole,
+            deposit_balance: totalCombinedBal,
+            seller_deposit_balance: nextSellerBal,
+            buyer_deposit_balance: nextBuyerBal,
+            seller_status: cleanRole === 'seller' ? 'Penjual' : (buyer.seller_status || 'none'),
+            buyer_status: cleanRole === 'buyer' ? buyerStatusVal : (buyer.buyer_status || buyer.status || 'pending'),
+            sender_wallet: walletToSave,
+            status: cleanRole === 'seller' && buyer.status !== 'approved' ? 'Penjual' : (buyer.status || overallStatus)
+          }).eq('username', username);
+        }
+
+        await supabaseClient.from('auction_deposits_log').insert([{
+          username: username,
+          role_type: cleanRole,
+          sender_wallet: walletToSave,
+          amount: addedAmount,
+          type: `deposit_${cleanRole}`,
+          memo: memo
+        }]);
+
+        alert(
+          `✅ Top Up Berhasil (${_DepositRoleGuardian.roleLabel(cleanRole)})!\n` +
+          `Saldo Penjual: ${nextSellerBal.toFixed(2)} Pi / 35 Pi\n` +
+          `Saldo Pembeli: ${nextBuyerBal.toFixed(2)} Pi / 35 Pi`
+        );
+        await checkBuyerStatusInDatabase(username);
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
+      } catch (e) {
+        alert("Gagal memperbarui database: " + e.message);
+      }
+    }
+
+    function renderBuyersTable() {
+      const tbody = document.getElementById('buyersTableBody');
+      const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      const isAdminOrDev = currentUsr && ADMIN_USERNAMES.includes(currentUsr);
+      const isBendahara = _DepositRoleGuardian.isBendaharaUser(currentUsr);
+      const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Kosong.</td></tr>`;
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(b => {
+        const sellerBal = _DepositRoleGuardian.getRoleBalance(b, 'seller');
+        const buyerBal = _DepositRoleGuardian.getRoleBalance(b, 'buyer');
+        const totalBal = Number((sellerBal + buyerBal).toFixed(2));
+        const rawStatus = String(b.status || '').toLowerCase();
+        const isApproved = rawStatus === 'approved' || rawStatus === 'aktif' || rawStatus === 'active' || buyerBal >= 35;
+        const isPenjualOnly = String(b.seller_status || '').toLowerCase() === 'penjual' || rawStatus === 'penjual';
+        const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
+        const senderWallet = (b.sender_wallet || '').trim();
+
+        let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">Pending</span>`;
+        if (isPenjualOnly && !isApproved) {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">Penjual</span>`;
+        } else if (isApproved) {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">${isPenjualOnly ? 'Aktif + Penjual' : 'Aktif'}</span>`;
+        }
+
+        let withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
+        if (rawStatus === 'cash_back' || b.has_requested_withdrawal === true || b.is_cashback === true) {
+          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">Cash Back</span>`;
+        } else if (totalBal >= 35) {
+          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
+        }
+
+        const netRefund = Math.max(0, Number((totalBal - _DepositRoleGuardian.REFUND_FEE).toFixed(2)));
+        const refundButtonHtml = isBendahara
+          ? `<button onclick="sendDepositRefundToUser('${b.username}', ${totalBal}, '${senderWallet}')" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer">🚀 Kirim (${netRefund} Pi)</button>`
+          : `<span class="text-[9px] text-gray-500">Khusus Bendahara</span>`;
+
+        const walletCellHtml = isBendahara
+          ? `<span class="font-mono text-[10px] text-cyan-300 break-all">${senderWallet || '-'}</span>`
+          : `<span class="text-[9px] text-gray-500">Terkunci</span>`;
+
+        html += `<tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
+          <td class="p-2 text-center sticky left-0 z-20 bg-gray-950 border-r border-gray-800">
+            ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}
+          </td>
+
+          <td class="p-2 font-mono text-yellow-400 sticky left-8 z-20 bg-gray-950 border-r border-gray-800 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.6)]">
+            @${displayedUsername}
+            <div class="text-[9px] text-emerald-400 font-sans">Total: ${totalBal} Pi (Jual: ${sellerBal} | Beli: ${buyerBal})</div>
+          </td>
+
+          <td class="p-2 text-center bg-gray-950">${withdrawalNotice}</td>
+          <td class="p-2 bg-gray-950">${statusBadge}</td>
+
+          <td class="p-2 text-right space-x-1 bg-gray-950">
+            ${isAdminOrDev ? `
+              <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">Reset Saldo</button>
+              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
+            ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
+          </td>
+          <td class="p-2 text-center bg-gray-950">${refundButtonHtml}</td>
+          <td class="p-2 text-left bg-gray-950">${walletCellHtml}</td>
+        </tr>`;
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    async function sendDepositRefundToUser(username, currentBalance, targetWallet = '') {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      if (!_DepositRoleGuardian.isBendaharaUser(currentUsr)) {
+        alert("⛔ Akses Ditolak: Pengembalian jaminan hanya dapat dikirim oleh Bendahara.");
+        return;
+      }
+
+      const grossBal = parseFloat(currentBalance || 0);
+      if (grossBal <= _DepositRoleGuardian.REFUND_FEE) {
+        alert("⚠️ Saldo jaminan tidak mencukupi setelah dipotong 1 Pi (biaya pendaftaran & gas fee pengembalian jaminan).");
+        return;
+      }
+
+      const refundAmount = Number((grossBal - _DepositRoleGuardian.REFUND_FEE).toFixed(2));
+      const cleanWallet = String(targetWallet || '').trim();
+
+      if (!confirm(
+        `💸 Konfirmasi Bendahara (@${currentUsr})\n` +
+        `Penerima: @${username}\n` +
+        `Wallet Penerima: ${cleanWallet || 'Wallet Pi SDK Tujuan'}\n` +
+        `Saldo Awal: ${grossBal.toFixed(2)} Pi\n` +
+        `Potongan Biaya Pendaftaran & Gas Fee: 1.00 Pi\n` +
+        `Nominal Dikirim via Pi SDK: ${refundAmount.toFixed(2)} Pi`
+      )) return;
+
+      const memoText = `PIBOX-REFUND: Pengembalian Jaminan ${refundAmount.toFixed(2)} Pi ke @${username} (Potongan 1 Pi biaya pendaftaran & gas fee)`;
+      const paymentData = {
+        amount: refundAmount,
+        memo: memoText,
+        metadata: { type: 'deposit_refund', username: username, recipient_wallet: cleanWallet, fee_deducted: 1 }
+      };
+
+      try {
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.createPayment === 'function') {
+          piInstance.createPayment(paymentData, {
+            onReadyForServerApproval: async (pid) => {
+              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
+            },
+            onReadyForServerCompletion: async (pid, txid) => {
+              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
+              await finalizeBuyerRefundInDB(username);
+            },
+            onCancel: () => { alert("Dibatalkan."); },
+            onError: () => { finalizeBuyerRefundInDB(username); }
+          });
+        } else {
+          await finalizeBuyerRefundInDB(username);
+        }
+      } catch (err) {
+        alert("Gagal memproses pembayaran: " + err.message);
+      }
+    }
 
     async function finalizeBuyerRefundInDB(username) {
       if (!supabaseClient) return;
