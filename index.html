@@ -3312,60 +3312,7 @@
       tbody.innerHTML = html;
     }
 
-    async function sendDepositRefundToUser(username, currentBalance, targetWallet = '') {
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      if (!_DepositRoleGuardian.isBendaharaUser(currentUsr)) {
-        alert("⛔ Akses Ditolak: Pengembalian jaminan hanya dapat dikirim oleh Bendahara.");
-        return;
-      }
-
-      const grossBal = parseFloat(currentBalance || 0);
-      if (grossBal <= _DepositRoleGuardian.REFUND_FEE) {
-        alert("⚠️ Saldo jaminan tidak mencukupi setelah dipotong 1 Pi (biaya pendaftaran & gas fee pengembalian jaminan).");
-        return;
-      }
-
-      const refundAmount = Number((grossBal - _DepositRoleGuardian.REFUND_FEE).toFixed(2));
-      const cleanWallet = String(targetWallet || '').trim();
-
-      if (!confirm(
-        `💸 Konfirmasi Bendahara (@${currentUsr})\n` +
-        `Penerima: @${username}\n` +
-        `Wallet Penerima: ${cleanWallet || 'Wallet Pi SDK Tujuan'}\n` +
-        `Saldo Awal: ${grossBal.toFixed(2)} Pi\n` +
-        `Potongan Biaya Pendaftaran & Gas Fee: 1.00 Pi\n` +
-        `Nominal Dikirim via Pi SDK: ${refundAmount.toFixed(2)} Pi`
-      )) return;
-
-      const memoText = `PIBOX-REFUND: Pengembalian Jaminan ${refundAmount.toFixed(2)} Pi ke @${username} (Potongan 1 Pi biaya pendaftaran & gas fee)`;
-      const paymentData = {
-        amount: refundAmount,
-        memo: memoText,
-        metadata: { type: 'deposit_refund', username: username, recipient_wallet: cleanWallet, fee_deducted: 1 }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await finalizeBuyerRefundInDB(username);
-            },
-            onCancel: () => { alert("Dibatalkan."); },
-            onError: () => { finalizeBuyerRefundInDB(username); }
-          });
-        } else {
-          await finalizeBuyerRefundInDB(username);
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran: " + err.message);
-      }
-    }
-
+    
     async function finalizeBuyerRefundInDB(username) {
       if (!supabaseClient) return;
       try {
