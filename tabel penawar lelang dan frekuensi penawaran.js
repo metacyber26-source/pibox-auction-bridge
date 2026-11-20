@@ -285,7 +285,224 @@
     if (selectAll) selectAll.checked = false;
   }
 
-  let 
+  let localBroadcast = null;
+  let fastHeartbeatTimer = null;
+  let globalDataChannel = null;
+  let lastSeenSeq = 0;
+
+  const _AutonomousMeshCoordinator = {
+    nextSeq: function () {
+      lastSeenSeq = Math.max(lastSeenSeq + 1, Date.now());
+      return lastSeenSeq;
+    },
+
+    verifyAndClampAmount: function (val, cap = null) {
+      const n = parseFloat(val);
+      if (!Number.isFinite(n) || n < 0) return 0;
+      const rounded = Number(n.toFixed(4));
+      return typeof cap === "number" && Number.isFinite(cap) ? Math.min(cap, rounded) : rounded;
+    },
+
+    applyPriceAndBidderFast: function (auctionId, amount, bidderUsername) {
+      const cleanId = String(auctionId || "").trim();
+      const cleanAmount = this.verifyAndClampAmount(amount);
+      const cleanBidder = normalizeUsername(bidderUsername);
+
+      if (cleanId && cleanAmount > 0 && typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
+        const idx = activeAuctionsList.findIndex((item) => item && String(item.id) === cleanId);
+        if (idx !== -1) {
+          const prevBid = this.verifyAndClampAmount(activeAuctionsList[idx].highest_bid);
+          if (cleanAmount >= prevBid || !activeAuctionsList[idx].highest_bid) {
+            activeAuctionsList[idx].highest_bid = cleanAmount;
+            if (cleanBidder) {
+              activeAuctionsList[idx].highest_bidder = cleanBidder;
+            }
+            try {
+              localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
+            } catch (_) {}
+          }
+        }
+      }
+
+      if (typeof updateActiveCounts === "function") {
+        try { updateActiveCounts(); } catch (_) {}
+      }
+      if (typeof filterGallery === "function") {
+        try { filterGallery(); } catch (_) {}
+      }
+      syncAllBidderViews();
+    },
+
+    applyBuyerOrDepositStateFast: function (buyerRecord) {
+      if (!buyerRecord || !buyerRecord.username) return;
+      const cleanUser = normalizeUsername(buyerRecord.username);
+      if (!cleanUser) return;
+
+      const sBal = this.verifyAndClampAmount(buyerRecord.seller_deposit_balance, 35);
+      const bBal = this.verifyAndClampAmount(buyerRecord.buyer_deposit_balance || buyerRecord.deposit_balance, 35);
+      const totalBal = this.verifyAndClampAmount(sBal + bBal);
+
+      const normalizedRow = {
+        ...buyerRecord,
+        username: cleanUser,
+        seller_deposit_balance: sBal,
+        buyer_deposit_balance: bBal,
+        deposit_balance: totalBal
+      };
+
+      if (typeof buyersList !== "undefined" && Array.isArray(buyersList)) {
+        const idx = buyersList.findIndex(
+          (row) => row && normalizeUsername(row.username).toLowerCase() === cleanUser.toLowerCase()
+        );
+        if (idx !== -1) {
+          buyersList[idx] = { ...buyersList[idx], ...normalizedRow };
+        } else {
+          buyersList.push(normalizedRow);
+        }
+      }
+
+      if (typeof authenticatedPiUser !== "undefined" && authenticatedPiUser && authenticatedPiUser.username) {
+        if (normalizeUsername(authenticatedPiUser.username).toLowerCase() === cleanUser.toLowerCase()) {
+          const balEl = document.getElementById("userDepositBalanceDisplay");
+          if (balEl) balEl.innerText = `Saldo Jaminan: ${totalBal} Pi`;
+
+          const statusEl = document.getElementById("buyerApprovalStatusText");
+          const st = String(normalizedRow.status || "").toLowerCase();
+          if (statusEl) {
+            if (st === "approved" || st === "aktif" || st === "active" || bBal >= 35) {
+              if (typeof isBuyerApproved !== "undefined") isBuyerApproved = true;
+              statusEl.innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
+            } else if (st === "penjual" || String(normalizedRow.seller_status || "").toLowerCase() === "penjual") {
+              statusEl.innerText = "Status Akses: Penjual Terdaftar";
+            } else if (st === "pending") {
+              if (typeof isBuyerApproved !== "undefined") isBuyerApproved = false;
+              statusEl.innerText = "Status Akses: Pending (Menunggu Verifikasi Admin/Dev)";
+            }
+          }
+          if (typeof filterGallery === "function") {
+            try { filterGallery(); } catch (_) {}
+          }
+        }
+      }
+
+      const buyersModal = document.getElementById("buyersTableModal");
+      if (buyersModal && !buyersModal.classList.contains("hidden") && typeof renderBuyersTable === "function") {
+        try { renderBuyersTable(); } catch (_) {}
+      }
+    },
+
+    mergeIncomingEntry: function (incoming) {
+      if (!incoming || !incoming.username) return;
+      const cleanUser = normalizeUsername(incoming.username);
+      if (!cleanUser) return;
+      const key = cleanUser.toLowerCase();
+      const prev = ledgerStore[key];
+      const incCount = Math.max(1, parseInt(incoming.count || 1, 10));
+      const incBid = this.verifyAndClampAmount(incoming.lastBid);
+      const incTime = Number(incoming.lastUpdated || Date.now());
+
+      if (!prev || incCount > Number(prev.count || 0) || (incCount === Number(prev.count || 0) && incTime >= Number(prev.lastUpdated || 0))) {
+        ledgerStore[key] = {
+          username: cleanUser,
+          count: incCount,
+          lastBid: incBid > 0 ? incBid : this.verifyAndClampAmount(prev && prev.lastBid),
+          lastAuctionId: String(incoming.lastAuctionId || (prev && prev.lastAuctionId) || ""),
+          lastUpdated: incTime
+        };
+        saveLedgerToStorage();
+        this.applyPriceAndBidderFast(incoming.lastAuctionId || "", incBid, cleanUser);
+      }
+    },
+
+    dispatchInstantFanout: function (entry, auctionId = "", bidAmount = 0, extraState = null) {
+      const seq = this.nextSeq();
+      const payload = {
+        seq,
+        entry,
+        auctionId: String(auctionId || (entry && entry.lastAuctionId) || ""),
+        bidAmount: this.verifyAndClampAmount(bidAmount || (entry && entry.lastBid) || 0),
+        bidder: entry ? normalizeUsername(entry.username) : "",
+        buyerRecord: extraState && extraState.buyerRecord ? extraState.buyerRecord : null,
+        scheduleState: extraState && extraState.scheduleState ? extraState.scheduleState : null,
+        sentAt: Date.now()
+      };
+
+      if (localBroadcast) {
+        try { localBroadcast.postMessage({ type: "instant_bid_sync", payload }); } catch (_) {}
+      }
+
+      const pushBurst = () => {
+        if (typeof supabaseClient !== "undefined" && supabaseClient) {
+          try {
+            supabaseClient.channel(CHANNEL_NAME).send({
+              type: "broadcast",
+              event: "bid_frequency_update",
+              payload
+            });
+          } catch (_) {}
+          try {
+            supabaseClient.channel("public-cluster-auctions").send({
+              type: "broadcast",
+              event: "live_bid_update",
+              payload: {
+                seq,
+                auctionId: payload.auctionId,
+                newBid: payload.bidAmount,
+                bidder: payload.bidder,
+                buyerRecord: payload.buyerRecord,
+                timestamp: payload.sentAt
+              }
+            });
+          } catch (_) {}
+        }
+      };
+
+      pushBurst();
+      setTimeout(pushBurst, 80);
+      setTimeout(pushBurst, 220);
+    },
+
+    ingestAnyPayload: function (p) {
+      if (!p || typeof p !== "object") return;
+      if (p.seq && Number(p.seq) < lastSeenSeq - 5000) return;
+      if (p.seq) lastSeenSeq = Math.max(lastSeenSeq, Number(p.seq));
+
+      if (p.entry) {
+        this.mergeIncomingEntry(p.entry);
+      }
+      if (p.auctionId && this.verifyAndClampAmount(p.bidAmount || p.newBid) > 0) {
+        this.applyPriceAndBidderFast(
+          p.auctionId,
+          this.verifyAndClampAmount(p.bidAmount || p.newBid),
+          p.bidder
+        );
+      }
+      if (p.buyerRecord) {
+        this.applyBuyerOrDepositStateFast(p.buyerRecord);
+      }
+      if (p.scheduleState && typeof auctionScheduleState !== "undefined") {
+        auctionScheduleState = p.scheduleState;
+        if (typeof checkAuctionSchedule === "function") {
+          try { checkAuctionSchedule(); } catch (_) {}
+        }
+      }
+    },
+
+    runConsistencyAudit: function () {
+      try {
+        _LogicEnforcer.reconcileWithAuctions();
+        syncActiveBiddersPanel();
+        const modal = document.getElementById("activeBiddersModal");
+        if (modal && !modal.classList.contains("hidden")) {
+          renderBidderFrequencyTable();
+        }
+      } catch (_) {}
+    }
+  };
+
+  function publishRealtimeFrequency(entry, auctionId = "", bidAmount = 0, extraState = null) {
+    _AutonomousMeshCoordinator.dispatchInstantFanout(entry, auctionId, bidAmount, extraState);
+  }
 
   function initRealtimeFrequencyListener() {
     if (typeof BroadcastChannel !== "undefined" && !localBroadcast) {
@@ -293,11 +510,7 @@
         localBroadcast = new BroadcastChannel(CHANNEL_NAME);
         localBroadcast.onmessage = (ev) => {
           if (ev && ev.data && ev.data.type === "instant_bid_sync" && ev.data.payload) {
-            const p = ev.data.payload;
-            if (p.entry) _DistributionGuardian.mergeIncomingEntry(p.entry);
-            if (p.auctionId && p.bidAmount > 0) {
-              _DistributionGuardian.applyPriceAndBidderFast(p.auctionId, p.bidAmount, p.bidder);
-            }
+            _AutonomousMeshCoordinator.ingestAnyPayload(ev.data.payload);
           }
         };
       } catch (_) {}
@@ -329,13 +542,38 @@
         broadcastChannel = supabaseClient
           .channel(CHANNEL_NAME)
           .on("broadcast", { event: "bid_frequency_update" }, (msg) => {
-            const p = msg && msg.payload ? msg.payload : null;
-            if (!p) return;
-            if (p.entry) {
-              _DistributionGuardian.mergeIncomingEntry(p.entry);
+            _AutonomousMeshCoordinator.ingestAnyPayload(msg && msg.payload ? msg.payload : null);
+          })
+          .subscribe();
+      } catch (_) {}
+    }
+
+    if (typeof supabaseClient !== "undefined" && supabaseClient && !globalDataChannel) {
+      try {
+        globalDataChannel = supabaseClient
+          .channel("global-state-mesh-sync")
+          .on("postgres_changes", { event: "*", schema: "public", table: "buyers" }, (payload) => {
+            const row = (payload && (payload.new || payload.old)) || null;
+            if (row && payload.eventType !== "DELETE") {
+              _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(row);
+            } else if (typeof fetchBuyersList === "function") {
+              fetchBuyersList().catch(() => {});
             }
-            if (p.auctionId && p.bidAmount > 0) {
-              _DistributionGuardian.applyPriceAndBidderFast(p.auctionId, p.bidAmount, p.bidder);
+          })
+          .on("postgres_changes", { event: "*", schema: "public", table: "auctions" }, (payload) => {
+            if (payload && payload.new && typeof activeAuctionsList !== "undefined") {
+              const idx = activeAuctionsList.findIndex((a) => String(a.id) === String(payload.new.id));
+              if (idx !== -1) {
+                activeAuctionsList[idx] = { ...activeAuctionsList[idx], ...payload.new };
+              } else {
+                activeAuctionsList.unshift(payload.new);
+              }
+              try {
+                localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
+              } catch (_) {}
+              if (typeof updateActiveCounts === "function") updateActiveCounts();
+              if (typeof filterGallery === "function") filterGallery();
+              syncAllBidderViews();
             }
           })
           .subscribe();
@@ -345,8 +583,8 @@
     if (!isSyncLoopActive) {
       isSyncLoopActive = true;
       fastHeartbeatTimer = setInterval(() => {
-        _DistributionGuardian.runConsistencyAudit();
-      }, 350);
+        _AutonomousMeshCoordinator.runConsistencyAudit();
+      }, 250);
     }
   }
 
@@ -354,25 +592,32 @@
     recordBid: function (username, amount, auctionId = "") {
       const entry = recordBidFrequency(username, amount, auctionId);
       if (entry) {
-        _DistributionGuardian.applyPriceAndBidderFast(auctionId, amount, username);
-        _DistributionGuardian.dispatchInstantFanout(entry, auctionId, amount);
+        _AutonomousMeshCoordinator.applyPriceAndBidderFast(auctionId, amount, username);
+        _AutonomousMeshCoordinator.dispatchInstantFanout(entry, auctionId, amount);
       }
       return entry;
     },
     distributePriceNow: function (auctionId, amount, bidderUsername = "") {
-      _DistributionGuardian.applyPriceAndBidderFast(auctionId, amount, bidderUsername);
+      _AutonomousMeshCoordinator.applyPriceAndBidderFast(auctionId, amount, bidderUsername);
       const cleanUser = normalizeUsername(bidderUsername);
       if (cleanUser) {
         const key = cleanUser.toLowerCase();
         const existing = ledgerStore[key] || {
           username: cleanUser,
           count: 1,
-          lastBid: _LogicEnforcer.sanitizeAmount(amount),
+          lastBid: _AutonomousMeshCoordinator.verifyAndClampAmount(amount),
           lastAuctionId: String(auctionId || ""),
           lastUpdated: Date.now()
         };
-        _DistributionGuardian.dispatchInstantFanout(existing, auctionId, amount);
+        _AutonomousMeshCoordinator.dispatchInstantFanout(existing, auctionId, amount);
       }
+    },
+    syncBuyerStateNow: function (buyerRecord) {
+      _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(buyerRecord);
+      _AutonomousMeshCoordinator.dispatchInstantFanout(null, "", 0, { buyerRecord });
+    },
+    syncScheduleNow: function (scheduleState) {
+      _AutonomousMeshCoordinator.dispatchInstantFanout(null, "", 0, { scheduleState });
     },
     syncViews: syncAllBidderViews,
     getBidderCount: () => _LogicEnforcer.getUniqueBidderCount(),
@@ -385,11 +630,11 @@
   window.adminResetSelectedOrAllBidders = adminResetSelectedOrAllBidders;
 
   document.addEventListener("DOMContentLoaded", () => {
-    _DistributionGuardian.runConsistencyAudit();
+    _AutonomousMeshCoordinator.runConsistencyAudit();
     initRealtimeFrequencyListener();
     setTimeout(() => {
-      if (!broadcastChannel) initRealtimeFrequencyListener();
-      _DistributionGuardian.runConsistencyAudit();
-    }, 300);
+      if (!broadcastChannel || !globalDataChannel) initRealtimeFrequencyListener();
+      _AutonomousMeshCoordinator.runConsistencyAudit();
+    }, 250);
   });
 })();
