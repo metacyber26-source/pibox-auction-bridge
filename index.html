@@ -4297,6 +4297,15 @@
             if (payload && payload.payload) {
               const { auctionId, newBid, bidder } = payload.payload;
               _AutonomousLogicEngine.syncBidStateLocally(auctionId, newBid, bidder);
+              if (payload.payload.ledgerEntry && payload.payload.ledgerEntry.username) {
+                const existing = _BidLedgerAndDistributionCore.readAllRecords();
+                const alreadyExists = existing.some(r => r.id === payload.payload.ledgerEntry.id);
+                if (!alreadyExists) {
+                  existing.push(payload.payload.ledgerEntry);
+                  _BidLedgerAndDistributionCore.writeAllRecords(existing);
+                }
+              }
+
               updateActiveCounts();
               filterGallery();
             }
