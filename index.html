@@ -4112,8 +4112,22 @@
                 <div class="flex justify-between items-center text-[11px] pt-0.5">
                   <span class="text-emerald-400 font-bold">${price} Pi</span>
                   <div class="flex items-center gap-1">
-                    ${(() => {
-                      const verifiedAccess = window._Background_Security_Engine.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES);
+                                        ${(() => {
+                      const fallbackVerifyAccess = (usr, registered, admins) => {
+                        if (!usr) return false;
+                        if (Array.isArray(admins) && admins.includes(usr)) return true;
+                        const found = Array.isArray(registered)
+                          ? registered.find((b) => b && String(b.username || '').toLowerCase() === String(usr || '').toLowerCase())
+                          : null;
+                        if (!found) return false;
+                        const st = String(found.status || '').toLowerCase();
+                        const bBal = parseFloat(found.buyer_deposit_balance || found.deposit_balance || 0);
+                        return st === 'approved' || st === 'aktif' || st === 'active' || bBal >= 35;
+                      };
+                      const guardian = window._Background_Security_Engine;
+                      const verifiedAccess = (guardian && typeof guardian.verifyBidAccess === 'function')
+                        ? guardian.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES)
+                        : fallbackVerifyAccess(currentUsername, buyersList, ADMIN_USERNAMES);
                       if (verifiedAccess) {
                         return `<button onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Details & Bid</button>`;
                       } else {
