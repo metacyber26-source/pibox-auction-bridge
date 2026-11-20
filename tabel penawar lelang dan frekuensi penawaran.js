@@ -285,39 +285,161 @@
     if (selectAll) selectAll.checked = false;
   }
 
-  function publishRealtimeFrequency(entry) {
-    if (typeof supabaseClient !== "undefined" && supabaseClient) {
+  let localBroadcast = null;
+  let fastHeartbeatTimer = null;
+
+  const _DistributionGuardian = {
+    applyPriceAndBidderFast: function (auctionId, amount, bidderUsername) {
+      const cleanId = String(auctionId || "").trim();
+      const cleanAmount = _LogicEnforcer.sanitizeAmount(amount);
+      const cleanBidder = normalizeUsername(bidderUsername);
+
+      if (cleanId && cleanAmount > 0 && typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
+        const idx = activeAuctionsList.findIndex((item) => item && String(item.id) === cleanId);
+        if (idx !== -1) {
+          const prevBid = _LogicEnforcer.sanitizeAmount(activeAuctionsList[idx].highest_bid);
+          if (cleanAmount >= prevBid || !activeAuctionsList[idx].highest_bid) {
+            activeAuctionsList[idx].highest_bid = cleanAmount;
+            if (cleanBidder) {
+              activeAuctionsList[idx].highest_bidder = cleanBidder;
+            }
+            try {
+              localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
+            } catch (_) {}
+          }
+        }
+      }
+
+      if (typeof updateActiveCounts === "function") {
+        try { updateActiveCounts(); } catch (_) {}
+      }
+      if (typeof filterGallery === "function") {
+        try { filterGallery(); } catch (_) {}
+      }
+      syncAllBidderViews();
+    },
+
+    mergeIncomingEntry: function (incoming) {
+      if (!incoming || !incoming.username) return;
+      const cleanUser = normalizeUsername(incoming.username);
+      if (!cleanUser) return;
+      const key = cleanUser.toLowerCase();
+      const prev = ledgerStore[key];
+      const incCount = Math.max(1, parseInt(incoming.count || 1, 10));
+      const incBid = _LogicEnforcer.sanitizeAmount(incoming.lastBid);
+      const incTime = Number(incoming.lastUpdated || Date.now());
+
+      if (!prev || incCount > Number(prev.count || 0) || (incCount === Number(prev.count || 0) && incTime >= Number(prev.lastUpdated || 0))) {
+        ledgerStore[key] = {
+          username: cleanUser,
+          count: incCount,
+          lastBid: incBid > 0 ? incBid : _LogicEnforcer.sanitizeAmount(prev && prev.lastBid),
+          lastAuctionId: String(incoming.lastAuctionId || (prev && prev.lastAuctionId) || ""),
+          lastUpdated: incTime
+        };
+        saveLedgerToStorage();
+        this.applyPriceAndBidderFast(
+          incoming.lastAuctionId || "",
+          incBid,
+          cleanUser
+        );
+      }
+    },
+
+    dispatchInstantFanout: function (entry, auctionId = "", bidAmount = 0) {
+      const payload = {
+        entry,
+        auctionId: String(auctionId || (entry && entry.lastAuctionId) || ""),
+        bidAmount: _LogicEnforcer.sanitizeAmount(bidAmount || (entry && entry.lastBid) || 0),
+        bidder: entry ? normalizeUsername(entry.username) : "",
+        sentAt: Date.now()
+      };
+
+      if (localBroadcast) {
+        try { localBroadcast.postMessage({ type: "instant_bid_sync", payload }); } catch (_) {}
+      }
+
+      if (typeof supabaseClient !== "undefined" && supabaseClient) {
+        const pushOnce = () => {
+          try {
+            supabaseClient.channel(CHANNEL_NAME).send({
+              type: "broadcast",
+              event: "bid_frequency_update",
+              payload
+            });
+          } catch (_) {}
+        };
+        pushOnce();
+        setTimeout(pushOnce, 120);
+        setTimeout(pushOnce, 350);
+      }
+    },
+
+    runConsistencyAudit: function () {
       try {
-        supabaseClient.channel(CHANNEL_NAME).send({
-          type: "broadcast",
-          event: "bid_frequency_update",
-          payload: { entry, sentAt: Date.now() }
-        });
+        _LogicEnforcer.reconcileWithAuctions();
+        syncActiveBiddersPanel();
+        const modal = document.getElementById("activeBiddersModal");
+        if (modal && !modal.classList.contains("hidden")) {
+          renderBidderFrequencyTable();
+        }
       } catch (_) {}
     }
+  };
+
+  function publishRealtimeFrequency(entry, auctionId = "", bidAmount = 0) {
+    _DistributionGuardian.dispatchInstantFanout(entry, auctionId, bidAmount);
   }
 
   function initRealtimeFrequencyListener() {
+    if (typeof BroadcastChannel !== "undefined" && !localBroadcast) {
+      try {
+        localBroadcast = new BroadcastChannel(CHANNEL_NAME);
+        localBroadcast.onmessage = (ev) => {
+          if (ev && ev.data && ev.data.type === "instant_bid_sync" && ev.data.payload) {
+            const p = ev.data.payload;
+            if (p.entry) _DistributionGuardian.mergeIncomingEntry(p.entry);
+            if (p.auctionId && p.bidAmount > 0) {
+              _DistributionGuardian.applyPriceAndBidderFast(p.auctionId, p.bidAmount, p.bidder);
+            }
+          }
+        };
+      } catch (_) {}
+    }
+
+    window.addEventListener("storage", (ev) => {
+      if (!ev) return;
+      if (ev.key === STORAGE_KEY_BIDS && ev.newValue) {
+        try {
+          ledgerStore = JSON.parse(ev.newValue) || {};
+          syncAllBidderViews();
+        } catch (_) {}
+      }
+      if (ev.key === "nusantara_cached_auctions" && ev.newValue) {
+        try {
+          const parsedAuctions = JSON.parse(ev.newValue);
+          if (Array.isArray(parsedAuctions) && typeof activeAuctionsList !== "undefined") {
+            activeAuctionsList = parsedAuctions;
+            if (typeof updateActiveCounts === "function") updateActiveCounts();
+            if (typeof filterGallery === "function") filterGallery();
+            syncAllBidderViews();
+          }
+        } catch (_) {}
+      }
+    });
+
     if (typeof supabaseClient !== "undefined" && supabaseClient && !broadcastChannel) {
       try {
         broadcastChannel = supabaseClient
           .channel(CHANNEL_NAME)
           .on("broadcast", { event: "bid_frequency_update" }, (msg) => {
-            const incoming = msg && msg.payload ? msg.payload.entry : null;
-            if (incoming && incoming.username) {
-              const key = normalizeUsername(incoming.username).toLowerCase();
-              const prev = ledgerStore[key];
-              if (!prev || Number(incoming.count || 0) >= Number(prev.count || 0)) {
-                ledgerStore[key] = {
-                  username: normalizeUsername(incoming.username),
-                  count: Math.max(1, parseInt(incoming.count || 1, 10)),
-                  lastBid: _LogicEnforcer.sanitizeAmount(incoming.lastBid),
-                  lastAuctionId: String(incoming.lastAuctionId || ""),
-                  lastUpdated: Number(incoming.lastUpdated || Date.now())
-                };
-                saveLedgerToStorage();
-                syncAllBidderViews();
-              }
+            const p = msg && msg.payload ? msg.payload : null;
+            if (!p) return;
+            if (p.entry) {
+              _DistributionGuardian.mergeIncomingEntry(p.entry);
+            }
+            if (p.auctionId && p.bidAmount > 0) {
+              _DistributionGuardian.applyPriceAndBidderFast(p.auctionId, p.bidAmount, p.bidder);
             }
           })
           .subscribe();
@@ -326,15 +448,36 @@
 
     if (!isSyncLoopActive) {
       isSyncLoopActive = true;
-      setInterval(() => {
-        _LogicEnforcer.reconcileWithAuctions();
-        syncActiveBiddersPanel();
-      }, 1000);
+      fastHeartbeatTimer = setInterval(() => {
+        _DistributionGuardian.runConsistencyAudit();
+      }, 350);
     }
   }
 
   window.BidderFrequencyEngine = {
-    recordBid: recordBidFrequency,
+    recordBid: function (username, amount, auctionId = "") {
+      const entry = recordBidFrequency(username, amount, auctionId);
+      if (entry) {
+        _DistributionGuardian.applyPriceAndBidderFast(auctionId, amount, username);
+        _DistributionGuardian.dispatchInstantFanout(entry, auctionId, amount);
+      }
+      return entry;
+    },
+    distributePriceNow: function (auctionId, amount, bidderUsername = "") {
+      _DistributionGuardian.applyPriceAndBidderFast(auctionId, amount, bidderUsername);
+      const cleanUser = normalizeUsername(bidderUsername);
+      if (cleanUser) {
+        const key = cleanUser.toLowerCase();
+        const existing = ledgerStore[key] || {
+          username: cleanUser,
+          count: 1,
+          lastBid: _LogicEnforcer.sanitizeAmount(amount),
+          lastAuctionId: String(auctionId || ""),
+          lastUpdated: Date.now()
+        };
+        _DistributionGuardian.dispatchInstantFanout(existing, auctionId, amount);
+      }
+    },
     syncViews: syncAllBidderViews,
     getBidderCount: () => _LogicEnforcer.getUniqueBidderCount(),
     getAllBidders: () => _LogicEnforcer.getSortedBidders()
@@ -346,13 +489,11 @@
   window.adminResetSelectedOrAllBidders = adminResetSelectedOrAllBidders;
 
   document.addEventListener("DOMContentLoaded", () => {
-    _LogicEnforcer.reconcileWithAuctions();
-    syncAllBidderViews();
+    _DistributionGuardian.runConsistencyAudit();
     initRealtimeFrequencyListener();
     setTimeout(() => {
       if (!broadcastChannel) initRealtimeFrequencyListener();
-      _LogicEnforcer.reconcileWithAuctions();
-      syncAllBidderViews();
-    }, 1200);
+      _DistributionGuardian.runConsistencyAudit();
+    }, 300);
   });
 })();
