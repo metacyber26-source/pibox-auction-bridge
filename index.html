@@ -3848,100 +3848,98 @@
   </script>
     <script src="./i18n.js"></script>
   <script>
-    const _SilentLogicEngine = {
-      version: "12.0.0-silent-logic-core",
-      applyLiveBidToAllViews: function(auctionId, newBid, bidder) {
-        try {
-          const cleanId = String(auctionId);
-          const numericBid = parseFloat(newBid);
-          if (!cleanId || isNaN(numericBid)) return;
+    (function() {
+      function resolveTranslator(lang) {
+        const activeLang = lang || localStorage.getItem('appLang') || window.currentLang || 'id';
+        window.currentLang = activeLang;
+        localStorage.setItem('appLang', activeLang);
+        document.documentElement.setAttribute('lang', activeLang);
 
-          const idx = activeAuctionsList.findIndex(a => String(a.id) === cleanId);
-          if (idx !== -1) {
-            activeAuctionsList[idx].highest_bid = numericBid;
-            if (bidder) activeAuctionsList[idx].highest_bidder = bidder;
-            localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+        if (typeof window.setLanguage === 'function') {
+          try { window.setLanguage(activeLang); } catch (_) {}
+        }
+        if (typeof window.i18nSetLang === 'function') {
+          try { window.i18nSetLang(activeLang); } catch (_) {}
+        }
+        if (window.i18n) {
+          if (typeof window.i18n.setLanguage === 'function') {
+            try { window.i18n.setLanguage(activeLang); } catch (_) {}
+          } else if (typeof window.i18n.changeLanguage === 'function') {
+            try { window.i18n.changeLanguage(activeLang); } catch (_) {}
+          } else if (typeof window.i18n.apply === 'function') {
+            try { window.i18n.apply(activeLang); } catch (_) {}
           }
+        }
 
-          const fIdx = filteredAuctionsList.findIndex(a => String(a.id) === cleanId);
-          if (fIdx !== -1) {
-            filteredAuctionsList[fIdx].highest_bid = numericBid;
-            if (bidder) filteredAuctionsList[fIdx].highest_bidder = bidder;
-          }
+        const dict =
+          (window.translations && window.translations[activeLang]) ||
+          (window.i18n && window.i18n.translations && window.i18n.translations[activeLang]) ||
+          (window.i18n && window.i18n.messages && window.i18n.messages[activeLang]) ||
+          null;
 
-          if (selectedAuction && String(selectedAuction.id) === cleanId) {
-            selectedAuction.highest_bid = numericBid;
-            if (bidder) selectedAuction.highest_bidder = bidder;
-          }
-
-          if (typeof updateActiveCounts === 'function') updateActiveCounts();
-          if (typeof filterGallery === 'function') filterGallery();
-          else if (typeof renderGallery === 'function') renderGallery();
-        } catch (_) {}
-      },
-      enforceI18nConsistency: function(lang) {
-        try {
-          const targetLang = lang || localStorage.getItem('appLang') || currentLang || 'id';
-          currentLang = targetLang;
-          localStorage.setItem('appLang', targetLang);
-          document.documentElement.setAttribute('lang', targetLang);
-
-          if (typeof window.applyTranslations === 'function') {
-            window.applyTranslations(targetLang);
-          } else if (typeof window.i18nApply === 'function') {
-            window.i18nApply(targetLang);
-          } else if (window.i18n && typeof window.i18n.apply === 'function') {
-            window.i18n.apply(targetLang);
-          }
-
-          const sel = document.getElementById('langSelector');
-          if (sel && sel.value !== targetLang) sel.value = targetLang;
-        } catch (_) {}
-      },
-      auditRuntimeHealth: function() {
-        try {
-          this.enforceI18nConsistency();
-          if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.initInstantSyncGuardian === 'function') {
-            if (!window.__instantSyncStarted) {
-              window.__instantSyncStarted = true;
-              _RealtimeBidEnforcementCore.initInstantSyncGuardian();
+        if (dict) {
+          document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (dict[key] !== undefined) {
+              if (/<[a-z][\s\S]*>/i.test(dict[key])) {
+                el.innerHTML = dict[key];
+              } else {
+                el.innerText = dict[key];
+              }
             }
+          });
+
+          document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            const key = el.getAttribute('data-i18n-placeholder');
+            if (dict[key] !== undefined) {
+              el.setAttribute('placeholder', dict[key]);
+            }
+          });
+        }
+
+        const selector = document.getElementById('langSelector');
+        if (selector && selector.value !== activeLang) {
+          selector.value = activeLang;
+        }
+      }
+
+      if (typeof window.t !== 'function') {
+        window.t = function(key) {
+          const lang = localStorage.getItem('appLang') || window.currentLang || 'id';
+          if (window.i18n && typeof window.i18n.t === 'function') {
+            const res = window.i18n.t(key, lang);
+            if (res && res !== key) return res;
           }
-        } catch (_) {}
+          const dict =
+            (window.translations && window.translations[lang]) ||
+            (window.translations && window.translations.id) ||
+            {};
+          return dict[key] !== undefined ? dict[key] : key;
+        };
       }
-    };
 
-    window._SilentLogicEngine = _SilentLogicEngine;
-
-    if (typeof window.t !== 'function') {
-      window.t = function(key) {
-        if (window.i18n && typeof window.i18n.t === 'function') {
-          return window.i18n.t(key);
-        }
-        if (window.translations && window.translations[currentLang] && window.translations[currentLang][key]) {
-          return window.translations[currentLang][key];
-        }
-        return key;
+      window.applyTranslations = function(lang) {
+        resolveTranslator(lang);
       };
-    }
 
-    window.changeLanguage = function(lang) {
-      _SilentLogicEngine.enforceI18nConsistency(lang);
-      if (typeof window.i18nSetLang === 'function') {
-        try { window.i18nSetLang(lang); } catch (_) {}
-      }
-      if (typeof renderGallery === 'function') renderGallery();
-    };
+      window.changeLanguage = function(lang) {
+        resolveTranslator(lang);
+        if (typeof window.filterGallery === 'function') {
+          try { window.filterGallery(); } catch (_) {}
+        } else if (typeof window.renderGallery === 'function') {
+          try { window.renderGallery(); } catch (_) {}
+        }
+        if (typeof window.updateActiveCounts === 'function') {
+          try { window.updateActiveCounts(); } catch (_) {}
+        }
+      };
 
-    window.applyTranslations = function() {
-      _SilentLogicEngine.enforceI18nConsistency();
-    };
-
-    document.addEventListener("DOMContentLoaded", () => {
-      _SilentLogicEngine.enforceI18nConsistency();
-      setInterval(() => { _SilentLogicEngine.auditRuntimeHealth(); }, 1500);
-    });
+      document.addEventListener('DOMContentLoaded', () => {
+        resolveTranslator(localStorage.getItem('appLang') || 'id');
+      });
+    })();
   </script>
+
  <script src="./tabel%20penawar%20lelang%20dan%20frekuensi%20penawaran.js"></script>
 </body>
 </html>
