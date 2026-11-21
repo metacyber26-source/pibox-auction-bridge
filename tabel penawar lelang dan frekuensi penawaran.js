@@ -62,7 +62,6 @@
     return admins.includes(currentUser) || devs.includes(currentUser);
   }
 
-  // Mesin penjaga integritas data & sinkronisasi latar belakang (tanpa label eksternal)
   const _LogicEnforcer = {
     sanitizeAmount: function (val) {
       const num = parseFloat(val);
@@ -158,7 +157,7 @@
     ledgerStore[key] = nextEntry;
     saveLedgerToStorage();
     syncAllBidderViews();
-    publishRealtimeFrequency(nextEntry);
+    publishRealtimeFrequency(nextEntry, auctionId, cleanAmount);
     return nextEntry;
   }
 
@@ -189,7 +188,7 @@
     if (sortedBidders.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="4" class="p-4 text-center text-gray-500">Belum ada penawar tercatat pada sesi ini.</td>
+          <td colspan="3" class="p-4 text-center text-gray-500">Belum ada penawar tercatat pada sesi ini.</td>
         </tr>
       `;
       return;
@@ -202,7 +201,6 @@
             ? SecureShield.sanitizeHTML(item.username)
             : item.username;
         const freq = Math.max(1, parseInt(item.count || 1, 10));
-        const lastBidFormatted = `${_LogicEnforcer.sanitizeAmount(item.lastBid)} Pi`;
 
         return `
           <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
@@ -221,9 +219,6 @@
               <span class="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                 ${freq}x Menawar
               </span>
-            </td>
-            <td class="p-2 text-right font-mono font-bold text-white">
-              ${lastBidFormatted}
             </td>
           </tr>
         `;
