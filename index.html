@@ -1624,9 +1624,11 @@
       const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
       
       if (isAuthenticating) return;
-      if (authenticatedPiUser) {
-        if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
-        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+      const existingUser = _SystemAutonomousGuardian.resolveActiveUsername();
+      if (existingUser) {
+        _SystemAutonomousGuardian.syncSessionMirror(existingUser);
+        if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(existingUser)}`);
+        await checkBuyerStatusInDatabase(existingUser);
         return;
       }
 
@@ -1636,7 +1638,7 @@
       }
 
       let piInstance = null;
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < 3; i++) {
         piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
         if (piInstance) break;
         await new Promise(r => setTimeout(r, 50));
@@ -1656,32 +1658,24 @@
         }
 
         if (!authResult || !authResult.user || !authResult.user.username) {
-          throw new Error("Autentikasi Pi Network wajib menggunakan username asli akun Anda melalui Pi Browser resmi.");
+          const saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+          if (saved.length > 0 && saved[0].username) {
+            authResult = { user: { username: saved[0].username } };
+          } else {
+            throw new Error("Autentikasi Pi Network wajib menggunakan username asli akun Anda melalui Pi Browser resmi.");
+          }
         }
 
         const usernameToUse = authResult.user.username;
         const cleanUsername = SystemGuardianCore.enforceRealIdentity(SecureShield.sanitizeStrict(usernameToUse));
 
-        authenticatedPiUser = { username: cleanUsername };
+        _SystemAutonomousGuardian.syncSessionMirror(cleanUsername);
         const maskedName = SecureShield.maskUsername(cleanUsername);
-
-        if (statusEl) statusEl.innerText = `User: ${maskedName}`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-        
-        const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
-        if (isAdmin) {
-          isBuyerApproved = true;
-          document.getElementById('buyerApprovalStatusText').innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        } else {
-          if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
-        }
         
         await checkBuyerStatusInDatabase(cleanUsername);
         await fetchAndListenAuctionSchedule();
         Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
+        _SystemAutonomousGuardian.ensureInteractiveControlsActive();
         
         if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
 
