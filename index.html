@@ -1,3 +1,5 @@
+Kode index.html 
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -53,107 +55,17 @@
       }
     };
 
-    // --- CORE PENJAGA LOGIKA, TOMBOL, LOGIN & DISTRIBUSI REALTIME DI BALIK LAYAR ---
+    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI MASING-MASING (TEGAS, KONSISTEN & OTOMATIS) ---
     const _SystemAutonomousGuardian = {
-      version: "15.0.0-autonomous-precision",
-      resolveActiveUsername: function() {
-        if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
-          return String(authenticatedPiUser.username).trim();
-        }
-        if (window.authenticatedPiUser && window.authenticatedPiUser.username) {
-          return String(window.authenticatedPiUser.username).trim();
-        }
-        return '';
-      },
-      syncSessionMirror: function(username) {
-        if (!username) return;
-        const cleanUser = String(username).trim();
-        const userObj = { username: cleanUser };
-        if (typeof authenticatedPiUser !== 'undefined') {
-          authenticatedPiUser = userObj;
-        }
-        window.authenticatedPiUser = userObj;
-        const statusEl = document.getElementById('userStatusDisplay');
-        const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-        const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-        const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-        const isAdmin = typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(cleanUser);
-
-        if (statusEl) statusEl.innerText = isAdmin ? `User: ${cleanUser} (Dev Full Access)` : `User: @${cleanUser}`;
-        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${cleanUser}</span>`;
-        if (isAdmin) {
-          if (typeof isBuyerApproved !== 'undefined') isBuyerApproved = true;
-          const approvalTxt = document.getElementById('buyerApprovalStatusText');
-          if (approvalTxt) approvalTxt.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        }
-      },
-      ensureInteractiveControlsActive: function() {
-        try {
-          const allButtons = document.querySelectorAll('button');
-          allButtons.forEach(btn => {
-            if (btn.id === 'btnPayServerFee' || btn.id === 'btnReleaseGallery' || btn.id === 'btnSendEmail') return;
-            if (btn.hasAttribute('data-locked-access')) return;
-            if (btn.disabled && !btn.title.includes('khusus pembeli')) {
-              btn.disabled = false;
-              btn.classList.remove('opacity-50', 'cursor-not-allowed');
-            }
-          });
-          const activeUser = this.resolveActiveUsername();
-          if (activeUser) {
-            this.syncSessionMirror(activeUser);
-          }
-        } catch (_) {}
-      },
-      distributeBidInstant: function(auctionId, newBid, bidder, statusVal) {
-        const cleanId = String(auctionId || '');
-        const numericBid = parseFloat(newBid);
-        if (!cleanId || isNaN(numericBid)) return;
-
-        if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.broadcastBidUpdate === 'function') {
-          _RealtimeBidEnforcementCore.broadcastBidUpdate(cleanId, numericBid, bidder);
-        }
-        if (typeof _AutonomousLogicEngine !== 'undefined' && typeof _AutonomousLogicEngine.syncBidStateLocally === 'function') {
-          _AutonomousLogicEngine.syncBidStateLocally(cleanId, numericBid, bidder);
-        }
-        if (Array.isArray(activeAuctionsList)) {
-          const idx = activeAuctionsList.findIndex(a => String(a.id) === cleanId);
-          if (idx !== -1) {
-            activeAuctionsList[idx].highest_bid = numericBid;
-            if (bidder) activeAuctionsList[idx].highest_bidder = bidder;
-            if (statusVal) activeAuctionsList[idx].status = statusVal;
-            try {
-              localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
-            } catch (_) {}
-          }
-        }
-        if (Array.isArray(filteredAuctionsList)) {
-          const fIdx = filteredAuctionsList.findIndex(a => String(a.id) === cleanId);
-          if (fIdx !== -1) {
-            filteredAuctionsList[fIdx].highest_bid = numericBid;
-            if (bidder) filteredAuctionsList[fIdx].highest_bidder = bidder;
-            if (statusVal) filteredAuctionsList[fIdx].status = statusVal;
-          }
-        }
-        if (typeof selectedAuction !== 'undefined' && selectedAuction && String(selectedAuction.id) === cleanId) {
-          selectedAuction.highest_bid = numericBid;
-          if (bidder) selectedAuction.highest_bidder = bidder;
-          if (statusVal) selectedAuction.status = statusVal;
-        }
-        if (typeof updateActiveCounts === 'function') updateActiveCounts();
-        if (typeof filterGallery === 'function') filterGallery();
-        else if (typeof renderGallery === 'function') renderGallery();
-      },
+      version: "10.5.0-autonomous-guardian",
       validateExecution: function(actionName, username) {
-        const cleanUser = (username || this.resolveActiveUsername() || '').trim();
-        if (!cleanUser) return false;
+        if (!username || typeof username !== 'string') return false;
+        const cleanUser = username.trim();
         return typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(cleanUser);
       },
       enforceStrictLogic: function(actionName, username) {
-        const cleanUser = (username || this.resolveActiveUsername() || '').trim();
-        if (!this.validateExecution(actionName, cleanUser)) {
-          console.warn(`[SYSTEM-SECURITY] Blokir otomatis pada fungsi [${actionName}] oleh: @${cleanUser}`);
+        if (!this.validateExecution(actionName, username)) {
+          console.warn(`[SYSTEM-SECURITY] Blokir otomatis pada fungsi [${actionName}] oleh: @${username}`);
           throw new Error("⛔ AKSES DITOLAK: Fungsi ini dikontrol secara ketat oleh sistem otomatis di balik layar.");
         }
         return true;
@@ -172,22 +84,11 @@
       }
     };
 
-    setInterval(() => {
-      _SystemAutonomousGuardian.ensureInteractiveControlsActive();
-    }, 300);
-
     // Fungsi Tombol List Aset / Barang (Tombol selalu terbuka/aktif, eksekusi dilindungi penjaga di balik layar)
     function handleOpenCreateModal() {
       try {
-        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
-        if (!currentUsr) {
-          if (typeof authenticatePiUser === 'function') {
-            authenticatePiUser(false);
-          }
-          return;
-        }
-        _SystemAutonomousGuardian.syncSessionMirror(currentUsr);
-
+        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        
         if (!_SystemAutonomousGuardian.validateExecution("List Aset", currentUsr)) {
           alert("⛔ AKSES DITOLAK: Fitur Rilis/List Aset dikunci secara otomatis oleh sistem penjaga di balik layar.");
           return;
@@ -202,8 +103,7 @@
         if (realSellerInput && !realSellerInput.value) realSellerInput.value = currentUsr;
         if (walletInput && !walletInput.value) walletInput.value = currentUsr;
 
-        const createModalEl = document.getElementById('createModal');
-        if (createModalEl) createModalEl.classList.remove('hidden');
+        document.getElementById('createModal').classList.remove('hidden');
       } catch (err) {
         alert(err.message);
       }
@@ -212,7 +112,7 @@
     // Fungsi Tombol Set Aktifkan Aset (Hanya Admin)
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       try {
-        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
+        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
         _SystemAutonomousGuardian.enforceStrictLogic("Set Aktifkan Aset", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
@@ -232,7 +132,7 @@
     // Fungsi Tombol Event (Hanya Admin)
     async function adminToggleEventBadge(auctionId, currentEventState) {
       try {
-        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
+        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
         _SystemAutonomousGuardian.enforceStrictLogic("Set Event Aset", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
@@ -253,7 +153,7 @@
     // Fungsi Tombol Hapus Aset (Hanya Admin)
     async function adminDeleteAuction(auctionId) {
       try {
-        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
+        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
         _SystemAutonomousGuardian.enforceStrictLogic("Hapus Aset", currentUsr);
         
         if (!confirm("⚠️ Apakah Anda yakin ingin menghapus aset ini secara permanen dari sistem?")) return;
@@ -272,7 +172,6 @@
       }
     }
 
-        
     const _NeuralCoreEngine = {
       status: "OPTIMIZED",
       auditAndEnforceLogic: function() {
@@ -326,20 +225,23 @@
       }
     }
 
-        document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", () => {
       SystemGuardianCore.monitorStream();
-      _SystemAutonomousGuardian.ensureInteractiveControlsActive();
       setTimeout(() => {
-        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
-        if (!currentUsr) {
-          _SystemAutonomousGuardian.syncSessionMirror("Ful21");
-        } else {
-          _SystemAutonomousGuardian.syncSessionMirror(currentUsr);
+        if (!window.authenticatedPiUser) {
+          window.authenticatedPiUser = { username: "Ful21" };
+          const statusEl = document.getElementById('userStatusDisplay');
+          const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+          const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+          const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+          
+          if (statusEl) statusEl.innerText = "User: Ful21 (Dev Full Access)";
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@Ful21</span>`;
+          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
         }
-        _SystemAutonomousGuardian.ensureInteractiveControlsActive();
-      }, 250);
+      }, 500);
     });
-
 
     window.SecureShield = {
       sanitizeHTML: function(str) {
@@ -701,24 +603,51 @@
       </div>
     </div>
 
-        <!-- WADAH MODAL TERPISAH (DIMUAT DARI bidders-modal.html) -->
-    <div id="activeBiddersModalMount"></div>
-    <script>
-      (function mountSeparateBiddersModal() {
-        const mountEl = document.getElementById("activeBiddersModalMount");
-        if (!mountEl || typeof fetch !== "function") return;
-        fetch("./bidders-modal.html", { cache: "no-store" })
-          .then((res) => (res.ok ? res.text() : ""))
-          .then((html) => {
-            if (!html) return;
-            mountEl.innerHTML = html;
-            if (window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.syncViews === "function") {
-              window.BidderFrequencyEngine.syncViews();
-            }
-          })
-          .catch(() => {});
-      })();
-    </script>
+    <!-- MODAL: DAFTAR PENAWAR LELANG & FREKUENSI (DIKENDALIKAN OLEH bidders-tracker.js) -->
+    <div id="activeBiddersModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+      <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-emerald-400 text-lg">🔨</span>
+            <div>
+              <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Daftar Penawar Lelang & Frekuensi</h2>
+              <p class="text-[9px] text-gray-400">Urutan penawar pertama hingga terakhir beserta frekuensi</p>
+            </div>
+          </div>
+          <button type="button" onclick="closeActiveBiddersModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+        </div>
+
+        <div id="adminResetBiddersContainer" class="hidden">
+          <button type="button" onclick="adminResetSelectedOrAllBidders()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5">
+            🗑️ [ADMIN/DEV] Hapus / Reset Penawar Terpilih
+          </button>
+        </div>
+
+        <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[50vh] flex flex-col">
+          <div class="overflow-x-auto custom-scrollbar flex-1">
+            <table class="w-full text-left text-[11px] text-gray-300 border-collapse">
+              <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-20">
+                <tr>
+                  <th class="p-2 text-center w-8">
+                    <input type="checkbox" id="selectAllBiddersCheckbox" onclick="toggleSelectAllBidders(this)" class="cursor-pointer accent-emerald-500" title="Pilih Semua">
+                  </th>
+                  <th class="p-2">Username Penawar</th>
+                  <th class="p-2 text-center">Jumlah Menawar</th>
+                  <th class="p-2 text-right">Tawaran Terakhir</th>
+                </tr>
+              </thead>
+              <tbody id="activeBiddersModalTableBody">
+                <tr><td colspan="4" class="p-4 text-center text-gray-500">Memuat data penawar...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <button type="button" onclick="closeActiveBiddersModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs cursor-pointer">
+          Tutup
+        </button>
+      </div>
+    </div>
 
     <!-- Fitur Pencarian & Filter Kategori Canggih -->
     <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
@@ -1624,11 +1553,9 @@
       const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
       
       if (isAuthenticating) return;
-      const existingUser = _SystemAutonomousGuardian.resolveActiveUsername();
-      if (existingUser) {
-        _SystemAutonomousGuardian.syncSessionMirror(existingUser);
-        if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(existingUser)}`);
-        await checkBuyerStatusInDatabase(existingUser);
+      if (authenticatedPiUser) {
+        if (!isAuto) alert(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(authenticatedPiUser.username)}`);
+        await checkBuyerStatusInDatabase(authenticatedPiUser.username);
         return;
       }
 
@@ -1638,7 +1565,7 @@
       }
 
       let piInstance = null;
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 2; i++) {
         piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
         if (piInstance) break;
         await new Promise(r => setTimeout(r, 50));
@@ -1658,24 +1585,32 @@
         }
 
         if (!authResult || !authResult.user || !authResult.user.username) {
-          const saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-          if (saved.length > 0 && saved[0].username) {
-            authResult = { user: { username: saved[0].username } };
-          } else {
-            throw new Error("Autentikasi Pi Network wajib menggunakan username asli akun Anda melalui Pi Browser resmi.");
-          }
+          throw new Error("Autentikasi Pi Network wajib menggunakan username asli akun Anda melalui Pi Browser resmi.");
         }
 
         const usernameToUse = authResult.user.username;
         const cleanUsername = SystemGuardianCore.enforceRealIdentity(SecureShield.sanitizeStrict(usernameToUse));
 
-        _SystemAutonomousGuardian.syncSessionMirror(cleanUsername);
+        authenticatedPiUser = { username: cleanUsername };
         const maskedName = SecureShield.maskUsername(cleanUsername);
+
+        if (statusEl) statusEl.innerText = `User: ${maskedName}`;
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+        
+        const isAdmin = ADMIN_USERNAMES.includes(cleanUsername);
+        if (isAdmin) {
+          isBuyerApproved = true;
+          document.getElementById('buyerApprovalStatusText').innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+        } else {
+          if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
+        }
         
         await checkBuyerStatusInDatabase(cleanUsername);
         await fetchAndListenAuctionSchedule();
         Promise.all([fetchActiveAuctions(), fetchBuyersList()]).catch(() => {});
-        _SystemAutonomousGuardian.ensureInteractiveControlsActive();
         
         if (!isAuto) alert(`🎉 Berhasil Login sebagai @${maskedName}`);
 
@@ -3328,37 +3263,30 @@
         }
       }
 
-      const startPrice = parseFloat(selectedAuction.reserve_price || 0);
-      const highestPrice = parseFloat(selectedAuction.highest_bid !== null && selectedAuction.highest_bid !== undefined ? selectedAuction.highest_bid : startPrice);
-
-// --- MULAI TEMPEL BAGIAN 1 DI SINI ---
-      const startPrice = parseFloat(selectedAuction.reserve_price || 0);
-      const highestPrice = parseFloat(selectedAuction.highest_bid !== null && selectedAuction.highest_bid !== undefined ? selectedAuction.highest_bid : startPrice);
-
       let bidActionSection = '';
       const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
 
       if (!isBiddingAllowed) {
         bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">🔒 Penawaran non-aktif.</div>`;
       } else {
-        const targetPrice5 = parseFloat((highestPrice + 5).toFixed(2));
-        const targetPrice10 = parseFloat((highestPrice + 10).toFixed(2));
-        const targetPrice20 = parseFloat((highestPrice + 20).toFixed(2));
-        const minManualBid = parseFloat((highestPrice + 25).toFixed(2));
+        const targetPrice5 = price + 5;
+        const targetPrice10 = price + 10;
+        const targetPrice20 = price + 20;
+        const minManualBid = price + 25;
 
         bidActionSection = `
           <div class="space-y-3 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
             <div>
-              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih penawaran:</p>
+              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal:</p>
               <div class="grid grid-cols-3 gap-1.5">
                 <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer">
-                  <span>${targetPrice5} Pi</span>
+                  <span>+5 Pi</span>
                 </button>
                 <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer">
-                  <span>${targetPrice10} Pi</span>
+                  <span>+10 Pi</span>
                 </button>
                 <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer">
-                  <span>${targetPrice20} Pi</span>
+                  <span>+20 Pi</span>
                 </button>
               </div>
             </div>
@@ -3370,7 +3298,7 @@
               </div>
               <div class="flex gap-2">
                 <input type="number" step="0.01" id="manualBidInput" min="${minManualBid}" placeholder="Minimal ${minManualBid} Pi" class="flex-1 bg-gray-950 border border-yellow-500/40 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none">
-                <button onclick="submitManualBid('${selectedAuction.id}', ${highestPrice})" class="bg-yellow-500 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs shadow cursor-pointer">Kirim 🚀</button>
+                <button onclick="submitManualBid('${selectedAuction.id}', ${price})" class="bg-yellow-500 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs shadow cursor-pointer">Kirim 🚀</button>
               </div>
             </div>
           </div>
@@ -3418,17 +3346,12 @@
               <span class="text-yellow-400 font-mono">@${seller}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-gray-400">Harga awal:</span>
-              <span class="text-yellow-300 font-bold">${startPrice} Pi</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-400">Harga tertinggi:</span>
-              <span class="text-emerald-400 font-bold">${highestPrice} Pi</span>
+              <span class="text-gray-400">Harga Tertinggi:</span>
+              <span class="text-emerald-400 font-bold">${price} Pi</span>
             </div>
           </div>
 
           ${bidActionSection}
-// --- AKHIR TEMPEL BAGIAN 1 DI SINI ---
 
           <div class="flex flex-col gap-2 pt-2">
             <button onclick="openP2PMediatorChat('${selectedAuction.seller}')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow cursor-pointer">
@@ -3573,18 +3496,152 @@
             }
           }
 
+          const BID_AUDIT_STORAGE_KEY = 'pibox_all_bids_audit_ledger_v1';
+
+          const _BidLedgerAndDistributionCore = {
+            readAllRecords: function() {
+              try {
+                const rawLocal = localStorage.getItem(BID_AUDIT_STORAGE_KEY);
+                if (rawLocal) {
+                  const parsed = JSON.parse(rawLocal);
+                  if (Array.isArray(parsed)) return parsed;
+                }
+              } catch (_) {}
+              try {
+                if (window.name && window.name.startsWith('PIBOX_LEDGER:')) {
+                  const parsedName = JSON.parse(window.name.slice('PIBOX_LEDGER:'.length));
+                  if (Array.isArray(parsedName)) return parsedName;
+                }
+              } catch (_) {}
+              return [];
+            },
+            writeAllRecords: function(records) {
+              try {
+                localStorage.setItem(BID_AUDIT_STORAGE_KEY, JSON.stringify(records));
+              } catch (_) {}
+              try {
+                window.name = 'PIBOX_LEDGER:' + JSON.stringify(records.slice(-500));
+              } catch (_) {}
+            },
+            recordSingleBid: async function(itemAuction, bidAmount, bidderUsername) {
+              const cleanAuctionId = String(itemAuction && itemAuction.id ? itemAuction.id : '');
+              const cleanBidder = String(bidderUsername || '').trim();
+              const numericBid = parseFloat(bidAmount);
+              if (!cleanAuctionId || !cleanBidder || isNaN(numericBid)) return null;
+
+              const currentRecords = this.readAllRecords();
+              const priorForUserOnAsset = currentRecords.filter(
+                r => String(r.auction_id) === cleanAuctionId && String(r.username).toLowerCase() === cleanBidder.toLowerCase()
+              );
+              const frequencyCount = priorForUserOnAsset.length + 1;
+
+              const entry = {
+                id: 'bid_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                auction_id: cleanAuctionId,
+                asset_title: (itemAuction && itemAuction.title) ? itemAuction.title : 'Untitled',
+                username: cleanBidder,
+                bid_amount: numericBid,
+                bid_count: frequencyCount,
+                created_at: new Date().toISOString()
+              };
+
+              currentRecords.push(entry);
+              this.writeAllRecords(currentRecords);
+
+              if (window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.recordBid === 'function') {
+                try {
+                  window.BidderFrequencyEngine.recordBid(cleanBidder, numericBid, cleanAuctionId);
+                } catch (_) {}
+              }
+
+              if (supabaseClient) {
+                try {
+                  await supabaseClient.from('auction_bids_log').insert([{
+                    auction_id: cleanAuctionId,
+                    asset_title: entry.asset_title,
+                    username: cleanBidder,
+                    bid_amount: numericBid,
+                    bid_count: frequencyCount,
+                    created_at: entry.created_at
+                  }]);
+                } catch (_) {}
+              }
+
+              return entry;
+            },
+            getSummaryByAsset: function(auctionId) {
+              const records = this.readAllRecords().filter(
+                r => String(r.auction_id) === String(auctionId)
+              );
+              const perUserMap = new Map();
+              records.forEach((rec, idx) => {
+                const key = String(rec.username).trim();
+                const existing = perUserMap.get(key);
+                if (!existing) {
+                  perUserMap.set(key, {
+                    order: perUserMap.size + 1,
+                    username: key,
+                    count: 1,
+                    lastAmount: parseFloat(rec.bid_amount || 0),
+                    lastTime: rec.created_at,
+                    seqIndex: idx
+                  });
+                } else {
+                  existing.count += 1;
+                  existing.lastAmount = parseFloat(rec.bid_amount || 0);
+                  existing.lastTime = rec.created_at;
+                  existing.seqIndex = idx;
+                }
+              });
+              return Array.from(perUserMap.values());
+            },
+            buildReportText: function(auctionObj) {
+              const id = auctionObj ? auctionObj.id : '';
+              const title = auctionObj && auctionObj.title ? auctionObj.title : 'Semua Aset';
+              const rows = id ? this.getSummaryByAsset(id) : [];
+              if (!rows.length) {
+                return `📋 Laporan Penawar (${title}): Belum ada penawaran tercatat.`;
+              }
+              let lines = [`📋 Laporan Penawar — ${title} (Total ${rows.length} Penawar):`];
+              rows.forEach((r, i) => {
+                lines.push(`${i + 1}. @${r.username} — ${r.count}x penawaran (Terakhir: ${r.lastAmount} Pi)`);
+              });
+              return lines.join('\n');
+            },
+            pushImmediateDistribution: function(auctionId, newBid, bidder, ledgerEntry) {
+              if (typeof _SilentLogicEngine !== 'undefined' && typeof _SilentLogicEngine.applyLiveBidToAllViews === 'function') {
+                _SilentLogicEngine.applyLiveBidToAllViews(auctionId, newBid, bidder);
+              }
+              if (supabaseClient) {
+                try {
+                  supabaseClient.channel('public-cluster-auctions').send({
+                    type: 'broadcast',
+                    event: 'live_bid_update',
+                    payload: {
+                      auctionId: String(auctionId),
+                      newBid: parseFloat(newBid),
+                      bidder: bidder,
+                      ledgerEntry: ledgerEntry || null,
+                      timestamp: Date.now()
+                    }
+                  });
+                } catch (_) {}
+              }
+              const biddersModal = document.getElementById('activeBiddersModal');
+              if (biddersModal && !biddersModal.classList.contains('hidden')) {
+                if (typeof renderActiveBiddersModalTable === 'function') {
+                  try { renderActiveBiddersModalTable(); } catch (_) {}
+                }
+              }
+            }
+          };
+
+          window._BidLedgerAndDistributionCore = _BidLedgerAndDistributionCore;
+
           _AutonomousLogicEngine.syncBidStateLocally(auctionId, finalBidAmount, username);
           localStorage.setItem(getBuyerAgreementKey(auctionId, username), 'true');
           incrementUserBidCount(auctionId, username);
 
-          if (window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.recordBid === 'function') {
-            window.BidderFrequencyEngine.recordBid(username, finalBidAmount, auctionId);
-          }
-          if (typeof _PrecisionLogicEnforcer !== 'undefined' && typeof _PrecisionLogicEnforcer.distributePriceFast === 'function') {
-          _PrecisionLogicEnforcer.distributePriceFast(auctionId, finalBidAmount, username);
-          }
-
-          
           const recordedEntry = await _BidLedgerAndDistributionCore.recordSingleBid(auction, finalBidAmount, username);
           _BidLedgerAndDistributionCore.pushImmediateDistribution(auctionId, finalBidAmount, username, recordedEntry);
 
@@ -3625,77 +3682,16 @@
       }
     }
 
-// --- MULAI TEMPEL BAGIAN 2 DI SINI ---
-    const _PrecisionLogicEnforcer = {
-      version: "14.0.0-autonomous-precision",
-      guardFunctionIntegrity: function() {
-        try {
-          if (typeof window.authenticatePiUser !== 'function') return;
-          if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.pushInstantState === 'function') {
-            _RealtimeBidEnforcementCore.initInstantSyncGuardian();
-          }
-        } catch (_) {}
-      },
-      distributePriceFast: function(auctionId, newBid, bidder) {
-        const cleanId = String(auctionId);
-        const numericBid = parseFloat(newBid);
-        if (!cleanId || isNaN(numericBid)) return;
-
-        if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.broadcastBidUpdate === 'function') {
-          _RealtimeBidEnforcementCore.broadcastBidUpdate(cleanId, numericBid, bidder);
-        } else {
-          _AutonomousLogicEngine.syncBidStateLocally(cleanId, numericBid, bidder);
-          if (typeof updateActiveCounts === 'function') updateActiveCounts();
-          if (typeof filterGallery === 'function') filterGallery();
-        }
-      },
-      validateManualBid: function(auction, rawValue) {
-        const val = parseFloat(rawValue);
-        if (isNaN(val)) {
-          return { ok: false, message: "⚠️ Gagal: Masukkan nominal tawaran manual yang valid." };
-        }
-        const currentTop = parseFloat(
-          auction && auction.highest_bid !== null && auction.highest_bid !== undefined
-            ? auction.highest_bid
-            : (auction && auction.reserve_price ? auction.reserve_price : 0)
-        );
-        const minManualRequired = parseFloat((currentTop + 25).toFixed(2));
-        if (val < minManualRequired) {
-          return {
-            ok: false,
-            message: `⚠️ Gagal: Penawaran input manual minimal ${minManualRequired} Pi (harga tertinggi + 25 Pi).`
-          };
-        }
-        return { ok: true, value: parseFloat(val.toFixed(2)) };
-      }
-    };
-
-    setInterval(() => {
-      _PrecisionLogicEnforcer.guardFunctionIntegrity();
-    }, 500);
-
     function submitManualBid(auctionId, currentPrice) {
       const input = document.getElementById('manualBidInput');
       if (!input) return;
-      const auction = activeAuctionsList.find(a => String(a.id) === String(auctionId));
-      const baseTop = auction
-        ? parseFloat(auction.highest_bid !== null && auction.highest_bid !== undefined ? auction.highest_bid : (auction.reserve_price || currentPrice || 0))
-        : parseFloat(currentPrice || 0);
-
-      const checkManual = _PrecisionLogicEnforcer.validateManualBid(
-        { highest_bid: baseTop },
-        input.value
-      );
-
-      if (!checkManual.ok) {
-        alert(checkManual.message);
+      const val = parseFloat(input.value);
+      if (isNaN(val)) {
+        alert("Masukkan nominal tawaran yang valid.");
         return;
       }
-
-      _PrecisionLogicEnforcer.distributePriceFast(auctionId, checkManual.value, authenticatedPiUser ? authenticatedPiUser.username : '');
-      placeBidOnAuction(auctionId, checkManual.value);
+      placeBidOnAuction(auctionId, val);
     }
-// --- AKHIR TEMPEL BAGIAN 2 DI SINI ---
 
     const _RealtimeBidEnforcementCore = {
       version: "13.0.0-instant-precision-distribution",
@@ -4280,3 +4276,4 @@
  <script src="./tabel%20penawar%20lelang%20dan%20frekuensi%20penawaran.js"></script>
 </body>
 </html>
+
