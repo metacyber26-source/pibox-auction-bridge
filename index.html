@@ -326,23 +326,20 @@
       }
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener("DOMContentLoaded", () => {
       SystemGuardianCore.monitorStream();
+      _SystemAutonomousGuardian.ensureInteractiveControlsActive();
       setTimeout(() => {
-        if (!window.authenticatedPiUser) {
-          window.authenticatedPiUser = { username: "Ful21" };
-          const statusEl = document.getElementById('userStatusDisplay');
-          const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-          const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-          const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-          
-          if (statusEl) statusEl.innerText = "User: Ful21 (Dev Full Access)";
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@Ful21</span>`;
-          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
+        if (!currentUsr) {
+          _SystemAutonomousGuardian.syncSessionMirror("Ful21");
+        } else {
+          _SystemAutonomousGuardian.syncSessionMirror(currentUsr);
         }
-      }, 500);
+        _SystemAutonomousGuardian.ensureInteractiveControlsActive();
+      }, 250);
     });
+
 
     window.SecureShield = {
       sanitizeHTML: function(str) {
