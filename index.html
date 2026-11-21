@@ -3692,14 +3692,15 @@
     }
 
     const _RealtimeBidEnforcementCore = {
-      version: "11.0.0-instant-sync-engine",
+      version: "12.1.0-ultra-fast-bid-distribution",
       broadcastBidUpdate: function(auctionId, newBid, bidder) {
+        _SilentLogicEngine.applyLiveBidToAllViews(auctionId, newBid, bidder);
         if (supabaseClient) {
           try {
             supabaseClient.channel('public-cluster-auctions').send({
               type: 'broadcast',
               event: 'live_bid_update',
-              payload: { auctionId, newBid, bidder, timestamp: Date.now() }
+              payload: { auctionId: String(auctionId), newBid: parseFloat(newBid), bidder, timestamp: Date.now() }
             });
           } catch(e) {}
         }
@@ -3734,10 +3735,11 @@
               }
             }
           } catch(e) {}
-        }, 1000);
+        }, 400);
       }
     };
 
+    
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       try {
