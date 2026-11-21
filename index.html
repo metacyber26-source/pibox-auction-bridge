@@ -3531,16 +3531,77 @@
       }
     }
 
+// --- MULAI TEMPEL BAGIAN 2 DI SINI ---
+    const _PrecisionLogicEnforcer = {
+      version: "14.0.0-autonomous-precision",
+      guardFunctionIntegrity: function() {
+        try {
+          if (typeof window.authenticatePiUser !== 'function') return;
+          if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.pushInstantState === 'function') {
+            _RealtimeBidEnforcementCore.initInstantSyncGuardian();
+          }
+        } catch (_) {}
+      },
+      distributePriceFast: function(auctionId, newBid, bidder) {
+        const cleanId = String(auctionId);
+        const numericBid = parseFloat(newBid);
+        if (!cleanId || isNaN(numericBid)) return;
+
+        if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.broadcastBidUpdate === 'function') {
+          _RealtimeBidEnforcementCore.broadcastBidUpdate(cleanId, numericBid, bidder);
+        } else {
+          _AutonomousLogicEngine.syncBidStateLocally(cleanId, numericBid, bidder);
+          if (typeof updateActiveCounts === 'function') updateActiveCounts();
+          if (typeof filterGallery === 'function') filterGallery();
+        }
+      },
+      validateManualBid: function(auction, rawValue) {
+        const val = parseFloat(rawValue);
+        if (isNaN(val)) {
+          return { ok: false, message: "⚠️ Gagal: Masukkan nominal tawaran manual yang valid." };
+        }
+        const currentTop = parseFloat(
+          auction && auction.highest_bid !== null && auction.highest_bid !== undefined
+            ? auction.highest_bid
+            : (auction && auction.reserve_price ? auction.reserve_price : 0)
+        );
+        const minManualRequired = parseFloat((currentTop + 25).toFixed(2));
+        if (val < minManualRequired) {
+          return {
+            ok: false,
+            message: `⚠️ Gagal: Penawaran input manual minimal ${minManualRequired} Pi (harga tertinggi + 25 Pi).`
+          };
+        }
+        return { ok: true, value: parseFloat(val.toFixed(2)) };
+      }
+    };
+
+    setInterval(() => {
+      _PrecisionLogicEnforcer.guardFunctionIntegrity();
+    }, 500);
+
     function submitManualBid(auctionId, currentPrice) {
       const input = document.getElementById('manualBidInput');
       if (!input) return;
-      const val = parseFloat(input.value);
-      if (isNaN(val)) {
-        alert("Masukkan nominal tawaran yang valid.");
+      const auction = activeAuctionsList.find(a => String(a.id) === String(auctionId));
+      const baseTop = auction
+        ? parseFloat(auction.highest_bid !== null && auction.highest_bid !== undefined ? auction.highest_bid : (auction.reserve_price || currentPrice || 0))
+        : parseFloat(currentPrice || 0);
+
+      const checkManual = _PrecisionLogicEnforcer.validateManualBid(
+        { highest_bid: baseTop },
+        input.value
+      );
+
+      if (!checkManual.ok) {
+        alert(checkManual.message);
         return;
       }
-      placeBidOnAuction(auctionId, val);
+
+      _PrecisionLogicEnforcer.distributePriceFast(auctionId, checkManual.value, authenticatedPiUser ? authenticatedPiUser.username : '');
+      placeBidOnAuction(auctionId, checkManual.value);
     }
+// --- AKHIR TEMPEL BAGIAN 2 DI SINI ---
 
     const _RealtimeBidEnforcementCore = {
       version: "13.0.0-instant-precision-distribution",
