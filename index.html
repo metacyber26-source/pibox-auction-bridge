@@ -3692,50 +3692,101 @@
     }
 
     const _RealtimeBidEnforcementCore = {
-      version: "12.1.0-ultra-fast-bid-distribution",
+      version: "13.0.0-instant-precision-distribution",
+      pushInstantState: function(auctionId, newBid, bidder, statusVal) {
+        const cleanId = String(auctionId);
+        const numericBid = parseFloat(newBid);
+        if (!cleanId || isNaN(numericBid)) return;
+
+        let updatedAny = false;
+        if (Array.isArray(activeAuctionsList)) {
+          const idx = activeAuctionsList.findIndex(a => String(a.id) === cleanId);
+          if (idx !== -1) {
+            activeAuctionsList[idx].highest_bid = numericBid;
+            if (bidder) activeAuctionsList[idx].highest_bidder = bidder;
+            if (statusVal) activeAuctionsList[idx].status = statusVal;
+            updatedAny = true;
+          }
+        }
+        if (Array.isArray(filteredAuctionsList)) {
+          const fIdx = filteredAuctionsList.findIndex(a => String(a.id) === cleanId);
+          if (fIdx !== -1) {
+            filteredAuctionsList[fIdx].highest_bid = numericBid;
+            if (bidder) filteredAuctionsList[fIdx].highest_bidder = bidder;
+            if (statusVal) filteredAuctionsList[fIdx].status = statusVal;
+          }
+        }
+        if (selectedAuction && String(selectedAuction.id) === cleanId) {
+          selectedAuction.highest_bid = numericBid;
+          if (bidder) selectedAuction.highest_bidder = bidder;
+          if (statusVal) selectedAuction.status = statusVal;
+        }
+        if (updatedAny) {
+          try {
+            localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+          } catch (_) {}
+          if (typeof updateActiveCounts === 'function') updateActiveCounts();
+          if (typeof filterGallery === 'function') filterGallery();
+          else if (typeof renderGallery === 'function') renderGallery();
+        }
+      },
       broadcastBidUpdate: function(auctionId, newBid, bidder) {
-        _SilentLogicEngine.applyLiveBidToAllViews(auctionId, newBid, bidder);
+        this.pushInstantState(auctionId, newBid, bidder);
         if (supabaseClient) {
           try {
             supabaseClient.channel('public-cluster-auctions').send({
               type: 'broadcast',
               event: 'live_bid_update',
-              payload: { auctionId: String(auctionId), newBid: parseFloat(newBid), bidder, timestamp: Date.now() }
+              payload: {
+                auctionId: String(auctionId),
+                newBid: parseFloat(newBid),
+                bidder: bidder,
+                sentAt: Date.now()
+              }
             });
-          } catch(e) {}
+          } catch (e) {}
         }
       },
       initInstantSyncGuardian: function() {
-        setInterval(async () => {
-          if (!supabaseClient) return;
+        if (window.__bidSyncGuardianInterval) {
+          clearInterval(window.__bidSyncGuardianInterval);
+        }
+        window.__bidSyncGuardianInterval = setInterval(async () => {
+          if (!supabaseClient || !Array.isArray(activeAuctionsList) || activeAuctionsList.length === 0) return;
           try {
             const { data, error } = await supabaseClient
               .from('auctions')
               .select('id, highest_bid, highest_bidder, status')
               .limit(100);
-            if (!error && data) {
+            if (!error && Array.isArray(data)) {
               let hasChanges = false;
               data.forEach(serverItem => {
                 const localItem = activeAuctionsList.find(a => String(a.id) === String(serverItem.id));
                 if (localItem) {
                   const serverBid = parseFloat(serverItem.highest_bid || 0);
                   const localBid = parseFloat(localItem.highest_bid || 0);
-                  if (serverBid !== localBid || serverItem.highest_bidder !== localItem.highest_bidder || serverItem.status !== localItem.status) {
-                    localItem.highest_bid = serverItem.highest_bid;
-                    localItem.highest_bidder = serverItem.highest_bidder;
-                    localItem.status = serverItem.status;
+                  if (
+                    serverBid > localBid ||
+                    (serverBid === localBid && serverItem.highest_bidder && serverItem.highest_bidder !== localItem.highest_bidder) ||
+                    (serverItem.status && serverItem.status !== localItem.status)
+                  ) {
+                    localItem.highest_bid = serverBid;
+                    if (serverItem.highest_bidder) localItem.highest_bidder = serverItem.highest_bidder;
+                    if (serverItem.status) localItem.status = serverItem.status;
                     hasChanges = true;
                   }
                 }
               });
               if (hasChanges) {
-                localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
-                updateActiveCounts();
-                filterGallery();
+                try {
+                  localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+                } catch (_) {}
+                if (typeof updateActiveCounts === 'function') updateActiveCounts();
+                if (typeof filterGallery === 'function') filterGallery();
               }
             }
-          } catch(e) {}
-        }, 400);
+          } catch (e) {}
+        }, 250);
       }
     };
 
