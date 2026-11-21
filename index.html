@@ -53,17 +53,107 @@
       }
     };
 
-    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI MASING-MASING (TEGAS, KONSISTEN & OTOMATIS) ---
+    // --- CORE PENJAGA LOGIKA, TOMBOL, LOGIN & DISTRIBUSI REALTIME DI BALIK LAYAR ---
     const _SystemAutonomousGuardian = {
-      version: "10.5.0-autonomous-guardian",
+      version: "15.0.0-autonomous-precision",
+      resolveActiveUsername: function() {
+        if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
+          return String(authenticatedPiUser.username).trim();
+        }
+        if (window.authenticatedPiUser && window.authenticatedPiUser.username) {
+          return String(window.authenticatedPiUser.username).trim();
+        }
+        return '';
+      },
+      syncSessionMirror: function(username) {
+        if (!username) return;
+        const cleanUser = String(username).trim();
+        const userObj = { username: cleanUser };
+        if (typeof authenticatedPiUser !== 'undefined') {
+          authenticatedPiUser = userObj;
+        }
+        window.authenticatedPiUser = userObj;
+        const statusEl = document.getElementById('userStatusDisplay');
+        const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+        const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+        const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+        const isAdmin = typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(cleanUser);
+
+        if (statusEl) statusEl.innerText = isAdmin ? `User: ${cleanUser} (Dev Full Access)` : `User: @${cleanUser}`;
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${cleanUser}</span>`;
+        if (isAdmin) {
+          if (typeof isBuyerApproved !== 'undefined') isBuyerApproved = true;
+          const approvalTxt = document.getElementById('buyerApprovalStatusText');
+          if (approvalTxt) approvalTxt.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+        }
+      },
+      ensureInteractiveControlsActive: function() {
+        try {
+          const allButtons = document.querySelectorAll('button');
+          allButtons.forEach(btn => {
+            if (btn.id === 'btnPayServerFee' || btn.id === 'btnReleaseGallery' || btn.id === 'btnSendEmail') return;
+            if (btn.hasAttribute('data-locked-access')) return;
+            if (btn.disabled && !btn.title.includes('khusus pembeli')) {
+              btn.disabled = false;
+              btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+          });
+          const activeUser = this.resolveActiveUsername();
+          if (activeUser) {
+            this.syncSessionMirror(activeUser);
+          }
+        } catch (_) {}
+      },
+      distributeBidInstant: function(auctionId, newBid, bidder, statusVal) {
+        const cleanId = String(auctionId || '');
+        const numericBid = parseFloat(newBid);
+        if (!cleanId || isNaN(numericBid)) return;
+
+        if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.broadcastBidUpdate === 'function') {
+          _RealtimeBidEnforcementCore.broadcastBidUpdate(cleanId, numericBid, bidder);
+        }
+        if (typeof _AutonomousLogicEngine !== 'undefined' && typeof _AutonomousLogicEngine.syncBidStateLocally === 'function') {
+          _AutonomousLogicEngine.syncBidStateLocally(cleanId, numericBid, bidder);
+        }
+        if (Array.isArray(activeAuctionsList)) {
+          const idx = activeAuctionsList.findIndex(a => String(a.id) === cleanId);
+          if (idx !== -1) {
+            activeAuctionsList[idx].highest_bid = numericBid;
+            if (bidder) activeAuctionsList[idx].highest_bidder = bidder;
+            if (statusVal) activeAuctionsList[idx].status = statusVal;
+            try {
+              localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+            } catch (_) {}
+          }
+        }
+        if (Array.isArray(filteredAuctionsList)) {
+          const fIdx = filteredAuctionsList.findIndex(a => String(a.id) === cleanId);
+          if (fIdx !== -1) {
+            filteredAuctionsList[fIdx].highest_bid = numericBid;
+            if (bidder) filteredAuctionsList[fIdx].highest_bidder = bidder;
+            if (statusVal) filteredAuctionsList[fIdx].status = statusVal;
+          }
+        }
+        if (typeof selectedAuction !== 'undefined' && selectedAuction && String(selectedAuction.id) === cleanId) {
+          selectedAuction.highest_bid = numericBid;
+          if (bidder) selectedAuction.highest_bidder = bidder;
+          if (statusVal) selectedAuction.status = statusVal;
+        }
+        if (typeof updateActiveCounts === 'function') updateActiveCounts();
+        if (typeof filterGallery === 'function') filterGallery();
+        else if (typeof renderGallery === 'function') renderGallery();
+      },
       validateExecution: function(actionName, username) {
-        if (!username || typeof username !== 'string') return false;
-        const cleanUser = username.trim();
+        const cleanUser = (username || this.resolveActiveUsername() || '').trim();
+        if (!cleanUser) return false;
         return typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(cleanUser);
       },
       enforceStrictLogic: function(actionName, username) {
-        if (!this.validateExecution(actionName, username)) {
-          console.warn(`[SYSTEM-SECURITY] Blokir otomatis pada fungsi [${actionName}] oleh: @${username}`);
+        const cleanUser = (username || this.resolveActiveUsername() || '').trim();
+        if (!this.validateExecution(actionName, cleanUser)) {
+          console.warn(`[SYSTEM-SECURITY] Blokir otomatis pada fungsi [${actionName}] oleh: @${cleanUser}`);
           throw new Error("⛔ AKSES DITOLAK: Fungsi ini dikontrol secara ketat oleh sistem otomatis di balik layar.");
         }
         return true;
@@ -82,11 +172,22 @@
       }
     };
 
+    setInterval(() => {
+      _SystemAutonomousGuardian.ensureInteractiveControlsActive();
+    }, 300);
+
     // Fungsi Tombol List Aset / Barang (Tombol selalu terbuka/aktif, eksekusi dilindungi penjaga di balik layar)
     function handleOpenCreateModal() {
       try {
-        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        
+        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
+        if (!currentUsr) {
+          if (typeof authenticatePiUser === 'function') {
+            authenticatePiUser(false);
+          }
+          return;
+        }
+        _SystemAutonomousGuardian.syncSessionMirror(currentUsr);
+
         if (!_SystemAutonomousGuardian.validateExecution("List Aset", currentUsr)) {
           alert("⛔ AKSES DITOLAK: Fitur Rilis/List Aset dikunci secara otomatis oleh sistem penjaga di balik layar.");
           return;
@@ -101,7 +202,8 @@
         if (realSellerInput && !realSellerInput.value) realSellerInput.value = currentUsr;
         if (walletInput && !walletInput.value) walletInput.value = currentUsr;
 
-        document.getElementById('createModal').classList.remove('hidden');
+        const createModalEl = document.getElementById('createModal');
+        if (createModalEl) createModalEl.classList.remove('hidden');
       } catch (err) {
         alert(err.message);
       }
@@ -110,7 +212,7 @@
     // Fungsi Tombol Set Aktifkan Aset (Hanya Admin)
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       try {
-        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
         _SystemAutonomousGuardian.enforceStrictLogic("Set Aktifkan Aset", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
@@ -130,7 +232,7 @@
     // Fungsi Tombol Event (Hanya Admin)
     async function adminToggleEventBadge(auctionId, currentEventState) {
       try {
-        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
         _SystemAutonomousGuardian.enforceStrictLogic("Set Event Aset", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
@@ -151,7 +253,7 @@
     // Fungsi Tombol Hapus Aset (Hanya Admin)
     async function adminDeleteAuction(auctionId) {
       try {
-        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+        const currentUsr = _SystemAutonomousGuardian.resolveActiveUsername();
         _SystemAutonomousGuardian.enforceStrictLogic("Hapus Aset", currentUsr);
         
         if (!confirm("⚠️ Apakah Anda yakin ingin menghapus aset ini secara permanen dari sistem?")) return;
@@ -170,6 +272,7 @@
       }
     }
 
+        
     const _NeuralCoreEngine = {
       status: "OPTIMIZED",
       auditAndEnforceLogic: function() {
