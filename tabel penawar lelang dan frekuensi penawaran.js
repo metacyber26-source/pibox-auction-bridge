@@ -256,6 +256,132 @@
     });
   }
 
+    const RESET_EPOCH_KEY = "nftgm_bidder_reset_epoch_v1";
+  let currentResetEpoch = loadResetEpochFromStorage();
+
+  function loadResetEpochFromStorage() {
+    try {
+      const val = Number(localStorage.getItem(RESET_EPOCH_KEY) || "0");
+      return Number.isFinite(val) && val > 0 ? val : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  function saveResetEpochToStorage(epochTs) {
+    try {
+      currentResetEpoch = Number(epochTs || Date.now());
+      localStorage.setItem(RESET_EPOCH_KEY, String(currentResetEpoch));
+    } catch (_) {}
+  }
+
+  function applyGlobalResetState(resetAll, targetKeys = [], epochTs = Date.now(), resetHighestBidState = false) {
+    saveResetEpochToStorage(epochTs);
+
+    if (resetAll) {
+      ledgerStore = {};
+      if (resetHighestBidState && typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
+        activeAuctionsList.forEach((auction) => {
+          if (!auction) return;
+          const startPrice = _AutonomousMeshCoordinator.verifyAndClampAmount(
+            auction.start_price || auction.starting_price || auction.min_bid || 0
+          );
+          auction.highest_bid = startPrice > 0 ? startPrice : 0;
+          auction.highest_bidder = "";
+        });
+        try {
+          localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
+        } catch (_) {}
+      }
+    } else if (Array.isArray(targetKeys) && targetKeys.length > 0) {
+      targetKeys.forEach((k) => {
+        const cleanKey = String(k || "").toLowerCase();
+        if (cleanKey) delete ledgerStore[cleanKey];
+      });
+    }
+
+    saveLedgerToStorage();
+    syncAllBidderViews();
+
+    if (resetHighestBidState) {
+      if (typeof updateActiveCounts === "function") {
+        try { updateActiveCounts(); } catch (_) {}
+      }
+      if (typeof filterGallery === "function") {
+        try { filterGallery(); } catch (_) {}
+      }
+    }
+  }
+
+  function broadcastGlobalReset(resetAll, targetKeys = [], epochTs = Date.now(), resetHighestBidState = false) {
+    const seq = _AutonomousMeshCoordinator.nextSeq();
+    const payload = {
+      seq,
+      resetAction: {
+        resetAll: Boolean(resetAll),
+        targetKeys: Array.isArray(targetKeys) ? targetKeys.map((k) => String(k || "").toLowerCase()) : [],
+        epochTs: Number(epochTs || Date.now()),
+        resetHighestBidState: Boolean(resetHighestBidState)
+      },
+      sentAt: Date.now()
+    };
+
+    if (localBroadcast) {
+      try { localBroadcast.postMessage({ type: "instant_bid_sync", payload }); } catch (_) {}
+    }
+
+    const pushResetBurst = () => {
+      if (typeof supabaseClient !== "undefined" && supabaseClient) {
+        try {
+          supabaseClient.channel(CHANNEL_NAME).send({
+            type: "broadcast",
+            event: "bid_frequency_update",
+            payload
+          });
+        } catch (_) {}
+        try {
+          supabaseClient.channel("public-cluster-auctions").send({
+            type: "broadcast",
+            event: "live_bid_update",
+            payload: {
+              seq,
+              resetAction: payload.resetAction,
+              timestamp: payload.sentAt
+            }
+          });
+        } catch (_) {}
+      }
+    };
+
+    pushResetBurst();
+    setTimeout(pushResetBurst, 60);
+    setTimeout(pushResetBurst, 180);
+  }
+
+  function adminResetSelectedOrAllBidders() {
+    if (!isCurrentUserAdminOrDev()) {
+      alert("Akses ditolak: hanya Admin/Developer yang dapat mereset data penawar.");
+      return;
+    }
+
+    const epochTs = Date.now();
+    const checkedBoxes = Array.from(document.querySelectorAll(".bidder-row-checkbox:checked"));
+
+    if (checkedBoxes.length > 0) {
+      const targetKeys = checkedBoxes.map((cb) => String(cb.value || "").toLowerCase());
+      if (!confirm(`Hapus / reset ${targetKeys.length} penawar terpilih untuk semua pengguna?`)) return;
+      applyGlobalResetState(false, targetKeys, epochTs, false);
+      broadcastGlobalReset(false, targetKeys, epochTs, false);
+    } else {
+      if (!confirm("Tidak ada baris tercentang. Reset seluruh data tabel penawar & frekuensi untuk semua pengguna?")) return;
+      applyGlobalResetState(true, [], epochTs, true);
+      broadcastGlobalReset(true, [], epochTs, true);
+    }
+
+    const selectAll = document.getElementById("selectAllBiddersCheckbox");
+    if (selectAll) selectAll.checked = false;
+  }
+
   let localBroadcast = null;
   let fastHeartbeatTimer = null;
   let globalDataChannel = null;
