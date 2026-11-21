@@ -3234,30 +3234,33 @@
         }
       }
 
+      const startPrice = parseFloat(selectedAuction.reserve_price || 0);
+      const highestPrice = parseFloat(selectedAuction.highest_bid !== null && selectedAuction.highest_bid !== undefined ? selectedAuction.highest_bid : startPrice);
+
       let bidActionSection = '';
       const isBiddingAllowed = (currentAuctionStatusCode === 3 && status === 'active');
 
       if (!isBiddingAllowed) {
         bidActionSection = `<div class="bg-gray-800/80 text-gray-400 p-2.5 rounded-xl text-center text-[11px] font-bold">🔒 Penawaran non-aktif.</div>`;
       } else {
-        const targetPrice5 = price + 5;
-        const targetPrice10 = price + 10;
-        const targetPrice20 = price + 20;
-        const minManualBid = price + 25;
+        const targetPrice5 = parseFloat((highestPrice + 5).toFixed(2));
+        const targetPrice10 = parseFloat((highestPrice + 10).toFixed(2));
+        const targetPrice20 = parseFloat((highestPrice + 20).toFixed(2));
+        const minManualBid = parseFloat((highestPrice + 25).toFixed(2));
 
         bidActionSection = `
           <div class="space-y-3 w-full bg-gray-900/80 p-3 rounded-xl border border-gray-800">
             <div>
-              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih Kenaikan Nominal:</p>
+              <p class="text-[10px] text-gray-300 font-semibold mb-1">Pilih penawaran:</p>
               <div class="grid grid-cols-3 gap-1.5">
                 <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice5})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer">
-                  <span>+5 Pi</span>
+                  <span>${targetPrice5} Pi</span>
                 </button>
                 <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice10})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer">
-                  <span>+10 Pi</span>
+                  <span>${targetPrice10} Pi</span>
                 </button>
                 <button onclick="placeBidOnAuction('${selectedAuction.id}', ${targetPrice20})" class="py-2 px-1 rounded-lg font-bold text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex flex-col items-center cursor-pointer">
-                  <span>+20 Pi</span>
+                  <span>${targetPrice20} Pi</span>
                 </button>
               </div>
             </div>
@@ -3269,7 +3272,7 @@
               </div>
               <div class="flex gap-2">
                 <input type="number" step="0.01" id="manualBidInput" min="${minManualBid}" placeholder="Minimal ${minManualBid} Pi" class="flex-1 bg-gray-950 border border-yellow-500/40 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none">
-                <button onclick="submitManualBid('${selectedAuction.id}', ${price})" class="bg-yellow-500 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs shadow cursor-pointer">Kirim 🚀</button>
+                <button onclick="submitManualBid('${selectedAuction.id}', ${highestPrice})" class="bg-yellow-500 text-gray-950 font-bold px-3 py-1.5 rounded-xl text-xs shadow cursor-pointer">Kirim 🚀</button>
               </div>
             </div>
           </div>
@@ -3317,8 +3320,12 @@
               <span class="text-yellow-400 font-mono">@${seller}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-gray-400">Harga Tertinggi:</span>
-              <span class="text-emerald-400 font-bold">${price} Pi</span>
+              <span class="text-gray-400">Harga awal:</span>
+              <span class="text-yellow-300 font-bold">${startPrice} Pi</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Harga tertinggi:</span>
+              <span class="text-emerald-400 font-bold">${highestPrice} Pi</span>
             </div>
           </div>
 
