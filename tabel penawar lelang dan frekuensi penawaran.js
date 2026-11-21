@@ -256,30 +256,6 @@
     });
   }
 
-  function adminResetSelectedOrAllBidders() {
-    if (!isCurrentUserAdminOrDev()) {
-      alert("Akses ditolak: hanya Admin/Developer yang dapat mereset data penawar.");
-      return;
-    }
-
-    const checkedBoxes = Array.from(document.querySelectorAll(".bidder-row-checkbox:checked"));
-    if (checkedBoxes.length > 0) {
-      const targetKeys = checkedBoxes.map((cb) => String(cb.value || "").toLowerCase());
-      if (!confirm(`Hapus / reset ${targetKeys.length} penawar terpilih dari tabel frekuensi?`)) return;
-      targetKeys.forEach((k) => {
-        delete ledgerStore[k];
-      });
-    } else {
-      if (!confirm("Tidak ada baris tercentang. Reset seluruh data tabel penawar & frekuensi?")) return;
-      ledgerStore = {};
-    }
-
-    saveLedgerToStorage();
-    syncAllBidderViews();
-    const selectAll = document.getElementById("selectAllBiddersCheckbox");
-    if (selectAll) selectAll.checked = false;
-  }
-
   let localBroadcast = null;
   let fastHeartbeatTimer = null;
   let globalDataChannel = null;
