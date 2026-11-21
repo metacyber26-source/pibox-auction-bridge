@@ -3900,81 +3900,335 @@
     <script src="./i18n.js"></script>
   <script>
     (function() {
-      function resolveTranslator(lang) {
-        const activeLang = lang || localStorage.getItem('appLang') || window.currentLang || 'id';
-        window.currentLang = activeLang;
-        localStorage.setItem('appLang', activeLang);
-        document.documentElement.setAttribute('lang', activeLang);
+      const SUPPORTED_LANGS = ['id', 'en', 'zh', 'es'];
 
-        if (typeof window.setLanguage === 'function') {
-          try { window.setLanguage(activeLang); } catch (_) {}
+      const BUILTIN_FALLBACK = {
+        id: {
+          appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
+          appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
+          networkModeLabel: "⚡ MODE JARINGAN:",
+          loginBtn: "Login",
+          scheduleBtn: "Jadwal",
+          releaseAssetBtn: "+ List Aset/Barang",
+          chatRoomBtn: "Chat Room",
+          registerBuyerBtn: "📋 Daftar Pembeli",
+          buyerStatusTitle: "Status Akses Pembeli",
+          buyerStatusPending: "Menunggu Verifikasi Pendaftaran Admin...",
+          buyerStatusApproved: "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)",
+          depositBalancePrefix: "Saldo Jaminan:",
+          activeSellersLabel: "📦 Penjual Aktif",
+          activeBiddersLabel: "🔨 Penawar Aktif",
+          searchPlaceholder: "🔍 Cari nama aset, barang, properti...",
+          filterAll: "Semua Status",
+          filterActive: "Aktif",
+          filterPending: "⏳ Pending",
+          filterMyListings: "📦 Aset Saya",
+          filterMyBids: "🔨 Tawaran Saya",
+          filterEnded: "Selesai",
+          filterCancelled: "Dibatalkan",
+          catAll: "🌐 Semua Kategori Lelang",
+          catDigital: "🎨 Aset Digital & NFT",
+          catLuxury: "💎 Barang Mewah (Jam, Perhiasan)",
+          catElectronics: "📱 Elektronik & Gadget",
+          catCollectibles: "🏛️ Koleksi & Barang Antik",
+          catFashion: "👔 Fashion & Kerajinan Lokal",
+          catAutomotive: "🚗 Otomotif & Kendaraan",
+          catProperty: "🏠 Properti & Real Estate (Rumah, Tanah)",
+          catServices: "🛠️ Jasa, Layanan & Sewa",
+          loadingGallery: "Memuat Galeri Lelang...",
+          emptyGallery: "Belum ada aset atau barang yang ditawarkan.",
+          firstReleaseBtn: "+ Rilis Aset Pertama",
+          sellerLabel: "Penjual",
+          guestUser: "User: Tamu (Belum Login)",
+          piLoginBtn: "🔑 Login Pi",
+          refreshBtn: "Segarkan",
+          topupDepositBtn: "💳 Top Up Jaminan 35 Pi",
+          withdrawDepositBtn: "📥 Klaim Penarikan Jaminan",
+          activeStatus: "Aktif",
+          pendingStatus: "⏳ Pending",
+          finishedStatus: "Selesai",
+          cancelledStatus: "Dibatalkan",
+          btnSetPending: "⏳ Set Pending",
+          btnSetActive: "🟢 Set Aktif",
+          btnDeleteAsset: "🗑 Hapus",
+          loginFirstAlert: "Silakan Login akun Pi Network terlebih dahulu!",
+          fillAllAlert: "Lengkapi seluruh bidang input dengan benar.",
+          bidSuccessMsg: "🎉 Penawaran Anda berhasil dikirim!"
+        },
+        en: {
+          appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
+          appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
+          networkModeLabel: "⚡ NETWORK MODE:",
+          loginBtn: "Login",
+          scheduleBtn: "Schedule",
+          releaseAssetBtn: "+ List Asset/Item",
+          chatRoomBtn: "Chat Room",
+          registerBuyerBtn: "📋 Buyer Register",
+          buyerStatusTitle: "Buyer Access Status",
+          buyerStatusPending: "Waiting for Admin Registration Verification...",
+          buyerStatusApproved: "Access Status: Active (Can View Gallery & Bid)",
+          depositBalancePrefix: "Deposit Balance:",
+          activeSellersLabel: "📦 Active Sellers",
+          activeBiddersLabel: "🔨 Active Bidders",
+          searchPlaceholder: "🔍 Search asset name, item, property...",
+          filterAll: "All Status",
+          filterActive: "Active",
+          filterPending: "⏳ Pending",
+          filterMyListings: "📦 My Assets",
+          filterMyBids: "🔨 My Bids",
+          filterEnded: "Ended",
+          filterCancelled: "Cancelled",
+          catAll: "🌐 All Auction Categories",
+          catDigital: "🎨 Digital Assets & NFT",
+          catLuxury: "💎 Luxury Items (Watches, Jewelry)",
+          catElectronics: "📱 Electronics & Gadgets",
+          catCollectibles: "🏛️ Collectibles & Antiques",
+          catFashion: "👔 Fashion & Local Crafts",
+          catAutomotive: "🚗 Automotive & Vehicles",
+          catProperty: "🏠 Property & Real Estate (House, Land)",
+          catServices: "🛠️ Services, Support & Rentals",
+          loadingGallery: "Loading Auction Gallery...",
+          emptyGallery: "No assets or items listed yet.",
+          firstReleaseBtn: "+ List First Asset",
+          sellerLabel: "Seller",
+          guestUser: "User: Guest (Not Logged In)",
+          piLoginBtn: "🔑 Pi Login",
+          refreshBtn: "Refresh",
+          topupDepositBtn: "💳 Top Up 35 Pi Deposit",
+          withdrawDepositBtn: "📥 Claim Deposit Withdrawal",
+          activeStatus: "Active",
+          pendingStatus: "⏳ Pending",
+          finishedStatus: "Finished",
+          cancelledStatus: "Cancelled",
+          btnSetPending: "⏳ Set Pending",
+          btnSetActive: "🟢 Set Active",
+          btnDeleteAsset: "🗑 Delete",
+          loginFirstAlert: "Please log in to your Pi Network account first!",
+          fillAllAlert: "Please complete all input fields properly.",
+          bidSuccessMsg: "🎉 Your bid has been submitted!"
+        },
+        zh: {
+          appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
+          appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
+          networkModeLabel: "⚡ 网络模式：",
+          loginBtn: "登录",
+          scheduleBtn: "日程",
+          releaseAssetBtn: "+ 发布资产/物品",
+          chatRoomBtn: "聊天室",
+          registerBuyerBtn: "📋 买家注册",
+          buyerStatusTitle: "买家访问状态",
+          buyerStatusPending: "等待管理员审核注册...",
+          buyerStatusApproved: "访问状态：已激活（可查看画廊并出价）",
+          depositBalancePrefix: "保证金余额：",
+          activeSellersLabel: "📦 活跃卖家",
+          activeBiddersLabel: "🔨 活跃出价者",
+          searchPlaceholder: "🔍 搜索资产名称、物品、房产...",
+          filterAll: "全部状态",
+          filterActive: "进行中",
+          filterPending: "⏳ 待审核",
+          filterMyListings: "📦 我的资产",
+          filterMyBids: "🔨 我的出价",
+          filterEnded: "已结束",
+          filterCancelled: "已取消",
+          catAll: "🌐 全部分类",
+          catDigital: "🎨 数字资产与 NFT",
+          catLuxury: "💎 奢侈品（手表、珠宝）",
+          catElectronics: "📱 电子产品与数码",
+          catCollectibles: "🏛️ 收藏品与古董",
+          catFashion: "👔 服饰与手工艺",
+          catAutomotive: "🚗 汽车与交通工具",
+          catProperty: "🏠 房产与地产（房屋、土地）",
+          catServices: "🛠️ 服务与租赁",
+          loadingGallery: "正在加载拍卖画廊...",
+          emptyGallery: "暂无上架资产或物品。",
+          firstReleaseBtn: "+ 发布首个资产",
+          sellerLabel: "卖家",
+          guestUser: "用户：访客（未登录）",
+          piLoginBtn: "🔑 Pi 登录",
+          refreshBtn: "刷新",
+          topupDepositBtn: "💳 充值 35 Pi 保证金",
+          withdrawDepositBtn: "📥 申请退还保证金",
+          activeStatus: "进行中",
+          pendingStatus: "⏳ 待审核",
+          finishedStatus: "已结束",
+          cancelledStatus: "已取消",
+          btnSetPending: "⏳ 设为待定",
+          btnSetActive: "🟢 设为激活",
+          btnDeleteAsset: "🗑 删除",
+          loginFirstAlert: "请先登录您的 Pi Network 账户！",
+          fillAllAlert: "请完整填写所有输入字段。",
+          bidSuccessMsg: "🎉 您的出价已成功提交！"
+        },
+        es: {
+          appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
+          appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
+          networkModeLabel: "⚡ MODO DE RED:",
+          loginBtn: "Entrar",
+          scheduleBtn: "Horario",
+          releaseAssetBtn: "+ Listar Activo",
+          chatRoomBtn: "Sala de Chat",
+          registerBuyerBtn: "📋 Registro Comprador",
+          buyerStatusTitle: "Estado de Acceso Comprador",
+          buyerStatusPending: "Esperando verificación del administrador...",
+          buyerStatusApproved: "Estado de Acceso: Activo (Ver Galería y Pujar)",
+          depositBalancePrefix: "Saldo de Garantía:",
+          activeSellersLabel: "📦 Vendedores Activos",
+          activeBiddersLabel: "🔨 Postores Activos",
+          searchPlaceholder: "🔍 Buscar activo, artículo, propiedad...",
+          filterAll: "Todos los Estados",
+          filterActive: "Activo",
+          filterPending: "⏳ Pendiente",
+          filterMyListings: "📦 Mis Activos",
+          filterMyBids: "🔨 Mis Pujas",
+          filterEnded: "Finalizado",
+          filterCancelled: "Cancelado",
+          catAll: "🌐 Todas las Categorías",
+          catDigital: "🎨 Activos Digitales y NFT",
+          catLuxury: "💎 Artículos de Lujo (Relojes, Joyas)",
+          catElectronics: "📱 Electrónica y Gadgets",
+          catCollectibles: "🏛️ Coleccionables y Antigüedades",
+          catFashion: "👔 Moda y Artesanía Local",
+          catAutomotive: "🚗 Automotriz y Vehículos",
+          catProperty: "🏠 Propiedad y Bienes Raíces",
+          catServices: "🛠️ Servicios y Alquileres",
+          loadingGallery: "Cargando Galería de Subastas...",
+          emptyGallery: "Aún no hay activos o artículos publicados.",
+          firstReleaseBtn: "+ Publicar Primer Activo",
+          sellerLabel: "Vendedor",
+          guestUser: "Usuario: Invitado (Sin Sesión)",
+          piLoginBtn: "🔑 Login Pi",
+          refreshBtn: "Actualizar",
+          topupDepositBtn: "💳 Recargar Garantía 35 Pi",
+          withdrawDepositBtn: "📥 Reclamar Retiro Garantía",
+          activeStatus: "Activo",
+          pendingStatus: "⏳ Pendiente",
+          finishedStatus: "Finalizado",
+          cancelledStatus: "Cancelado",
+          btnSetPending: "⏳ Poner Pendiente",
+          btnSetActive: "🟢 Poner Activo",
+          btnDeleteAsset: "🗑 Eliminar",
+          loginFirstAlert: "¡Inicia sesión primero en tu cuenta de Pi Network!",
+          fillAllAlert: "Completa todos los campos correctamente.",
+          bidSuccessMsg: "🎉 ¡Tu puja se envió con éxito!"
         }
-        if (typeof window.i18nSetLang === 'function') {
-          try { window.i18nSetLang(activeLang); } catch (_) {}
-        }
-        if (window.i18n) {
-          if (typeof window.i18n.setLanguage === 'function') {
-            try { window.i18n.setLanguage(activeLang); } catch (_) {}
-          } else if (typeof window.i18n.changeLanguage === 'function') {
-            try { window.i18n.changeLanguage(activeLang); } catch (_) {}
-          } else if (typeof window.i18n.apply === 'function') {
-            try { window.i18n.apply(activeLang); } catch (_) {}
+      };
+
+      function normalizeLang(raw) {
+        const code = (raw || 'id').toString().toLowerCase().trim();
+        if (SUPPORTED_LANGS.includes(code)) return code;
+        if (code.startsWith('en')) return 'en';
+        if (code.startsWith('zh') || code.startsWith('cn')) return 'zh';
+        if (code.startsWith('es')) return 'es';
+        return 'id';
+      }
+
+      function getActiveDictionary(lang) {
+        const cleanLang = normalizeLang(lang);
+        const externalDict =
+          (window.translations && window.translations[cleanLang]) ||
+          (window.i18n && window.i18n.translations && window.i18n.translations[cleanLang]) ||
+          (window.i18n && window.i18n.messages && window.i18n.messages[cleanLang]) ||
+          (window.i18nDict && window.i18nDict[cleanLang]) ||
+          {};
+        return Object.assign({}, BUILTIN_FALLBACK[cleanLang] || BUILTIN_FALLBACK.id, externalDict);
+      }
+
+      const _AutonomousStateEnforcer = {
+        lastAppliedLang: null,
+        applyLangNow: function(targetLang) {
+          const lang = normalizeLang(targetLang || localStorage.getItem('appLang') || window.currentLang || 'id');
+          window.currentLang = lang;
+          try { localStorage.setItem('appLang', lang); } catch (_) {}
+          document.documentElement.setAttribute('lang', lang);
+
+          if (typeof window.setLanguage === 'function' && window.setLanguage !== window.changeLanguage) {
+            try { window.setLanguage(lang); } catch (_) {}
           }
-        }
+          if (typeof window.i18nSetLang === 'function') {
+            try { window.i18nSetLang(lang); } catch (_) {}
+          }
+          if (window.i18n) {
+            if (typeof window.i18n.setLanguage === 'function') {
+              try { window.i18n.setLanguage(lang); } catch (_) {}
+            } else if (typeof window.i18n.changeLanguage === 'function') {
+              try { window.i18n.changeLanguage(lang); } catch (_) {}
+            } else if (typeof window.i18n.apply === 'function') {
+              try { window.i18n.apply(lang); } catch (_) {}
+            }
+          }
 
-        const dict =
-          (window.translations && window.translations[activeLang]) ||
-          (window.i18n && window.i18n.translations && window.i18n.translations[activeLang]) ||
-          (window.i18n && window.i18n.messages && window.i18n.messages[activeLang]) ||
-          null;
+          const dict = getActiveDictionary(lang);
 
-        if (dict) {
           document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.getAttribute('data-i18n');
-            if (dict[key] !== undefined) {
+            if (key && dict[key] !== undefined) {
               if (/<[a-z][\s\S]*>/i.test(dict[key])) {
-                el.innerHTML = dict[key];
+                if (el.innerHTML !== dict[key]) el.innerHTML = dict[key];
               } else {
-                el.innerText = dict[key];
+                if (el.innerText !== dict[key]) el.innerText = dict[key];
               }
             }
           });
 
           document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
             const key = el.getAttribute('data-i18n-placeholder');
-            if (dict[key] !== undefined) {
+            if (key && dict[key] !== undefined && el.getAttribute('placeholder') !== dict[key]) {
               el.setAttribute('placeholder', dict[key]);
             }
           });
-        }
 
-        const selector = document.getElementById('langSelector');
-        if (selector && selector.value !== activeLang) {
-          selector.value = activeLang;
-        }
-      }
-
-      if (typeof window.t !== 'function') {
-        window.t = function(key) {
-          const lang = localStorage.getItem('appLang') || window.currentLang || 'id';
-          if (window.i18n && typeof window.i18n.t === 'function') {
-            const res = window.i18n.t(key, lang);
-            if (res && res !== key) return res;
+          const depositEl = document.getElementById('userDepositBalanceDisplay');
+          if (depositEl) {
+            const match = depositEl.innerText.match(/([\d.,]+\s*Pi)/i);
+            const valPart = match ? match[1] : '0 Pi';
+            const expectedDepositText = `${dict.depositBalancePrefix || 'Saldo Jaminan:'} ${valPart}`;
+            if (depositEl.innerText !== expectedDepositText) {
+              depositEl.innerText = expectedDepositText;
+            }
           }
-          const dict =
-            (window.translations && window.translations[lang]) ||
-            (window.translations && window.translations.id) ||
-            {};
-          return dict[key] !== undefined ? dict[key] : key;
-        };
-      }
+
+          const selector = document.getElementById('langSelector');
+          if (selector && selector.value !== lang) {
+            selector.value = lang;
+          }
+
+          this.lastAppliedLang = lang;
+        },
+        guardContinuousConsistency: function() {
+          const desired = normalizeLang(localStorage.getItem('appLang') || window.currentLang || 'id');
+          this.applyLangNow(desired);
+
+          if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.initInstantSyncGuardian === 'function') {
+            if (!window.__instantSyncStarted) {
+              window.__instantSyncStarted = true;
+              _RealtimeBidEnforcementCore.initInstantSyncGuardian();
+            }
+          }
+        }
+      };
+
+      window.t = function(key) {
+        const lang = normalizeLang(localStorage.getItem('appLang') || window.currentLang || 'id');
+        if (window.i18n && typeof window.i18n.t === 'function') {
+          try {
+            const externalRes = window.i18n.t(key, lang);
+            if (externalRes && externalRes !== key) return externalRes;
+          } catch (_) {}
+        }
+        const dict = getActiveDictionary(lang);
+        if (dict[key] !== undefined) return dict[key];
+        const idDict = getActiveDictionary('id');
+        return idDict[key] !== undefined ? idDict[key] : key;
+      };
 
       window.applyTranslations = function(lang) {
-        resolveTranslator(lang);
+        _AutonomousStateEnforcer.applyLangNow(lang);
       };
 
       window.changeLanguage = function(lang) {
-        resolveTranslator(lang);
+        const cleanLang = normalizeLang(lang);
+        _AutonomousStateEnforcer.applyLangNow(cleanLang);
+
         if (typeof window.filterGallery === 'function') {
           try { window.filterGallery(); } catch (_) {}
         } else if (typeof window.renderGallery === 'function') {
@@ -3983,10 +4237,36 @@
         if (typeof window.updateActiveCounts === 'function') {
           try { window.updateActiveCounts(); } catch (_) {}
         }
+        if (typeof window.checkAuctionSchedule === 'function') {
+          try { window.checkAuctionSchedule(); } catch (_) {}
+        }
       };
 
+      function bindLanguageSelectorEvents() {
+        const selector = document.getElementById('langSelector');
+        if (!selector) return;
+
+        const handleImmediatePick = (evt) => {
+          const picked = (evt && evt.target && evt.target.value) || selector.value;
+          if (picked) {
+            window.changeLanguage(picked);
+          }
+        };
+
+        selector.addEventListener('change', handleImmediatePick);
+        selector.addEventListener('input', handleImmediatePick);
+        selector.addEventListener('blur', handleImmediatePick);
+      }
+
       document.addEventListener('DOMContentLoaded', () => {
-        resolveTranslator(localStorage.getItem('appLang') || 'id');
+        bindLanguageSelectorEvents();
+        _AutonomousStateEnforcer.guardContinuousConsistency();
+        setTimeout(() => {
+          _AutonomousStateEnforcer.guardContinuousConsistency();
+        }, 120);
+        setInterval(() => {
+          _AutonomousStateEnforcer.guardContinuousConsistency();
+        }, 800);
       });
     })();
   </script>
