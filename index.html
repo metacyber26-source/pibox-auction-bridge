@@ -2677,7 +2677,51 @@
       const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
       
-  
+      async function applyRelativeTopUpToDatabase(username, addedAmount, memo, roleLabel = '', maxCap = 35) {
+      if (!supabaseClient) return;
+      try {
+        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
+        
+        const roleFinal = _SystemRoleDepositGuardian.normalizeRoleLabel(roleLabel || (buyer && (buyer.role || buyer.keterangan)) || 'Pembeli');
+        const capFinal = maxCap || _SystemRoleDepositGuardian.getMaxDepositForRole(roleFinal);
+        const deductionFinal = _SystemRoleDepositGuardian.getRefundDeductionForRole(roleFinal);
+
+        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
+        let newBalance = Math.min(capFinal, currentBalance + addedAmount);
+        let newStatus = newBalance >= 35 ? 'approved' : 'pending';
+
+        if (!buyer) {
+          await supabaseClient.from('buyers').insert([{ 
+            username: username,
+            role: roleFinal,
+            deposit_balance: newBalance, 
+            status: newStatus, 
+            win_count: 0, 
+            has_requested_withdrawal: false 
+          }]);
+        } else {
+          await supabaseClient.from('buyers').update({ 
+            role: roleFinal,
+            deposit_balance: newBalance, 
+            status: newStatus 
+          }).eq('username', username);
+        }
+
+        await supabaseClient.from('auction_deposits_log').insert([{ 
+          username: username, 
+          amount: addedAmount, 
+          type: 'deposit_relative', 
+          memo: memo 
+        }]);
+
+        alert(`✅ Top Up Berhasil!\nPeran: ${roleFinal} (Maks Jaminan: ${capFinal} Pi, Potongan Pengembalian: ${deductionFinal} Pi)\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
+        await checkBuyerStatusInDatabase(username);
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
+      } catch (e) {
+        alert("Gagal memperbarui database: " + e.message);
+      }
+    }
+
       tbody.innerHTML = html;
     }
 
