@@ -2722,7 +2722,85 @@
       }
     }
 
+      tbody.innerHTML = html;
+    }
+
+    function toggleSelectAllBuyers(master) {
+      document.querySelectorAll('.buyer-checkbox').forEach(cb => cb.checked = master.checked);
+    }
+
+    async      if (filtered.length === 0) { 
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; 
+        return; 
+      }
       
+      let html = '';
+      filtered.forEach(b => {
+        const isApproved = b.status === 'approved' || b.status === 'aktif' || b.status === 'active';
+        const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
+        const buyerBalance = parseFloat(b.deposit_balance || 0);
+        const roleText = _SystemRoleDepositGuardian.normalizeRoleLabel(b.role || b.keterangan || '') || 'Belum Ditentukan';
+        const walletVal = (b.wallet_address || b.wallet || '-').toString();
+        const refundAmount = Math.max(0, buyerBalance - _SystemRoleDepositGuardian.getRefundDeductionForRole(roleText));
+
+        let withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
+        if (b.status === 'cash_back' || b.has_requested_withdrawal === true || b.is_cashback === true) {
+          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">Cash Back</span>`;
+        } else if (buyerBalance >= 35) {
+          withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
+        } else {
+          withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
+        }
+
+        html += `<tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
+          <td class="p-2 text-center sticky left-0 z-20 bg-gray-950 border-r border-gray-800">
+            ${isAdminOrDev ? `<input type="checkbox" class="buyer-checkbox" value="${b.username}">` : ''}
+          </td>
+
+          <td class="p-2 font-mono text-yellow-400 sticky left-8 z-20 bg-gray-950 border-r border-gray-800 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.6)]">
+            @${displayedUsername}
+            <div class="text-[9px] text-emerald-400 font-sans">Depo: ${buyerBalance} Pi</div>
+          </td>
+
+          <td class="p-2 text-center bg-gray-950">
+            <div class="text-[10px] font-bold text-indigo-300">${roleText}</div>
+            <div class="mt-0.5">${withdrawalNotice}</div>
+          </td>
+          <td class="p-2 bg-gray-950"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${isApproved ? 'Aktif' : 'Pending'}</span></td>
+
+          <td class="p-2 text-right space-x-1 bg-gray-950">
+            ${isAdminOrDev ? `
+              <button onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">Reset Saldo</button>
+              <button onclick="updateBuyerStatus('${b.username}', '${isApproved ? 'pending' : 'approved'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow">${isApproved ? 'Set Pending' : 'Set Aktif'}</button>
+            ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
+          </td>
+          <td class="p-2 text-center bg-gray-950">
+            ${isAdminOrDev ? `
+              <button onclick="sendDepositRefundToUser('${b.username}', ${buyerBalance})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer">
+                🚀 Kirim (${refundAmount} Pi)
+              </button>
+            ` : '<span class="text-[9px] text-gray-500">-</span>'}
+          </td>
+          <td class="p-2 bg-gray-950">
+            <div class="flex items-center gap-1.5 min-w-[150px]">
+              <input type="text" readonly value="${walletVal.replace(/"/g, '&quot;')}" aria-label="Wallet Pengguna" class="bg-gray-900 border border-gray-800 rounded px-2 py-1 text-[10px] font-mono text-gray-200 w-28 select-all focus:outline-none cursor-default">
+              <button type="button" onclick="_SystemRoleDepositGuardian.copyWalletAddress('${walletVal.replace(/'/g, "\\'")}', this)" class="bg-gray-800 hover:bg-gray-700 text-yellow-400 px-2 py-1 rounded text-[9px] font-bold border border-gray-700 cursor-pointer">📋 Copy</button>
+            </div>
+          </td>
+        </tr>`;
+      });
+ function updateBuyerStatus(username, newStatus) {
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient
+          .from('buyers')
+          .update({ status: newStatus, has_requested_withdrawal: false })
+          .eq('username', username);
+        
+        if (error) throw error;
+        await fetchBuyersList();
+        renderBuyersTable();
+        alert(`✅ Status pembeli @${username} berhasil diubah menjadi ${newStatus.toUpperCase()}!`);
       } catch(e) { 
         alert("Gagal memperbarui status: " + e.message); 
       }
@@ -4444,4 +4522,3 @@
  <script src="./tabel%20penawar%20lelang%20dan%20frekuensi%20penawaran.js"></script>
 </body>
 </html>
-
