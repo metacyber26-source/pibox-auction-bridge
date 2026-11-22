@@ -121,7 +121,7 @@
       const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Tidak ada data pembeli ditemukan.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-gray-500">Tidak ada data pembeli ditemukan.</td></tr>`;
         return;
       }
 
@@ -131,6 +131,11 @@
         const depositBal = parseFloat(b.deposit_balance || 0);
         const status = (b.status || 'pending').toLowerCase();
         const hasWithdrawalReq = b.has_requested_withdrawal;
+        const rawRole = (b.role || b.keterangan || '').toString().toLowerCase().trim();
+        const roleLabel = (rawRole === 'penjual & pembeli' || rawRole === 'pembeli & penjual')
+          ? 'Penjual & Pembeli'
+          : (rawRole === 'penjual' ? 'Penjual' : (rawRole === 'pembeli' ? 'Pembeli' : 'Belum Ditentukan'));
+        const walletAddress = (b.wallet_address || b.wallet || '-').toString();
 
         let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">PENDING</span>`;
         if (status === 'approved' || status === 'aktif' || status === 'active') {
@@ -167,12 +172,20 @@
             <td class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-20 border-r border-gray-800"><input type="checkbox" class="buyer-checkbox accent-yellow-500 cursor-pointer" value="${username}"></td>
             <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">@${username}</td>
             <td class="p-2.5 text-center font-mono text-emerald-400 font-bold">${depositBal} Pi</td>
+            <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">${roleLabel}</span></td>
             <td class="p-2.5">${statusBadge}</td>
             <td class="p-2.5 text-right">${actionButtons}</td>
             <td class="p-2.5 text-center">${withdrawalAction}</td>
+            <td class="p-2.5">
+              <div class="flex items-center gap-1.5 min-w-[155px]">
+                <input type="text" readonly value="${walletAddress.replace(/"/g, '&quot;')}" aria-label="Wallet Pengguna" class="bg-gray-950 border border-gray-800 rounded px-2 py-1 text-[10px] font-mono text-gray-200 w-28 select-all focus:outline-none cursor-default">
+                <button type="button" onclick="copyBuyerWallet('${walletAddress.replace(/'/g, "\\'")}', this)" class="bg-gray-800 hover:bg-gray-700 text-yellow-400 px-2 py-1 rounded text-[9px] font-bold border border-gray-700 cursor-pointer">📋 Copy</button>
+              </div>
+            </td>
           </tr>
         `);
       });
+
 
       tbody.innerHTML = htmlChunks.join('');
     }
