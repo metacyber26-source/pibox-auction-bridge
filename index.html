@@ -55,7 +55,7 @@
 
     // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI MASING-MASING (TEGAS, KONSISTEN & OTOMATIS) ---
     const _SystemAutonomousGuardian = {
-      version: "10.5.0-autonomous-guardian",
+      version: "10.6.0-autonomous-guardian",
       validateExecution: function(actionName, username) {
         if (!username || typeof username !== 'string') return false;
         const cleanUser = username.trim();
@@ -79,6 +79,19 @@
         } catch(e) {
           return 0;
         }
+      },
+      normalizeAuctionPrices: function(list) {
+        if (!Array.isArray(list)) return;
+        list.forEach(item => {
+          if (item && item.reserve_price !== undefined && item.reserve_price !== null) {
+            const parsedReserve = parseFloat(item.reserve_price);
+            if (!isNaN(parsedReserve)) item.reserve_price = parsedReserve;
+          }
+          if (item && item.highest_bid !== undefined && item.highest_bid !== null) {
+            const parsedBid = parseFloat(item.highest_bid);
+            if (!isNaN(parsedBid)) item.highest_bid = parsedBid;
+          }
+        });
       }
     };
 
@@ -175,14 +188,15 @@
       auditAndEnforceLogic: function() {
         try {
           if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
-            activeAuctionsList.forEach(item => {
-              if (item.reserve_price) item.reserve_price = parseFloat(item.reserve_price);
-            });
+            _SystemAutonomousGuardian.normalizeAuctionPrices(activeAuctionsList);
+          }
+          if (typeof filteredAuctionsList !== 'undefined' && Array.isArray(filteredAuctionsList)) {
+            _SystemAutonomousGuardian.normalizeAuctionPrices(filteredAuctionsList);
           }
         } catch(e) {}
       }
     };
-    setInterval(() => { _NeuralCoreEngine.auditAndEnforceLogic(); }, 2000);
+    setInterval(() => { _NeuralCoreEngine.auditAndEnforceLogic(); }, 1000);
 
     const _AudioBeepEngine = {
       audioCtx: null,
@@ -1211,6 +1225,7 @@
     let auctionScheduleState = { mode: "scheduled", startDate: "2026-11-01", startHour: "00:00", durationHours: 24 };
 
     let isAuctionCurrentlyOpen = true;
+    let currentAuctionStatusCode = 3;
     let currentLang = localStorage.getItem('appLang') || 'id';
 
     const SecurityVault = {
@@ -1894,8 +1909,52 @@
       }
     }
 
+    async function applyRelativeTopUpToDatabase(username, addedAmount, memo, roleLabel = '', maxCap = 35) {
+      if (!supabaseClient) return;
+      try {
+        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
+        
+        const roleFinal = _SystemRoleDepositGuardian.normalizeRoleLabel(roleLabel || (buyer && (buyer.role || buyer.keterangan)) || 'Pembeli');
+        const capFinal = maxCap || _SystemRoleDepositGuardian.getMaxDepositForRole(roleFinal);
+        const deductionFinal = _SystemRoleDepositGuardian.getRefundDeductionForRole(roleFinal);
 
-    async function executeRelativeDepositPayment(username, amountToPay) {
+        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
+        let newBalance = Math.min(capFinal, currentBalance + addedAmount);
+        let newStatus = newBalance >= 35 ? 'approved' : 'pending';
+
+        if (!buyer) {
+          await supabaseClient.from('buyers').insert([{ 
+            username: username,
+            role: roleFinal,
+            deposit_balance: newBalance, 
+            status: newStatus, 
+            win_count: 0, 
+            has_requested_withdrawal: false 
+          }]);
+        } else {
+          await supabaseClient.from('buyers').update({ 
+            role: roleFinal,
+            deposit_balance: newBalance, 
+            status: newStatus 
+          }).eq('username', username);
+        }
+
+        await supabaseClient.from('auction_deposits_log').insert([{ 
+          username: username, 
+          amount: addedAmount, 
+          type: 'deposit_relative', 
+          memo: memo 
+        }]);
+
+        alert(`✅ Top Up Berhasil!\nPeran: ${roleFinal} (Maks Jaminan: ${capFinal} Pi, Potongan Pengembalian: ${deductionFinal} Pi)\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
+        await checkBuyerStatusInDatabase(username);
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
+      } catch (e) {
+        alert("Gagal memperbarui database: " + e.message);
+      }
+    }
+
+    async function executeRelativeDepositPayment(username, amountToPay, roleLabel = '', maxCap = 35) {
       const memoText = `PIBOX-AUCTION: Top Up Kekurangan Jaminan ${amountToPay.toFixed(2)} Pi - @${username}`;
 
       const paymentData = {
@@ -1913,15 +1972,15 @@
             },
             onReadyForServerCompletion: async (pid, txid) => {
               await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await applyRelativeTopUpToDatabase(username, amountToPay, memoText);
+              await applyRelativeTopUpToDatabase(username, amountToPay, memoText, roleLabel, maxCap);
             },
             onCancel: () => { alert("Top up jaminan dibatalkan."); },
             onError: () => { 
-              applyRelativeTopUpToDatabase(username, amountToPay, memoText);
+              applyRelativeTopUpToDatabase(username, amountToPay, memoText, roleLabel, maxCap);
             }
           });
         } else {
-          applyRelativeTopUpToDatabase(username, amountToPay, memoText);
+          applyRelativeTopUpToDatabase(username, amountToPay, memoText, roleLabel, maxCap);
         }
       } catch (err) {
         alert("Gagal memproses pembayaran: " + err.message);
@@ -2673,63 +2732,12 @@
 
     function renderBuyersTable() {
       const tbody = document.getElementById('buyersTableBody');
+      if (!tbody) return;
       const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
       const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
-      
-      async function applyRelativeTopUpToDatabase(username, addedAmount, memo, roleLabel = '', maxCap = 35) {
-      if (!supabaseClient) return;
-      try {
-        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-        
-        const roleFinal = _SystemRoleDepositGuardian.normalizeRoleLabel(roleLabel || (buyer && (buyer.role || buyer.keterangan)) || 'Pembeli');
-        const capFinal = maxCap || _SystemRoleDepositGuardian.getMaxDepositForRole(roleFinal);
-        const deductionFinal = _SystemRoleDepositGuardian.getRefundDeductionForRole(roleFinal);
 
-        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
-        let newBalance = Math.min(capFinal, currentBalance + addedAmount);
-        let newStatus = newBalance >= 35 ? 'approved' : 'pending';
-
-        if (!buyer) {
-          await supabaseClient.from('buyers').insert([{ 
-            username: username,
-            role: roleFinal,
-            deposit_balance: newBalance, 
-            status: newStatus, 
-            win_count: 0, 
-            has_requested_withdrawal: false 
-          }]);
-        } else {
-          await supabaseClient.from('buyers').update({ 
-            role: roleFinal,
-            deposit_balance: newBalance, 
-            status: newStatus 
-          }).eq('username', username);
-        }
-
-        await supabaseClient.from('auction_deposits_log').insert([{ 
-          username: username, 
-          amount: addedAmount, 
-          type: 'deposit_relative', 
-          memo: memo 
-        }]);
-
-        alert(`✅ Top Up Berhasil!\nPeran: ${roleFinal} (Maks Jaminan: ${capFinal} Pi, Potongan Pengembalian: ${deductionFinal} Pi)\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
-        await checkBuyerStatusInDatabase(username);
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
-      } catch (e) {
-        alert("Gagal memperbarui database: " + e.message);
-      }
-    }
-
-      tbody.innerHTML = html;
-    }
-
-    function toggleSelectAllBuyers(master) {
-      document.querySelectorAll('.buyer-checkbox').forEach(cb => cb.checked = master.checked);
-    }
-
-    async      if (filtered.length === 0) { 
+      if (filtered.length === 0) { 
         tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; 
         return; 
       }
@@ -2789,7 +2797,15 @@
           </td>
         </tr>`;
       });
- function updateBuyerStatus(username, newStatus) {
+
+      tbody.innerHTML = html;
+    }
+
+    function toggleSelectAllBuyers(master) {
+      document.querySelectorAll('.buyer-checkbox').forEach(cb => cb.checked = master.checked);
+    }
+
+    async function updateBuyerStatus(username, newStatus) {
       if (!supabaseClient) return;
       try {
         const { error } = await supabaseClient
@@ -3169,6 +3185,7 @@
       if (cachedData && (!activeAuctionsList || activeAuctionsList.length === 0)) {
         try {
           activeAuctionsList = JSON.parse(cachedData);
+          _SystemAutonomousGuardian.normalizeAuctionPrices(activeAuctionsList);
           updateActiveCounts();
           filterGallery();
         } catch (e) {}
@@ -3186,6 +3203,7 @@
         if (error) throw error;
 
         activeAuctionsList = data || [];
+        _SystemAutonomousGuardian.normalizeAuctionPrices(activeAuctionsList);
         localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
         updateActiveCounts();
         filterGallery();
@@ -3428,7 +3446,7 @@
       }
     };
 
-    // --- PERBAIKAN: PENANGANAN VARIABEL PEMENANG LELANG PADA SERTIFIKAT ---
+    // --- PENANGANAN VARIABEL PEMENANG LELANG PADA SERTIFIKAT ---
     function copyCertificateLink(auctionId) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       if (!currentUsr || !SystemLogicEngine.validateExecution(currentUsr)) {
@@ -3467,7 +3485,7 @@
     }
 
     function openDetailModalWithData(auctionId) {
-      selectedAuction = activeAuctionsList.find(a => a.id === auctionId);
+      selectedAuction = activeAuctionsList.find(a => String(a.id) === String(auctionId));
       if (!selectedAuction) return;
 
       const content = document.getElementById('modalDetailContent');
@@ -3586,7 +3604,7 @@
             </div>
             <div class="flex justify-between">
               <span class="text-gray-400">Harga Tertinggi:</span>
-              <span class="text-emerald-400 font-bold">${price} Pi</span>
+              <span id="detailModalCurrentPrice" class="text-emerald-400 font-bold">${price} Pi</span>
             </div>
           </div>
 
@@ -3638,16 +3656,22 @@
         return { valid: true, cleanAmount: parseFloat(numericAmount.toFixed(2)), cleanUser: username.trim() };
       },
       syncBidStateLocally: function(auctionId, amount, username) {
-        const idx = activeAuctionsList.findIndex(a => String(a.id) === String(auctionId));
+        const cleanId = String(auctionId);
+        const numericAmount = parseFloat(amount);
+        if (!cleanId || isNaN(numericAmount)) return;
+        const idx = activeAuctionsList.findIndex(a => String(a.id) === cleanId);
         if (idx !== -1) {
-          activeAuctionsList[idx].highest_bid = amount;
-          activeAuctionsList[idx].highest_bidder = username;
-          localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+          const prevBid = parseFloat(activeAuctionsList[idx].highest_bid || 0);
+          if (numericAmount >= prevBid) {
+            activeAuctionsList[idx].highest_bid = numericAmount;
+            if (username) activeAuctionsList[idx].highest_bidder = username;
+            localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+          }
         }
       }
     };
 
-    // --- FUNGSI UTAMA PENAWARAN (BIDDING) YANG DIKEMBALIKAN ---
+    // --- FUNGSI UTAMA PENAWARAN (BIDDING) ---
     async function placeBidOnAuction(auctionId, amount) {
       if (_AutonomousLogicEngine.isProcessingBid) return;
 
@@ -3848,6 +3872,9 @@
               return lines.join('\n');
             },
             pushImmediateDistribution: function(auctionId, newBid, bidder, ledgerEntry) {
+              if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.pushInstantState === 'function') {
+                _RealtimeBidEnforcementCore.pushInstantState(auctionId, newBid, bidder);
+              }
               if (typeof _SilentLogicEngine !== 'undefined' && typeof _SilentLogicEngine.applyLiveBidToAllViews === 'function') {
                 _SilentLogicEngine.applyLiveBidToAllViews(auctionId, newBid, bidder);
               }
@@ -3933,18 +3960,26 @@
     }
 
     const _RealtimeBidEnforcementCore = {
-      version: "13.0.0-instant-precision-distribution",
+      version: "13.1.0-instant-precision-distribution",
+      latestBidByAuction: {},
       pushInstantState: function(auctionId, newBid, bidder, statusVal) {
         const cleanId = String(auctionId);
         const numericBid = parseFloat(newBid);
         if (!cleanId || isNaN(numericBid)) return;
 
+        const prevRecorded = this.latestBidByAuction[cleanId] || 0;
+        const effectiveBid = Math.max(prevRecorded, numericBid);
+        this.latestBidByAuction[cleanId] = effectiveBid;
+
         let updatedAny = false;
         if (Array.isArray(activeAuctionsList)) {
           const idx = activeAuctionsList.findIndex(a => String(a.id) === cleanId);
           if (idx !== -1) {
-            activeAuctionsList[idx].highest_bid = numericBid;
-            if (bidder) activeAuctionsList[idx].highest_bidder = bidder;
+            const currentItemBid = parseFloat(activeAuctionsList[idx].highest_bid || 0);
+            if (effectiveBid >= currentItemBid) {
+              activeAuctionsList[idx].highest_bid = effectiveBid;
+              if (bidder) activeAuctionsList[idx].highest_bidder = bidder;
+            }
             if (statusVal) activeAuctionsList[idx].status = statusVal;
             updatedAny = true;
           }
@@ -3952,15 +3987,20 @@
         if (Array.isArray(filteredAuctionsList)) {
           const fIdx = filteredAuctionsList.findIndex(a => String(a.id) === cleanId);
           if (fIdx !== -1) {
-            filteredAuctionsList[fIdx].highest_bid = numericBid;
-            if (bidder) filteredAuctionsList[fIdx].highest_bidder = bidder;
+            const currentFilteredBid = parseFloat(filteredAuctionsList[fIdx].highest_bid || 0);
+            if (effectiveBid >= currentFilteredBid) {
+              filteredAuctionsList[fIdx].highest_bid = effectiveBid;
+              if (bidder) filteredAuctionsList[fIdx].highest_bidder = bidder;
+            }
             if (statusVal) filteredAuctionsList[fIdx].status = statusVal;
           }
         }
         if (selectedAuction && String(selectedAuction.id) === cleanId) {
-          selectedAuction.highest_bid = numericBid;
+          selectedAuction.highest_bid = Math.max(parseFloat(selectedAuction.highest_bid || 0), effectiveBid);
           if (bidder) selectedAuction.highest_bidder = bidder;
           if (statusVal) selectedAuction.status = statusVal;
+          const priceDisplayEl = document.getElementById('detailModalCurrentPrice');
+          if (priceDisplayEl) priceDisplayEl.innerText = `${selectedAuction.highest_bid} Pi`;
         }
         if (updatedAny) {
           try {
@@ -4011,9 +4051,14 @@
                     (serverBid === localBid && serverItem.highest_bidder && serverItem.highest_bidder !== localItem.highest_bidder) ||
                     (serverItem.status && serverItem.status !== localItem.status)
                   ) {
-                    localItem.highest_bid = serverBid;
+                    const resolvedBid = Math.max(serverBid, localBid);
+                    localItem.highest_bid = resolvedBid;
                     if (serverItem.highest_bidder) localItem.highest_bidder = serverItem.highest_bidder;
                     if (serverItem.status) localItem.status = serverItem.status;
+                    _RealtimeBidEnforcementCore.latestBidByAuction[String(serverItem.id)] = Math.max(
+                      _RealtimeBidEnforcementCore.latestBidByAuction[String(serverItem.id)] || 0,
+                      resolvedBid
+                    );
                     hasChanges = true;
                   }
                 }
@@ -4029,16 +4074,20 @@
                   const refreshedSelected = activeAuctionsList.find(a => String(a.id) === String(selectedAuction.id));
                   if (refreshedSelected) {
                     selectedAuction = refreshedSelected;
+                    const priceDisplayEl = document.getElementById('detailModalCurrentPrice');
+                    if (priceDisplayEl) {
+                      const latestVal = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
+                      priceDisplayEl.innerText = `${latestVal} Pi`;
+                    }
                   }
                 }
               }
             }
           } catch (e) {}
-        }, 100);
+        }, 50);
       }
     };
 
-    
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
       try {
@@ -4050,10 +4099,18 @@
               const updated = payload.new;
               const idx = activeAuctionsList.findIndex(a => String(a.id) === String(updated.id));
               if (idx !== -1) {
-                activeAuctionsList[idx] = { ...activeAuctionsList[idx], ...updated };
+                const existingBid = parseFloat(activeAuctionsList[idx].highest_bid || 0);
+                const incomingBid = parseFloat(updated.highest_bid || 0);
+                const finalBid = Math.max(existingBid, incomingBid);
+                activeAuctionsList[idx] = {
+                  ...activeAuctionsList[idx],
+                  ...updated,
+                  highest_bid: finalBid > 0 ? finalBid : updated.highest_bid
+                };
               } else {
                 activeAuctionsList.unshift(updated);
               }
+              _SystemAutonomousGuardian.normalizeAuctionPrices(activeAuctionsList);
               localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
               updateActiveCounts();
               filterGallery();
@@ -4064,6 +4121,7 @@
           .on('broadcast', { event: 'live_bid_update' }, (payload) => {
             if (payload && payload.payload) {
               const { auctionId, newBid, bidder } = payload.payload;
+              _RealtimeBidEnforcementCore.pushInstantState(auctionId, newBid, bidder);
               _AutonomousLogicEngine.syncBidStateLocally(auctionId, newBid, bidder);
               if (payload.payload.ledgerEntry && payload.payload.ledgerEntry.username) {
                 const existing = _BidLedgerAndDistributionCore.readAllRecords();
