@@ -1928,45 +1928,6 @@
       }
     }
 
-    async function applyRelativeTopUpToDatabase(username, addedAmount, memo) {
-      if (!supabaseClient) return;
-      try {
-        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-        
-        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
-        let newBalance = currentBalance + addedAmount;
-        let newStatus = newBalance >= 35 ? 'approved' : 'pending';
-
-        if (!buyer) {
-          await supabaseClient.from('buyers').insert([{ 
-            username: username, 
-            deposit_balance: newBalance, 
-            status: newStatus, 
-            win_count: 0, 
-            has_requested_withdrawal: false 
-          }]);
-        } else {
-          await supabaseClient.from('buyers').update({ 
-            deposit_balance: newBalance, 
-            status: newStatus 
-          }).eq('username', username);
-        }
-
-        await supabaseClient.from('auction_deposits_log').insert([{ 
-          username: username, 
-          amount: addedAmount, 
-          type: 'deposit_relative', 
-          memo: memo 
-        }]);
-
-        alert(`✅ Top Up Berhasil!\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
-        await checkBuyerStatusInDatabase(username);
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
-      } catch (e) {
-        alert("Gagal memperbarui database: " + e.message);
-      }
-    }
-
     function requestDepositWithdrawal() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
