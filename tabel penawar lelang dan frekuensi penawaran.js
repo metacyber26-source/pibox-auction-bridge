@@ -256,7 +256,7 @@
     });
   }
 
-    const RESET_EPOCH_KEY = "nftgm_bidder_reset_epoch_v1";
+  const RESET_EPOCH_KEY = "nftgm_bidder_reset_epoch_v1";
   let currentResetEpoch = loadResetEpochFromStorage();
 
   function loadResetEpochFromStorage() {
@@ -274,6 +274,82 @@
       localStorage.setItem(RESET_EPOCH_KEY, String(currentResetEpoch));
     } catch (_) {}
   }
+
+  function purgeStaleUserAndBidArtifacts(fullPurge = false, targetUserKeys = []) {
+    const normalizedTargets = Array.isArray(targetUserKeys)
+      ? targetUserKeys.map((k) => normalizeUsername(String(k || "")).toLowerCase()).filter(Boolean)
+      : [];
+
+    try {
+      if (fullPurge) {
+        ledgerStore = {};
+        localStorage.removeItem(STORAGE_KEY_BIDS);
+        localStorage.removeItem("nusantara_cached_auctions");
+
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (
+            k === STORAGE_KEY_BIDS ||
+            k === "nusantara_cached_auctions" ||
+            k.startsWith("nftgm_bidder_") ||
+            k.startsWith("nusantara_bidder_") ||
+            k.startsWith("nftgm_user_detail_") ||
+            k.startsWith("nftgm_buyer_cache_")
+          ) {
+            if (k !== RESET_EPOCH_KEY) {
+              keysToRemove.push(k);
+            }
+          }
+        }
+        keysToRemove.forEach((k) => {
+          try { localStorage.removeItem(k); } catch (_) {}
+        });
+      } else if (normalizedTargets.length > 0) {
+        normalizedTargets.forEach((targetKey) => {
+          delete ledgerStore[targetKey];
+          try {
+            localStorage.removeItem(`nftgm_user_detail_${targetKey}`);
+            localStorage.removeItem(`nftgm_buyer_cache_${targetKey}`);
+          } catch (_) {}
+        });
+        saveLedgerToStorage();
+      }
+    } catch (_) {}
+
+    if (typeof buyersList !== "undefined" && Array.isArray(buyersList)) {
+      if (fullPurge) {
+        buyersList.length = 0;
+      } else if (normalizedTargets.length > 0) {
+        for (let i = buyersList.length - 1; i >= 0; i--) {
+          const row = buyersList[i];
+          const rowUser = row && row.username ? normalizeUsername(row.username).toLowerCase() : "";
+          if (rowUser && normalizedTargets.includes(rowUser)) {
+            buyersList.splice(i, 1);
+          }
+        }
+      }
+    }
+
+    if (typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList) && normalizedTargets.length > 0 && !fullPurge) {
+      activeAuctionsList.forEach((auction) => {
+        if (!auction) return;
+        const hbUser = normalizeUsername(auction.highest_bidder || "").toLowerCase();
+        if (hbUser && normalizedTargets.includes(hbUser)) {
+          const startPrice = _AutonomousMeshCoordinator.verifyAndClampAmount(
+            auction.start_price || auction.starting_price || auction.min_bid || 0
+          );
+          auction.highest_bid = startPrice > 0 ? startPrice : 0;
+          auction.highest_bidder = "";
+        }
+      });
+      try {
+        localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
+      } catch (_) {}
+    }
+  }
+
 
   function applyGlobalResetState(resetAll, targetKeys = [], epochTs = Date.now(), resetHighestBidState = false) {
     saveResetEpochToStorage(epochTs);
