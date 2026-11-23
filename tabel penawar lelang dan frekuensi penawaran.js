@@ -695,6 +695,10 @@
     setTimeout(pushResetBurst, 30);
     setTimeout(pushResetBurst, 100);
   }
+if (!isResetButtonEnabledByAdmin()) {
+  alert("🔒 Tombol Hapus / Reset Penawar Terpilih sedang dinonaktifkan oleh Admin.");
+  return;
+}
 
   function adminResetSelectedOrAllBidders() {
     const epochTs = Date.now();
