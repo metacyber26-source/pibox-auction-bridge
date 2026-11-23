@@ -79,6 +79,9 @@
 
         if (bidder && bidAmount > 0) {
           const key = bidder.toLowerCase();
+          if (currentResetEpoch > 0 && !ledgerStore[key]) {
+            return;
+          }
           if (!ledgerStore[key]) {
             ledgerStore[key] = {
               username: bidder,
@@ -350,7 +353,6 @@
     }
   }
 
-
   function applyGlobalResetState(resetAll, targetKeys = [], epochTs = Date.now(), resetHighestBidState = false) {
     const cleanEpoch = Number(epochTs || Date.now());
     if (currentResetEpoch > 0 && cleanEpoch < currentResetEpoch) {
@@ -472,13 +474,12 @@
     if (selectAll) selectAll.checked = false;
   }
 
-          
   let localBroadcast = null;
   let fastHeartbeatTimer = null;
   let globalDataChannel = null;
   let lastSeenSeq = 0;
 
-    const _AutonomousMeshCoordinator = {
+  const _AutonomousMeshCoordinator = {
     nextSeq: function () {
       lastSeenSeq = Math.max(lastSeenSeq + 1, Date.now());
       return lastSeenSeq;
@@ -748,6 +749,12 @@
 
     window.addEventListener("storage", (ev) => {
       if (!ev) return;
+      if (ev.key === RESET_EPOCH_KEY && ev.newValue) {
+        const nextEpoch = Number(ev.newValue || "0");
+        if (Number.isFinite(nextEpoch) && nextEpoch > currentResetEpoch) {
+          currentResetEpoch = nextEpoch;
+        }
+      }
       if (ev.key === STORAGE_KEY_BIDS && ev.newValue) {
         try {
           ledgerStore = JSON.parse(ev.newValue) || {};
@@ -820,7 +827,6 @@
       } catch (_) {}
     }
 
-
     if (!isSyncLoopActive) {
       isSyncLoopActive = true;
       fastHeartbeatTimer = setInterval(() => {
@@ -867,7 +873,6 @@
     getBidderCount: () => _LogicEnforcer.getUniqueBidderCount(),
     getAllBidders: () => _LogicEnforcer.getSortedBidders()
   };
-
 
   window.openActiveBiddersModal = openActiveBiddersModal;
   window.closeActiveBiddersModal = closeActiveBiddersModal;
