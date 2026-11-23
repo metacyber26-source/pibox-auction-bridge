@@ -322,22 +322,15 @@
     const tbody = document.getElementById("activeBiddersModalTableBody");
     const adminContainer = document.getElementById("adminResetBiddersContainer");
     const resetBtn = adminContainer ? adminContainer.querySelector("button") : null;
-    const isAllowed = canPublicResetBidders();
 
     if (adminContainer) {
       adminContainer.classList.remove("hidden");
     }
 
     if (resetBtn) {
-      if (isAllowed) {
-        resetBtn.disabled = false;
-        resetBtn.className = "w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5";
-        resetBtn.innerHTML = `🗑️ Hapus / Reset Penawar Terpilih (Aset Dihapus)`;
-      } else {
-        resetBtn.disabled = true;
-        resetBtn.className = "w-full bg-red-950/60 text-red-300/70 border border-red-500/30 font-bold py-2 rounded-xl text-xs transition cursor-not-allowed flex items-center justify-center gap-1.5";
-        resetBtn.innerHTML = `🔒 Hapus / Reset Penawar (Menunggu Aset Dihapus Admin)`;
-      }
+      resetBtn.disabled = false;
+      resetBtn.className = "w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5";
+      resetBtn.innerHTML = `🗑️ Hapus / Reset Penawar Terpilih`;
     }
 
     if (!tbody) return;
@@ -370,7 +363,6 @@
                 type="checkbox"
                 class="bidder-row-checkbox cursor-pointer accent-emerald-500"
                 value="${escapeAttr(cleanUser.toLowerCase())}"
-                ${isAllowed ? "" : "disabled"}
               >
             </td>
             <td class="p-2 font-mono text-yellow-400 font-semibold">
@@ -389,6 +381,7 @@
       })
       .join("");
   }
+
 
   function syncAllBidderViews() {
     syncActiveBiddersPanel();
