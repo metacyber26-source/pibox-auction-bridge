@@ -297,11 +297,12 @@
     const cleanAmount = _LogicEnforcer.sanitizeAmount(amount);
     if (!cleanUser || cleanAmount <= 0) return null;
 
+    setAdminDeletedAssetFlag(false);
+
     const key = cleanUser.toLowerCase();
     const existing = ledgerStore[key];
     const nowTs = Date.now();
 
-    // Hindari double-increment jika data tawaran yang persis sama baru saja dicatat dalam 600ms
     if (
       existing &&
       String(existing.lastAuctionId || "") === String(auctionId || "") &&
@@ -333,6 +334,7 @@
     publishRealtimeFrequency(nextEntry, auctionId, cleanAmount);
     return nextEntry;
   }
+
 
   function syncActiveBiddersPanel() {
     const countEl = document.getElementById("activeBiddersCount");
