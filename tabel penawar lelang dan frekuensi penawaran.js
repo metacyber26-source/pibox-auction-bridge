@@ -504,6 +504,11 @@
       const cleanId = String(auctionId || "").trim();
       const cleanAmount = this.verifyAndClampAmount(amount);
       const cleanBidder = normalizeUsername(bidderUsername);
+      const bidderKey = cleanBidder.toLowerCase();
+
+      if (bidderKey && currentResetEpoch > 0 && !ledgerStore[bidderKey]) {
+        return;
+      }
 
       if (cleanId && cleanAmount > 0 && typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
         const idx = activeAuctionsList.findIndex((item) => item && String(item.id) === cleanId);
@@ -527,10 +532,27 @@
       syncAllBidderViews();
     },
 
-    applyBuyerOrDepositStateFast: function (buyerRecord) {
+    applyBuyerOrDepositStateFast: function (buyerRecord, isDeleted = false) {
       if (!buyerRecord || !buyerRecord.username) return;
       const cleanUser = normalizeUsername(buyerRecord.username);
       if (!cleanUser) return;
+      const cleanKey = cleanUser.toLowerCase();
+
+      if (isDeleted) {
+        purgeStaleUserAndBidArtifacts(false, [cleanKey]);
+        syncAllBidderViews();
+        const buyersModal = document.getElementById("buyersTableModal");
+        if (buyersModal && !buyersModal.classList.contains("hidden") && typeof renderBuyersTable === "function") {
+          try { renderBuyersTable(); } catch (_) {}
+        }
+        if (typeof updateActiveCounts === "function") {
+          try { updateActiveCounts(); } catch (_) {}
+        }
+        if (typeof filterGallery === "function") {
+          try { filterGallery(); } catch (_) {}
+        }
+        return;
+      }
 
       const sBal = this.verifyAndClampAmount(buyerRecord.seller_deposit_balance, 35);
       const bBal = this.verifyAndClampAmount(buyerRecord.buyer_deposit_balance || buyerRecord.deposit_balance, 35);
@@ -546,7 +568,7 @@
 
       if (typeof buyersList !== "undefined" && Array.isArray(buyersList)) {
         const idx = buyersList.findIndex(
-          (row) => row && normalizeUsername(row.username).toLowerCase() === cleanUser.toLowerCase()
+          (row) => row && normalizeUsername(row.username).toLowerCase() === cleanKey
         );
         if (idx !== -1) {
           buyersList[idx] = { ...buyersList[idx], ...normalizedRow };
@@ -556,7 +578,7 @@
       }
 
       if (typeof authenticatedPiUser !== "undefined" && authenticatedPiUser && authenticatedPiUser.username) {
-        if (normalizeUsername(authenticatedPiUser.username).toLowerCase() === cleanUser.toLowerCase()) {
+        if (normalizeUsername(authenticatedPiUser.username).toLowerCase() === cleanKey) {
           const balEl = document.getElementById("userDepositBalanceDisplay");
           if (balEl) balEl.innerText = `Saldo Jaminan: ${totalBal} Pi`;
 
@@ -590,7 +612,7 @@
       const cleanUser = normalizeUsername(incoming.username);
       if (!cleanUser) return;
       const incTime = Number(incoming.lastUpdated || Date.now());
-      if (currentResetEpoch > 0 && incTime < currentResetEpoch) return;
+      if (currentResetEpoch > 0 && incTime <= currentResetEpoch) return;
 
       const key = cleanUser.toLowerCase();
       const prev = ledgerStore[key];
@@ -619,6 +641,7 @@
         bidAmount: this.verifyAndClampAmount(bidAmount || (entry && entry.lastBid) || 0),
         bidder: entry ? normalizeUsername(entry.username) : "",
         buyerRecord: extraState && extraState.buyerRecord ? extraState.buyerRecord : null,
+        isDeletedBuyer: Boolean(extraState && extraState.isDeletedBuyer),
         scheduleState: extraState && extraState.scheduleState ? extraState.scheduleState : null,
         sentAt: Date.now()
       };
@@ -646,6 +669,7 @@
                 newBid: payload.bidAmount,
                 bidder: payload.bidder,
                 buyerRecord: payload.buyerRecord,
+                isDeletedBuyer: payload.isDeletedBuyer,
                 timestamp: payload.sentAt
               }
             });
@@ -654,8 +678,8 @@
       };
 
       pushBurst();
-      setTimeout(pushBurst, 50);
-      setTimeout(pushBurst, 150);
+      setTimeout(pushBurst, 25);
+      setTimeout(pushBurst, 80);
     },
 
     ingestAnyPayload: function (p) {
@@ -685,7 +709,7 @@
         );
       }
       if (p.buyerRecord) {
-        this.applyBuyerOrDepositStateFast(p.buyerRecord);
+        this.applyBuyerOrDepositStateFast(p.buyerRecord, Boolean(p.isDeletedBuyer));
       }
       if (p.scheduleState && typeof auctionScheduleState !== "undefined") {
         auctionScheduleState = p.scheduleState;
