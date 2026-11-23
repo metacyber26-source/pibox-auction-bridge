@@ -176,16 +176,12 @@
           .eq('id', auctionId);
 
         if (error) throw error;
-        if (window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.notifyAdminAssetDeleted === 'function') {
-          window.BidderFrequencyEngine.notifyAdminAssetDeleted();
-        }
         await fetchActiveAuctions();
         alert("🗑️ Aset berhasil dihapus secara permanen.");
       } catch (err) {
         alert("Gagal menghapus aset: " + err.message);
       }
     }
-
 
     const _NeuralCoreEngine = {
       status: "OPTIMIZED",
@@ -4124,23 +4120,6 @@
           })
           .on('broadcast', { event: 'live_bid_update' }, (payload) => {
             if (payload && payload.payload) {
-              if (payload.payload.resetAction && window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.ingestPayload === 'function') {
-  window.BidderFrequencyEngine.ingestPayload(payload.payload);
-}
-              if (payload.payload.resetAction) {
-                try {
-                  localStorage.removeItem('pibox_all_bids_audit_ledger_v1');
-                  if (typeof window.name === 'string' && window.name.startsWith('PIBOX_LEDGER:')) {
-                    window.name = '';
-                  }
-                } catch (_) {}
-                if (typeof _AutonomousMeshCoordinator !== 'undefined' && typeof _AutonomousMeshCoordinator.ingestAnyPayload === 'function') {
-                  _AutonomousMeshCoordinator.ingestAnyPayload(payload.payload);
-                }
-                updateActiveCounts();
-                filterGallery();
-                return;
-              }
               const { auctionId, newBid, bidder } = payload.payload;
               _RealtimeBidEnforcementCore.pushInstantState(auctionId, newBid, bidder);
               _AutonomousLogicEngine.syncBidStateLocally(auctionId, newBid, bidder);
@@ -4157,7 +4136,6 @@
               filterGallery();
             }
           })
-
           .subscribe();
 
         _RealtimeBidEnforcementCore.initInstantSyncGuardian();
