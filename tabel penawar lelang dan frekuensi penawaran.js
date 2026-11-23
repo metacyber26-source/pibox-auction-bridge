@@ -288,6 +288,13 @@
         ledgerStore = {};
         localStorage.removeItem(STORAGE_KEY_BIDS);
         localStorage.removeItem("nusantara_cached_auctions");
+        localStorage.removeItem("pibox_all_bids_audit_ledger_v1");
+
+        try {
+          if (typeof window.name === "string" && window.name.startsWith("PIBOX_LEDGER:")) {
+            window.name = "";
+          }
+        } catch (_) {}
 
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -296,6 +303,8 @@
           if (
             k === STORAGE_KEY_BIDS ||
             k === "nusantara_cached_auctions" ||
+            k === "pibox_all_bids_audit_ledger_v1" ||
+            k.startsWith("bid_count_") ||
             k.startsWith("nftgm_bidder_") ||
             k.startsWith("nusantara_bidder_") ||
             k.startsWith("nftgm_user_detail_") ||
@@ -317,6 +326,18 @@
             localStorage.removeItem(`nftgm_buyer_cache_${targetKey}`);
           } catch (_) {}
         });
+        try {
+          const rawAudit = localStorage.getItem("pibox_all_bids_audit_ledger_v1");
+          if (rawAudit) {
+            const parsedAudit = JSON.parse(rawAudit);
+            if (Array.isArray(parsedAudit)) {
+              const filteredAudit = parsedAudit.filter(
+                (rec) => !normalizedTargets.includes(normalizeUsername(String(rec && rec.username ? rec.username : "")).toLowerCase())
+              );
+              localStorage.setItem("pibox_all_bids_audit_ledger_v1", JSON.stringify(filteredAudit));
+            }
+          }
+        } catch (_) {}
         saveLedgerToStorage();
       }
     } catch (_) {}
@@ -335,21 +356,35 @@
       }
     }
 
-    if (typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList) && normalizedTargets.length > 0 && !fullPurge) {
-      activeAuctionsList.forEach((auction) => {
-        if (!auction) return;
-        const hbUser = normalizeUsername(auction.highest_bidder || "").toLowerCase();
-        if (hbUser && normalizedTargets.includes(hbUser)) {
+    if (typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
+      if (fullPurge) {
+        activeAuctionsList.forEach((auction) => {
+          if (!auction) return;
           const startPrice = _AutonomousMeshCoordinator.verifyAndClampAmount(
-            auction.start_price || auction.starting_price || auction.min_bid || 0
+            auction.start_price || auction.starting_price || auction.min_bid || auction.reserve_price || 0
           );
           auction.highest_bid = startPrice > 0 ? startPrice : 0;
           auction.highest_bidder = "";
-        }
-      });
-      try {
-        localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
-      } catch (_) {}
+        });
+        try {
+          localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
+        } catch (_) {}
+      } else if (normalizedTargets.length > 0) {
+        activeAuctionsList.forEach((auction) => {
+          if (!auction) return;
+          const hbUser = normalizeUsername(auction.highest_bidder || "").toLowerCase();
+          if (hbUser && normalizedTargets.includes(hbUser)) {
+            const startPrice = _AutonomousMeshCoordinator.verifyAndClampAmount(
+              auction.start_price || auction.starting_price || auction.min_bid || auction.reserve_price || 0
+            );
+            auction.highest_bid = startPrice > 0 ? startPrice : 0;
+            auction.highest_bidder = "";
+          }
+        });
+        try {
+          localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
+        } catch (_) {}
+      }
     }
   }
 
@@ -370,7 +405,7 @@
         activeAuctionsList.forEach((auction) => {
           if (!auction) return;
           const startPrice = _AutonomousMeshCoordinator.verifyAndClampAmount(
-            auction.start_price || auction.starting_price || auction.min_bid || 0
+            auction.start_price || auction.starting_price || auction.min_bid || auction.reserve_price || 0
           );
           auction.highest_bid = startPrice > 0 ? startPrice : 0;
           auction.highest_bidder = "";
@@ -391,7 +426,7 @@
       try { renderBuyersTable(); } catch (_) {}
     }
 
-    if (resetHighestBidState || normalizedTargets.length > 0) {
+    if (resetHighestBidState || normalizedTargets.length > 0 || resetAll) {
       if (typeof updateActiveCounts === "function") {
         try { updateActiveCounts(); } catch (_) {}
       }
@@ -400,6 +435,7 @@
       }
     }
   }
+
 
   function broadcastGlobalReset(resetAll, targetKeys = [], epochTs = Date.now(), resetHighestBidState = false) {
     const seq = _AutonomousMeshCoordinator.nextSeq();
