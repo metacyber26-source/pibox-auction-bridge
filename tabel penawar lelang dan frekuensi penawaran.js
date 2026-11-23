@@ -621,17 +621,6 @@
   }
 
   function adminResetSelectedOrAllBidders() {
-    const currentUser = getCurrentUserSafe();
-    if (!currentUser) {
-      alert("Silakan login terlebih dahulu untuk mereset daftar penawar.");
-      return;
-    }
-
-    if (!hasAdminDeletedAuctionAsset()) {
-      alert("⛔ Reset belum diizinkan: daftar penawar hanya dapat dihapus setelah aset yang dilelangkan dihapus oleh admin.");
-      return;
-    }
-
     const epochTs = Date.now();
     const checkedBoxes = Array.from(document.querySelectorAll(".bidder-row-checkbox:checked"));
 
@@ -651,6 +640,7 @@
     const selectAll = document.getElementById("selectAllBiddersCheckbox");
     if (selectAll) selectAll.checked = false;
   }
+
 
 
   const _AutonomousMeshCoordinator = {
