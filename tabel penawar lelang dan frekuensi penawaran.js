@@ -790,15 +790,15 @@
 
     window.addEventListener("storage", (ev) => {
       if (!ev) return;
-      if (ev.key === RESET_EPOCH_KEY && ev.newValue) {
+      if (ev.key === RESET_EPOCH_KEY) {
         const nextEpoch = Number(ev.newValue || "0");
         if (Number.isFinite(nextEpoch) && nextEpoch > currentResetEpoch) {
-          currentResetEpoch = nextEpoch;
+          applyGlobalResetState(true, [], nextEpoch, true);
         }
       }
-      if (ev.key === STORAGE_KEY_BIDS && ev.newValue) {
+      if (ev.key === STORAGE_KEY_BIDS) {
         try {
-          ledgerStore = JSON.parse(ev.newValue) || {};
+          ledgerStore = ev.newValue ? (JSON.parse(ev.newValue) || {}) : {};
           syncAllBidderViews();
         } catch (_) {}
       }
@@ -814,6 +814,7 @@
         } catch (_) {}
       }
     });
+
 
     if (typeof supabaseClient !== "undefined" && supabaseClient && !broadcastChannel) {
       try {
