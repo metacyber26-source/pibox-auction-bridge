@@ -599,67 +599,73 @@
       </div>
     </div>
 
-  <!-- Indikator Pengguna Real & Panel Penawar Aktif (Terhubung langsung ke bidders-tracker.js) -->
-    <div class="bg-gray-950/80 border-b border-gray-800 p-2 flex justify-around items-center text-center">
-      <div class="flex flex-col items-center">
-        <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeSellersLabel">📦 Penjual Aktif</span>
-        <span id="activeSellersCount" class="text-xs font-bold text-yellow-400">0 User</span>
+  <!-- MODAL: DAFTAR PENAWAR LELANG & FREKUENSI (DIKENDALIKAN OLEH bidders-tracker.js) -->
+<div id="activeBiddersModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
+  <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+    <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+      <div class="flex items-center gap-2">
+        <span class="text-emerald-400 text-lg">🔨</span>
+        <div>
+          <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Daftar Penawar Lelang & Frekuensi</h2>
+          <p class="text-[9px] text-gray-400">Urutan penawar pertama hingga terakhir beserta frekuensi</p>
+        </div>
       </div>
-      <div class="h-6 w-[1px] bg-gray-800"></div>
-      <div class="flex flex-col items-center">
-        <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeBiddersLabel">🔨 Penawar Aktif</span>
-        <button type="button" onclick="openActiveBiddersModal()" class="text-xs font-bold text-emerald-400 hover:underline cursor-pointer flex items-center gap-1.5 transition">
-          <span id="activeBiddersCount">0 User</span> 
-          <span class="text-[9px] bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">🔍 Detail</span>
-        </button>
+      <button type="button" onclick="closeActiveBiddersModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+    </div>
+
+    <!-- Kontrol Khusus Admin/Dev: Aktifkan / Nonaktifkan Tombol Reset Penawar -->
+    <div id="adminToggleResetFeatureBox" class="hidden flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30">
+      <span class="text-[11px] font-semibold text-amber-300">
+        🛡️ Kontrol Admin/Dev: Akses Tombol Reset Penawar
+      </span>
+      <button
+        type="button"
+        id="adminToggleResetButtonBtn"
+        onclick="toggleResetBiddersButtonAccess()"
+        class="px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white"
+      >
+        Aktif
+      </button>
+    </div>
+
+    <!-- Wadah Tombol Reset Penawar (Dapat Diakses Semua User Saat Diaktifkan Admin) -->
+    <div id="adminResetBiddersContainer">
+      <button
+        type="button"
+        id="resetSelectedBiddersBtn"
+        onclick="adminResetSelectedOrAllBidders()"
+        class="w-full bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-3 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5"
+      >
+        🗑️ Hapus / Reset Penawar Terpilih
+      </button>
+    </div>
+
+    <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[50vh] flex flex-col">
+      <div class="overflow-x-auto custom-scrollbar flex-1">
+        <table class="w-full text-left text-[11px] text-gray-300 border-collapse">
+          <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-20">
+            <tr>
+              <th class="p-2 text-center w-8">
+                <input type="checkbox" id="selectAllBiddersCheckbox" onclick="toggleSelectAllBidders(this)" class="cursor-pointer accent-emerald-500" title="Pilih Semua">
+              </th>
+              <th class="p-2">Username Penawar</th>
+              <th class="p-2 text-center">Jumlah Menawar</th>
+              <th class="p-2 text-right">Tawaran Terakhir</th>
+            </tr>
+          </thead>
+          <tbody id="activeBiddersModalTableBody">
+            <tr><td colspan="4" class="p-4 text-center text-gray-500">Memuat data penawar...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <!-- MODAL: DAFTAR PENAWAR LELANG & FREKUENSI (DIKENDALIKAN OLEH bidders-tracker.js) -->
-    <div id="activeBiddersModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
-      <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
-        <div class="flex justify-between items-center border-b border-gray-800 pb-2">
-          <div class="flex items-center gap-2">
-            <span class="text-emerald-400 text-lg">🔨</span>
-            <div>
-              <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Daftar Penawar Lelang & Frekuensi</h2>
-              <p class="text-[9px] text-gray-400">Urutan penawar pertama hingga terakhir beserta frekuensi</p>
-            </div>
-          </div>
-          <button type="button" onclick="closeActiveBiddersModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
-        </div>
+    <button type="button" onclick="closeActiveBiddersModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs cursor-pointer">
+      Tutup
+    </button>
+  </div>
+</div>
 
-        <div id="adminResetBiddersContainer" class="hidden">
-          <button type="button" onclick="adminResetSelectedOrAllBidders()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5">
-            🗑️ [ADMIN/DEV] Hapus / Reset Penawar Terpilih
-          </button>
-        </div>
-
-        <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[50vh] flex flex-col">
-          <div class="overflow-x-auto custom-scrollbar flex-1">
-            <table class="w-full text-left text-[11px] text-gray-300 border-collapse">
-              <thead class="bg-gray-900 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-20">
-                <tr>
-                  <th class="p-2 text-center w-8">
-                    <input type="checkbox" id="selectAllBiddersCheckbox" onclick="toggleSelectAllBidders(this)" class="cursor-pointer accent-emerald-500" title="Pilih Semua">
-                  </th>
-                  <th class="p-2">Username Penawar</th>
-                  <th class="p-2 text-center">Jumlah Menawar</th>
-                  <th class="p-2 text-right">Tawaran Terakhir</th>
-                </tr>
-              </thead>
-              <tbody id="activeBiddersModalTableBody">
-                <tr><td colspan="4" class="p-4 text-center text-gray-500">Memuat data penawar...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <button type="button" onclick="closeActiveBiddersModal()" class="w-full bg-gray-900 hover:bg-gray-800 text-gray-300 font-semibold py-2 rounded-xl text-xs cursor-pointer">
-          Tutup
-        </button>
-      </div>
-    </div>
 
     <!-- Fitur Pencarian & Filter Kategori Canggih -->
     <div class="p-2.5 bg-gray-950/60 border-b border-gray-800 flex flex-col gap-2">
