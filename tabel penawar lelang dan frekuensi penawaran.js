@@ -928,12 +928,12 @@
 
       if (currentSessionEpoch !== normalizedSessionId) {
         saveSessionEpochToStorage(normalizedSessionId);
-        setAdminDeletedAssetFlag(false);
         const resetTs = Date.now();
         applyGlobalResetState(true, [], resetTs, true);
         broadcastGlobalReset(true, [], resetTs, true);
       }
     },
+
 
     notifyAdminAssetDeleted: function () {
       setAdminDeletedAssetFlag(true);
