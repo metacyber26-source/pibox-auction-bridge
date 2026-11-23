@@ -715,8 +715,8 @@
       };
 
       pushBurst();
-      setTimeout(pushBurst, 25);
-      setTimeout(pushBurst, 80);
+      setTimeout(pushBurst, 15);
+      setTimeout(pushBurst, 60);
     },
 
     ingestAnyPayload: function (p) {
@@ -732,6 +732,11 @@
           Number(ra.epochTs || Date.now()),
           Boolean(ra.resetHighestBidState)
         );
+        return;
+      }
+
+      const eventTs = Number(p.sentAt || (p.entry && p.entry.lastUpdated) || Date.now());
+      if (currentResetEpoch > 0 && eventTs <= currentResetEpoch) {
         return;
       }
 
