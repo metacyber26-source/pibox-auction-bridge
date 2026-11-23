@@ -841,21 +841,24 @@
     distributePriceNow: function (auctionId, amount, bidderUsername = "") {
       _AutonomousMeshCoordinator.applyPriceAndBidderFast(auctionId, amount, bidderUsername);
       const cleanUser = normalizeUsername(bidderUsername);
-      if (cleanUser) {
-        const key = cleanUser.toLowerCase();
-        const existing = ledgerStore[key] || {
-          username: cleanUser,
-          count: 1,
-          lastBid: _AutonomousMeshCoordinator.verifyAndClampAmount(amount),
-          lastAuctionId: String(auctionId || ""),
-          lastUpdated: Date.now()
-        };
-        _AutonomousMeshCoordinator.dispatchInstantFanout(existing, auctionId, amount);
-      }
+      const cleanAmount = _AutonomousMeshCoordinator.verifyAndClampAmount(amount);
+      const existing = cleanUser
+        ? ledgerStore[cleanUser.toLowerCase()] || {
+            username: cleanUser,
+            count: 1,
+            lastBid: cleanAmount,
+            lastAuctionId: String(auctionId || ""),
+            lastUpdated: Date.now()
+          }
+        : null;
+      _AutonomousMeshCoordinator.dispatchInstantFanout(existing, auctionId, cleanAmount);
     },
-    syncBuyerStateNow: function (buyerRecord) {
-      _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(buyerRecord);
-      _AutonomousMeshCoordinator.dispatchInstantFanout(null, "", 0, { buyerRecord });
+    syncBuyerStateNow: function (buyerRecord, isDeleted = false) {
+      _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(buyerRecord, Boolean(isDeleted));
+      _AutonomousMeshCoordinator.dispatchInstantFanout(null, "", 0, {
+        buyerRecord,
+        isDeletedBuyer: Boolean(isDeleted)
+      });
     },
     syncScheduleNow: function (scheduleState) {
       _AutonomousMeshCoordinator.dispatchInstantFanout(null, "", 0, { scheduleState });
@@ -864,6 +867,7 @@
     getBidderCount: () => _LogicEnforcer.getUniqueBidderCount(),
     getAllBidders: () => _LogicEnforcer.getSortedBidders()
   };
+
 
   window.openActiveBiddersModal = openActiveBiddersModal;
   window.closeActiveBiddersModal = closeActiveBiddersModal;
