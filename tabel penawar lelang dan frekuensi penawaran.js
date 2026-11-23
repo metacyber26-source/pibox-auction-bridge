@@ -949,8 +949,46 @@
       }
     },
 
+    checkAndHandleNewActiveSession: function () {
+      const isOpen = typeof isAuctionCurrentlyOpen !== "undefined" ? Boolean(isAuctionCurrentlyOpen) : false;
+      const statusCode = typeof currentAuctionStatusCode !== "undefined" ? Number(currentAuctionStatusCode) : 0;
+      const sched = typeof auctionScheduleState !== "undefined" && auctionScheduleState ? auctionScheduleState : {};
+
+      if (!isOpen || statusCode !== 3) {
+        return;
+      }
+
+      const sessionSignature = [
+        sched.mode || "scheduled",
+        sched.startDate || "",
+        sched.startHour || "",
+        sched.durationHours || "",
+        sched.instantTimestamp || ""
+      ].join("|");
+
+      let numericSessionId = 0;
+      for (let i = 0; i < sessionSignature.length; i++) {
+        numericSessionId = ((numericSessionId << 5) - numericSessionId + sessionSignature.charCodeAt(i)) | 0;
+      }
+      const normalizedSessionId = Math.abs(numericSessionId) || 1;
+
+      if (currentSessionEpoch !== normalizedSessionId) {
+        saveSessionEpochToStorage(normalizedSessionId);
+        setAdminDeletedAssetFlag(false);
+        const resetTs = Date.now();
+        applyGlobalResetState(true, [], resetTs, true);
+        broadcastGlobalReset(true, [], resetTs, true);
+      }
+    },
+
+    notifyAdminAssetDeleted: function () {
+      setAdminDeletedAssetFlag(true);
+      syncAllBidderViews();
+    },
+
     runConsistencyAudit: function () {
       try {
+        this.checkAndHandleNewActiveSession();
         this.assertLogicIntegrity();
         const modal = document.getElementById("activeBiddersModal");
         if (modal && !modal.classList.contains("hidden")) {
@@ -959,6 +997,7 @@
       } catch (_) {}
     }
   };
+
 
   function publishRealtimeFrequency(entry, auctionId = "", bidAmount = 0, extraState = null) {
     _AutonomousMeshCoordinator.dispatchInstantFanout(entry, auctionId, bidAmount, extraState);
