@@ -783,9 +783,19 @@
         globalDataChannel = supabaseClient
           .channel("global-state-mesh-sync")
           .on("postgres_changes", { event: "*", schema: "public", table: "buyers" }, (payload) => {
-            const row = (payload && (payload.new || payload.old)) || null;
-            if (row && payload.eventType !== "DELETE") {
-              _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(row);
+            const eventType = payload && payload.eventType ? String(payload.eventType).toUpperCase() : "";
+            if (eventType === "DELETE") {
+              const oldRow = (payload && payload.old) || null;
+              if (oldRow && oldRow.username) {
+                _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(oldRow, true);
+              } else {
+                applyGlobalResetState(true, [], Date.now(), false);
+              }
+              return;
+            }
+            const row = (payload && payload.new) || null;
+            if (row) {
+              _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(row, false);
             } else if (typeof fetchBuyersList === "function") {
               fetchBuyersList().catch(() => {});
             }
@@ -809,6 +819,7 @@
           .subscribe();
       } catch (_) {}
     }
+
 
     if (!isSyncLoopActive) {
       isSyncLoopActive = true;
