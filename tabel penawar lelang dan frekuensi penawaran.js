@@ -131,36 +131,55 @@
     } catch (_) {}
   }
 
-  function hasAdminDeletedAuctionAsset() {
-    if (adminDeletedAnyAsset) return true;
-    const auctions = getAuctionListSafe();
-    if (!Array.isArray(auctions) || auctions.length === 0) {
-      return true;
-    }
-    return false;
-  }
-
   function canPublicResetBidders() {
-    const currentUser = getCurrentUserSafe();
-    if (!currentUser) return false;
-    return hasAdminDeletedAuctionAsset();
+    return true;
   }
 
   function isCurrentUserAdminOrDev() {
-    if (typeof isTestUserModeActive !== "undefined" && isTestUserModeActive) {
-      return false;
-    }
-    const currentUser = getCurrentUserSafe();
-    if (!currentUser) return false;
-    const admins = typeof ADMIN_USERNAMES !== "undefined" && Array.isArray(ADMIN_USERNAMES)
-      ? ADMIN_USERNAMES.map((u) => normalizeUsername(u).toLowerCase())
-      : [];
-    const devs = typeof DEV_USERNAMES !== "undefined" && Array.isArray(DEV_USERNAMES)
-      ? DEV_USERNAMES.map((u) => normalizeUsername(u).toLowerCase())
-      : [];
-    const lowerUser = currentUser.toLowerCase();
-    return admins.includes(lowerUser) || devs.includes(lowerUser);
+    return true;
   }
+
+  function recordBidFrequency(username, amount, auctionId = "") {
+    const cleanUser = normalizeUsername(username);
+    const cleanAmount = _LogicEnforcer.sanitizeAmount(amount);
+    if (!cleanUser || cleanAmount <= 0) return null;
+
+    const key = cleanUser.toLowerCase();
+    const existing = ledgerStore[key];
+    const nowTs = Date.now();
+
+    if (
+      existing &&
+      String(existing.lastAuctionId || "") === String(auctionId || "") &&
+      _LogicEnforcer.sanitizeAmount(existing.lastBid) === cleanAmount &&
+      nowTs - Number(existing.lastUpdated || 0) < 600
+    ) {
+      return existing;
+    }
+
+    const nextEntry = existing
+      ? {
+          username: cleanUser,
+          count: Math.max(1, parseInt(existing.count || 0, 10)) + 1,
+          lastBid: cleanAmount,
+          lastAuctionId: String(auctionId || existing.lastAuctionId || ""),
+          lastUpdated: nowTs
+        }
+      : {
+          username: cleanUser,
+          count: 1,
+          lastBid: cleanAmount,
+          lastAuctionId: String(auctionId || ""),
+          lastUpdated: nowTs
+        };
+
+    ledgerStore[key] = nextEntry;
+    saveLedgerToStorage();
+    syncAllBidderViews();
+    publishRealtimeFrequency(nextEntry, auctionId, cleanAmount);
+    return nextEntry;
+  }
+
 
   function readAuditRecordsSafe() {
     try {
