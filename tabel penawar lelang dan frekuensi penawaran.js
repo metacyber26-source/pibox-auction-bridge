@@ -352,10 +352,18 @@
 
 
   function applyGlobalResetState(resetAll, targetKeys = [], epochTs = Date.now(), resetHighestBidState = false) {
-    saveResetEpochToStorage(epochTs);
+    const cleanEpoch = Number(epochTs || Date.now());
+    if (currentResetEpoch > 0 && cleanEpoch < currentResetEpoch) {
+      return;
+    }
+    saveResetEpochToStorage(cleanEpoch);
+
+    const normalizedTargets = Array.isArray(targetKeys)
+      ? targetKeys.map((k) => normalizeUsername(String(k || "")).toLowerCase()).filter(Boolean)
+      : [];
 
     if (resetAll) {
-      ledgerStore = {};
+      purgeStaleUserAndBidArtifacts(true, []);
       if (resetHighestBidState && typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
         activeAuctionsList.forEach((auction) => {
           if (!auction) return;
@@ -369,17 +377,19 @@
           localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
         } catch (_) {}
       }
-    } else if (Array.isArray(targetKeys) && targetKeys.length > 0) {
-      targetKeys.forEach((k) => {
-        const cleanKey = String(k || "").toLowerCase();
-        if (cleanKey) delete ledgerStore[cleanKey];
-      });
+    } else if (normalizedTargets.length > 0) {
+      purgeStaleUserAndBidArtifacts(false, normalizedTargets);
     }
 
     saveLedgerToStorage();
     syncAllBidderViews();
 
-    if (resetHighestBidState) {
+    const buyersModal = document.getElementById("buyersTableModal");
+    if (buyersModal && !buyersModal.classList.contains("hidden") && typeof renderBuyersTable === "function") {
+      try { renderBuyersTable(); } catch (_) {}
+    }
+
+    if (resetHighestBidState || normalizedTargets.length > 0) {
       if (typeof updateActiveCounts === "function") {
         try { updateActiveCounts(); } catch (_) {}
       }
@@ -395,7 +405,9 @@
       seq,
       resetAction: {
         resetAll: Boolean(resetAll),
-        targetKeys: Array.isArray(targetKeys) ? targetKeys.map((k) => String(k || "").toLowerCase()) : [],
+        targetKeys: Array.isArray(targetKeys)
+          ? targetKeys.map((k) => normalizeUsername(String(k || "")).toLowerCase()).filter(Boolean)
+          : [],
         epochTs: Number(epochTs || Date.now()),
         resetHighestBidState: Boolean(resetHighestBidState)
       },
@@ -430,8 +442,8 @@
     };
 
     pushResetBurst();
-    setTimeout(pushResetBurst, 60);
-    setTimeout(pushResetBurst, 180);
+    setTimeout(pushResetBurst, 30);
+    setTimeout(pushResetBurst, 100);
   }
 
   function adminResetSelectedOrAllBidders() {
@@ -444,7 +456,9 @@
     const checkedBoxes = Array.from(document.querySelectorAll(".bidder-row-checkbox:checked"));
 
     if (checkedBoxes.length > 0) {
-      const targetKeys = checkedBoxes.map((cb) => String(cb.value || "").toLowerCase());
+      const targetKeys = checkedBoxes
+        .map((cb) => normalizeUsername(String(cb.value || "")).toLowerCase())
+        .filter(Boolean);
       if (!confirm(`Hapus / reset ${targetKeys.length} penawar terpilih untuk semua pengguna?`)) return;
       applyGlobalResetState(false, targetKeys, epochTs, false);
       broadcastGlobalReset(false, targetKeys, epochTs, false);
@@ -458,6 +472,7 @@
     if (selectAll) selectAll.checked = false;
   }
 
+          
   let localBroadcast = null;
   let fastHeartbeatTimer = null;
   let globalDataChannel = null;
