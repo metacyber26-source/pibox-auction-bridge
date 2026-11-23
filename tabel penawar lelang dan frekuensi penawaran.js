@@ -665,11 +665,7 @@
       const cleanId = String(auctionId || "").trim();
       const cleanAmount = this.verifyAndClampAmount(amount);
       const cleanBidder = normalizeUsername(bidderUsername);
-      const bidderKey = cleanBidder.toLowerCase();
 
-      if (bidderKey && currentResetEpoch > 0 && !ledgerStore[bidderKey]) {
-        return;
-      }
 
       const targetAuctions = getAuctionListSafe();
       if (cleanId && cleanAmount > 0 && Array.isArray(targetAuctions)) {
