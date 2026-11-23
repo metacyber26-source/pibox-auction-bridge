@@ -85,6 +85,66 @@
     }
     return "";
   }
+  
+  const SESSION_EPOCH_KEY = "nftgm_active_session_epoch_v1";
+  const ADMIN_DELETED_ASSET_FLAG_KEY = "nftgm_admin_deleted_asset_v1";
+
+  let currentSessionEpoch = loadSessionEpochFromStorage();
+  let adminDeletedAnyAsset = loadAdminDeletedAssetFlag();
+
+  function loadSessionEpochFromStorage() {
+    try {
+      const val = Number(localStorage.getItem(SESSION_EPOCH_KEY) || "0");
+      return Number.isFinite(val) && val > 0 ? val : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  function saveSessionEpochToStorage(epochVal) {
+    try {
+      currentSessionEpoch = Number(epochVal || 0);
+      if (currentSessionEpoch > 0) {
+        localStorage.setItem(SESSION_EPOCH_KEY, String(currentSessionEpoch));
+      } else {
+        localStorage.removeItem(SESSION_EPOCH_KEY);
+      }
+    } catch (_) {}
+  }
+
+  function loadAdminDeletedAssetFlag() {
+    try {
+      return localStorage.getItem(ADMIN_DELETED_ASSET_FLAG_KEY) === "true";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setAdminDeletedAssetFlag(flagVal) {
+    try {
+      adminDeletedAnyAsset = Boolean(flagVal);
+      if (adminDeletedAnyAsset) {
+        localStorage.setItem(ADMIN_DELETED_ASSET_FLAG_KEY, "true");
+      } else {
+        localStorage.removeItem(ADMIN_DELETED_ASSET_FLAG_KEY);
+      }
+    } catch (_) {}
+  }
+
+  function hasAdminDeletedAuctionAsset() {
+    if (adminDeletedAnyAsset) return true;
+    const auctions = getAuctionListSafe();
+    if (!Array.isArray(auctions) || auctions.length === 0) {
+      return true;
+    }
+    return false;
+  }
+
+  function canPublicResetBidders() {
+    const currentUser = getCurrentUserSafe();
+    if (!currentUser) return false;
+    return hasAdminDeletedAuctionAsset();
+  }
 
   function isCurrentUserAdminOrDev() {
     if (typeof isTestUserModeActive !== "undefined" && isTestUserModeActive) {
