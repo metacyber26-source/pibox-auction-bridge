@@ -317,6 +317,82 @@
     const totalUsers = _LogicEnforcer.getUniqueBidderCount();
     countEl.textContent = `${totalUsers} User`;
   }
+  const ADMIN_RESET_ENABLED_KEY = "nftgm_admin_reset_btn_enabled_v1";
+
+  function isResetButtonEnabledByAdmin() {
+    try {
+      const raw = localStorage.getItem(ADMIN_RESET_ENABLED_KEY);
+      if (raw === null) return true;
+      return raw === "true";
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function setResetButtonEnabledByAdmin(enabled) {
+    try {
+      localStorage.setItem(ADMIN_RESET_ENABLED_KEY, enabled ? "true" : "false");
+    } catch (_) {}
+    syncAllBidderViews();
+  }
+
+  function isRealAdminForResetSwitch() {
+    if (typeof isTestUserModeActive !== "undefined" && isTestUserModeActive) {
+      return false;
+    }
+    const currentUser = getCurrentUserSafe();
+    if (!currentUser) return false;
+    const admins = typeof ADMIN_USERNAMES !== "undefined" && Array.isArray(ADMIN_USERNAMES)
+      ? ADMIN_USERNAMES.map((u) => normalizeUsername(u).toLowerCase())
+      : [];
+    const devs = typeof DEV_USERNAMES !== "undefined" && Array.isArray(DEV_USERNAMES)
+      ? DEV_USERNAMES.map((u) => normalizeUsername(u).toLowerCase())
+      : [];
+    const lowerUser = currentUser.toLowerCase();
+    return admins.includes(lowerUser) || devs.includes(lowerUser);
+  }
+
+  function toggleResetButtonActivationByAdmin() {
+    if (!isRealAdminForResetSwitch()) {
+      alert("⛔ Akses ditolak: hanya Admin yang dapat mengaktifkan atau menonaktifkan tombol reset.");
+      return;
+    }
+    const nextState = !isResetButtonEnabledByAdmin();
+    setResetButtonEnabledByAdmin(nextState);
+  }
+
+  function syncAdminResetToggleButton() {
+    const adminContainer = document.getElementById("adminResetBiddersContainer");
+    if (!adminContainer) return;
+
+    const isAdmin = isRealAdminForResetSwitch();
+    const isEnabled = isResetButtonEnabledByAdmin();
+    let switchBtn = document.getElementById("adminToggleResetSwitchBtn");
+
+    if (!isAdmin) {
+      if (switchBtn) switchBtn.remove();
+      return;
+    }
+
+    if (!switchBtn) {
+      switchBtn = document.createElement("button");
+      switchBtn.type = "button";
+      switchBtn.id = "adminToggleResetSwitchBtn";
+      switchBtn.onclick = toggleResetButtonActivationByAdmin;
+      adminContainer.classList.add("space-y-2");
+      adminContainer.insertBefore(switchBtn, adminContainer.firstChild);
+    }
+
+    if (isEnabled) {
+      switchBtn.className =
+        "w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-1.5 px-3 rounded-xl text-[11px] transition shadow cursor-pointer flex items-center justify-center gap-1.5 border border-emerald-400/40";
+      switchBtn.innerHTML = "🛡️ [ADMIN] Tombol Hapus/Reset: AKTIF (Klik untuk Non-Aktifkan)";
+    } else {
+      switchBtn.className =
+        "w-full bg-gray-800 hover:bg-gray-700 text-amber-300 font-bold py-1.5 px-3 rounded-xl text-[11px] transition shadow cursor-pointer flex items-center justify-center gap-1.5 border border-amber-500/40";
+      switchBtn.innerHTML = "🔒 [ADMIN] Tombol Hapus/Reset: NON-AKTIF (Klik untuk Aktifkan)";
+    }
+  }
 
   function renderBidderFrequencyTable() {
     const tbody = document.getElementById("activeBiddersModalTableBody");
