@@ -7,9 +7,11 @@
   "use strict";
 
   const STORAGE_KEY_BIDS = "nftgm_bidder_frequency_ledger_v1";
+  const STORAGE_KEY_RESET_BTN_ENABLED = "pibox_reset_button_enabled_v1";
   const CHANNEL_NAME = "public-cluster-bid-frequency-sync";
 
   let ledgerStore = loadLedgerFromStorage();
+  let isResetButtonEnabled = loadResetButtonEnabledFromStorage();
   let broadcastChannel = null;
   let isSyncLoopActive = false;
 
@@ -26,6 +28,23 @@
   function saveLedgerToStorage() {
     try {
       localStorage.setItem(STORAGE_KEY_BIDS, JSON.stringify(ledgerStore));
+    } catch (_) {}
+  }
+
+  function loadResetButtonEnabledFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_RESET_BTN_ENABLED);
+      if (raw === null) return true;
+      return raw === "true";
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function saveResetButtonEnabledToStorage(enabled) {
+    try {
+      isResetButtonEnabled = Boolean(enabled);
+      localStorage.setItem(STORAGE_KEY_RESET_BTN_ENABLED, String(isResetButtonEnabled));
     } catch (_) {}
   }
 
@@ -60,6 +79,91 @@
       ? DEV_USERNAMES
       : [];
     return admins.includes(currentUser) || devs.includes(currentUser);
+  }
+
+  function syncResetButtonAndAdminToggleUI() {
+    const isAdmin = isCurrentUserAdminOrDev();
+    const adminToggleBox = document.getElementById("adminToggleResetFeatureBox");
+    const adminToggleBtn = document.getElementById("adminToggleResetButtonBtn");
+    const resetContainer = document.getElementById("adminResetBiddersContainer");
+    const resetBtn = document.getElementById("resetSelectedBiddersBtn");
+    const selectAllCb = document.getElementById("selectAllBiddersCheckbox");
+
+    if (adminToggleBox) {
+      if (isAdmin) {
+        adminToggleBox.classList.remove("hidden");
+      } else {
+        adminToggleBox.classList.add("hidden");
+      }
+    }
+
+    if (adminToggleBtn) {
+      if (isResetButtonEnabled) {
+        adminToggleBtn.textContent = "Aktif (Klik Nonaktifkan)";
+        adminToggleBtn.className =
+          "px-3 py-1 rounded-md text-[11px] font-bold transition cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white";
+      } else {
+        adminToggleBtn.textContent = "Nonaktif (Klik Aktifkan)";
+        adminToggleBtn.className =
+          "px-3 py-1 rounded-md text-[11px] font-bold transition cursor-pointer bg-gray-700 hover:bg-gray-600 text-gray-200";
+      }
+    }
+
+    if (resetContainer) {
+      resetContainer.classList.remove("hidden");
+    }
+
+    if (resetBtn) {
+      resetBtn.textContent = "🗑️ Hapus / Reset Penawar Terpilih";
+      resetBtn.disabled = !isResetButtonEnabled;
+    }
+
+    if (selectAllCb) {
+      selectAllCb.disabled = !isResetButtonEnabled;
+      if (!isResetButtonEnabled) selectAllCb.checked = false;
+    }
+
+    document.querySelectorAll(".bidder-row-checkbox").forEach((cb) => {
+      cb.disabled = !isResetButtonEnabled;
+      if (!isResetButtonEnabled) cb.checked = false;
+    });
+  }
+
+  function broadcastResetButtonState(enabled) {
+    const seq = _AutonomousMeshCoordinator.nextSeq();
+    const payload = {
+      seq,
+      resetButtonControl: {
+        enabled: Boolean(enabled),
+        updatedAt: Date.now()
+      },
+      sentAt: Date.now()
+    };
+
+    if (localBroadcast) {
+      try { localBroadcast.postMessage({ type: "instant_bid_sync", payload }); } catch (_) {}
+    }
+
+    if (typeof supabaseClient !== "undefined" && supabaseClient) {
+      try {
+        supabaseClient.channel(CHANNEL_NAME).send({
+          type: "broadcast",
+          event: "bid_frequency_update",
+          payload
+        });
+      } catch (_) {}
+    }
+  }
+
+  function toggleResetBiddersButtonAccess() {
+    if (!isCurrentUserAdminOrDev()) {
+      alert("Akses ditolak: hanya Admin/Developer yang dapat mengubah status tombol ini.");
+      return;
+    }
+    const nextState = !isResetButtonEnabled;
+    saveResetButtonEnabledToStorage(nextState);
+    syncResetButtonAndAdminToggleUI();
+    broadcastResetButtonState(nextState);
   }
 
   const _LogicEnforcer = {
@@ -173,20 +277,11 @@
 
   function renderBidderFrequencyTable() {
     const tbody = document.getElementById("activeBiddersModalTableBody");
-    const adminContainer = document.getElementById("adminResetBiddersContainer");
-
-    if (adminContainer) {
-      if (isCurrentUserAdminOrDev()) {
-        adminContainer.classList.remove("hidden");
-      } else {
-        adminContainer.classList.add("hidden");
-      }
-    }
+    syncResetButtonAndAdminToggleUI();
 
     if (!tbody) return;
 
     const sortedBidders = _LogicEnforcer.getSortedBidders();
-    const canAdmin = isCurrentUserAdminOrDev();
 
     if (sortedBidders.length === 0) {
       tbody.innerHTML = `
@@ -212,7 +307,7 @@
                 type="checkbox"
                 class="bidder-row-checkbox cursor-pointer accent-emerald-500"
                 value="${safeUser.toLowerCase()}"
-                ${canAdmin ? "" : "disabled"}
+                ${isResetButtonEnabled ? "" : "disabled"}
               >
             </td>
             <td class="p-2 font-mono text-yellow-400 font-semibold">
@@ -231,6 +326,7 @@
 
   function syncAllBidderViews() {
     syncActiveBiddersPanel();
+    syncResetButtonAndAdminToggleUI();
     const modal = document.getElementById("activeBiddersModal");
     if (modal && !modal.classList.contains("hidden")) {
       renderBidderFrequencyTable();
@@ -253,7 +349,7 @@
   }
 
   function toggleSelectAllBidders(masterCheckbox) {
-    if (!masterCheckbox) return;
+    if (!masterCheckbox || !isResetButtonEnabled) return;
     document.querySelectorAll(".bidder-row-checkbox:not(:disabled)").forEach((cb) => {
       cb.checked = masterCheckbox.checked;
     });
@@ -301,7 +397,7 @@
             k.startsWith("nftgm_user_detail_") ||
             k.startsWith("nftgm_buyer_cache_")
           ) {
-            if (k !== RESET_EPOCH_KEY) {
+            if (k !== RESET_EPOCH_KEY && k !== STORAGE_KEY_RESET_BTN_ENABLED) {
               keysToRemove.push(k);
             }
           }
@@ -449,8 +545,8 @@
   }
 
   function adminResetSelectedOrAllBidders() {
-    if (!isCurrentUserAdminOrDev()) {
-      alert("Akses ditolak: hanya Admin/Developer yang dapat mereset data penawar.");
+    if (!isResetButtonEnabled) {
+      alert("Tombol Hapus / Reset Penawar Terpilih sedang dinonaktifkan oleh Admin/Dev.");
       return;
     }
 
@@ -499,6 +595,7 @@
       if (typeof syncActiveBiddersPanel === "function") {
         syncActiveBiddersPanel();
       }
+      syncResetButtonAndAdminToggleUI();
     },
 
     applyPriceAndBidderFast: function (auctionId, amount, bidderUsername) {
@@ -688,6 +785,12 @@
       if (p.seq && Number(p.seq) < lastSeenSeq - 5000) return;
       if (p.seq) lastSeenSeq = Math.max(lastSeenSeq, Number(p.seq));
 
+      if (p.resetButtonControl && typeof p.resetButtonControl.enabled === "boolean") {
+        saveResetButtonEnabledToStorage(p.resetButtonControl.enabled);
+        syncResetButtonAndAdminToggleUI();
+        return;
+      }
+
       if (p.resetAction) {
         const ra = p.resetAction;
         applyGlobalResetState(
@@ -749,6 +852,10 @@
 
     window.addEventListener("storage", (ev) => {
       if (!ev) return;
+      if (ev.key === STORAGE_KEY_RESET_BTN_ENABLED && ev.newValue !== null) {
+        saveResetButtonEnabledToStorage(ev.newValue === "true");
+        syncResetButtonAndAdminToggleUI();
+      }
       if (ev.key === RESET_EPOCH_KEY && ev.newValue) {
         const nextEpoch = Number(ev.newValue || "0");
         if (Number.isFinite(nextEpoch) && nextEpoch > currentResetEpoch) {
@@ -878,6 +985,7 @@
   window.closeActiveBiddersModal = closeActiveBiddersModal;
   window.toggleSelectAllBidders = toggleSelectAllBidders;
   window.adminResetSelectedOrAllBidders = adminResetSelectedOrAllBidders;
+  window.toggleResetBiddersButtonAccess = toggleResetBiddersButtonAccess;
 
   document.addEventListener("DOMContentLoaded", () => {
     _AutonomousMeshCoordinator.runConsistencyAudit();
