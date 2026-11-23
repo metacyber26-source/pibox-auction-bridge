@@ -1127,6 +1127,12 @@
         : null;
       _AutonomousMeshCoordinator.dispatchInstantFanout(existing, auctionId, cleanAmount);
     },
+    notifyAdminAssetDeleted: function () {
+      _AutonomousMeshCoordinator.notifyAdminAssetDeleted();
+    },
+    checkNewSessionNow: function () {
+      _AutonomousMeshCoordinator.checkAndHandleNewActiveSession();
+    },
     syncBuyerStateNow: function (buyerRecord, isDeleted = false) {
       _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(buyerRecord, Boolean(isDeleted));
       _AutonomousMeshCoordinator.dispatchInstantFanout(null, "", 0, {
@@ -1144,6 +1150,7 @@
     getBidderCount: () => _LogicEnforcer.getUniqueBidderCount(),
     getAllBidders: () => _LogicEnforcer.getSortedBidders()
   };
+
 
   window.openActiveBiddersModal = openActiveBiddersModal;
   window.closeActiveBiddersModal = closeActiveBiddersModal;
