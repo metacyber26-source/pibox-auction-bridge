@@ -487,13 +487,13 @@
       const rawPass = (document.getElementById('manualLoginPassword')?.value || '').trim();
 
       if (!rawUser || !rawPass) {
-        alert("⚠️ Harap isi Username dan Password Keamanan Anda.");
+        alert("Please enter both Username and Security Password.");
         return;
       }
 
       if (typeof supabaseClient !== 'undefined' && supabaseClient) {
         try {
-          let { data: secRecord, error } = await supabaseClient
+          const { data: secRecord, error } = await supabaseClient
             .from('pioneers_security')
             .select('*')
             .eq('username', rawUser)
@@ -502,14 +502,14 @@
           if (error) throw error;
 
           if (!secRecord) {
-            let { data: existingPass } = await supabaseClient
+            const { data: existingPass } = await supabaseClient
               .from('pioneers_security')
               .select('*')
               .eq('password_hash', rawPass)
               .maybeSingle();
 
-            if (existingPass) {
-              alert(`⛔ Password ini sudah dipakai oleh @${existingPass.username}. Gunakan password lain.`);
+            if (existingPass && existingPass.username !== rawUser) {
+              alert(`Password is already used by @${existingPass.username}. Please use another password.`);
               return;
             }
 
@@ -519,11 +519,11 @@
 
             if (insertErr) throw insertErr;
           } else if (secRecord.password_hash !== rawPass) {
-            alert(`🚨 Password salah untuk akun @${rawUser}! Akses ditolak.`);
+            alert(`Invalid password for @${rawUser}. Access denied.`);
             return;
           }
         } catch (err) {
-          alert("Gagal verifikasi ke server: " + err.message);
+          alert("Server verification failed: " + err.message);
           return;
         }
       }
@@ -532,6 +532,7 @@
       finalizeLoginSession(rawUser);
       closeSemiAutoLoginModal();
     }
+
 
     async function quickLoginWithSavedAccount(username, savedToken) {
       if (typeof supabaseClient !== 'undefined' && supabaseClient) {
