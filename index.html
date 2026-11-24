@@ -4279,17 +4279,20 @@
                 _SilentLogicEngine.applyLiveBidToAllViews(cleanId, numericBid, bidder);
               }
 
+              const eventPayload = {
+                type: 'live_bid_update',
+                auctionId: cleanId,
+                newBid: numericBid,
+                bidder: bidder,
+                ledgerEntry: ledgerEntry || null,
+                dispatchedAt,
+                timestamp: dispatchedAt
+              };
+
               try {
                 if (typeof BroadcastChannel !== 'undefined') {
                   const tabBus = new BroadcastChannel('pibox_live_auction_bus');
-                  tabBus.postMessage({
-                    type: 'live_bid_update',
-                    auctionId: cleanId,
-                    newBid: numericBid,
-                    bidder: bidder,
-                    ledgerEntry: ledgerEntry || null,
-                    dispatchedAt
-                  });
+                  tabBus.postMessage(eventPayload);
                   tabBus.close();
                 }
               } catch (_) {}
@@ -4299,13 +4302,7 @@
                   supabaseClient.channel('public-cluster-auctions').send({
                     type: 'broadcast',
                     event: 'live_bid_update',
-                    payload: {
-                      auctionId: cleanId,
-                      newBid: numericBid,
-                      bidder: bidder,
-                      ledgerEntry: ledgerEntry || null,
-                      timestamp: dispatchedAt
-                    }
+                    payload: eventPayload
                   });
                 } catch (_) {}
               }
@@ -4316,7 +4313,9 @@
                   try { renderActiveBiddersModalTable(); } catch (_) {}
                 }
               }
+              _LoginAndAdminControlCore.syncResetControlUI();
             }
+
           };
 
           window._BidLedgerAndDistributionCore = _BidLedgerAndDistributionCore;
