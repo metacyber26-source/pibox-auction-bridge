@@ -2274,6 +2274,108 @@
       if (sellerEl) sellerEl.innerText = `Saldo jaminan sebagai penjual: ${sVal} pi`;
     }
 
+    const _BuyerDepositAutomationCore = {
+      targetBuyerDeposit: 35.00,
+
+      computeBuyerShortfall: function(buyerDepositBalance) {
+        const current = parseFloat(buyerDepositBalance || 0);
+        if (isNaN(current) || current < 0) return this.targetBuyerDeposit;
+        const diff = parseFloat((this.targetBuyerDeposit - current).toFixed(2));
+        return diff > 0 ? diff : 0;
+      },
+
+      ensureBuyerWalletSaved: async function(username, buyerRecord) {
+        const existingWallet = buyerRecord ? (buyerRecord.wallet_address || buyerRecord.wallet || '').toString().trim() : '';
+        const walletInput = await promptRefundWalletInput(existingWallet);
+        if (!walletInput) return null;
+
+        if (supabaseClient) {
+          try {
+            const { error } = await supabaseClient
+              .from('buyers')
+              .update({ wallet_address: walletInput })
+              .eq('username', username);
+            if (error && /wallet_address|column/i.test(error.message || '')) {
+              await supabaseClient
+                .from('buyers')
+                .update({ wallet: walletInput })
+                .eq('username', username);
+            }
+          } catch (_) {}
+        }
+
+        if (Array.isArray(buyersList)) {
+          const idx = buyersList.findIndex(b => (b.username || '').toLowerCase() === username.toLowerCase());
+          if (idx !== -1) {
+            buyersList[idx].wallet_address = walletInput;
+            buyersList[idx].wallet = walletInput;
+          }
+        }
+        return walletInput;
+      },
+
+      evaluateAndRouteBuyerDeposit: async function(username, combinedRoleNorm) {
+        let latestBuyer = null;
+        if (supabaseClient) {
+          try {
+            const { data } = await supabaseClient
+              .from('buyers')
+              .select('*')
+              .eq('username', username)
+              .maybeSingle();
+            latestBuyer = data;
+          } catch (_) {}
+        }
+
+        if (!latestBuyer && Array.isArray(buyersList)) {
+          latestBuyer = buyersList.find(b => (b.username || '').toLowerCase() === username.toLowerCase()) || null;
+        }
+
+        const roleDeposits = computeRoleDeposits(latestBuyer);
+        const buyerDepositBal = parseFloat(roleDeposits.buyerBalance || 0);
+        const sellerDepositBal = parseFloat(roleDeposits.sellerBalance || 0);
+        updateDetailedDepositDisplay(buyerDepositBal, sellerDepositBal);
+
+        if (buyerDepositBal >= this.targetBuyerDeposit || VerificationStandardCore.isManualAdminApproved(latestBuyer)) {
+          if (supabaseClient) {
+            try {
+              await supabaseClient
+                .from('buyers')
+                .update({ status: VerificationStandardCore.APPROVED })
+                .eq('username', username);
+            } catch (_) {}
+          }
+          await fetchBuyersList();
+          if (typeof renderBuyersTable === 'function') renderBuyersTable();
+          await checkBuyerStatusInDatabase(username);
+          alert(`✅ Buyer collateral balance is ${buyerDepositBal} pi (>= 35 pi). Verification status: Active.`);
+          return;
+        }
+
+        const shortfall = this.computeBuyerShortfall(buyerDepositBal);
+        if (supabaseClient) {
+          try {
+            await supabaseClient
+              .from('buyers')
+              .update({ status: VerificationStandardCore.PENDING })
+              .eq('username', username);
+          } catch (_) {}
+        }
+        await fetchBuyersList();
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
+        await checkBuyerStatusInDatabase(username);
+
+        await executeRelativeDepositPayment(
+          username,
+          shortfall,
+          combinedRoleNorm || VerificationStandardCore.ROLE_BUYER,
+          this.targetBuyerDeposit
+        );
+      }
+    };
+
+    window._BuyerDepositAutomationCore = _BuyerDepositAutomationCore;
+
     async function payAuctionDepositForRole(targetRole) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -2296,7 +2398,6 @@
 
         const currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
         const existingRole = buyer ? VerificationStandardCore.normalizeRole(buyer.role || buyer.keterangan || '') : '';
-        const existingWallet = buyer ? (buyer.wallet_address || buyer.wallet || '') : '';
         const combinedRoleNorm = VerificationStandardCore.combineRoles(existingRole, normalizedSelectedRole);
         const combinedRoleLabel = VerificationStandardCore.roleToDisplayLabel(combinedRoleNorm);
 
@@ -2325,42 +2426,21 @@
         await fetchBuyersList();
         if (typeof renderBuyersTable === 'function') renderBuyersTable();
 
-        if (!existingWallet) {
-          const walletInput = await promptRefundWalletInput('');
-          if (!walletInput) return;
+        const savedWallet = await _BuyerDepositAutomationCore.ensureBuyerWalletSaved(username, buyer);
+        if (!savedWallet) return;
 
-          await supabaseClient.from('buyers').update({
-            wallet_address: walletInput
-          }).eq('username', username);
+        await fetchBuyersList();
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
 
-          await fetchBuyersList();
-          if (typeof renderBuyersTable === 'function') renderBuyersTable();
+        if (normalizedSelectedRole === VerificationStandardCore.ROLE_BUYER) {
+          await _BuyerDepositAutomationCore.evaluateAndRouteBuyerDeposit(username, combinedRoleNorm);
+          return;
         }
 
         const updatedBuyer = buyersList.find(b => (b.username || '').toLowerCase() === username.toLowerCase()) || buyer;
         const roleDeposits = computeRoleDeposits(updatedBuyer);
         const buyerDepositBal = parseFloat(roleDeposits.buyerBalance || 0);
         const sellerDepositBal = parseFloat(roleDeposits.sellerBalance || 0);
-
-        if (normalizedSelectedRole === VerificationStandardCore.ROLE_BUYER) {
-          if (buyerDepositBal >= 35 || VerificationStandardCore.isManualAdminApproved(updatedBuyer)) {
-            await supabaseClient.from('buyers').update({ status: VerificationStandardCore.APPROVED }).eq('username', username);
-            await fetchBuyersList();
-            if (typeof renderBuyersTable === 'function') renderBuyersTable();
-            alert(`✅ Saldo jaminan sebagai pembeli sudah ${buyerDepositBal} pi (>= 35 pi) atau status telah aktif. Status verifikasi: Aktif.`);
-            await checkBuyerStatusInDatabase(username);
-            return;
-          }
-
-          await supabaseClient.from('buyers').update({ status: VerificationStandardCore.PENDING }).eq('username', username);
-          await fetchBuyersList();
-          if (typeof renderBuyersTable === 'function') renderBuyersTable();
-
-          const buyerDeficit = parseFloat((35 - buyerDepositBal).toFixed(2));
-          alert(`ℹ️ Pendaftaran ${selectedRoleLabel} tercatat dengan status Pending.\nSaldo jaminan pembeli saat ini: ${buyerDepositBal} pi (< 35 pi).\nSilakan top up kekurangan sebesar ${buyerDeficit} pi.`);
-          executeRelativeDepositPayment(username, buyerDeficit, combinedRoleNorm, 35.00);
-          return;
-        }
 
         const roleTargetDeposit = combinedRoleNorm === VerificationStandardCore.ROLE_BOTH ? Math.max(35, buyerDepositBal + 35) : 35.00;
         if (sellerDepositBal >= 35 && currentBalance >= roleTargetDeposit) {
