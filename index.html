@@ -5188,24 +5188,36 @@
   <script src="./bidders-tracker.js"></script>
   <script>
     (function () {
+      function openModalAndPopulateBidders() {
+        const modal = document.getElementById("activeBiddersModal");
+        if (modal) {
+          modal.classList.remove("hidden");
+          modal.style.display = "flex";
+        }
+        if (window._BiddersDataHydratorCore) {
+          window._BiddersDataHydratorCore.syncAndRender();
+        }
+      }
+
+      window.openActiveBiddersModal = openModalAndPopulateBidders;
+
       const detailBtn = document.querySelector('button[onclick*="openActiveBiddersModal"]');
       if (detailBtn && !detailBtn.dataset.detailBound) {
         detailBtn.dataset.detailBound = "1";
         detailBtn.addEventListener("click", function (ev) {
           ev.preventDefault();
           ev.stopPropagation();
-          if (typeof window.openActiveBiddersModal === "function") {
-            window.openActiveBiddersModal();
-          } else {
-            const modal = document.getElementById("activeBiddersModal");
-            if (modal) {
-              modal.classList.remove("hidden");
-              modal.style.display = "flex";
-            }
-          }
+          openModalAndPopulateBidders();
         });
+      }
+
+      if (window._BiddersDataHydratorCore) {
+        setTimeout(function () {
+          window._BiddersDataHydratorCore.syncAndRender();
+        }, 400);
       }
     })();
   </script>
+
 </body>
 </html>
