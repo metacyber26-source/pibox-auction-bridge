@@ -7,10 +7,18 @@
   "use strict";
 
   const STORAGE_KEY_BIDS = "nftgm_bidder_frequency_ledger_v1";
+  const STORAGE_KEY_RESET_BTN_ENABLED = "pibox_reset_button_enabled_v1";
+  const RESET_EPOCH_KEY = "nftgm_bidder_reset_epoch_v1";
   const CHANNEL_NAME = "public-cluster-bid-frequency-sync";
 
   let ledgerStore = loadLedgerFromStorage();
+  let isResetButtonEnabled = loadResetButtonEnabledFromStorage();
+  let currentResetEpoch = loadResetEpochFromStorage();
   let broadcastChannel = null;
+  let localBroadcast = null;
+  let fastHeartbeatTimer = null;
+  let globalDataChannel = null;
+  let lastSeenSeq = 0;
   let isSyncLoopActive = false;
 
   function loadLedgerFromStorage() {
@@ -29,232 +37,22 @@
     } catch (_) {}
   }
 
-  function normalizeUsername(username) {
-    if (!username || typeof username !== "string") return "";
-    return username.trim().replace(/^@+/, "");
-  }
-
-  function getAuctionListSafe() {
-    return typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)
-      ? activeAuctionsList
-      : [];
-  }
-
-  function getCurrentUserSafe() {
-    if (typeof authenticatedPiUser !== "undefined" && authenticatedPiUser && authenticatedPiUser.username) {
-      return normalizeUsername(authenticatedPiUser.username);
-    }
-    if (window.authenticatedPiUser && window.authenticatedPiUser.username) {
-      return normalizeUsername(window.authenticatedPiUser.username);
-    }
-    return "";
-  }
-
-  function isCurrentUserAdminOrDev() {
-    const currentUser = getCurrentUserSafe();
-    if (!currentUser) return false;
-    const admins = typeof ADMIN_USERNAMES !== "undefined" && Array.isArray(ADMIN_USERNAMES)
-      ? ADMIN_USERNAMES
-      : [];
-    const devs = typeof DEV_USERNAMES !== "undefined" && Array.isArray(DEV_USERNAMES)
-      ? DEV_USERNAMES
-      : [];
-    return admins.includes(currentUser) || devs.includes(currentUser);
-  }
-
-  const _LogicEnforcer = {
-    sanitizeAmount: function (val) {
-      const num = parseFloat(val);
-      return Number.isFinite(num) && num >= 0 ? Number(num.toFixed(4)) : 0;
-    },
-
-    reconcileWithAuctions: function () {
-      const auctions = getAuctionListSafe();
-      let mutated = false;
-
-      auctions.forEach((auction) => {
-        if (!auction || !auction.id) return;
-        const bidder = normalizeUsername(auction.highest_bidder);
-        const bidAmount = this.sanitizeAmount(auction.highest_bid);
-
-        if (bidder && bidAmount > 0) {
-          const key = bidder.toLowerCase();
-          if (currentResetEpoch > 0 && !ledgerStore[key]) {
-            return;
-          }
-          if (!ledgerStore[key]) {
-            ledgerStore[key] = {
-              username: bidder,
-              count: 1,
-              lastBid: bidAmount,
-              lastAuctionId: String(auction.id),
-              lastUpdated: Date.now()
-            };
-            mutated = true;
-          } else {
-            if (ledgerStore[key].count < 1) {
-              ledgerStore[key].count = 1;
-              mutated = true;
-            }
-            if (
-              String(ledgerStore[key].lastAuctionId) === String(auction.id) &&
-              bidAmount > this.sanitizeAmount(ledgerStore[key].lastBid)
-            ) {
-              ledgerStore[key].lastBid = bidAmount;
-              mutated = true;
-            }
-          }
-        }
-      });
-
-      if (mutated) {
-        saveLedgerToStorage();
-      }
-    },
-
-    getSortedBidders: function () {
-      this.reconcileWithAuctions();
-      const entries = Object.values(ledgerStore).filter(
-        (entry) => entry && normalizeUsername(entry.username) && Number(entry.count) > 0
-      );
-
-      entries.sort((a, b) => {
-        const tA = Number(a.lastUpdated || 0);
-        const tB = Number(b.lastUpdated || 0);
-        if (tA !== tB) return tA - tB;
-        return String(a.username).localeCompare(String(b.username));
-      });
-
-      return entries;
-    },
-
-    getUniqueBidderCount: function () {
-      return this.getSortedBidders().length;
-    }
-  };
-
-  function recordBidFrequency(username, amount, auctionId = "") {
-    const cleanUser = normalizeUsername(username);
-    const cleanAmount = _LogicEnforcer.sanitizeAmount(amount);
-    if (!cleanUser || cleanAmount <= 0) return null;
-
-    const key = cleanUser.toLowerCase();
-    const existing = ledgerStore[key];
-
-    const nextEntry = existing
-      ? {
-          username: cleanUser,
-          count: Number(existing.count || 0) + 1,
-          lastBid: cleanAmount,
-          lastAuctionId: String(auctionId || existing.lastAuctionId || ""),
-          lastUpdated: Date.now()
-        }
-      : {
-          username: cleanUser,
-          count: 1,
-          lastBid: cleanAmount,
-          lastAuctionId: String(auctionId || ""),
-          lastUpdated: Date.now()
-        };
-
-    ledgerStore[key] = nextEntry;
-    saveLedgerToStorage();
-    syncAllBidderViews();
-    publishRealtimeFrequency(nextEntry, auctionId, cleanAmount);
-    return nextEntry;
-  }
-
-  function syncActiveBiddersPanel() {
-    const countEl = document.getElementById("activeBiddersCount");
-    if (!countEl) return;
-    const totalUsers = _LogicEnforcer.getUniqueBidderCount();
-    countEl.textContent = `${totalUsers} User`;
-  }
-
-  function renderBidderFrequencyTable() {
-    const tbody = document.getElementById("activeBiddersModalTableBody");
-    const adminContainer = document.getElementById("adminResetBiddersContainer");
-
-    if (adminContainer) {
-      adminContainer.classList.remove("hidden");
-    }
-
-    if (!tbody) return;
-
-    const sortedBidders = _LogicEnforcer.getSortedBidders();
-
-    if (sortedBidders.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="3" class="p-4 text-center text-gray-500">Belum ada penawar tercatat pada sesi ini.</td>
-        </tr>
-      `;
-      return;
-    }
-
-    tbody.innerHTML = sortedBidders
-      .map((item, idx) => {
-        const safeUser =
-          typeof SecureShield !== "undefined" && typeof SecureShield.sanitizeHTML === "function"
-            ? SecureShield.sanitizeHTML(item.username)
-            : item.username;
-        const freq = Math.max(1, parseInt(item.count || 1, 10));
-
-        return `
-          <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
-            <td class="p-2 text-center">
-              <input
-                type="checkbox"
-                class="bidder-row-checkbox cursor-pointer accent-emerald-500"
-                value="${safeUser.toLowerCase()}"
-              >
-            </td>
-            <td class="p-2 font-mono text-yellow-400 font-semibold">
-              <span class="text-gray-500 mr-1">#${idx + 1}</span>@${safeUser}
-            </td>
-            <td class="p-2 text-center">
-              <span class="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                ${freq}x Menawar
-              </span>
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
-  }
-
-  function syncAllBidderViews() {
-    syncActiveBiddersPanel();
-    const modal = document.getElementById("activeBiddersModal");
-    if (modal && !modal.classList.contains("hidden")) {
-      renderBidderFrequencyTable();
+  function loadResetButtonEnabledFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_RESET_BTN_ENABLED);
+      if (raw === null) return true;
+      return raw === "true";
+    } catch (_) {
+      return true;
     }
   }
 
-  function openActiveBiddersModal() {
-    const modal = document.getElementById("activeBiddersModal");
-    if (!modal) return;
-    renderBidderFrequencyTable();
-    modal.classList.remove("hidden");
+  function saveResetButtonEnabledToStorage(enabled) {
+    try {
+      isResetButtonEnabled = Boolean(enabled);
+      localStorage.setItem(STORAGE_KEY_RESET_BTN_ENABLED, String(isResetButtonEnabled));
+    } catch (_) {}
   }
-
-  function closeActiveBiddersModal() {
-    const modal = document.getElementById("activeBiddersModal");
-    if (!modal) return;
-    modal.classList.add("hidden");
-    const selectAll = document.getElementById("selectAllBiddersCheckbox");
-    if (selectAll) selectAll.checked = false;
-  }
-
-  function toggleSelectAllBidders(masterCheckbox) {
-    if (!masterCheckbox) return;
-    document.querySelectorAll(".bidder-row-checkbox:not(:disabled)").forEach((cb) => {
-      cb.checked = masterCheckbox.checked;
-    });
-  }
-
-  const RESET_EPOCH_KEY = "nftgm_bidder_reset_epoch_v1";
-  let currentResetEpoch = loadResetEpochFromStorage();
 
   function loadResetEpochFromStorage() {
     try {
@@ -272,140 +70,100 @@
     } catch (_) {}
   }
 
-  function purgeStaleUserAndBidArtifacts(fullPurge = false, targetUserKeys = []) {
-    const normalizedTargets = Array.isArray(targetUserKeys)
-      ? targetUserKeys.map((k) => normalizeUsername(String(k || "")).toLowerCase()).filter(Boolean)
-      : [];
-
-    try {
-      if (fullPurge) {
-        ledgerStore = {};
-        localStorage.removeItem(STORAGE_KEY_BIDS);
-        localStorage.removeItem("nusantara_cached_auctions");
-
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k) continue;
-          if (
-            k === STORAGE_KEY_BIDS ||
-            k === "nusantara_cached_auctions" ||
-            k.startsWith("nftgm_bidder_") ||
-            k.startsWith("nusantara_bidder_") ||
-            k.startsWith("nftgm_user_detail_") ||
-            k.startsWith("nftgm_buyer_cache_")
-          ) {
-            if (k !== RESET_EPOCH_KEY) {
-              keysToRemove.push(k);
-            }
-          }
-        }
-        keysToRemove.forEach((k) => {
-          try { localStorage.removeItem(k); } catch (_) {}
-        });
-      } else if (normalizedTargets.length > 0) {
-        normalizedTargets.forEach((targetKey) => {
-          delete ledgerStore[targetKey];
-          try {
-            localStorage.removeItem(`nftgm_user_detail_${targetKey}`);
-            localStorage.removeItem(`nftgm_buyer_cache_${targetKey}`);
-          } catch (_) {}
-        });
-        saveLedgerToStorage();
-      }
-    } catch (_) {}
-
-    if (typeof buyersList !== "undefined" && Array.isArray(buyersList)) {
-      if (fullPurge) {
-        buyersList.length = 0;
-      } else if (normalizedTargets.length > 0) {
-        for (let i = buyersList.length - 1; i >= 0; i--) {
-          const row = buyersList[i];
-          const rowUser = row && row.username ? normalizeUsername(row.username).toLowerCase() : "";
-          if (rowUser && normalizedTargets.includes(rowUser)) {
-            buyersList.splice(i, 1);
-          }
-        }
-      }
-    }
-
-    if (typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList) && normalizedTargets.length > 0 && !fullPurge) {
-      activeAuctionsList.forEach((auction) => {
-        if (!auction) return;
-        const hbUser = normalizeUsername(auction.highest_bidder || "").toLowerCase();
-        if (hbUser && normalizedTargets.includes(hbUser)) {
-          const startPrice = _AutonomousMeshCoordinator.verifyAndClampAmount(
-            auction.start_price || auction.starting_price || auction.min_bid || 0
-          );
-          auction.highest_bid = startPrice > 0 ? startPrice : 0;
-          auction.highest_bidder = "";
-        }
-      });
-      try {
-        localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
-      } catch (_) {}
-    }
+  function normalizeUsername(username) {
+    if (!username || typeof username !== "string") return "";
+    return username.trim().replace(/^@+/, "");
   }
 
-  function applyGlobalResetState(resetAll, targetKeys = [], epochTs = Date.now(), resetHighestBidState = false) {
-    const cleanEpoch = Number(epochTs || Date.now());
-    if (currentResetEpoch > 0 && cleanEpoch < currentResetEpoch) {
-      return;
-    }
-    saveResetEpochToStorage(cleanEpoch);
-
-    const normalizedTargets = Array.isArray(targetKeys)
-      ? targetKeys.map((k) => normalizeUsername(String(k || "")).toLowerCase()).filter(Boolean)
+  function getAuctionListSafe() {
+    return typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)
+      ? activeAuctionsList
       : [];
-
-    if (resetAll) {
-      purgeStaleUserAndBidArtifacts(true, []);
-      if (resetHighestBidState && typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
-        activeAuctionsList.forEach((auction) => {
-          if (!auction) return;
-          const startPrice = _AutonomousMeshCoordinator.verifyAndClampAmount(
-            auction.start_price || auction.starting_price || auction.min_bid || 0
-          );
-          auction.highest_bid = startPrice > 0 ? startPrice : 0;
-          auction.highest_bidder = "";
-        });
-        try {
-          localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
-        } catch (_) {}
-      }
-    } else if (normalizedTargets.length > 0) {
-      purgeStaleUserAndBidArtifacts(false, normalizedTargets);
-    }
-
-    saveLedgerToStorage();
-    syncAllBidderViews();
-
-    const buyersModal = document.getElementById("buyersTableModal");
-    if (buyersModal && !buyersModal.classList.contains("hidden") && typeof renderBuyersTable === "function") {
-      try { renderBuyersTable(); } catch (_) {}
-    }
-
-    if (resetHighestBidState || normalizedTargets.length > 0) {
-      if (typeof updateActiveCounts === "function") {
-        try { updateActiveCounts(); } catch (_) {}
-      }
-      if (typeof filterGallery === "function") {
-        try { filterGallery(); } catch (_) {}
-      }
-    }
   }
 
-  function broadcastGlobalReset(resetAll, targetKeys = [], epochTs = Date.now(), resetHighestBidState = false) {
+  function getCurrentUserSafe() {
+    if (typeof isTestUserModeActive !== "undefined" && isTestUserModeActive) {
+      return "";
+    }
+    if (typeof authenticatedPiUser !== "undefined" && authenticatedPiUser && authenticatedPiUser.username) {
+      return normalizeUsername(authenticatedPiUser.username);
+    }
+    if (window.authenticatedPiUser && window.authenticatedPiUser.username) {
+      return normalizeUsername(window.authenticatedPiUser.username);
+    }
+    return "";
+  }
+
+  function isCurrentUserAdminOrDev() {
+    if (typeof isTestUserModeActive !== "undefined" && isTestUserModeActive) {
+      return false;
+    }
+    const currentUser = getCurrentUserSafe();
+    if (!currentUser) return false;
+    const admins = typeof ADMIN_USERNAMES !== "undefined" && Array.isArray(ADMIN_USERNAMES)
+      ? ADMIN_USERNAMES
+      : [];
+    const devs = typeof DEV_USERNAMES !== "undefined" && Array.isArray(DEV_USERNAMES)
+      ? DEV_USERNAMES
+      : [];
+    return admins.includes(currentUser) || devs.includes(currentUser);
+  }
+
+  function syncResetButtonAndAdminToggleUI() {
+    const isAdmin = isCurrentUserAdminOrDev();
+    const adminToggleBox = document.getElementById("adminToggleResetFeatureBox");
+    const adminToggleBtn = document.getElementById("adminToggleResetButtonBtn");
+    const resetContainer = document.getElementById("adminResetBiddersContainer");
+    const resetBtn = document.getElementById("resetSelectedBiddersBtn");
+    const selectAllCb = document.getElementById("selectAllBiddersCheckbox");
+
+    if (adminToggleBox) {
+      if (isAdmin) {
+        adminToggleBox.classList.remove("hidden");
+      } else {
+        adminToggleBox.classList.add("hidden");
+      }
+    }
+
+    if (adminToggleBtn) {
+      if (isResetButtonEnabled) {
+        adminToggleBtn.textContent = "Aktif (Nonaktifkan)";
+        adminToggleBtn.className =
+          "px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white";
+      } else {
+        adminToggleBtn.textContent = "Nonaktif (Aktifkan)";
+        adminToggleBtn.className =
+          "px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer bg-gray-700 hover:bg-gray-600 text-gray-200";
+      }
+    }
+
+    if (resetContainer) {
+      resetContainer.classList.remove("hidden");
+    }
+
+    if (resetBtn) {
+      resetBtn.innerHTML = "🗑️ Hapus / Reset Penawar Terpilih";
+      resetBtn.disabled = !isResetButtonEnabled;
+    }
+
+    if (selectAllCb) {
+      selectAllCb.disabled = !isResetButtonEnabled;
+      if (!isResetButtonEnabled) selectAllCb.checked = false;
+    }
+
+    document.querySelectorAll(".bidder-row-checkbox").forEach((cb) => {
+      cb.disabled = !isResetButtonEnabled;
+      if (!isResetButtonEnabled) cb.checked = false;
+    });
+  }
+
+  function broadcastResetButtonState(enabled) {
     const seq = _AutonomousMeshCoordinator.nextSeq();
     const payload = {
       seq,
-      resetAction: {
-        resetAll: Boolean(resetAll),
-        targetKeys: Array.isArray(targetKeys)
-          ? targetKeys.map((k) => normalizeUsername(String(k || "")).toLowerCase()).filter(Boolean)
-          : [],
-        epochTs: Number(epochTs || Date.now()),
-        resetHighestBidState: Boolean(resetHighestBidState)
+      resetButtonControl: {
+        enabled: Boolean(enabled),
+        updatedAt: Date.now()
       },
       sentAt: Date.now()
     };
@@ -414,320 +172,383 @@
       try { localBroadcast.postMessage({ type: "instant_bid_sync", payload }); } catch (_) {}
     }
 
-    const pushResetBurst = () => {
-      if (typeof supabaseClient !== "undefined" && supabaseClient) {
-        try {
-          supabaseClient.channel(CHANNEL_NAME).send({
-            type: "broadcast",
-            event: "bid_frequency_update",
-            payload
-          });
-        } catch (_) {}
-        try {
-          supabaseClient.channel("public-cluster-auctions").send({
-            type: "broadcast",
-            event: "live_bid_update",
-            payload: {
-              seq,
-              resetAction: payload.resetAction,
-              timestamp: payload.sentAt
-            }
-          });
-        } catch (_) {}
-      }
-    };
-
-    pushResetBurst();
-    setTimeout(pushResetBurst, 30);
-    setTimeout(pushResetBurst, 100);
-  }
-
-  function adminResetSelectedOrAllBidders() {
-    const epochTs = Date.now();
-    const checkedBoxes = Array.from(document.querySelectorAll(".bidder-row-checkbox:checked"));
-
-    if (checkedBoxes.length > 0) {
-      const targetKeys = checkedBoxes
-        .map((cb) => normalizeUsername(String(cb.value || "")).toLowerCase())
-        .filter(Boolean);
-      if (!confirm(`Hapus / reset ${targetKeys.length} penawar terpilih untuk semua pengguna?`)) return;
-      applyGlobalResetState(false, targetKeys, epochTs, false);
-      broadcastGlobalReset(false, targetKeys, epochTs, false);
-    } else {
-      if (!confirm("Tidak ada baris tercentang. Reset seluruh data tabel penawar & frekuensi untuk semua pengguna?")) return;
-      applyGlobalResetState(true, [], epochTs, true);
-      broadcastGlobalReset(true, [], epochTs, true);
+    if (typeof supabaseClient !== "undefined" && supabaseClient) {
+      try {
+        supabaseClient.channel(CHANNEL_NAME).send({
+          type: "broadcast",
+          event: "bid_frequency_update",
+          payload
+        });
+      } catch (_) {}
     }
 
-    const selectAll = document.getElementById("selectAllBiddersCheckbox");
-    if (selectAll) selectAll.checked = false;
+    try {
+      localStorage.setItem(
+        "nftgm_instant_bid_bus_v1",
+        JSON.stringify({ ...payload, nonce: Math.random() })
+      );
+    } catch (_) {}
   }
 
-  let localBroadcast = null;
-  let fastHeartbeatTimer = null;
-  let globalDataChannel = null;
-  let lastSeenSeq = 0;
+  window.toggleResetBiddersButtonAccess = function () {
+    if (!isCurrentUserAdminOrDev()) {
+      alert("⛔ Akses Ditolak: Pengaturan aktif/nonaktif tombol ini khusus Admin & Developer.");
+      return;
+    }
 
-  const _AutonomousMeshCoordinator = {
-    nextSeq: function () {
-      lastSeenSeq = Math.max(lastSeenSeq + 1, Date.now());
-      return lastSeenSeq;
-    },
+    const nextState = !isResetButtonEnabled;
+    saveResetButtonEnabledToStorage(nextState);
+    syncResetButtonAndAdminToggleUI();
+    broadcastResetButtonState(nextState);
 
-    verifyAndClampAmount: function (val, cap = null) {
-      const n = parseFloat(val);
-      if (!Number.isFinite(n) || n < 0) return 0;
-      const rounded = Number(n.toFixed(4));
-      return typeof cap === "number" && Number.isFinite(cap) ? Math.min(cap, rounded) : rounded;
-    },
+    alert(
+      nextState
+        ? "✅ Tombol 'Hapus / Reset Penawar Terpilih' DIAKTIFKAN."
+        : "🔒 Tombol 'Hapus / Reset Penawar Terpilih' DINONAKTIFKAN."
+    );
+  };
 
-    assertLogicIntegrity: function () {
-      if (typeof _LogicEnforcer !== "undefined" && typeof _LogicEnforcer.reconcileWithAuctions === "function") {
-        _LogicEnforcer.reconcileWithAuctions();
-      }
-      if (typeof syncActiveBiddersPanel === "function") {
-        syncActiveBiddersPanel();
-      }
-    },
+  function getOrCreateBidderEntry(username) {
+    const clean = normalizeUsername(username);
+    if (!clean) return null;
+    if (!ledgerStore[clean]) {
+      ledgerStore[clean] = {
+        username: clean,
+        bidCount: 0,
+        lastBid: 0,
+        firstSeenAt: Date.now(),
+        lastBidAt: 0,
+        auctionIds: []
+      };
+    }
+    return ledgerStore[clean];
+  }
 
-    applyPriceAndBidderFast: function (auctionId, amount, bidderUsername) {
-      const cleanId = String(auctionId || "").trim();
-      const cleanAmount = this.verifyAndClampAmount(amount);
-      const cleanBidder = normalizeUsername(bidderUsername);
-      const bidderKey = cleanBidder.toLowerCase();
+  function recordBidEvent(username, bidAmount, auctionId = null, eventTs = Date.now()) {
+    const clean = normalizeUsername(username);
+    const amount = parseFloat(bidAmount);
+    if (!clean || isNaN(amount) || amount <= 0) return null;
 
-      if (bidderKey && currentResetEpoch > 0 && !ledgerStore[bidderKey]) {
+    if (currentResetEpoch > 0 && Number(eventTs) <= currentResetEpoch) {
+      return null;
+    }
+
+    const entry = getOrCreateBidderEntry(clean);
+    entry.bidCount = (parseInt(entry.bidCount, 10) || 0) + 1;
+    entry.lastBid = Math.max(parseFloat(entry.lastBid || 0), amount);
+    entry.lastBidAt = Math.max(parseInt(entry.lastBidAt || 0, 10), Number(eventTs) || Date.now());
+    if (!entry.firstSeenAt) entry.firstSeenAt = entry.lastBidAt;
+    if (auctionId && !entry.auctionIds.includes(String(auctionId))) {
+      entry.auctionIds.push(String(auctionId));
+    }
+
+    saveLedgerToStorage();
+    return entry;
+  }
+
+  function hydrateFromActiveAuctions() {
+    const auctions = getAuctionListSafe();
+    auctions.forEach((auc) => {
+      if (!auc || !auc.highest_bidder) return;
+      const bidder = normalizeUsername(auc.highest_bidder);
+      const amount = parseFloat(auc.highest_bid || auc.reserve_price || 0);
+      if (!bidder || isNaN(amount) || amount <= 0) return;
+
+      const aucTs = auc.updated_at ? new Date(auc.updated_at).getTime() : (auc.created_at ? new Date(auc.created_at).getTime() : 0);
+      if (currentResetEpoch > 0 && aucTs > 0 && aucTs <= currentResetEpoch) {
         return;
       }
 
-      if (cleanId && cleanAmount > 0 && typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
-        const idx = activeAuctionsList.findIndex((item) => item && String(item.id) === cleanId);
-        if (idx !== -1) {
-          activeAuctionsList[idx].highest_bid = cleanAmount;
-          if (cleanBidder) {
-            activeAuctionsList[idx].highest_bidder = cleanBidder;
+      if (!ledgerStore[bidder]) {
+        ledgerStore[bidder] = {
+          username: bidder,
+          bidCount: 1,
+          lastBid: amount,
+          firstSeenAt: aucTs || Date.now(),
+          lastBidAt: aucTs || Date.now(),
+          auctionIds: auc.id ? [String(auc.id)] : []
+        };
+      } else {
+        ledgerStore[bidder].lastBid = Math.max(parseFloat(ledgerStore[bidder].lastBid || 0), amount);
+        if (parseInt(ledgerStore[bidder].bidCount || 0, 10) < 1) {
+          ledgerStore[bidder].bidCount = 1;
+        }
+        if (auc.id && !ledgerStore[bidder].auctionIds.includes(String(auc.id))) {
+          ledgerStore[bidder].auctionIds.push(String(auc.id));
+        }
+      }
+    });
+    saveLedgerToStorage();
+  }
+
+  function getOrderedBiddersList() {
+    hydrateFromActiveAuctions();
+    return Object.values(ledgerStore)
+      .filter((item) => item && item.username && (parseInt(item.bidCount, 10) || 0) > 0)
+      .sort((a, b) => {
+        const tA = parseInt(a.firstSeenAt || 0, 10);
+        const tB = parseInt(b.firstSeenAt || 0, 10);
+        if (tA !== tB) return tA - tB;
+        return String(a.username).localeCompare(String(b.username));
+      });
+  }
+
+  function updateActiveBiddersCounterUI() {
+    const list = getOrderedBiddersList();
+    const activeCount = list.length;
+    const countEl = document.getElementById("activeBiddersCount");
+    if (countEl) {
+      countEl.innerText = `${activeCount} User`;
+    }
+  }
+
+  function renderBiddersModalTable() {
+    const tbody = document.getElementById("activeBiddersModalTableBody");
+    if (!tbody) return;
+
+    syncResetButtonAndAdminToggleUI();
+
+    const list = getOrderedBiddersList();
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Belum ada penawar lelang tercatat.</td></tr>`;
+      return;
+    }
+
+    const disabledAttr = !isResetButtonEnabled ? "disabled" : "";
+    tbody.innerHTML = list
+      .map((item) => {
+        const safeUser = typeof SecureShield !== "undefined" && SecureShield.sanitizeHTML
+          ? SecureShield.sanitizeHTML(item.username)
+          : item.username;
+        const count = parseInt(item.bidCount, 10) || 1;
+        const lastBid = parseFloat(item.lastBid || 0);
+        return `
+          <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
+            <td class="p-2 text-center">
+              <input type="checkbox" class="bidder-row-checkbox cursor-pointer accent-emerald-500" value="${safeUser}" ${disabledAttr}>
+            </td>
+            <td class="p-2 font-mono text-yellow-400 font-semibold">@${safeUser}</td>
+            <td class="p-2 text-center">
+              <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
+                ${count}x
+              </span>
+            </td>
+            <td class="p-2 text-right font-mono text-emerald-400 font-bold">${lastBid} Pi</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    syncResetButtonAndAdminToggleUI();
+  }
+
+  const _AutonomousMeshCoordinator = {
+    seqCounter: Date.now(),
+    nextSeq: function () {
+      this.seqCounter += 1;
+      return this.seqCounter;
+    },
+    buildSnapshot: function (extra = {}) {
+      const auctions = getAuctionListSafe().map((a) => ({
+        id: a.id,
+        highest_bid: a.highest_bid,
+        highest_bidder: a.highest_bidder,
+        status: a.status
+      }));
+      return {
+        seq: this.nextSeq(),
+        ts: Date.now(),
+        resetEpoch: currentResetEpoch,
+        resetButtonEnabled: isResetButtonEnabled,
+        ledger: ledgerStore,
+        auctions,
+        ...extra
+      };
+    },
+    ingestAnyPayload: function (payload) {
+      if (!payload || typeof payload !== "object") return false;
+      const incomingSeq = Number(payload.seq || 0);
+      if (incomingSeq && incomingSeq <= lastSeenSeq && !payload.resetAction && !payload.resetButtonControl) {
+        return false;
+      }
+      if (incomingSeq > lastSeenSeq) {
+        lastSeenSeq = incomingSeq;
+      }
+
+      let changed = false;
+
+      if (payload.resetButtonControl && typeof payload.resetButtonControl.enabled === "boolean") {
+        saveResetButtonEnabledToStorage(payload.resetButtonControl.enabled);
+        syncResetButtonAndAdminToggleUI();
+        changed = true;
+      }
+
+      if (typeof payload.resetButtonEnabled === "boolean" && !payload.resetAction) {
+        saveResetButtonEnabledToStorage(payload.resetButtonEnabled);
+        syncResetButtonAndAdminToggleUI();
+        changed = true;
+      }
+
+      if (payload.resetAction) {
+        const epoch = Number(payload.resetEpoch || payload.ts || Date.now());
+        saveResetEpochToStorage(epoch);
+
+        if (payload.resetAction === "reset_selected" && Array.isArray(payload.selectedUsernames)) {
+          payload.selectedUsernames.forEach((u) => {
+            const clean = normalizeUsername(u);
+            if (clean && ledgerStore[clean]) {
+              delete ledgerStore[clean];
+            }
+          });
+        } else {
+          ledgerStore = {};
+        }
+        saveLedgerToStorage();
+        changed = true;
+      } else if (payload.ledger && typeof payload.ledger === "object") {
+        Object.keys(payload.ledger).forEach((k) => {
+          const remoteItem = payload.ledger[k];
+          if (!remoteItem || !remoteItem.username) return;
+          const clean = normalizeUsername(remoteItem.username);
+          if (!clean) return;
+          if (currentResetEpoch > 0 && Number(remoteItem.lastBidAt || 0) <= currentResetEpoch) {
+            return;
           }
+          const localItem = ledgerStore[clean];
+          const remoteCount = parseInt(remoteItem.bidCount || 0, 10);
+          const localCount = localItem ? parseInt(localItem.bidCount || 0, 10) : 0;
+          const remoteBid = parseFloat(remoteItem.lastBid || 0);
+          const localBid = localItem ? parseFloat(localItem.lastBid || 0) : 0;
+
+          if (!localItem || remoteCount > localCount || remoteBid > localBid) {
+            ledgerStore[clean] = {
+              username: clean,
+              bidCount: Math.max(localCount, remoteCount),
+              lastBid: Math.max(localBid, remoteBid),
+              firstSeenAt: Math.min(
+                parseInt((localItem && localItem.firstSeenAt) || remoteItem.firstSeenAt || Date.now(), 10),
+                parseInt(remoteItem.firstSeenAt || Date.now(), 10)
+              ),
+              lastBidAt: Math.max(
+                parseInt((localItem && localItem.lastBidAt) || 0, 10),
+                parseInt(remoteItem.lastBidAt || 0, 10)
+              ),
+              auctionIds: Array.from(
+                new Set([...((localItem && localItem.auctionIds) || []), ...(remoteItem.auctionIds || [])])
+              )
+            };
+            changed = true;
+          }
+        });
+        if (changed) saveLedgerToStorage();
+      }
+
+      if (payload.bidEvent && payload.bidEvent.username && payload.bidEvent.amount) {
+        const evTs = Number(payload.bidEvent.ts || payload.ts || Date.now());
+        if (!(currentResetEpoch > 0 && evTs <= currentResetEpoch)) {
+          const existing = ledgerStore[normalizeUsername(payload.bidEvent.username)];
+          const prevCnt = existing ? parseInt(existing.bidCount || 0, 10) : 0;
+          const incomingCnt = parseInt(payload.bidEvent.bidCount || 0, 10);
+          if (!existing || incomingCnt > prevCnt || Number(payload.bidEvent.ts || 0) > Number(existing.lastBidAt || 0)) {
+            ledgerStore[normalizeUsername(payload.bidEvent.username)] = {
+              username: normalizeUsername(payload.bidEvent.username),
+              bidCount: Math.max(prevCnt + 1, incomingCnt || 1),
+              lastBid: Math.max(parseFloat((existing && existing.lastBid) || 0), parseFloat(payload.bidEvent.amount || 0)),
+              firstSeenAt: (existing && existing.firstSeenAt) || evTs,
+              lastBidAt: Math.max(parseInt((existing && existing.lastBidAt) || 0, 10), evTs),
+              auctionIds: Array.from(
+                new Set([...((existing && existing.auctionIds) || []), ...(payload.bidEvent.auctionId ? [String(payload.bidEvent.auctionId)] : [])])
+              )
+            };
+            saveLedgerToStorage();
+            changed = true;
+          }
+        }
+      }
+
+      if (Array.isArray(payload.auctions) && typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
+        payload.auctions.forEach((remAuc) => {
+          if (!remAuc || !remAuc.id) return;
+          const locAuc = activeAuctionsList.find((a) => String(a.id) === String(remAuc.id));
+          if (!locAuc) return;
+
+          if (payload.resetAction) {
+            if (payload.resetAction === "reset_selected" && Array.isArray(payload.selectedUsernames)) {
+              const resetSet = new Set(payload.selectedUsernames.map((u) => normalizeUsername(u).toLowerCase()));
+              if (locAuc.highest_bidder && resetSet.has(normalizeUsername(locAuc.highest_bidder).toLowerCase())) {
+                locAuc.highest_bid = parseFloat(locAuc.reserve_price || 0);
+                locAuc.highest_bidder = null;
+                changed = true;
+              }
+            } else {
+              locAuc.highest_bid = parseFloat(locAuc.reserve_price || 0);
+              locAuc.highest_bidder = null;
+              changed = true;
+            }
+          } else {
+            const remBid = parseFloat(remAuc.highest_bid || 0);
+            const locBid = parseFloat(locAuc.highest_bid || 0);
+            if (remBid > locBid || (remBid === locBid && remAuc.highest_bidder && remAuc.highest_bidder !== locAuc.highest_bidder)) {
+              locAuc.highest_bid = remBid;
+              locAuc.highest_bidder = remAuc.highest_bidder;
+              changed = true;
+            }
+            if (typeof selectedAuction !== "undefined" && selectedAuction && String(selectedAuction.id) === String(locAuc.id)) {
+              selectedAuction.highest_bid = locAuc.highest_bid;
+              selectedAuction.highest_bidder = locAuc.highest_bidder;
+              const priceEl = document.getElementById("detailModalCurrentPrice");
+              if (priceEl) priceEl.innerText = `${locAuc.highest_bid} Pi`;
+            }
+          }
+        });
+        if (changed) {
           try {
             localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
           } catch (_) {}
         }
       }
 
-      if (typeof updateActiveCounts === "function") {
-        try { updateActiveCounts(); } catch (_) {}
-      }
-      if (typeof filterGallery === "function") {
-        try { filterGallery(); } catch (_) {}
-      }
-      syncAllBidderViews();
-    },
-
-    applyBuyerOrDepositStateFast: function (buyerRecord, isDeleted = false) {
-      if (!buyerRecord || !buyerRecord.username) return;
-      const cleanUser = normalizeUsername(buyerRecord.username);
-      if (!cleanUser) return;
-      const cleanKey = cleanUser.toLowerCase();
-
-      if (isDeleted) {
-        purgeStaleUserAndBidArtifacts(false, [cleanKey]);
-        syncAllBidderViews();
-        const buyersModal = document.getElementById("buyersTableModal");
-        if (buyersModal && !buyersModal.classList.contains("hidden") && typeof renderBuyersTable === "function") {
-          try { renderBuyersTable(); } catch (_) {}
-        }
-        if (typeof updateActiveCounts === "function") {
-          try { updateActiveCounts(); } catch (_) {}
-        }
+      if (changed) {
+        updateActiveBiddersCounterUI();
+        renderBiddersModalTable();
         if (typeof filterGallery === "function") {
           try { filterGallery(); } catch (_) {}
         }
-        return;
       }
-
-      const sBal = this.verifyAndClampAmount(buyerRecord.seller_deposit_balance, 35);
-      const bBal = this.verifyAndClampAmount(buyerRecord.buyer_deposit_balance || buyerRecord.deposit_balance, 35);
-      const totalBal = this.verifyAndClampAmount(sBal + bBal);
-
-      const normalizedRow = {
-        ...buyerRecord,
-        username: cleanUser,
-        seller_deposit_balance: sBal,
-        buyer_deposit_balance: bBal,
-        deposit_balance: totalBal
-      };
-
-      if (typeof buyersList !== "undefined" && Array.isArray(buyersList)) {
-        const idx = buyersList.findIndex(
-          (row) => row && normalizeUsername(row.username).toLowerCase() === cleanKey
-        );
-        if (idx !== -1) {
-          buyersList[idx] = { ...buyersList[idx], ...normalizedRow };
-        } else {
-          buyersList.push(normalizedRow);
-        }
-      }
-
-      if (typeof authenticatedPiUser !== "undefined" && authenticatedPiUser && authenticatedPiUser.username) {
-        if (normalizeUsername(authenticatedPiUser.username).toLowerCase() === cleanKey) {
-          const balEl = document.getElementById("userDepositBalanceDisplay");
-          if (balEl) balEl.innerText = `Saldo Jaminan: ${totalBal} Pi`;
-
-          const statusEl = document.getElementById("buyerApprovalStatusText");
-          const st = String(normalizedRow.status || "").toLowerCase();
-          if (statusEl) {
-            if (st === "approved" || st === "aktif" || st === "active" || bBal >= 35) {
-              if (typeof isBuyerApproved !== "undefined") isBuyerApproved = true;
-              statusEl.innerText = "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)";
-            } else if (st === "penjual" || String(normalizedRow.seller_status || "").toLowerCase() === "penjual") {
-              statusEl.innerText = "Status Akses: Penjual Terdaftar";
-            } else if (st === "pending") {
-              if (typeof isBuyerApproved !== "undefined") isBuyerApproved = false;
-              statusEl.innerText = "Status Akses: Pending (Menunggu Verifikasi Admin/Dev)";
-            }
-          }
-          if (typeof filterGallery === "function") {
-            try { filterGallery(); } catch (_) {}
-          }
-        }
-      }
-
-      const buyersModal = document.getElementById("buyersTableModal");
-      if (buyersModal && !buyersModal.classList.contains("hidden") && typeof renderBuyersTable === "function") {
-        try { renderBuyersTable(); } catch (_) {}
-      }
+      return changed;
     },
+    pushInstantState: function (extra = {}) {
+      const snap = this.buildSnapshot(extra);
+      lastSeenSeq = snap.seq;
 
-    mergeIncomingEntry: function (incoming) {
-      if (!incoming || !incoming.username) return;
-      const cleanUser = normalizeUsername(incoming.username);
-      if (!cleanUser) return;
-      const incTime = Number(incoming.lastUpdated || Date.now());
-      if (currentResetEpoch > 0 && incTime <= currentResetEpoch) return;
-
-      const key = cleanUser.toLowerCase();
-      const prev = ledgerStore[key];
-      const incCount = Math.max(1, parseInt(incoming.count || 1, 10));
-      const incBid = this.verifyAndClampAmount(incoming.lastBid);
-
-      if (!prev || incCount > Number(prev.count || 0) || (incCount === Number(prev.count || 0) && incTime >= Number(prev.lastUpdated || 0))) {
-        ledgerStore[key] = {
-          username: cleanUser,
-          count: incCount,
-          lastBid: incBid > 0 ? incBid : this.verifyAndClampAmount(prev && prev.lastBid),
-          lastAuctionId: String(incoming.lastAuctionId || (prev && prev.lastAuctionId) || ""),
-          lastUpdated: incTime
-        };
-        saveLedgerToStorage();
-        this.applyPriceAndBidderFast(incoming.lastAuctionId || "", incBid, cleanUser);
-      }
-    },
-
-    dispatchInstantFanout: function (entry, auctionId = "", bidAmount = 0, extraState = null) {
-      const seq = this.nextSeq();
-      const payload = {
-        seq,
-        entry,
-        auctionId: String(auctionId || (entry && entry.lastAuctionId) || ""),
-        bidAmount: this.verifyAndClampAmount(bidAmount || (entry && entry.lastBid) || 0),
-        bidder: entry ? normalizeUsername(entry.username) : "",
-        buyerRecord: extraState && extraState.buyerRecord ? extraState.buyerRecord : null,
-        isDeletedBuyer: Boolean(extraState && extraState.isDeletedBuyer),
-        scheduleState: extraState && extraState.scheduleState ? extraState.scheduleState : null,
-        sentAt: Date.now()
-      };
+      try {
+        localStorage.setItem("nftgm_instant_bid_bus_v1", JSON.stringify({ ...snap, nonce: Math.random() }));
+      } catch (_) {}
 
       if (localBroadcast) {
-        try { localBroadcast.postMessage({ type: "instant_bid_sync", payload }); } catch (_) {}
+        try { localBroadcast.postMessage({ type: "instant_bid_sync", payload: snap }); } catch (_) {}
       }
 
-      const pushBurst = () => {
-        if (typeof supabaseClient !== "undefined" && supabaseClient) {
-          try {
-            supabaseClient.channel(CHANNEL_NAME).send({
-              type: "broadcast",
-              event: "bid_frequency_update",
-              payload
-            });
-          } catch (_) {}
-          try {
-            supabaseClient.channel("public-cluster-auctions").send({
-              type: "broadcast",
-              event: "live_bid_update",
-              payload: {
-                seq,
-                auctionId: payload.auctionId,
-                newBid: payload.bidAmount,
-                bidder: payload.bidder,
-                buyerRecord: payload.buyerRecord,
-                isDeletedBuyer: payload.isDeletedBuyer,
-                timestamp: payload.sentAt
-              }
-            });
-          } catch (_) {}
-        }
-      };
-
-      pushBurst();
-      setTimeout(pushBurst, 25);
-      setTimeout(pushBurst, 80);
-    },
-
-    ingestAnyPayload: function (p) {
-      if (!p || typeof p !== "object") return;
-      if (p.seq && Number(p.seq) < lastSeenSeq - 5000) return;
-      if (p.seq) lastSeenSeq = Math.max(lastSeenSeq, Number(p.seq));
-
-      if (p.resetAction) {
-        const ra = p.resetAction;
-        applyGlobalResetState(
-          Boolean(ra.resetAll),
-          Array.isArray(ra.targetKeys) ? ra.targetKeys : [],
-          Number(ra.epochTs || Date.now()),
-          Boolean(ra.resetHighestBidState)
-        );
-        return;
+      if (typeof supabaseClient !== "undefined" && supabaseClient) {
+        try {
+          supabaseClient.channel(CHANNEL_NAME).send({
+            type: "broadcast",
+            event: "bid_frequency_update",
+            payload: snap
+          });
+        } catch (_) {}
       }
-
-      if (p.entry) {
-        this.mergeIncomingEntry(p.entry);
-      }
-      if (p.auctionId && this.verifyAndClampAmount(p.bidAmount || p.newBid) > 0) {
-        this.applyPriceAndBidderFast(
-          p.auctionId,
-          this.verifyAndClampAmount(p.bidAmount || p.newBid),
-          p.bidder
-        );
-      }
-      if (p.buyerRecord) {
-        this.applyBuyerOrDepositStateFast(p.buyerRecord, Boolean(p.isDeletedBuyer));
-      }
-      if (p.scheduleState && typeof auctionScheduleState !== "undefined") {
-        auctionScheduleState = p.scheduleState;
-        if (typeof checkAuctionSchedule === "function") {
-          try { checkAuctionSchedule(); } catch (_) {}
-        }
-      }
-    },
-
-    runConsistencyAudit: function () {
-      try {
-        this.assertLogicIntegrity();
-        const modal = document.getElementById("activeBiddersModal");
-        if (modal && !modal.classList.contains("hidden")) {
-          renderBidderFrequencyTable();
-        }
-      } catch (_) {}
     }
   };
 
-  function publishRealtimeFrequency(entry, auctionId = "", bidAmount = 0, extraState = null) {
-    _AutonomousMeshCoordinator.dispatchInstantFanout(entry, auctionId, bidAmount, extraState);
+  function broadcastState(extraPayload = {}) {
+    _AutonomousMeshCoordinator.pushInstantState(extraPayload);
   }
 
-  function initRealtimeFrequencyListener() {
+  function setupRealtimeListeners() {
     if (typeof BroadcastChannel !== "undefined" && !localBroadcast) {
       try {
-        localBroadcast = new BroadcastChannel(CHANNEL_NAME);
+        localBroadcast = new BroadcastChannel("nftgm_instant_bid_channel_v1");
         localBroadcast.onmessage = (ev) => {
           if (ev && ev.data && ev.data.type === "instant_bid_sync" && ev.data.payload) {
             _AutonomousMeshCoordinator.ingestAnyPayload(ev.data.payload);
@@ -738,27 +559,20 @@
 
     window.addEventListener("storage", (ev) => {
       if (!ev) return;
-      if (ev.key === RESET_EPOCH_KEY && ev.newValue) {
-        const nextEpoch = Number(ev.newValue || "0");
-        if (Number.isFinite(nextEpoch) && nextEpoch > currentResetEpoch) {
-          currentResetEpoch = nextEpoch;
-        }
+      if (ev.key === STORAGE_KEY_RESET_BTN_ENABLED) {
+        isResetButtonEnabled = loadResetButtonEnabledFromStorage();
+        syncResetButtonAndAdminToggleUI();
       }
-      if (ev.key === STORAGE_KEY_BIDS && ev.newValue) {
+      if (ev.key === "nftgm_instant_bid_bus_v1" && ev.newValue) {
+        try {
+          const parsed = JSON.parse(ev.newValue);
+          _AutonomousMeshCoordinator.ingestAnyPayload(parsed);
+        } catch (_) {}
+      } else if (ev.key === STORAGE_KEY_BIDS && ev.newValue) {
         try {
           ledgerStore = JSON.parse(ev.newValue) || {};
-          syncAllBidderViews();
-        } catch (_) {}
-      }
-      if (ev.key === "nusantara_cached_auctions" && ev.newValue) {
-        try {
-          const parsedAuctions = JSON.parse(ev.newValue);
-          if (Array.isArray(parsedAuctions) && typeof activeAuctionsList !== "undefined") {
-            activeAuctionsList = parsedAuctions;
-            if (typeof updateActiveCounts === "function") updateActiveCounts();
-            if (typeof filterGallery === "function") filterGallery();
-            syncAllBidderViews();
-          }
+          updateActiveBiddersCounterUI();
+          renderBiddersModalTable();
         } catch (_) {}
       }
     });
@@ -767,8 +581,9 @@
       try {
         broadcastChannel = supabaseClient
           .channel(CHANNEL_NAME)
-          .on("broadcast", { event: "bid_frequency_update" }, (msg) => {
-            _AutonomousMeshCoordinator.ingestAnyPayload(msg && msg.payload ? msg.payload : null);
+          .on("broadcast", { event: "bid_frequency_update" }, ({ payload }) => {
+            if (!payload) return;
+            _AutonomousMeshCoordinator.ingestAnyPayload(payload);
           })
           .subscribe();
       } catch (_) {}
@@ -777,103 +592,218 @@
     if (typeof supabaseClient !== "undefined" && supabaseClient && !globalDataChannel) {
       try {
         globalDataChannel = supabaseClient
-          .channel("global-state-mesh-sync")
-          .on("postgres_changes", { event: "*", schema: "public", table: "buyers" }, (payload) => {
-            const eventType = payload && payload.eventType ? String(payload.eventType).toUpperCase() : "";
-            if (eventType === "DELETE") {
-              const oldRow = (payload && payload.old) || null;
-              if (oldRow && oldRow.username) {
-                _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(oldRow, true);
-              } else {
-                applyGlobalResetState(true, [], Date.now(), false);
+          .channel("public-cluster-bid-live-rows")
+          .on("postgres_changes", { event: "*", schema: "public", table: "auctions" }, (pgPayload) => {
+            const row = pgPayload && pgPayload.new ? pgPayload.new : null;
+            if (!row || !row.id) return;
+            const auctions = getAuctionListSafe();
+            const target = auctions.find((a) => String(a.id) === String(row.id));
+            if (target) {
+              const incomingBid = parseFloat(row.highest_bid || 0);
+              const currentBid = parseFloat(target.highest_bid || 0);
+              if (incomingBid > currentBid || (row.highest_bidder && row.highest_bidder !== target.highest_bidder)) {
+                target.highest_bid = Math.max(incomingBid, currentBid);
+                if (row.highest_bidder) {
+                  target.highest_bidder = row.highest_bidder;
+                  recordBidEvent(row.highest_bidder, target.highest_bid, row.id, Date.now());
+                }
+                if (typeof selectedAuction !== "undefined" && selectedAuction && String(selectedAuction.id) === String(row.id)) {
+                  selectedAuction.highest_bid = target.highest_bid;
+                  selectedAuction.highest_bidder = target.highest_bidder;
+                  const priceEl = document.getElementById("detailModalCurrentPrice");
+                  if (priceEl) priceEl.innerText = `${target.highest_bid} Pi`;
+                }
+                updateActiveBiddersCounterUI();
+                renderBiddersModalTable();
+                if (typeof filterGallery === "function") {
+                  try { filterGallery(); } catch (_) {}
+                }
               }
-              return;
-            }
-            const row = (payload && payload.new) || null;
-            if (row) {
-              _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(row, false);
-            } else if (typeof fetchBuyersList === "function") {
-              fetchBuyersList().catch(() => {});
-            }
-          })
-          .on("postgres_changes", { event: "*", schema: "public", table: "auctions" }, (payload) => {
-            if (payload && payload.new && typeof activeAuctionsList !== "undefined") {
-              const idx = activeAuctionsList.findIndex((a) => String(a.id) === String(payload.new.id));
-              if (idx !== -1) {
-                activeAuctionsList[idx] = { ...activeAuctionsList[idx], ...payload.new };
-              } else {
-                activeAuctionsList.unshift(payload.new);
-              }
-              try {
-                localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
-              } catch (_) {}
-              if (typeof updateActiveCounts === "function") updateActiveCounts();
-              if (typeof filterGallery === "function") filterGallery();
-              syncAllBidderViews();
             }
           })
           .subscribe();
       } catch (_) {}
     }
 
-    if (!isSyncLoopActive) {
-      isSyncLoopActive = true;
+    if (!fastHeartbeatTimer) {
       fastHeartbeatTimer = setInterval(() => {
-        _AutonomousMeshCoordinator.runConsistencyAudit();
+        if (isSyncLoopActive) return;
+        isSyncLoopActive = true;
+        try {
+          hydrateFromActiveAuctions();
+          updateActiveBiddersCounterUI();
+          syncResetButtonAndAdminToggleUI();
+          const modal = document.getElementById("activeBiddersModal");
+          if (modal && !modal.classList.contains("hidden")) {
+            renderBiddersModalTable();
+          }
+        } finally {
+          isSyncLoopActive = false;
+        }
       }, 250);
     }
   }
 
-  window.BidderFrequencyEngine = {
-    recordBid: function (username, amount, auctionId = "") {
-      const entry = recordBidFrequency(username, amount, auctionId);
-      if (entry) {
-        _AutonomousMeshCoordinator.applyPriceAndBidderFast(auctionId, amount, username);
-        _AutonomousMeshCoordinator.dispatchInstantFanout(entry, auctionId, amount);
-      }
-      return entry;
-    },
-    distributePriceNow: function (auctionId, amount, bidderUsername = "") {
-      _AutonomousMeshCoordinator.applyPriceAndBidderFast(auctionId, amount, bidderUsername);
-      const cleanUser = normalizeUsername(bidderUsername);
-      const cleanAmount = _AutonomousMeshCoordinator.verifyAndClampAmount(amount);
-      const existing = cleanUser
-        ? ledgerStore[cleanUser.toLowerCase()] || {
-            username: cleanUser,
-            count: 1,
-            lastBid: cleanAmount,
-            lastAuctionId: String(auctionId || ""),
-            lastUpdated: Date.now()
+  function wrapPlaceBidFunction() {
+    if (typeof window.placeBidOnAuction !== "function" || window.placeBidOnAuction.__wrappedForFrequency) {
+      return;
+    }
+
+    const originalPlaceBid = window.placeBidOnAuction;
+    const wrappedPlaceBid = async function (auctionId, amount) {
+      const bidder = getCurrentUserSafe();
+      const bidTs = Date.now();
+      const result = await originalPlaceBid.apply(this, arguments);
+
+      if (bidder) {
+        const rec = recordBidEvent(bidder, amount, auctionId, bidTs);
+        updateActiveBiddersCounterUI();
+        renderBiddersModalTable();
+        broadcastState({
+          bidEvent: {
+            username: bidder,
+            amount: parseFloat(amount),
+            bidCount: rec ? rec.bidCount : 1,
+            auctionId: String(auctionId),
+            ts: bidTs
           }
-        : null;
-      _AutonomousMeshCoordinator.dispatchInstantFanout(existing, auctionId, cleanAmount);
-    },
-    syncBuyerStateNow: function (buyerRecord, isDeleted = false) {
-      _AutonomousMeshCoordinator.applyBuyerOrDepositStateFast(buyerRecord, Boolean(isDeleted));
-      _AutonomousMeshCoordinator.dispatchInstantFanout(null, "", 0, {
-        buyerRecord,
-        isDeletedBuyer: Boolean(isDeleted)
-      });
-    },
-    syncScheduleNow: function (scheduleState) {
-      _AutonomousMeshCoordinator.dispatchInstantFanout(null, "", 0, { scheduleState });
-    },
-    syncViews: syncAllBidderViews,
-    getBidderCount: () => _LogicEnforcer.getUniqueBidderCount(),
-    getAllBidders: () => _LogicEnforcer.getSortedBidders()
+        });
+      }
+      return result;
+    };
+
+    wrappedPlaceBid.__wrappedForFrequency = true;
+    window.placeBidOnAuction = wrappedPlaceBid;
+  }
+
+  window.openActiveBiddersModal = function () {
+    setupRealtimeListeners();
+    hydrateFromActiveAuctions();
+    updateActiveBiddersCounterUI();
+    renderBiddersModalTable();
+    const modal = document.getElementById("activeBiddersModal");
+    if (modal) modal.classList.remove("hidden");
   };
 
-  window.openActiveBiddersModal = openActiveBiddersModal;
-  window.closeActiveBiddersModal = closeActiveBiddersModal;
-  window.toggleSelectAllBidders = toggleSelectAllBidders;
-  window.adminResetSelectedOrAllBidders = adminResetSelectedOrAllBidders;
+  window.closeActiveBiddersModal = function () {
+    const modal = document.getElementById("activeBiddersModal");
+    if (modal) modal.classList.add("hidden");
+  };
+
+  window.toggleSelectAllBidders = function (masterCheckbox) {
+    if (!isResetButtonEnabled) {
+      if (masterCheckbox) masterCheckbox.checked = false;
+      return;
+    }
+    const checked = Boolean(masterCheckbox && masterCheckbox.checked);
+    document.querySelectorAll(".bidder-row-checkbox").forEach((cb) => {
+      if (!cb.disabled) cb.checked = checked;
+    });
+  };
+
+  window.adminResetSelectedOrAllBidders = async function () {
+    if (!isResetButtonEnabled) {
+      alert("🔒 Tombol 'Hapus / Reset Penawar Terpilih' sedang dinonaktifkan oleh Admin.");
+      return;
+    }
+
+    const selected = Array.from(document.querySelectorAll(".bidder-row-checkbox:checked")).map((cb) =>
+      normalizeUsername(cb.value)
+    );
+    const resetAll = selected.length === 0;
+    const targetUsers = resetAll ? Object.keys(ledgerStore) : selected;
+
+    if (!targetUsers.length) {
+      alert("Tidak ada data penawar untuk di-reset.");
+      return;
+    }
+
+    const confirmMsg = resetAll
+      ? "⚠️ Tidak ada penawar yang dicentang. Reset SEMUA penawar & kembalikan harga lelang ke harga awal?"
+      : `⚠️ Hapus / reset ${targetUsers.length} penawar terpilih (${targetUsers.map((u) => "@" + u).join(", ")})?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    const resetTs = Date.now();
+    saveResetEpochToStorage(resetTs);
+
+    if (resetAll) {
+      ledgerStore = {};
+    } else {
+      targetUsers.forEach((u) => {
+        delete ledgerStore[u];
+      });
+    }
+    saveLedgerToStorage();
+
+    const auctions = getAuctionListSafe();
+    const resetSet = new Set(targetUsers.map((u) => u.toLowerCase()));
+
+    for (const auc of auctions) {
+      if (!auc) continue;
+      const currentHighestBidder = normalizeUsername(auc.highest_bidder || "").toLowerCase();
+      if (resetAll || (currentHighestBidder && resetSet.has(currentHighestBidder))) {
+        const baseReserve = parseFloat(auc.reserve_price || 0);
+        auc.highest_bid = baseReserve;
+        auc.highest_bidder = null;
+
+        if (typeof supabaseClient !== "undefined" && supabaseClient && auc.id) {
+          try {
+            await supabaseClient
+              .from("auctions")
+              .update({ highest_bid: baseReserve, highest_bidder: null })
+              .eq("id", auc.id);
+          } catch (_) {}
+        }
+      }
+    }
+
+    try {
+      localStorage.setItem("nusantara_cached_auctions", JSON.stringify(auctions));
+    } catch (_) {}
+
+    const selectAllCb = document.getElementById("selectAllBiddersCheckbox");
+    if (selectAllCb) selectAllCb.checked = false;
+
+    updateActiveBiddersCounterUI();
+    renderBiddersModalTable();
+    if (typeof filterGallery === "function") {
+      try { filterGallery(); } catch (_) {}
+    }
+
+    broadcastState({
+      resetAction: resetAll ? "reset_all" : "reset_selected",
+      selectedUsernames: targetUsers,
+      resetEpoch: resetTs
+    });
+
+    alert("✅ Data penawar & harga lelang berhasil di-reset.");
+  };
+
+  window.BidderFrequencyEngine = {
+    recordBid: recordBidEvent,
+    getOrderedList: getOrderedBiddersList,
+    syncViews: function () {
+      setupRealtimeListeners();
+      wrapPlaceBidFunction();
+      hydrateFromActiveAuctions();
+      updateActiveBiddersCounterUI();
+      syncResetButtonAndAdminToggleUI();
+      const modal = document.getElementById("activeBiddersModal");
+      if (modal && !modal.classList.contains("hidden")) {
+        renderBiddersModalTable();
+      }
+    }
+  };
 
   document.addEventListener("DOMContentLoaded", () => {
-    _AutonomousMeshCoordinator.runConsistencyAudit();
-    initRealtimeFrequencyListener();
+    setupRealtimeListeners();
+    wrapPlaceBidFunction();
     setTimeout(() => {
-      if (!broadcastChannel || !globalDataChannel) initRealtimeFrequencyListener();
-      _AutonomousMeshCoordinator.runConsistencyAudit();
-    }, 250);
+      wrapPlaceBidFunction();
+      hydrateFromActiveAuctions();
+      updateActiveBiddersCounterUI();
+      syncResetButtonAndAdminToggleUI();
+    }, 400);
   });
 })();
