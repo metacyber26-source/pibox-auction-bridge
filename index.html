@@ -2099,12 +2099,9 @@
       if (!supabaseClient || !username) return;
       try {
         const { data } = await supabaseClient.from('buyers').select('*').eq('username', username).single();
-        const depositBal = data ? parseFloat(data.deposit_balance || 0) : 0;
-        
-        const balanceDisplayEl = document.getElementById('userDepositBalanceDisplay');
-        if (balanceDisplayEl) {
-          balanceDisplayEl.innerText = `Saldo Jaminan: ${depositBal} Pi`;
-        }
+        const roleDeposits = computeRoleDeposits(data);
+        updateDetailedDepositDisplay(roleDeposits.buyerBalance, roleDeposits.sellerBalance);
+
 
         if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
           isBuyerApproved = true;
