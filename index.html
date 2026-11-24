@@ -224,14 +224,166 @@
       }
     };
 
+    const _LoginAndAdminControlCore = {
+      resetAccessStorageKey: "pibox_reset_bidders_enabled_v1",
+
+      isResetButtonEnabled: function() {
+        try {
+          const saved = localStorage.getItem(this.resetAccessStorageKey);
+          return saved === null ? true : saved === "true";
+        } catch (_) {
+          return true;
+        }
+      },
+
+      setResetButtonEnabled: function(enabled) {
+        const nextState = Boolean(enabled);
+        try {
+          localStorage.setItem(this.resetAccessStorageKey, String(nextState));
+        } catch (_) {}
+        this.syncResetControlUI();
+      },
+
+      isCurrentUserAdmin: function() {
+        if (typeof isTestUserModeActive !== "undefined" && isTestUserModeActive) return false;
+        const activeUser = (typeof authenticatedPiUser !== "undefined" && authenticatedPiUser && authenticatedPiUser.username)
+          ? authenticatedPiUser.username.trim()
+          : ((window.authenticatedPiUser && window.authenticatedPiUser.username) ? window.authenticatedPiUser.username.trim() : "");
+        if (!activeUser || typeof ADMIN_USERNAMES === "undefined") return false;
+        return ADMIN_USERNAMES.includes(activeUser);
+      },
+
+      syncResetControlUI: function() {
+        const isAdmin = this.isCurrentUserAdmin();
+        const isEnabled = this.isResetButtonEnabled();
+
+        const adminBox = document.getElementById("adminToggleResetFeatureBox");
+        const toggleBtn = document.getElementById("adminToggleResetButtonBtn");
+        const resetBtn = document.getElementById("resetSelectedBiddersBtn");
+
+        if (adminBox) {
+          if (isAdmin) adminBox.classList.remove("hidden");
+          else adminBox.classList.add("hidden");
+        }
+
+        if (toggleBtn) {
+          if (isEnabled) {
+            toggleBtn.textContent = "Enabled";
+            toggleBtn.className = "px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white";
+          } else {
+            toggleBtn.textContent = "Disabled";
+            toggleBtn.className = "px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer bg-red-600 hover:bg-red-500 text-white";
+          }
+        }
+
+        if (resetBtn) {
+          resetBtn.disabled = !isEnabled;
+        }
+
+        document.querySelectorAll(".bidder-row-checkbox").forEach((cb) => {
+          cb.disabled = !isEnabled;
+          if (!isEnabled) cb.checked = false;
+        });
+      },
+
+      applyAuthHeaderState: function(username) {
+        const cleanUser = SystemGuardianCore.enforceRealIdentity(username);
+        authenticatedPiUser = { username: cleanUser };
+        window.authenticatedPiUser = authenticatedPiUser;
+
+        const statusEl = document.getElementById("userStatusDisplay");
+        const btnHeaderLogin = document.getElementById("btnHeaderLogin");
+        const btnAdminSchedule = document.getElementById("btnAdminSchedule");
+        const adminMonthlyReportPanel = document.getElementById("adminMonthlyReportPanel");
+        const maskedName = typeof SecureShield !== "undefined" && SecureShield.maskUsername
+          ? SecureShield.maskUsername(cleanUser)
+          : cleanUser;
+
+        if (statusEl) statusEl.innerText = `User: @${maskedName}`;
+        if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
+
+        const isAdmin = this.isCurrentUserAdmin();
+        if (isAdmin) {
+          if (typeof isBuyerApproved !== "undefined") isBuyerApproved = true;
+          const approvalEl = document.getElementById("buyerApprovalStatusText");
+          if (approvalEl) approvalEl.innerText = "Admin/Dev Verified (Full Access)";
+          if (btnAdminSchedule) btnAdminSchedule.classList.remove("hidden");
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove("hidden");
+        } else {
+          if (btnAdminSchedule) btnAdminSchedule.classList.add("hidden");
+          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add("hidden");
+        }
+
+        this.syncResetControlUI();
+      }
+    };
+
+    window.toggleResetBiddersButtonAccess = function() {
+      if (!_LoginAndAdminControlCore.isCurrentUserAdmin()) {
+        alert("Access Denied: Admin only.");
+        return;
+      }
+      const nextState = !_LoginAndAdminControlCore.isResetButtonEnabled();
+      _LoginAndAdminControlCore.setResetButtonEnabled(nextState);
+    };
+
+    window.toggleSelectAllBidders = function(masterEl) {
+      if (!_LoginAndAdminControlCore.isResetButtonEnabled()) {
+        if (masterEl) masterEl.checked = false;
+        return;
+      }
+      const checked = Boolean(masterEl && masterEl.checked);
+      document.querySelectorAll(".bidder-row-checkbox").forEach((cb) => {
+        if (!cb.disabled) cb.checked = checked;
+      });
+    };
+
+    window.adminResetSelectedOrAllBidders = function() {
+      if (!_LoginAndAdminControlCore.isResetButtonEnabled()) {
+        alert("Reset Bidders button is currently disabled by Admin.");
+        return;
+      }
+      const selectedUsers = Array.from(document.querySelectorAll(".bidder-row-checkbox:checked")).map((cb) => cb.value);
+      try {
+        localStorage.removeItem("pibox_all_bids_audit_ledger_v1");
+        if (typeof window.name === "string" && window.name.startsWith("PIBOX_LEDGER:")) {
+          window.name = "";
+        }
+        if (Array.isArray(activeAuctionsList)) {
+          activeAuctionsList.forEach((item) => {
+            if (!selectedUsers.length || selectedUsers.includes(item.highest_bidder)) {
+              item.highest_bidder = null;
+            }
+          });
+          localStorage.setItem("nusantara_cached_auctions", JSON.stringify(activeAuctionsList));
+        }
+        if (typeof supabaseClient !== "undefined" && supabaseClient) {
+          supabaseClient.channel("public-cluster-auctions").send({
+            type: "broadcast",
+            event: "live_bid_update",
+            payload: { resetAction: true, selectedUsers, timestamp: Date.now() }
+          });
+        }
+      } catch (_) {}
+
+      const tbody = document.getElementById("activeBiddersModalTableBody");
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">No recorded bidders yet.</td></tr>`;
+      }
+      const selectAll = document.getElementById("selectAllBiddersCheckbox");
+      if (selectAll) selectAll.checked = false;
+      if (typeof updateActiveCounts === "function") updateActiveCounts();
+    };
+
     function handleUserLogin(inputUsername) {
       try {
         const verifiedUsername = SystemGuardianCore.enforceRealIdentity(inputUsername);
-        authenticatedPiUser = { username: verifiedUsername };
-        const isAdmin = SystemGuardianCore.verifyFullAccess(verifiedUsername);
-        
-        if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
-        if (typeof fetchBuyersList === 'function') fetchBuyersList();
+        _LoginAndAdminControlCore.applyAuthHeaderState(verifiedUsername);
+
+        if (typeof checkBuyerStatusInDatabase === "function") checkBuyerStatusInDatabase(verifiedUsername);
+        if (typeof fetchAndListenAuctionSchedule === "function") fetchAndListenAuctionSchedule();
+        if (typeof fetchActiveAuctions === "function") fetchActiveAuctions();
+        if (typeof fetchBuyersList === "function") fetchBuyersList();
       } catch (error) {
         alert(error.message);
       }
@@ -239,22 +391,12 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       SystemGuardianCore.monitorStream();
-      setTimeout(() => {
-        if (!window.authenticatedPiUser) {
-          window.authenticatedPiUser = { username: "Ful21" };
-          authenticatedPiUser = window.authenticatedPiUser;
-          const statusEl = document.getElementById('userStatusDisplay');
-          const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-          const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-          const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-          
-          if (statusEl) statusEl.innerText = "User: Ful21 (Dev Full Access)";
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@Ful21</span>`;
-          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        }
-      }, 500);
+      _LoginAndAdminControlCore.syncResetControlUI();
+      setInterval(() => {
+        _LoginAndAdminControlCore.syncResetControlUI();
+      }, 800);
     });
+
 
     window.SecureShield = {
       sanitizeHTML: function(str) {
