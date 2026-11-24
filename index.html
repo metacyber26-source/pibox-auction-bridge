@@ -5300,6 +5300,174 @@
       }
     })();
   </script>
+<script>
+(function initBidderModalCloseFix() {
+  const MODAL_TITLE_KEYWORD = "DAFTAR PENAWAR LELANG";
 
+  function findBidderModal(targetEl) {
+    if (targetEl && typeof targetEl.closest === "function") {
+      const matched = targetEl.closest("[role='dialog'], .modal, .modal-backdrop, .fixed, [id*='bidder'], [id*='modal']");
+      if (matched && (matched.textContent || "").toUpperCase().includes(MODAL_TITLE_KEYWORD)) {
+        return matched;
+      }
+    }
+
+    const candidates = Array.from(document.querySelectorAll("div, section, dialog"));
+    for (const el of candidates) {
+      const text = (el.textContent || "").toUpperCase();
+      if (!text.includes(MODAL_TITLE_KEYWORD)) continue;
+      const style = window.getComputedStyle(el);
+      const isOverlay =
+        style.position === "fixed" ||
+        style.position === "absolute" ||
+        el.tagName === "DIALOG" ||
+        el.className.toString().includes("modal");
+      if (isOverlay && style.display !== "none" && style.visibility !== "hidden") {
+        return el;
+      }
+    }
+    return null;
+  }
+
+  function closeBidderModal(modalEl) {
+    if (!modalEl) return;
+
+    // 1. Hide modal & restore body scroll
+    modalEl.classList.add("hidden");
+    modalEl.style.display = "none";
+    modalEl.style.visibility = "hidden";
+    modalEl.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("overflow-hidden", "modal-open");
+    document.body.style.overflow = "";
+
+    // 2. Clean up leftover backdrop if separate from modal
+    const backdrops = Array.from(document.querySelectorAll("div")).filter((el) => {
+      if (el === modalEl) return false;
+      const st = window.getComputedStyle(el);
+      const cls = el.className ? el.className.toString() : "";
+      return st.position === "fixed" && (cls.includes("backdrop") || cls.includes("overlay"));
+    });
+    backdrops.forEach((bd) => {
+      bd.classList.add("hidden");
+      bd.style.display = "none";
+    });
+
+    // 3. Dispatch custom event so app state can sync back to previous view if needed
+    window.dispatchEvent(new CustomEvent("bidderModalClosed"));
+  }
+
+  function bindCloseControls(root = document) {
+    const elements = Array.from(root.querySelectorAll("button, [role='button'], a, span, svg, path"));
+    elements.forEach((el) => {
+      if (el.dataset.closeFixBound === "1") return;
+
+      const labelText = (el.textContent || "").trim().toLowerCase();
+      const ariaLabel = (el.getAttribute("aria-label") || "").trim().toLowerCase();
+      const isCloseLabel =
+        labelText === "tutup" ||
+        labelText === "close" ||
+        labelText === "x" ||
+        labelText === "×" ||
+        ariaLabel.includes("close") ||
+        ariaLabel.includes("tutup");
+
+      const modal = findBidderModal(el);
+      if (!modal) return;
+
+      // Detect top-right "X" icon inside modal header
+      const rect = el.getBoundingClientRect();
+      const modalRect = modal.getBoundingClientRect();
+      const isTopRightIcon =
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.width <= 64 &&
+        rect.height <= 64 &&
+        rect.top - modalRect.top <= 120 &&
+        modalRect.right - rect.right <= 120 &&
+        (el.tagName === "SVG" || el.tagName === "PATH" || el.querySelector("svg, path") || labelText === "");
+
+      if (isCloseLabel || isTopRightIcon) {
+        const clickable = el.closest("button, [role='button'], a") || el;
+        if (clickable.dataset.closeFixBound === "1") return;
+
+        clickable.dataset.closeFixBound = "1";
+        clickable.style.pointerEvents = "auto";
+        clickable.style.cursor = "pointer";
+        clickable.style.position = clickable.style.position || "relative";
+        clickable.style.zIndex = "50";
+
+        clickable.addEventListener(
+          "click",
+          (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const targetModal = findBidderModal(clickable) || modal;
+            closeBidderModal(targetModal);
+          },
+          true
+        );
+      }
+    });
+  }
+
+  // Capture-phase fallback so clicks always reach close buttons
+  document.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target;
+      if (!target) return;
+
+      const modal = findBidderModal(target);
+      if (!modal) return;
+
+      const btn = target.closest("button, [role='button'], a");
+      const btnText = btn ? (btn.textContent || "").trim().toLowerCase() : "";
+      const rawText = (target.textContent || "").trim().toLowerCase();
+
+      if (btnText === "tutup" || btnText === "close" || btnText === "x" || rawText === "x" || rawText === "×") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeBidderModal(modal);
+        return;
+      }
+
+      const rect = target.getBoundingClientRect();
+      const modalRect = modal.getBoundingClientRect();
+      if (
+        rect.width > 0 &&
+        rect.width <= 64 &&
+        rect.height <= 64 &&
+        rect.top - modalRect.top <= 120 &&
+        modalRect.right - rect.right <= 120
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeBidderModal(modal);
+      }
+    },
+    true
+  );
+
+  // Close modal when pressing Escape
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      const modal = findBidderModal(document.activeElement);
+      if (modal) closeBidderModal(modal);
+    }
+  });
+
+  // Re-bind automatically whenever DOM updates dynamically
+  const observer = new MutationObserver(() => {
+    bindCloseControls(document);
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => bindCloseControls(document));
+  } else {
+    bindCloseControls(document);
+  }
+})();
+</script>
 </body>
 </html>
