@@ -1632,9 +1632,7 @@
             if (!isAuto) alert(`🎉 Berhasil Login sebagai @${SecureShield.maskUsername(authResult.user.username)}`);
             return;
           }
-        } catch (_) {
-          // Lanjut ke modal akun tersimpan / login manual tanpa macet
-        }
+        } catch (_) {}
       }
 
       isAuthenticating = false;
@@ -1646,6 +1644,184 @@
 
       if (!isAuto) {
         openSemiAutoLoginModal();
+      }
+    }
+
+    // --- STANDAR BAHASA PROGRAM / BAHASA INGGRIS UNTUK STATUS & PERAN ---
+    const VerificationStandardCore = {
+      APPROVED: 'approved',
+      PENDING: 'pending',
+      CASHBACK: 'cash_back',
+      ROLE_BUYER: 'buyer',
+      ROLE_SELLER: 'seller',
+      ROLE_BOTH: 'both',
+      MIN_BUYER_DEPOSIT: 35,
+
+      normalizeStatus: function(rawStatus) {
+        const val = (rawStatus || '').toString().toLowerCase().trim();
+        if (['approved', 'active', 'aktif', 'verified', 'verifikasi', 'disetujui', 'true', '1'].includes(val)) {
+          return this.APPROVED;
+        }
+        if (['cash_back', 'cashback', 'refunded', 'dikembalikan'].includes(val)) {
+          return this.CASHBACK;
+        }
+        return this.PENDING;
+      },
+
+      isApprovedStatus: function(rawStatus) {
+        return this.normalizeStatus(rawStatus) === this.APPROVED;
+      },
+
+      toDisplayLabel: function(rawStatus) {
+        return this.isApprovedStatus(rawStatus) ? 'Aktif' : 'Pending';
+      },
+
+      normalizeRole: function(rawRole) {
+        const val = (rawRole || '').toString().toLowerCase().trim();
+        if (
+          val.includes('penjual') && val.includes('pembeli') ||
+          val.includes('seller') && val.includes('buyer') ||
+          ['both', 'dual', 'all'].includes(val)
+        ) {
+          return this.ROLE_BOTH;
+        }
+        if (['seller', 'penjual', 'vendor'].includes(val)) {
+          return this.ROLE_SELLER;
+        }
+        if (['buyer', 'pembeli', 'bidder'].includes(val)) {
+          return this.ROLE_BUYER;
+        }
+        return '';
+      },
+
+      roleToDisplayLabel: function(rawRole) {
+        const norm = this.normalizeRole(rawRole);
+        if (norm === this.ROLE_BOTH) return 'Penjual & Pembeli';
+        if (norm === this.ROLE_SELLER) return 'Penjual';
+        if (norm === this.ROLE_BUYER) return 'Pembeli';
+        return 'Belum Ditentukan';
+      },
+
+      combineRoles: function(existingRole, addedRole) {
+        const a = this.normalizeRole(existingRole);
+        const b = this.normalizeRole(addedRole);
+        if (!a) return b || this.ROLE_BUYER;
+        if (!b || a === b) return a;
+        return this.ROLE_BOTH;
+      },
+
+      getBuyerDepositAmount: function(buyerRecord) {
+        if (!buyerRecord) return 0;
+        const explicitBuyer = buyerRecord.buyer_deposit_balance ?? buyerRecord.buyer_deposit;
+        if (explicitBuyer !== undefined && explicitBuyer !== null && explicitBuyer !== '') {
+          const num = parseFloat(explicitBuyer);
+          if (!isNaN(num)) return num;
+        }
+        const total = parseFloat(buyerRecord.deposit_balance ?? buyerRecord.deposit ?? 0);
+        const safeTotal = isNaN(total) ? 0 : total;
+        const role = this.normalizeRole(buyerRecord.role || buyerRecord.keterangan || '');
+        if (role === this.ROLE_SELLER) return 0;
+        if (role === this.ROLE_BOTH) return parseFloat((safeTotal / 2).toFixed(2));
+        return safeTotal;
+      },
+
+      getSellerDepositAmount: function(buyerRecord) {
+        if (!buyerRecord) return 0;
+        const explicitSeller = buyerRecord.seller_deposit_balance ?? buyerRecord.seller_deposit;
+        if (explicitSeller !== undefined && explicitSeller !== null && explicitSeller !== '') {
+          const num = parseFloat(explicitSeller);
+          if (!isNaN(num)) return num;
+        }
+        const total = parseFloat(buyerRecord.deposit_balance ?? buyerRecord.deposit ?? 0);
+        const safeTotal = isNaN(total) ? 0 : total;
+        const role = this.normalizeRole(buyerRecord.role || buyerRecord.keterangan || '');
+        if (role === this.ROLE_SELLER) return safeTotal;
+        if (role === this.ROLE_BOTH) {
+          const buyerPart = parseFloat((safeTotal / 2).toFixed(2));
+          return parseFloat((safeTotal - buyerPart).toFixed(2));
+        }
+        return 0;
+      },
+
+      isManualAdminApproved: function(buyerRecord) {
+        if (!buyerRecord) return false;
+        const flag = buyerRecord.manual_approved ?? buyerRecord.is_manually_approved ?? buyerRecord.admin_approved;
+        if (flag === true || flag === 1 || String(flag).toLowerCase() === 'true') return true;
+        return this.normalizeStatus(buyerRecord.status) === this.APPROVED;
+      },
+
+      evaluateStatus: function(buyerRecord) {
+        const buyerDeposit = this.getBuyerDepositAmount(buyerRecord);
+        const meetsDepositRule = buyerDeposit >= this.MIN_BUYER_DEPOSIT;
+        const manualApproved = this.isManualAdminApproved(buyerRecord);
+        if (meetsDepositRule || manualApproved) {
+          return this.APPROVED;
+        }
+        return this.PENDING;
+      }
+    };
+
+    window.VerificationStandardCore = VerificationStandardCore;
+
+    function getCurrentBuyerDepositBalance() {
+      const currentUsername = (authenticatedPiUser && authenticatedPiUser.username ? authenticatedPiUser.username : '').trim();
+      if (currentUsername && Array.isArray(buyersList)) {
+        const matched = buyersList.find(b => (b.username || '').trim().toLowerCase() === currentUsername.toLowerCase());
+        if (matched) {
+          return parseFloat(VerificationStandardCore.getBuyerDepositAmount(matched) || 0);
+        }
+      }
+      const buyerTextEl = document.getElementById('buyerDepositBalanceText');
+      if (buyerTextEl) {
+        const matchNum = (buyerTextEl.innerText || '').match(/(-?\d+(?:\.\d+)?)/);
+        if (matchNum) {
+          const parsed = parseFloat(matchNum[1]);
+          if (!isNaN(parsed)) return parsed;
+        }
+      }
+      return 0;
+    }
+
+    function showInsufficientBuyerDepositPopup() {
+      const popupMessage = "Saldo jaminan sebagai pembeli anda < 35 pi. Silahkan klik tombol Daftar pembeli";
+      alert(popupMessage);
+      const btnBuyerRole = document.getElementById('btnRegisterBuyerRole');
+      if (btnBuyerRole) {
+        btnBuyerRole.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        btnBuyerRole.classList.add('ring-4', 'ring-yellow-400', 'animate-pulse');
+        setTimeout(() => {
+          btnBuyerRole.classList.remove('ring-4', 'ring-yellow-400', 'animate-pulse');
+        }, 2500);
+      }
+    }
+
+    async function handleOpenOfferModal(auctionId) {
+      if (!authenticatedPiUser || !authenticatedPiUser.username) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      if (supabaseClient) {
+        try {
+          const { data } = await supabaseClient
+            .from('buyers')
+            .select('*')
+            .eq('username', authenticatedPiUser.username.trim())
+            .maybeSingle();
+          if (data) {
+            const idx = buyersList.findIndex(b => (b.username || '').toLowerCase() === authenticatedPiUser.username.trim().toLowerCase());
+            if (idx !== -1) buyersList[idx] = data;
+            else buyersList.push(data);
+          }
+        } catch (_) {}
+      }
+
+      const buyerDeposit = getCurrentBuyerDepositBalance();
+      if (buyerDeposit >= VerificationStandardCore.MIN_BUYER_DEPOSIT) {
+        openDetailModalWithData(auctionId);
+      } else {
+        showInsufficientBuyerDepositPopup();
       }
     }
 
@@ -1667,32 +1843,20 @@
         }
       },
       normalizeRoleLabel: function(roleVal) {
-        const raw = (roleVal || '').toString().toLowerCase().trim();
-        if (raw === 'penjual & pembeli' || raw === 'pembeli & penjual' || raw === 'both' || raw === 'dual') {
-          return 'Penjual & Pembeli';
-        }
-        if (raw === 'penjual' || raw === 'seller') {
-          return 'Penjual';
-        }
-        if (raw === 'pembeli' || raw === 'buyer') {
-          return 'Pembeli';
-        }
-        return '';
+        return VerificationStandardCore.roleToDisplayLabel(roleVal);
       },
       combineRoles: function(existingRole, addedRole) {
-        const currentNorm = this.normalizeRoleLabel(existingRole);
-        const addedNorm = this.normalizeRoleLabel(addedRole);
-        if (!currentNorm) return addedNorm || 'Pembeli';
-        if (!addedNorm || currentNorm === addedNorm) return currentNorm;
-        return 'Penjual & Pembeli';
+        return VerificationStandardCore.roleToDisplayLabel(
+          VerificationStandardCore.combineRoles(existingRole, addedRole)
+        );
       },
       getMaxDepositForRole: function(roleLabel) {
-        const norm = this.normalizeRoleLabel(roleLabel);
-        return norm === 'Penjual & Pembeli' ? 70.00 : 35.00;
+        const norm = VerificationStandardCore.normalizeRole(roleLabel);
+        return norm === VerificationStandardCore.ROLE_BOTH ? 70.00 : 35.00;
       },
       getRefundDeductionForRole: function(roleLabel) {
-        const norm = this.normalizeRoleLabel(roleLabel);
-        return norm === 'Penjual & Pembeli' ? 2.00 : 1.00;
+        const norm = VerificationStandardCore.normalizeRole(roleLabel);
+        return norm === VerificationStandardCore.ROLE_BOTH ? 2.00 : 1.00;
       },
       copyWalletAddress: function(walletAddr, btnEl) {
         if (!walletAddr || walletAddr === '-') return;
@@ -1719,41 +1883,6 @@
         _SystemRoleDepositGuardian.syncAdminOnlyControls();
       }, 600);
     });
-
-    function promptRoleChoiceModal(titleText, optionA, optionB) {
-      return new Promise((resolve) => {
-        const existing = document.getElementById('roleSelectionPopupModal');
-        if (existing) existing.remove();
-
-        const modal = document.createElement('div');
-        modal.id = 'roleSelectionPopupModal';
-        modal.className = 'fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-[70]';
-        modal.innerHTML = `
-          <div class="bg-gray-950 border border-yellow-500/40 rounded-2xl p-4 w-full max-w-xs space-y-4 shadow-2xl text-center">
-            <h3 class="text-xs font-bold text-yellow-400 uppercase tracking-wider">🛡️ Konfirmasi Peran</h3>
-            <p class="text-xs text-gray-200 leading-relaxed">${titleText}</p>
-            <div class="grid grid-cols-2 gap-2 pt-1">
-              <button id="btnRoleChoiceA" type="button" class="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-2.5 px-3 rounded-xl text-xs transition cursor-pointer shadow">
-                ${optionA}
-              </button>
-              <button id="btnRoleChoiceB" type="button" class="bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-2.5 px-3 rounded-xl text-xs transition cursor-pointer shadow">
-                ${optionB}
-              </button>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(modal);
-
-        document.getElementById('btnRoleChoiceA').onclick = () => {
-          modal.remove();
-          resolve(optionA);
-        };
-        document.getElementById('btnRoleChoiceB').onclick = () => {
-          modal.remove();
-          resolve(optionB);
-        };
-      });
-    }
 
     function promptRefundWalletInput(defaultWallet = '') {
       return new Promise((resolve) => {
@@ -1798,31 +1927,10 @@
     }
 
     function computeRoleDeposits(buyerRecord) {
-      const totalBal = buyerRecord ? parseFloat(buyerRecord.deposit_balance || 0) : 0;
-      const safeTotal = isNaN(totalBal) ? 0 : totalBal;
-      const rawBuyer = buyerRecord && buyerRecord.buyer_deposit_balance !== undefined && buyerRecord.buyer_deposit_balance !== null
-        ? parseFloat(buyerRecord.buyer_deposit_balance)
-        : null;
-      const rawSeller = buyerRecord && buyerRecord.seller_deposit_balance !== undefined && buyerRecord.seller_deposit_balance !== null
-        ? parseFloat(buyerRecord.seller_deposit_balance)
-        : null;
-
-      if (rawBuyer !== null && !isNaN(rawBuyer) && rawSeller !== null && !isNaN(rawSeller)) {
-        return { buyerBalance: rawBuyer, sellerBalance: rawSeller };
-      }
-
-      const roleNorm = _SystemRoleDepositGuardian.normalizeRoleLabel(
-        buyerRecord ? (buyerRecord.role || buyerRecord.keterangan || '') : ''
-      );
-
-      if (roleNorm === 'Penjual & Pembeli') {
-        const half = parseFloat((safeTotal / 2).toFixed(2));
-        return { buyerBalance: half, sellerBalance: parseFloat((safeTotal - half).toFixed(2)) };
-      }
-      if (roleNorm === 'Penjual') {
-        return { buyerBalance: 0, sellerBalance: safeTotal };
-      }
-      return { buyerBalance: safeTotal, sellerBalance: 0 };
+      return {
+        buyerBalance: VerificationStandardCore.getBuyerDepositAmount(buyerRecord),
+        sellerBalance: VerificationStandardCore.getSellerDepositAmount(buyerRecord)
+      };
     }
 
     function updateDetailedDepositDisplay(buyerBalance, sellerBalance) {
@@ -1844,7 +1952,8 @@
       const username = authenticatedPiUser.username;
       if (!supabaseClient) return;
 
-      const selectedRole = _SystemRoleDepositGuardian.normalizeRoleLabel(targetRole) || 'Pembeli';
+      const normalizedSelectedRole = VerificationStandardCore.normalizeRole(targetRole) || VerificationStandardCore.ROLE_BUYER;
+      const selectedRoleLabel = VerificationStandardCore.roleToDisplayLabel(normalizedSelectedRole);
 
       try {
         let { data: buyer } = await supabaseClient
@@ -1854,25 +1963,30 @@
           .maybeSingle();
 
         const currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
-        const existingRole = buyer ? _SystemRoleDepositGuardian.normalizeRoleLabel(buyer.role || buyer.keterangan || '') : '';
+        const existingRole = buyer ? VerificationStandardCore.normalizeRole(buyer.role || buyer.keterangan || '') : '';
         const existingWallet = buyer ? (buyer.wallet_address || buyer.wallet || '') : '';
-        const combinedRole = _SystemRoleDepositGuardian.combineRoles(existingRole, selectedRole);
-        const initialStatus = selectedRole === "Pembeli"
-          ? (currentBalance >= 35 ? "approved" : "pending")
-          : (currentBalance >= 35 ? "approved" : "pending");
+        const combinedRoleNorm = VerificationStandardCore.combineRoles(existingRole, normalizedSelectedRole);
+        const combinedRoleLabel = VerificationStandardCore.roleToDisplayLabel(combinedRoleNorm);
+
+        const evaluatedStatus = VerificationStandardCore.evaluateStatus({
+          ...(buyer || {}),
+          role: combinedRoleNorm,
+          deposit_balance: currentBalance
+        });
 
         if (!buyer) {
           await supabaseClient.from('buyers').insert([{
             username: username,
-            role: selectedRole,
+            role: combinedRoleNorm,
             deposit_balance: currentBalance,
-            status: initialStatus,
+            status: evaluatedStatus,
             win_count: 0,
             has_requested_withdrawal: false
           }]);
         } else {
           await supabaseClient.from('buyers').update({
-            role: combinedRole
+            role: combinedRoleNorm,
+            status: evaluatedStatus
           }).eq('username', username);
         }
 
@@ -1891,40 +2005,41 @@
           if (typeof renderBuyersTable === 'function') renderBuyersTable();
         }
 
-        const roleDeposits = computeRoleDeposits(buyer);
+        const updatedBuyer = buyersList.find(b => (b.username || '').toLowerCase() === username.toLowerCase()) || buyer;
+        const roleDeposits = computeRoleDeposits(updatedBuyer);
         const buyerDepositBal = parseFloat(roleDeposits.buyerBalance || 0);
         const sellerDepositBal = parseFloat(roleDeposits.sellerBalance || 0);
 
-        if (selectedRole === 'Pembeli') {
-          if (buyerDepositBal >= 35) {
-            await supabaseClient.from('buyers').update({ status: 'aktif' }).eq('username', username);
+        if (normalizedSelectedRole === VerificationStandardCore.ROLE_BUYER) {
+          if (buyerDepositBal >= 35 || VerificationStandardCore.isManualAdminApproved(updatedBuyer)) {
+            await supabaseClient.from('buyers').update({ status: VerificationStandardCore.APPROVED }).eq('username', username);
             await fetchBuyersList();
             if (typeof renderBuyersTable === 'function') renderBuyersTable();
-            alert(`✅ Saldo jaminan sebagai pembeli sudah ${buyerDepositBal} pi (>= 35 pi). Status verifikasi otomatis Aktif.`);
+            alert(`✅ Saldo jaminan sebagai pembeli sudah ${buyerDepositBal} pi (>= 35 pi) atau status telah aktif. Status verifikasi: Aktif.`);
             await checkBuyerStatusInDatabase(username);
             return;
           }
 
-          await supabaseClient.from('buyers').update({ status: 'pending' }).eq('username', username);
+          await supabaseClient.from('buyers').update({ status: VerificationStandardCore.PENDING }).eq('username', username);
           await fetchBuyersList();
           if (typeof renderBuyersTable === 'function') renderBuyersTable();
 
           const buyerDeficit = parseFloat((35 - buyerDepositBal).toFixed(2));
-          alert(`ℹ️ Pendaftaran pembeli tercatat dengan status Pending.\nSaldo jaminan pembeli saat ini: ${buyerDepositBal} pi (< 35 pi).\nSilakan top up kekurangan sebesar ${buyerDeficit} pi.`);
-          executeRelativeDepositPayment(username, buyerDeficit, combinedRole, 35.00);
+          alert(`ℹ️ Pendaftaran ${selectedRoleLabel} tercatat dengan status Pending.\nSaldo jaminan pembeli saat ini: ${buyerDepositBal} pi (< 35 pi).\nSilakan top up kekurangan sebesar ${buyerDeficit} pi.`);
+          executeRelativeDepositPayment(username, buyerDeficit, combinedRoleNorm, 35.00);
           return;
         }
 
-        const roleTargetDeposit = combinedRole === 'Penjual & Pembeli' ? Math.max(35, buyerDepositBal + 35) : 35.00;
+        const roleTargetDeposit = combinedRoleNorm === VerificationStandardCore.ROLE_BOTH ? Math.max(35, buyerDepositBal + 35) : 35.00;
         if (sellerDepositBal >= 35 && currentBalance >= roleTargetDeposit) {
-          alert(`✅ Pendaftaran ${selectedRole} tercatat & saldo jaminan Anda sudah mencukupi (${currentBalance} Pi).`);
+          alert(`✅ Pendaftaran ${selectedRoleLabel} tercatat & saldo jaminan Anda sudah mencukupi (${currentBalance} Pi).`);
           await checkBuyerStatusInDatabase(username);
           return;
         }
 
         const deficit = Math.max(0, parseFloat((roleTargetDeposit - currentBalance).toFixed(2)));
         if (deficit > 0) {
-          executeRelativeDepositPayment(username, deficit, combinedRole, roleTargetDeposit);
+          executeRelativeDepositPayment(username, deficit, combinedRoleNorm, roleTargetDeposit);
         } else {
           await checkBuyerStatusInDatabase(username);
         }
@@ -1935,7 +2050,7 @@
     }
 
     async function payAuctionDeposit() {
-      await payAuctionDepositForRole('Pembeli');
+      await payAuctionDepositForRole(VerificationStandardCore.ROLE_BUYER);
     }
 
     async function applyRelativeTopUpToDatabase(username, addedAmount, memo, roleLabel = '', maxCap = 35) {
@@ -1943,18 +2058,24 @@
       try {
         let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
         
-        const roleFinal = _SystemRoleDepositGuardian.normalizeRoleLabel(roleLabel || (buyer && (buyer.role || buyer.keterangan)) || 'Pembeli');
-        const capFinal = maxCap || _SystemRoleDepositGuardian.getMaxDepositForRole(roleFinal);
-        const deductionFinal = _SystemRoleDepositGuardian.getRefundDeductionForRole(roleFinal);
+        const roleFinalNorm = VerificationStandardCore.normalizeRole(roleLabel || (buyer && (buyer.role || buyer.keterangan)) || 'buyer') || VerificationStandardCore.ROLE_BUYER;
+        const roleFinalLabel = VerificationStandardCore.roleToDisplayLabel(roleFinalNorm);
+        const capFinal = maxCap || _SystemRoleDepositGuardian.getMaxDepositForRole(roleFinalNorm);
+        const deductionFinal = _SystemRoleDepositGuardian.getRefundDeductionForRole(roleFinalNorm);
 
         let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
         let newBalance = Math.min(capFinal, currentBalance + addedAmount);
-        let newStatus = newBalance >= 35 ? 'approved' : 'pending';
+        const nextBuyerDeposit = roleFinalNorm === VerificationStandardCore.ROLE_SELLER
+          ? parseFloat(computeRoleDeposits(buyer).buyerBalance || 0)
+          : Math.min(35, parseFloat(computeRoleDeposits(buyer).buyerBalance || 0) + addedAmount);
+        let newStatus = (nextBuyerDeposit >= 35 || VerificationStandardCore.isManualAdminApproved(buyer))
+          ? VerificationStandardCore.APPROVED
+          : VerificationStandardCore.PENDING;
 
         if (!buyer) {
           await supabaseClient.from('buyers').insert([{ 
             username: username,
-            role: roleFinal,
+            role: roleFinalNorm,
             deposit_balance: newBalance, 
             status: newStatus, 
             win_count: 0, 
@@ -1962,7 +2083,7 @@
           }]);
         } else {
           await supabaseClient.from('buyers').update({ 
-            role: roleFinal,
+            role: roleFinalNorm,
             deposit_balance: newBalance, 
             status: newStatus 
           }).eq('username', username);
@@ -1975,7 +2096,7 @@
           memo: memo 
         }]);
 
-        alert(`✅ Top Up Berhasil!\nPeran: ${roleFinal} (Maks Jaminan: ${capFinal} Pi, Potongan Pengembalian: ${deductionFinal} Pi)\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${newStatus.toUpperCase()}`);
+        alert(`✅ Top Up Berhasil!\nPeran: ${roleFinalLabel} (Maks Jaminan: ${capFinal} Pi, Potongan Pengembalian: ${deductionFinal} Pi)\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${VerificationStandardCore.toDisplayLabel(newStatus).toUpperCase()}`);
         await checkBuyerStatusInDatabase(username);
         if (typeof renderBuyersTable === 'function') renderBuyersTable();
       } catch (e) {
@@ -2072,7 +2193,7 @@
 
           await supabaseClient.from('buyers').update({ 
             deposit_balance: 0.00, 
-            status: 'pending', 
+            status: VerificationStandardCore.PENDING, 
             has_requested_withdrawal: true 
           }).eq('username', username);
 
@@ -2098,36 +2219,35 @@
     }
 
     function evaluateBuyerVerificationStatus(buyerRecord, adminApprovedOverride = false) {
-      const roleDeposits = computeRoleDeposits(buyerRecord);
-      const buyerDeposit = parseFloat(roleDeposits.buyerBalance || 0);
-      const rawStatus = (buyerRecord && buyerRecord.status ? buyerRecord.status : '').toString().toLowerCase().trim();
-
-      if (buyerDeposit >= 35) {
-        return 'aktif';
+      if (adminApprovedOverride) {
+        return VerificationStandardCore.APPROVED;
       }
-      if (adminApprovedOverride || rawStatus === 'approved' || rawStatus === 'aktif' || rawStatus === 'active') {
-        return buyerDeposit >= 35 ? 'aktif' : 'pending';
-      }
-      return 'pending';
+      return VerificationStandardCore.evaluateStatus(buyerRecord);
     }
 
     function formatVerificationBadgeLabel(statusVal) {
-      const normalized = (statusVal || '').toString().toLowerCase().trim();
-      return (normalized === 'aktif' || normalized === 'approved' || normalized === 'active') ? 'Aktif' : 'Pending';
+      return VerificationStandardCore.toDisplayLabel(statusVal);
     }
 
-    async function syncBuyerVerificationInDB(username, buyerDeposit, currentStatus) {
-      const targetStatus = buyerDeposit >= 35 ? 'aktif' : 'pending';
-      if (!supabaseClient || !username || currentStatus === targetStatus) {
-        return targetStatus;
+    async function syncBuyerVerificationInDB(username, buyerDeposit, currentStatus, buyerRecord = null) {
+      const evaluatedStatus = VerificationStandardCore.evaluateStatus({
+        ...(buyerRecord || {}),
+        buyer_deposit_balance: buyerDeposit,
+        status: currentStatus
+      });
+      if (!supabaseClient || !username) {
+        return evaluatedStatus;
       }
-      try {
-        await supabaseClient
-          .from('buyers')
-          .update({ status: targetStatus })
-          .eq('username', username);
-      } catch (_) {}
-      return targetStatus;
+      const normalizedDbStatus = VerificationStandardCore.normalizeStatus(currentStatus);
+      if (normalizedDbStatus !== evaluatedStatus) {
+        try {
+          await supabaseClient
+            .from('buyers')
+            .update({ status: evaluatedStatus })
+            .eq('username', username);
+        } catch (_) {}
+      }
+      return evaluatedStatus;
     }
 
     async function checkBuyerStatusInDatabase(username) {
@@ -2137,13 +2257,21 @@
         const roleDeposits = computeRoleDeposits(data);
         updateDetailedDepositDisplay(roleDeposits.buyerBalance, roleDeposits.sellerBalance);
 
-        const resolvedStatus = evaluateBuyerVerificationStatus(data, false);
-        await syncBuyerVerificationInDB(username, roleDeposits.buyerBalance, (data && data.status) || '');
+        const resolvedStatus = await syncBuyerVerificationInDB(
+          username,
+          roleDeposits.buyerBalance,
+          (data && data.status) || '',
+          data
+        );
 
         const statusEl = document.getElementById('buyerApprovalStatusText');
-        if (resolvedStatus === 'aktif') {
+        if (resolvedStatus === VerificationStandardCore.APPROVED) {
           isBuyerApproved = true;
-          if (statusEl) statusEl.innerText = "Status Verifikasi: Aktif (Saldo Jaminan Pembeli >= 35 pi)";
+          if (statusEl) {
+            statusEl.innerText = roleDeposits.buyerBalance >= 35
+              ? "Status Verifikasi: Aktif (Saldo Jaminan Pembeli >= 35 pi)"
+              : "Status Verifikasi: Aktif (Disetujui Admin)";
+          }
         } else {
           isBuyerApproved = false;
           const deficit = Math.max(0, 35 - parseFloat(roleDeposits.buyerBalance || 0));
@@ -2511,7 +2639,7 @@
       navigator.clipboard.writeText(text).then(() => {
         const orig = btnEl.innerText;
         btnEl.innerText = "✅ Berhasil Disalin!";
-        setTimeout(() => { btnEl.innerText = orig; }, 1500);
+        setTimeout(() => { btnEl.innerText = orig; }, 1200);
       }).catch(() => { alert("Gagal menyalin rekapitulasi."); });
     }
 
@@ -2572,12 +2700,12 @@
         if (!existingBuyer) {
           const { error } = await supabaseClient
             .from('buyers')
-            .upsert([{ username: authenticatedPiUser.username, status: 'pending', win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
+            .upsert([{ username: authenticatedPiUser.username, status: VerificationStandardCore.PENDING, win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
           
           if (error) throw error;
           alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
         } else {
-          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${existingBuyer.status.toUpperCase()}`);
+          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${VerificationStandardCore.toDisplayLabel(existingBuyer.status).toUpperCase()}`);
         }
         checkBuyerStatusInDatabase(authenticatedPiUser.username);
       } catch (err) {
@@ -2589,7 +2717,10 @@
       if (!supabaseClient) return;
       try {
         const { data } = await supabaseClient.from('buyers').select('*').order('username', { ascending: true });
-        buyersList = data || [];
+        buyersList = (data || []).map(row => ({
+          ...row,
+          status: VerificationStandardCore.evaluateStatus(row)
+        }));
       } catch(e) { buyersList = []; }
     }
 
@@ -2825,22 +2956,25 @@
       filtered.forEach(b => {
         const roleDeposits = computeRoleDeposits(b);
         const buyerDepositVal = parseFloat(roleDeposits.buyerBalance || 0);
-        const effectiveStatus = evaluateBuyerVerificationStatus(b, false);
-        const isActiveStatus = effectiveStatus === 'aktif';
+        const effectiveStatus = VerificationStandardCore.evaluateStatus(b);
+        const isApproved = VerificationStandardCore.isApprovedStatus(effectiveStatus);
         const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
         const buyerBalance = parseFloat(b.deposit_balance || 0);
-        const roleText = _SystemRoleDepositGuardian.normalizeRoleLabel(b.role || b.keterangan || '') || 'Belum Ditentukan';
+        const roleText = VerificationStandardCore.roleToDisplayLabel(b.role || b.keterangan || '');
         const walletVal = (b.wallet_address || b.wallet || '-').toString();
         const refundAmount = Math.max(0, buyerBalance - _SystemRoleDepositGuardian.getRefundDeductionForRole(roleText));
 
         let withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
-        if (b.status === 'cash_back' || b.has_requested_withdrawal === true || b.is_cashback === true) {
+        if (VerificationStandardCore.normalizeStatus(b.status) === VerificationStandardCore.CASHBACK || b.has_requested_withdrawal === true || b.is_cashback === true) {
           withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">Cash Back</span>`;
         } else if (buyerDepositVal >= 35 || buyerBalance >= 35) {
           withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
         } else {
           withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
         }
+
+        const nextActionStatus = isApproved ? VerificationStandardCore.PENDING : VerificationStandardCore.APPROVED;
+        const nextActionLabel = isApproved ? 'Set Pending' : 'Set Aktif';
 
         html += `<tr class="border-b border-gray-800 bg-gray-950 hover:bg-gray-900/50 transition">
           <td class="p-2 text-center sticky left-0 z-20 bg-gray-950 border-r border-gray-800">
@@ -2856,12 +2990,12 @@
             <div class="text-[10px] font-bold text-indigo-300">${roleText}</div>
             <div class="mt-0.5">${withdrawalNotice}</div>
           </td>
-          <td class="p-2 bg-gray-950"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isActiveStatus ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${formatVerificationBadgeLabel(effectiveStatus)}</span></td>
+          <td class="p-2 bg-gray-950"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${VerificationStandardCore.toDisplayLabel(effectiveStatus)}</span></td>
 
           <td class="p-2 text-right space-x-1 bg-gray-950">
             ${isAdminOrDev ? `
               <button type="button" onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow cursor-pointer">Reset Saldo</button>
-              <button type="button" onclick="updateBuyerStatus('${b.username}', '${isActiveStatus ? 'pending' : 'aktif'}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow cursor-pointer">${isActiveStatus ? 'Set Pending' : 'Set Aktif'}</button>
+              <button type="button" onclick="updateBuyerStatus('${b.username}', '${nextActionStatus}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow cursor-pointer">${nextActionLabel}</button>
             ` : '<span class="text-[9px] text-gray-500">Terkunci</span>'}
           </td>
 
@@ -2894,18 +3028,70 @@
         alert("⛔ Akses Ditolak: Hanya Admin yang dapat mengubah status verifikasi.");
         return;
       }
-      const normalizedTarget = (newStatus || '').toString().toLowerCase().trim() === 'aktif' ? 'aktif' : 'pending';
+
+      const targetRecord = buyersList.find(b => (b.username || '').toLowerCase() === (username || '').toLowerCase());
+      const buyerDeposit = targetRecord ? VerificationStandardCore.getBuyerDepositAmount(targetRecord) : 0;
+      const requestedNorm = VerificationStandardCore.normalizeStatus(newStatus);
+
+      let finalStatus = requestedNorm;
+      let manualApprovedFlag = requestedNorm === VerificationStandardCore.APPROVED;
+
+      if (requestedNorm === VerificationStandardCore.PENDING && buyerDeposit >= VerificationStandardCore.MIN_BUYER_DEPOSIT) {
+        finalStatus = VerificationStandardCore.APPROVED;
+        manualApprovedFlag = true;
+      }
+
       if (!supabaseClient) return;
       try {
-        const { error } = await supabaseClient
+        let { error } = await supabaseClient
           .from('buyers')
-          .update({ status: normalizedTarget, has_requested_withdrawal: false })
+          .update({
+            status: finalStatus,
+            manual_approved: manualApprovedFlag,
+            has_requested_withdrawal: false
+          })
           .eq('username', username);
-        
+
+        if (error && /manual_approved|column/i.test(error.message || '')) {
+          const fallbackRes = await supabaseClient
+            .from('buyers')
+            .update({
+              status: finalStatus,
+              has_requested_withdrawal: false
+            })
+            .eq('username', username);
+          error = fallbackRes.error;
+        }
+
         if (error) throw error;
+
+        if (targetRecord) {
+          targetRecord.status = finalStatus;
+          targetRecord.manual_approved = manualApprovedFlag;
+          targetRecord.has_requested_withdrawal = false;
+        } else {
+          buyersList.push({
+            username,
+            status: finalStatus,
+            manual_approved: manualApprovedFlag,
+            deposit_balance: 0,
+            has_requested_withdrawal: false
+          });
+        }
+
         await fetchBuyersList();
         renderBuyersTable();
-        alert(`✅ Status verifikasi @${username} berhasil diubah menjadi ${formatVerificationBadgeLabel(normalizedTarget)}!`);
+        if (authenticatedPiUser && authenticatedPiUser.username.toLowerCase() === username.toLowerCase()) {
+          await checkBuyerStatusInDatabase(username);
+        } else {
+          renderGallery();
+        }
+
+        if (requestedNorm === VerificationStandardCore.PENDING && buyerDeposit >= VerificationStandardCore.MIN_BUYER_DEPOSIT) {
+          alert(`ℹ️ Status verifikasi @${username} tetap Aktif karena saldo jaminan pembeli >= 35 pi (${buyerDeposit} pi).`);
+        } else {
+          alert(`✅ Status verifikasi @${username} berhasil diubah menjadi ${VerificationStandardCore.toDisplayLabel(finalStatus)}!`);
+        }
       } catch(e) { 
         alert("Gagal memperbarui status: " + e.message); 
       }
@@ -2922,10 +3108,18 @@
       try {
         const { error } = await supabaseClient
           .from('buyers')
-          .update({ deposit_balance: 0.00, status: 'pending' })
+          .update({ deposit_balance: 0.00, buyer_deposit_balance: 0.00, status: VerificationStandardCore.PENDING, manual_approved: false })
           .eq('username', username);
 
-        if (error) throw error;
+        if (error && /buyer_deposit_balance|manual_approved|column/i.test(error.message || '')) {
+          const fallbackRes = await supabaseClient
+            .from('buyers')
+            .update({ deposit_balance: 0.00, status: VerificationStandardCore.PENDING })
+            .eq('username', username);
+          if (fallbackRes.error) throw fallbackRes.error;
+        } else if (error) {
+          throw error;
+        }
 
         await fetchBuyersList();
         renderBuyersTable();
@@ -2978,7 +3172,7 @@
       try {
         const { error } = await supabaseClient
           .from('buyers')
-          .update({ deposit_balance: 0.00, status: 'cash_back', has_requested_withdrawal: false })
+          .update({ deposit_balance: 0.00, status: VerificationStandardCore.CASHBACK, has_requested_withdrawal: false })
           .eq('username', username);
 
         if (error) throw error;
@@ -3159,7 +3353,7 @@
           image_url: base64Image,
           extra_image_url: base64ExtraImage || '',
           transaction_mode: transactionModeValue || 'p2p',
-          status: 'pending',
+          status: VerificationStandardCore.PENDING,
           created_at: new Date().toISOString(),
           ends_at: calculatedEndsAt
         };
@@ -3342,10 +3536,9 @@
       verifyBidAccess: function(username, registeredBuyers, adminList) {
         if (!username) return false;
         if (adminList.includes(username)) return true;
-        const foundBuyer = registeredBuyers.find(b => b.username === username);
+        const foundBuyer = registeredBuyers.find(b => (b.username || '').toLowerCase() === username.trim().toLowerCase());
         if (foundBuyer) {
-          const status = (foundBuyer.status || '').toLowerCase();
-          return status === 'approved' || status === 'aktif' || status === 'active';
+          return VerificationStandardCore.isApprovedStatus(VerificationStandardCore.evaluateStatus(foundBuyer));
         }
         return false;
       }
@@ -3476,14 +3669,7 @@
                 <div class="flex justify-between items-center text-[11px] pt-0.5">
                   <span class="text-emerald-400 font-bold">${price} Pi</span>
                   <div class="flex items-center gap-1">
-                    ${(() => {
-                      const verifiedAccess = window._Background_Security_Engine.verifyBidAccess(currentUsername, buyersList, ADMIN_USERNAMES);
-                      if (verifiedAccess) {
-                        return `<button type="button" onclick="openDetailModalWithData('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Details & Bid</button>`;
-                      } else {
-                        return `<button type="button" disabled class="bg-gray-800 text-gray-500 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-not-allowed opacity-50" title="Akses Details & Bid khusus pembeli terdaftar">🔒 Details & Bid</button>`;
-                      }
-                    })()}
+                    <button type="button" onclick="handleOpenOfferModal('${auction.id}')" class="bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer shadow">Penawaran</button>
                   </div>
                 </div>
               </div>
@@ -3769,15 +3955,9 @@
       }
 
       const username = authenticatedPiUser.username;
-      const isAdminOrDev = ADMIN_USERNAMES.includes(username);
-
-      if (!isAdminOrDev && !isBuyerApproved) {
-        const currentBuyerRec = buyersList.find(b => (b.username || '').trim().toLowerCase() === username.trim().toLowerCase());
-        const currentBuyerDep = currentBuyerRec ? parseFloat(computeRoleDeposits(currentBuyerRec).buyerBalance || 0) : 0;
-        const missingPi = Math.max(0, parseFloat((35 - currentBuyerDep).toFixed(2)));
-        alert(missingPi > 0
-          ? `⛔ Status verifikasi Anda masih Pending. Saldo jaminan pembeli saat ini ${currentBuyerDep} pi (< 35 pi), harap top up kekurangan sebesar ${missingPi} pi.`
-          : "⛔ Status verifikasi Anda masih Pending. Menunggu persetujuan Admin.");
+      const buyerDeposit = getCurrentBuyerDepositBalance();
+      if (buyerDeposit < VerificationStandardCore.MIN_BUYER_DEPOSIT) {
+        showInsufficientBuyerDepositPopup();
         return;
       }
 
@@ -4572,7 +4752,7 @@
           piLoginBtn: "🔑 Login Pi",
           refreshBtn: "Actualizar",
           topupDepositBtn: "💳 Recargar Garantía 35 Pi",
-          withdrawDepositBtn: "📥 Reclamar Retiro Garantía",
+          withdrawDepositBtn: "📥 Reclamar Retiro de Garantía",
           activeStatus: "Activo",
           pendingStatus: "⏳ Pendiente",
           finishedStatus: "Finalizado",
@@ -4580,775 +4760,100 @@
           btnSetPending: "⏳ Poner Pendiente",
           btnSetActive: "🟢 Poner Activo",
           btnDeleteAsset: "🗑 Eliminar",
-          loginFirstAlert: "¡Inicia sesión primero en tu cuenta de Pi Network!",
+          loginFirstAlert: "¡Por favor inicia sesión en tu cuenta de Pi Network primero!",
           fillAllAlert: "Completa todos los campos correctamente.",
           bidSuccessMsg: "🎉 ¡Tu puja se envió con éxito!"
         }
       };
 
-      function normalizeLang(raw) {
-        const code = (raw || 'id').toString().toLowerCase().trim();
-        if (SUPPORTED_LANGS.includes(code)) return code;
-        if (code.startsWith('en')) return 'en';
-        if (code.startsWith('zh') || code.startsWith('cn')) return 'zh';
-        if (code.startsWith('es')) return 'es';
-        return 'id';
+      function getDictionary(lang) {
+        const cleanLang = SUPPORTED_LANGS.includes(lang) ? lang : 'id';
+        const externalDict = (typeof window.translations === 'object' && window.translations && window.translations[cleanLang]) ? window.translations[cleanLang] : {};
+        return Object.assign({}, BUILTIN_FALLBACK.id, BUILTIN_FALLBACK[cleanLang] || {}, externalDict);
       }
-
-      function getActiveDictionary(lang) {
-        const cleanLang = normalizeLang(lang);
-        const externalDict =
-          (window.translations && window.translations[cleanLang]) ||
-          (window.i18n && window.i18n.translations && window.i18n.translations[cleanLang]) ||
-          (window.i18n && window.i18n.messages && window.i18n.messages[cleanLang]) ||
-          (window.i18nDict && window.i18nDict[cleanLang]) ||
-          {};
-        return Object.assign({}, BUILTIN_FALLBACK[cleanLang] || BUILTIN_FALLBACK.id, externalDict);
-      }
-
-      const _AutonomousStateEnforcer = {
-        lastAppliedLang: null,
-        applyLangNow: function(targetLang) {
-          const lang = normalizeLang(targetLang || localStorage.getItem('appLang') || window.currentLang || 'id');
-          window.currentLang = lang;
-          try { localStorage.setItem('appLang', lang); } catch (_) {}
-          document.documentElement.setAttribute('lang', lang);
-
-          if (typeof window.setLanguage === 'function' && window.setLanguage !== window.changeLanguage) {
-            try { window.setLanguage(lang); } catch (_) {}
-          }
-          if (typeof window.i18nSetLang === 'function') {
-            try { window.i18nSetLang(lang); } catch (_) {}
-          }
-          if (window.i18n) {
-            if (typeof window.i18n.setLanguage === 'function') {
-              try { window.i18n.setLanguage(lang); } catch (_) {}
-            } else if (typeof window.i18n.changeLanguage === 'function') {
-              try { window.i18n.changeLanguage(lang); } catch (_) {}
-            } else if (typeof window.i18n.apply === 'function') {
-              try { window.i18n.apply(lang); } catch (_) {}
-            }
-          }
-
-          const dict = getActiveDictionary(lang);
-
-          document.querySelectorAll('[data-i18n]').forEach(el => {
-            const key = el.getAttribute('data-i18n');
-            if (key && dict[key] !== undefined) {
-              if (/<[a-z][\s\S]*>/i.test(dict[key])) {
-                if (el.innerHTML !== dict[key]) el.innerHTML = dict[key];
-              } else {
-                if (el.innerText !== dict[key]) el.innerText = dict[key];
-              }
-            }
-          });
-
-          document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-            const key = el.getAttribute('data-i18n-placeholder');
-            if (key && dict[key] !== undefined && el.getAttribute('placeholder') !== dict[key]) {
-              el.setAttribute('placeholder', dict[key]);
-            }
-          });
-
-          const buyerDepEl = document.getElementById('buyerDepositBalanceText');
-          const sellerDepEl = document.getElementById('sellerDepositBalanceText');
-          if (buyerDepEl) {
-            const bMatch = buyerDepEl.innerText.match(/([\d.,]+\s*pi)/i);
-            const bVal = bMatch ? bMatch[1] : '0 pi';
-            const expectedBuyerText = `Saldo jaminan sebagai pembeli: ${bVal}`;
-            if (buyerDepEl.innerText !== expectedBuyerText) {
-              buyerDepEl.innerText = expectedBuyerText;
-            }
-          }
-          if (sellerDepEl) {
-            const sMatch = sellerDepEl.innerText.match(/([\d.,]+\s*pi)/i);
-            const sVal = sMatch ? sMatch[1] : '0 pi';
-            const expectedSellerText = `Saldo jaminan sebagai penjual: ${sVal}`;
-            if (sellerDepEl.innerText !== expectedSellerText) {
-              sellerDepEl.innerText = expectedSellerText;
-            }
-          }
-
-          const selector = document.getElementById('langSelector');
-          if (selector && selector.value !== lang) {
-            selector.value = lang;
-          }
-
-          if (typeof renderGallery === 'function') {
-            try { renderGallery(); } catch (_) {}
-          }
-
-          this.lastAppliedLang = lang;
-        },
-
-        enforceAll: function() {
-          this.applyLangNow(localStorage.getItem('appLang') || window.currentLang || 'id');
-
-          const activeBiddersEl = document.getElementById('activeBiddersCount');
-          const activeSellersEl = document.getElementById('activeSellersCount');
-          if (activeBiddersEl && activeSellersEl) {
-            const bText = activeBiddersEl.innerText.trim();
-            const sText = activeSellersEl.innerText.trim();
-            if ((bText === '0 User' || bText === '') && typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
-              const uniqueBidders = new Set();
-              activeAuctionsList.forEach(a => {
-                if (a && a.highest_bidder) uniqueBidders.add(String(a.highest_bidder).trim());
-              });
-              if (uniqueBidders.size > 0) {
-                activeBiddersEl.innerText = `${uniqueBidders.size} User`;
-              }
-            }
-            if ((sText === '0 User' || sText === '') && typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
-              const uniqueSellers = new Set();
-              activeAuctionsList.forEach(a => {
-                if (a && a.seller) uniqueSellers.add(String(a.seller).trim());
-              });
-              if (uniqueSellers.size > 0) {
-                activeSellersEl.innerText = `${uniqueSellers.size} User`;
-              }
-            }
-          }
-
-          const isAdminLoggedIn =
-            typeof authenticatedPiUser !== 'undefined' &&
-            authenticatedPiUser &&
-            authenticatedPiUser.username &&
-            typeof ADMIN_USERNAMES !== 'undefined' &&
-            Array.isArray(ADMIN_USERNAMES) &&
-            ADMIN_USERNAMES.includes(authenticatedPiUser.username) &&
-            (typeof isTestUserModeActive === 'undefined' || !isTestUserModeActive);
-
-          const buyersModalEl = document.getElementById('buyersTableModal');
-          if (buyersModalEl && !buyersModalEl.classList.contains('hidden')) {
-            const rows = document.querySelectorAll('#buyersTableBody tr');
-            rows.forEach(tr => {
-              const cells = tr.querySelectorAll('td');
-              if (cells.length >= 6) {
-                const actionCell = cells[4];
-                const refundCell = cells[5];
-                const hasLockedText = actionCell && actionCell.innerText.includes('Terkunci');
-                const hasDashText = refundCell && refundCell.innerText.trim() === '-';
-                if (isAdminLoggedIn && (hasLockedText || hasDashText) && typeof renderBuyersTable === 'function') {
-                  try { renderBuyersTable(); } catch (_) {}
-                }
-              }
-            });
-          }
-        }
-      };
 
       window.t = function(key) {
-        const lang = normalizeLang(localStorage.getItem('appLang') || window.currentLang || 'id');
-        const dict = getActiveDictionary(lang);
+        const activeLang = SUPPORTED_LANGS.includes(window.currentLang) ? window.currentLang : (localStorage.getItem('appLang') || 'id');
+        const dict = getDictionary(activeLang);
         if (dict[key] !== undefined) return dict[key];
         if (BUILTIN_FALLBACK.id[key] !== undefined) return BUILTIN_FALLBACK.id[key];
         return key;
       };
 
-      window.applyTranslations = function(langOverride) {
-        _AutonomousStateEnforcer.applyLangNow(langOverride);
-      };
+      window.applyTranslations = function applyTranslations() {
+        const activeLang = SUPPORTED_LANGS.includes(window.currentLang) ? window.currentLang : (localStorage.getItem('appLang') || 'id');
+        window.currentLang = activeLang;
+        document.documentElement.lang = activeLang;
 
-      window.changeLanguage = function(newLang) {
-        _AutonomousStateEnforcer.applyLangNow(newLang);
-      };
-
-      function bindLanguageControls() {
         const selector = document.getElementById('langSelector');
-        if (selector && !selector.dataset.boundAutonomousLang) {
-          selector.dataset.boundAutonomousLang = '1';
-          const handler = (e) => {
-            const chosen = (e && e.target && e.target.value) || selector.value;
-            _AutonomousStateEnforcer.applyLangNow(chosen);
-          };
-          selector.addEventListener('change', handler);
-          selector.addEventListener('input', handler);
+        if (selector && selector.value !== activeLang) {
+          selector.value = activeLang;
         }
+
+        document.querySelectorAll('[data-i18n]').forEach((el) => {
+          const key = el.getAttribute('data-i18n');
+          if (!key) return;
+          const val = window.t(key);
+          if (val !== key) {
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+              el.placeholder = val;
+            } else {
+              el.textContent = val;
+            }
+          }
+        });
+
+        document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+          const key = el.getAttribute('data-i18n-placeholder');
+          if (!key) return;
+          const val = window.t(key);
+          if (val !== key) {
+            el.placeholder = val;
+          }
+        });
+
+        if (typeof updateNetworkBannerUI === 'function') {
+          updateNetworkBannerUI();
+        }
+        if (typeof filterGallery === 'function') {
+          filterGallery();
+        } else if (typeof renderGallery === 'function') {
+          renderGallery();
+        }
+      };
+
+      window.changeLanguage = function changeLanguage(newLang) {
+        const targetLang = SUPPORTED_LANGS.includes(newLang) ? newLang : 'id';
+        window.currentLang = targetLang;
+        currentLang = targetLang;
+        try {
+          localStorage.setItem('appLang', targetLang);
+        } catch (_) {}
+        window.applyTranslations();
+      };
+
+      function bindLanguageEvents() {
+        const selector = document.getElementById('langSelector');
+        if (selector && !selector.dataset.i18nBound) {
+          selector.dataset.i18nBound = '1';
+          const handleChange = (e) => {
+            const val = e && e.target ? e.target.value : selector.value;
+            window.changeLanguage(val);
+          };
+          selector.addEventListener('change', handleChange);
+          selector.addEventListener('input', handleChange);
+        }
+        window.applyTranslations();
       }
 
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-          bindLanguageControls();
-          _AutonomousStateEnforcer.enforceAll();
-        });
+        document.addEventListener('DOMContentLoaded', bindLanguageEvents);
       } else {
-        bindLanguageControls();
-        _AutonomousStateEnforcer.enforceAll();
+        bindLanguageEvents();
       }
-
-      setInterval(() => {
-        bindLanguageControls();
-        _AutonomousStateEnforcer.enforceAll();
-      }, 250);
+      window.addEventListener('load', bindLanguageEvents);
     })();
   </script>
-
-  <script>
-    (function() {
-      const STORAGE_KEY = 'pibox_bidder_events_v1';
-      const RESET_FEATURE_ENABLED_KEY = 'pibox_reset_bidders_btn_enabled_v1';
-
-      function isResetButtonEnabledForAllUsers() {
-        try {
-          const val = localStorage.getItem(RESET_FEATURE_ENABLED_KEY);
-          return val === null ? true : val === 'true';
-        } catch (_) {
-          return true;
-        }
-      }
-
-      function setResetButtonEnabledForAllUsers(enabled) {
-        try {
-          localStorage.setItem(RESET_FEATURE_ENABLED_KEY, enabled ? 'true' : 'false');
-        } catch (_) {}
-      }
-
-      function isCurrentUserAdminOrDev() {
-        try {
-          if (typeof isTestUserModeActive !== 'undefined' && isTestUserModeActive) {
-            return false;
-          }
-          const usr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username)
-            ? String(authenticatedPiUser.username).trim()
-            : '';
-          if (!usr) return false;
-          const admins = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES : [];
-          const devs = (typeof DEV_USERNAMES !== 'undefined' && Array.isArray(DEV_USERNAMES)) ? DEV_USERNAMES : [];
-          return admins.includes(usr) || devs.includes(usr);
-        } catch (_) {
-          return false;
-        }
-      }
-
-      function syncResetBiddersControls() {
-        const adminBox = document.getElementById('adminToggleResetFeatureBox');
-        const toggleBtn = document.getElementById('adminToggleResetButtonBtn');
-        const userContainer = document.getElementById('adminResetBiddersContainer');
-        const resetBtn = document.getElementById('resetSelectedBiddersBtn');
-
-        const isAdmin = isCurrentUserAdminOrDev();
-        const isEnabled = isResetButtonEnabledForAllUsers();
-
-        if (adminBox) {
-          if (isAdmin) {
-            adminBox.classList.remove('hidden');
-          } else {
-            adminBox.classList.add('hidden');
-          }
-        }
-
-        if (toggleBtn) {
-          if (isEnabled) {
-            toggleBtn.textContent = 'Aktif';
-            toggleBtn.className = 'px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white';
-          } else {
-            toggleBtn.textContent = 'Nonaktif';
-            toggleBtn.className = 'px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer bg-gray-700 hover:bg-gray-600 text-gray-300';
-          }
-        }
-
-        if (userContainer) {
-          userContainer.classList.remove('hidden');
-        }
-
-        if (resetBtn) {
-          resetBtn.disabled = !isEnabled;
-          if (!isEnabled) {
-            resetBtn.title = 'Tombol reset penawar sedang dinonaktifkan oleh Admin/Dev';
-          } else {
-            resetBtn.title = 'Hapus / reset penawar terpilih atau semua penawar';
-          }
-        }
-      }
-
-      window.toggleResetBiddersButtonAccess = function() {
-        if (!isCurrentUserAdminOrDev()) {
-          alert('⛔ Hanya Admin/Dev yang dapat mengaktifkan atau menonaktifkan tombol reset penawar.');
-          return;
-        }
-        const nextState = !isResetButtonEnabledForAllUsers();
-        setResetButtonEnabledForAllUsers(nextState);
-        syncResetBiddersControls();
-      };
-
-      function readEvents() {
-        try {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          const parsed = raw ? JSON.parse(raw) : [];
-          return Array.isArray(parsed) ? parsed : [];
-        } catch (_) {
-          return [];
-        }
-      }
-
-      function writeEvents(events) {
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
-        } catch (_) {}
-      }
-
-      function rebuildAggregates(events) {
-        const map = new Map();
-        events.forEach((ev, idx) => {
-          if (!ev || !ev.username) return;
-          const uname = String(ev.username).trim();
-          if (!uname) return;
-          if (!map.has(uname)) {
-            map.set(uname, {
-              username: uname,
-              count: 0,
-              firstIndex: idx,
-              lastIndex: idx,
-              lastAmount: 0,
-              lastTimestamp: ev.timestamp || 0
-            });
-          }
-          const entry = map.get(uname);
-          entry.count += 1;
-          entry.lastIndex = idx;
-          if (typeof ev.amount === 'number' && !isNaN(ev.amount)) {
-            entry.lastAmount = ev.amount;
-          }
-          if (ev.timestamp) {
-            entry.lastTimestamp = ev.timestamp;
-          }
-        });
-        return Array.from(map.values());
-      }
-
-      function seedFromAuctionsIfEmpty() {
-        const existing = readEvents();
-        if (existing.length > 0) return existing;
-
-        const auctions = (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList))
-          ? activeAuctionsList
-          : [];
-        const seeded = [];
-        auctions.forEach((a, i) => {
-          if (a && a.highest_bidder) {
-            const bidVal = parseFloat(a.highest_bid || a.reserve_price || 0);
-            seeded.push({
-              username: String(a.highest_bidder).trim(),
-              amount: isNaN(bidVal) ? 0 : bidVal,
-              auctionId: a.id || null,
-              timestamp: Date.now() - (auctions.length - i) * 1000
-            });
-          }
-        });
-        if (seeded.length > 0) {
-          writeEvents(seeded);
-        }
-        return seeded;
-      }
-
-      function updateCounterBadge(aggregates) {
-        const countEl = document.getElementById('activeBiddersCount');
-        if (countEl) {
-          countEl.textContent = `${aggregates.length} User`;
-        }
-      }
-
-      function renderModalTable(aggregates) {
-        const tbody = document.getElementById('activeBiddersModalTableBody');
-        if (!tbody) return;
-
-        const selectAllCb = document.getElementById('selectAllBiddersCheckbox');
-        if (selectAllCb) selectAllCb.checked = false;
-
-        if (!aggregates || aggregates.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">Belum ada penawar aktif tercatat.</td></tr>`;
-          return;
-        }
-
-        tbody.innerHTML = aggregates.map((item) => {
-          const safeUser = String(item.username).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          const safeAttrUser = String(item.username).replace(/"/g, '&quot;');
-          return `
-            <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
-              <td class="p-2 text-center w-8">
-                <input type="checkbox" class="bidder-row-checkbox cursor-pointer accent-emerald-500" value="${safeAttrUser}">
-              </td>
-              <td class="p-2 font-mono text-yellow-400 font-semibold">@${safeUser}</td>
-              <td class="p-2 text-right font-bold text-emerald-400">${item.count}x</td>
-            </tr>
-          `;
-        }).join('');
-      }
-
-      function syncAll() {
-        syncResetBiddersControls();
-        const events = seedFromAuctionsIfEmpty();
-        const aggregates = rebuildAggregates(events);
-        updateCounterBadge(aggregates);
-        renderModalTable(aggregates);
-      }
-
-      window.BidderFrequencyEngine = {
-        recordBid: function(username, amount, auctionId) {
-          if (!username) return;
-          const cleanUser = String(username).trim();
-          if (!cleanUser) return;
-          const events = readEvents();
-          const numAmt = parseFloat(amount);
-          events.push({
-            username: cleanUser,
-            amount: isNaN(numAmt) ? 0 : numAmt,
-            auctionId: auctionId || null,
-            timestamp: Date.now()
-          });
-          writeEvents(events);
-          syncAll();
-        },
-        getAggregates: function() {
-          return rebuildAggregates(seedFromAuctionsIfEmpty());
-        },
-        resetUsers: function(usernamesToRemove) {
-          const currentEvents = readEvents();
-          if (!Array.isArray(usernamesToRemove) || usernamesToRemove.length === 0) {
-            writeEvents([]);
-          } else {
-            const removeSet = new Set(usernamesToRemove.map(u => String(u).trim()));
-            const remaining = currentEvents.filter(ev => !removeSet.has(String(ev.username || '').trim()));
-            writeEvents(remaining);
-          }
-          syncAll();
-        },
-        syncViews: syncAll
-      };
-
-      window.openActiveBiddersModal = function() {
-        syncAll();
-        const modal = document.getElementById('activeBiddersModal');
-        if (modal) modal.classList.remove('hidden');
-      };
-
-      window.closeActiveBiddersModal = function() {
-        const modal = document.getElementById('activeBiddersModal');
-        if (modal) modal.classList.add('hidden');
-      };
-
-      window.toggleSelectAllBidders = function(masterCb) {
-        const checked = !!(masterCb && masterCb.checked);
-        document.querySelectorAll('.bidder-row-checkbox').forEach(cb => {
-          cb.checked = checked;
-        });
-      };
-
-      window.adminResetSelectedOrAllBidders = function() {
-        if (!isResetButtonEnabledForAllUsers()) {
-          alert('⛔ Tombol reset penawar sedang dinonaktifkan oleh Admin/Dev.');
-          syncResetBiddersControls();
-          return;
-        }
-        const checkedBoxes = Array.from(document.querySelectorAll('.bidder-row-checkbox:checked'));
-        const selectedUsers = checkedBoxes.map(cb => cb.value).filter(Boolean);
-
-        if (selectedUsers.length > 0) {
-          if (!confirm(`Hapus / reset data penawar untuk ${selectedUsers.length} user terpilih?`)) return;
-          window.BidderFrequencyEngine.resetUsers(selectedUsers);
-        } else {
-          if (!confirm('Tidak ada baris yang dicentang. Reset SEMUA data penawar aktif?')) return;
-          window.BidderFrequencyEngine.resetUsers(null);
-        }
-      };
-
-      if (typeof window.placeBidOnAuction === 'function' && !window.placeBidOnAuction.__wrappedForBidderFreq) {
-        const originalPlaceBid = window.placeBidOnAuction;
-        const wrappedPlaceBid = async function(auctionId, amount) {
-          const res = await originalPlaceBid.apply(this, arguments);
-          try {
-            const usr = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username)
-              ? authenticatedPiUser.username
-              : '';
-            if (usr) {
-              window.BidderFrequencyEngine.recordBid(usr, amount, auctionId);
-            }
-          } catch (_) {}
-          return res;
-        };
-        wrappedPlaceBid.__wrappedForBidderFreq = true;
-        window.placeBidOnAuction = wrappedPlaceBid;
-      }
-
-      document.addEventListener('DOMContentLoaded', () => {
-        syncAll();
-        setTimeout(syncAll, 600);
-        setTimeout(syncAll, 1500);
-      });
-    })();
-  </script>
-
-  <script>
-    (function() {
-      const _SilentLogicEngine = {
-        version: "4.0.0-silent-sync",
-        lastBroadcastTs: 0,
-        applyLiveBidToAllViews: function(auctionId, newBid, bidder) {
-          if (!auctionId) return;
-          const numericBid = parseFloat(newBid);
-          if (isNaN(numericBid)) return;
-
-          if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.pushInstantState === 'function') {
-            _RealtimeBidEnforcementCore.pushInstantState(auctionId, numericBid, bidder);
-          }
-
-          let changed = false;
-          if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList)) {
-            const item = activeAuctionsList.find(a => String(a.id) === String(auctionId));
-            if (item) {
-              const prev = parseFloat(item.highest_bid || 0);
-              if (numericBid >= prev) {
-                item.highest_bid = numericBid;
-                if (bidder) item.highest_bidder = bidder;
-                changed = true;
-              }
-            }
-          }
-          if (typeof filteredAuctionsList !== 'undefined' && Array.isArray(filteredAuctionsList)) {
-            const fItem = filteredAuctionsList.find(a => String(a.id) === String(auctionId));
-            if (fItem) {
-              const prevF = parseFloat(fItem.highest_bid || 0);
-              if (numericBid >= prevF) {
-                fItem.highest_bid = numericBid;
-                if (bidder) fItem.highest_bidder = bidder;
-              }
-            }
-          }
-          if (typeof selectedAuction !== 'undefined' && selectedAuction && String(selectedAuction.id) === String(auctionId)) {
-            selectedAuction.highest_bid = Math.max(parseFloat(selectedAuction.highest_bid || 0), numericBid);
-            if (bidder) selectedAuction.highest_bidder = bidder;
-            const priceEl = document.getElementById('detailModalCurrentPrice');
-            if (priceEl) priceEl.innerText = `${selectedAuction.highest_bid} Pi`;
-          }
-
-          if (changed) {
-            try {
-              localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
-            } catch (_) {}
-            if (typeof updateActiveCounts === 'function') updateActiveCounts();
-            if (typeof filterGallery === 'function') filterGallery();
-            else if (typeof renderGallery === 'function') renderGallery();
-          }
-        },
-        emitInstantBid: function(auctionId, newBid, bidder) {
-          const now = Date.now();
-          this.lastBroadcastTs = now;
-          this.applyLiveBidToAllViews(auctionId, newBid, bidder);
-
-          try {
-            if (typeof BroadcastChannel !== 'undefined') {
-              const ch = new BroadcastChannel('pibox_live_auction_bus');
-              ch.postMessage({
-                type: 'live_bid_update',
-                auctionId: String(auctionId),
-                newBid: parseFloat(newBid),
-                bidder: bidder || '',
-                ts: now
-              });
-              ch.close();
-            }
-          } catch (_) {}
-
-          if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-            try {
-              supabaseClient.channel('public-cluster-auctions').send({
-                type: 'broadcast',
-                event: 'live_bid_update',
-                payload: {
-                  auctionId: String(auctionId),
-                  newBid: parseFloat(newBid),
-                  bidder: bidder || '',
-                  ts: now
-                }
-              });
-            } catch (_) {}
-          }
-        }
-      };
-
-      window._SilentLogicEngine = _SilentLogicEngine;
-
-      try {
-        if (typeof BroadcastChannel !== 'undefined') {
-          const listenerCh = new BroadcastChannel('pibox_live_auction_bus');
-          listenerCh.onmessage = (ev) => {
-            const d = ev && ev.data;
-            if (d && d.type === 'live_bid_update') {
-              _SilentLogicEngine.applyLiveBidToAllViews(d.auctionId, d.newBid, d.bidder);
-            }
-          };
-        }
-      } catch (_) {}
-
-      setInterval(() => {
-        if (typeof activeAuctionsList !== 'undefined' && Array.isArray(activeAuctionsList) && activeAuctionsList.length > 0) {
-          _SystemAutonomousGuardian.normalizeAuctionPrices(activeAuctionsList);
-        }
-      }, 250);
-    })();
-  </script>
-
-  <script>
-    (function() {
-      const MESH_BUS_NAME = 'pibox_autonomous_mesh_v1';
-      const MESH_STATE_KEY = 'pibox_autonomous_mesh_state_v1';
-
-      function safeReadJson(key, fallback) {
-        try {
-          const raw = localStorage.getItem(key);
-          return raw ? JSON.parse(raw) : fallback;
-        } catch (_) {
-          return fallback;
-        }
-      }
-
-      function safeWriteJson(key, val) {
-        try {
-          localStorage.setItem(key, JSON.stringify(val));
-        } catch (_) {}
-      }
-
-      const _AutonomousMeshCoordinator = {
-        version: '1.0.0-mesh',
-        channel: null,
-
-        init: function() {
-          try {
-            if (typeof BroadcastChannel !== 'undefined') {
-              this.channel = new BroadcastChannel(MESH_BUS_NAME);
-              this.channel.onmessage = (event) => {
-                if (event && event.data) {
-                  this.ingestAnyPayload(event.data, true);
-                }
-              };
-            }
-          } catch (_) {}
-
-          window.addEventListener('storage', (e) => {
-            if (e.key === MESH_STATE_KEY && e.newValue) {
-              try {
-                const parsed = JSON.parse(e.newValue);
-                if (parsed) this.ingestAnyPayload(parsed, true);
-              } catch (_) {}
-            }
-          });
-        },
-
-        broadcast: function(msg) {
-          const envelope = Object.assign({}, msg, { _meshTs: Date.now() });
-          safeWriteJson(MESH_STATE_KEY, envelope);
-          try {
-            if (this.channel) {
-              this.channel.postMessage(envelope);
-            }
-          } catch (_) {}
-          if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-            try {
-              supabaseClient.channel('public-cluster-auctions').send({
-                type: 'broadcast',
-                event: 'live_bid_update',
-                payload: envelope
-              });
-            } catch (_) {}
-          }
-        },
-
-        ingestAnyPayload: function(data, fromRemote = false) {
-          if (!data) return;
-
-          if (data.resetAction) {
-            try {
-              localStorage.removeItem('pibox_all_bids_audit_ledger_v1');
-              localStorage.removeItem('pibox_bidder_events_v1');
-              if (typeof window.name === 'string' && window.name.startsWith('PIBOX_LEDGER:')) {
-                window.name = '';
-              }
-            } catch (_) {}
-            if (window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.resetUsers === 'function') {
-              try { window.BidderFrequencyEngine.resetUsers(null); } catch (_) {}
-            }
-            if (typeof updateActiveCounts === 'function') updateActiveCounts();
-            if (typeof filterGallery === 'function') filterGallery();
-            return;
-          }
-
-          if (data.auctionId !== undefined && data.newBid !== undefined) {
-            const cleanId = String(data.auctionId);
-            const numericBid = parseFloat(data.newBid);
-            const bidder = data.bidder || '';
-
-            if (!isNaN(numericBid)) {
-              if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.pushInstantState === 'function') {
-                _RealtimeBidEnforcementCore.pushInstantState(cleanId, numericBid, bidder);
-              }
-              if (typeof _SilentLogicEngine !== 'undefined' && typeof _SilentLogicEngine.applyLiveBidToAllViews === 'function') {
-                _SilentLogicEngine.applyLiveBidToAllViews(cleanId, numericBid, bidder);
-              }
-              if (fromRemote && bidder && window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.recordBid === 'function') {
-                try {
-                  window.BidderFrequencyEngine.recordBid(bidder, numericBid, cleanId);
-                } catch (_) {}
-              }
-            }
-          }
-        }
-      };
-
-      window._AutonomousMeshCoordinator = _AutonomousMeshCoordinator;
-      _AutonomousMeshCoordinator.init();
-    })();
-  </script>
-
-  <script>
-    (function() {
-      const _SilentAdminBridge = {
-        version: "1.0.0-silent-admin-bridge",
-        isCurrentUserAdmin: function() {
-          try {
-            if (typeof isTestUserModeActive !== 'undefined' && isTestUserModeActive) return false;
-            const u = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username)
-              ? String(authenticatedPiUser.username).trim()
-              : '';
-            if (!u) return false;
-            const admins = (typeof ADMIN_USERNAMES !== 'undefined' && Array.isArray(ADMIN_USERNAMES)) ? ADMIN_USERNAMES : [];
-            const devs = (typeof DEV_USERNAMES !== 'undefined' && Array.isArray(DEV_USERNAMES)) ? DEV_USERNAMES : [];
-            return admins.includes(u) || devs.includes(u);
-          } catch (_) {
-            return false;
-          }
-        },
-        syncAdminVisibility: function() {
-          const isAdmin = this.isCurrentUserAdmin();
-          const btnSchedule = document.getElementById('btnAdminSchedule');
-          const reportPanel = document.getElementById('adminMonthlyReportPanel');
-          const btnBuyerReg = document.getElementById('btnAdminRegisterBuyer');
-          const batchDeleteBox = document.getElementById('adminDeleteBatchContainer');
-
-          if (btnSchedule) {
-            if (isAdmin) btnSchedule.classList.remove('hidden');
-            else btnSchedule.classList.add('hidden');
-          }
-          if (reportPanel) {
-            if (isAdmin) reportPanel.classList.remove('hidden');
-            else reportPanel.classList.add('hidden');
-          }
-          if (btnBuyerReg) {
-            if (isAdmin) btnBuyerReg.classList.remove('hidden');
-            else btnBuyerReg.classList.add('hidden');
-          }
-          if (batchDeleteBox) {
-            if (isAdmin) batchDeleteBox.classList.remove('hidden');
-            else batchDeleteBox.classList.add('hidden');
-          }
-        }
-      };
-
-      document.addEventListener('DOMContentLoaded', () => {
-        _SilentAdminBridge.syncAdminVisibility();
-        setInterval(() => _SilentAdminBridge.syncAdminVisibility(), 500);
-      });
-    })();
-  </script>
-
+  <script src="./bidders-tracker.js"></script>
 </body>
 </html>
