@@ -676,13 +676,19 @@
   }
 
   window.openActiveBiddersModal = function () {
-    setupRealtimeListeners();
-    hydrateFromActiveAuctions();
-    updateActiveBiddersCounterUI();
-    renderBiddersModalTable();
+    try {
+      setupRealtimeListeners();
+      hydrateFromActiveAuctions();
+      updateActiveBiddersCounterUI();
+      renderBiddersModalTable();
+    } catch (_) {}
     const modal = document.getElementById("activeBiddersModal");
-    if (modal) modal.classList.remove("hidden");
+    if (modal) {
+      modal.classList.remove("hidden");
+      modal.style.display = "flex";
+    }
   };
+
 
   window.closeActiveBiddersModal = function () {
     const modal = document.getElementById("activeBiddersModal");
