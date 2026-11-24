@@ -1821,7 +1821,44 @@
       });
     }
 
-    async function payAuctionDeposit() {
+    function computeRoleDeposits(buyerRecord) {
+      const totalBal = buyerRecord ? parseFloat(buyerRecord.deposit_balance || 0) : 0;
+      const safeTotal = isNaN(totalBal) ? 0 : totalBal;
+      const rawBuyer = buyerRecord && buyerRecord.buyer_deposit_balance !== undefined && buyerRecord.buyer_deposit_balance !== null
+        ? parseFloat(buyerRecord.buyer_deposit_balance)
+        : null;
+      const rawSeller = buyerRecord && buyerRecord.seller_deposit_balance !== undefined && buyerRecord.seller_deposit_balance !== null
+        ? parseFloat(buyerRecord.seller_deposit_balance)
+        : null;
+
+      if (rawBuyer !== null && !isNaN(rawBuyer) && rawSeller !== null && !isNaN(rawSeller)) {
+        return { buyerBalance: rawBuyer, sellerBalance: rawSeller };
+      }
+
+      const roleNorm = _SystemRoleDepositGuardian.normalizeRoleLabel(
+        buyerRecord ? (buyerRecord.role || buyerRecord.keterangan || '') : ''
+      );
+
+      if (roleNorm === 'Penjual & Pembeli') {
+        const half = parseFloat((safeTotal / 2).toFixed(2));
+        return { buyerBalance: half, sellerBalance: parseFloat((safeTotal - half).toFixed(2)) };
+      }
+      if (roleNorm === 'Penjual') {
+        return { buyerBalance: 0, sellerBalance: safeTotal };
+      }
+      return { buyerBalance: safeTotal, sellerBalance: 0 };
+    }
+
+    function updateDetailedDepositDisplay(buyerBalance, sellerBalance) {
+      const bVal = isNaN(parseFloat(buyerBalance)) ? 0 : parseFloat(buyerBalance);
+      const sVal = isNaN(parseFloat(sellerBalance)) ? 0 : parseFloat(sellerBalance);
+      const buyerEl = document.getElementById('buyerDepositBalanceText');
+      const sellerEl = document.getElementById('sellerDepositBalanceText');
+      if (buyerEl) buyerEl.innerText = `Saldo jaminan sebagai pembeli: ${bVal} pi`;
+      if (sellerEl) sellerEl.innerText = `Saldo jaminan sebagai penjual: ${sVal} pi`;
+    }
+
+    async function payAuctionDepositForRole(targetRole) {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
@@ -1830,6 +1867,8 @@
 
       const username = authenticatedPiUser.username;
       if (!supabaseClient) return;
+
+      const selectedRole = _SystemRoleDepositGuardian.normalizeRoleLabel(targetRole) || 'Pembeli';
 
       try {
         let { data: buyer } = await supabaseClient
@@ -1841,38 +1880,32 @@
         const currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
         const existingRole = buyer ? _SystemRoleDepositGuardian.normalizeRoleLabel(buyer.role || buyer.keterangan || '') : '';
         const existingWallet = buyer ? (buyer.wallet_address || buyer.wallet || '') : '';
+        const combinedRole = _SystemRoleDepositGuardian.combineRoles(existingRole, selectedRole);
+        const maxDepositForRole = _SystemRoleDepositGuardian.getMaxDepositForRole(combinedRole);
+        const initialStatus = selectedRole === "Pembeli"
+          ? (currentBalance >= 35 ? "approved" : "pending")
+          : (currentBalance >= 35 ? "approved" : "pending");
 
-        if (!existingRole) {
-          const pickedRole = await promptRoleChoiceModal(
-            "Anda mendaftar sebagai PENJUAL / PEMBELI",
-            "PENJUAL",
-            "PEMBELI"
-          );
-          if (!pickedRole) return;
+        if (!buyer) {
+          await supabaseClient.from('buyers').insert([{
+            username: username,
+            role: selectedRole,
+            deposit_balance: currentBalance,
+            status: initialStatus,
+            win_count: 0,
+            has_requested_withdrawal: false
+          }]);
+        } else {
+          await supabaseClient.from('buyers').update({
+            role: combinedRole
+          }).eq('username', username);
+        }
 
-          const normalizedPicked = pickedRole === "PENJUAL" ? "Penjual" : "Pembeli";
-          const initialStatus = normalizedPicked === "Pembeli" ? "pending" : (currentBalance >= 35 ? "approved" : "pending");
+        await fetchBuyersList();
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
 
-          if (!buyer) {
-            await supabaseClient.from('buyers').insert([{
-              username: username,
-              role: normalizedPicked,
-              deposit_balance: currentBalance,
-              status: initialStatus,
-              win_count: 0,
-              has_requested_withdrawal: false
-            }]);
-          } else {
-            await supabaseClient.from('buyers').update({
-              role: normalizedPicked,
-              status: normalizedPicked === "Pembeli" ? "pending" : buyer.status
-            }).eq('username', username);
-          }
-
-          await fetchBuyersList();
-          if (typeof renderBuyersTable === 'function') renderBuyersTable();
-
-          const walletInput = await promptRefundWalletInput(existingWallet);
+        if (!existingWallet) {
+          const walletInput = await promptRefundWalletInput('');
           if (!walletInput) return;
 
           await supabaseClient.from('buyers').update({
@@ -1881,63 +1914,27 @@
 
           await fetchBuyersList();
           if (typeof renderBuyersTable === 'function') renderBuyersTable();
-
-          const targetDeposit = 35.00;
-          if (currentBalance >= targetDeposit) {
-            alert(`✅ Wallet tercatat & saldo jaminan Anda sudah mencukupi (${currentBalance} Pi >= 35 Pi).`);
-            await checkBuyerStatusInDatabase(username);
-            return;
-          }
-
-          const deficit = targetDeposit - currentBalance;
-          executeRelativeDepositPayment(username, deficit, normalizedPicked, targetDeposit);
-          return;
         }
 
-        const otherRolePrompt = existingRole === "Pembeli"
-          ? "Anda sudah terdaftar sebagai pembeli. Apakah anda akan mendaftar sebagai penjual?"
-          : existingRole === "Penjual"
-            ? "Anda sudah terdaftar sebagai penjual. Apakah anda akan mendaftar sebagai pembeli?"
-            : "Anda sudah terdaftar sebagai penjual & pembeli. Lanjutkan top up jaminan?";
-
-        const answer = await promptRoleChoiceModal(otherRolePrompt, "Ya", "Tidak");
-        if (answer === "Tidak") {
-          const detailModal = document.getElementById('detailModal');
-          const createModal = document.getElementById('createModal');
-          const buyersModal = document.getElementById('buyersTableModal');
-          if (detailModal) detailModal.classList.add('hidden');
-          if (createModal) createModal.classList.add('hidden');
-          if (buyersModal) buyersModal.classList.add('hidden');
-          if (typeof filterGallery === 'function') filterGallery();
-          return;
-        }
-
-        const combinedRole = answer === "Ya"
-          ? _SystemRoleDepositGuardian.combineRoles(existingRole, existingRole === "Pembeli" ? "Penjual" : "Pembeli")
-          : existingRole;
-
-        const maxDepositForRole = _SystemRoleDepositGuardian.getMaxDepositForRole(combinedRole);
-
-        await supabaseClient.from('buyers').update({
-          role: combinedRole
-        }).eq('username', username);
-
-        await fetchBuyersList();
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
-
-        if (currentBalance >= maxDepositForRole) {
-          alert(`✅ Saldo jaminan Anda sudah mencukupi (${currentBalance} Pi / Maksimal ${maxDepositForRole} Pi untuk peran ${combinedRole}).`);
+        const roleTargetDeposit = combinedRole === 'Penjual & Pembeli' ? maxDepositForRole : 35.00;
+        if (currentBalance >= roleTargetDeposit) {
+          alert(`✅ Pendaftaran ${selectedRole} tercatat & saldo jaminan Anda sudah mencukupi (${currentBalance} Pi).`);
           await checkBuyerStatusInDatabase(username);
           return;
         }
 
-        const deficit = maxDepositForRole - currentBalance;
-        executeRelativeDepositPayment(username, deficit, combinedRole, maxDepositForRole);
+        const deficit = roleTargetDeposit - currentBalance;
+        executeRelativeDepositPayment(username, deficit, combinedRole, roleTargetDeposit);
 
       } catch (err) {
-        alert("Gagal memproses top up jaminan: " + err.message);
+        alert("Gagal memproses pendaftaran jaminan: " + err.message);
       }
     }
+
+    async function payAuctionDeposit() {
+      await payAuctionDepositForRole('Pembeli');
+    }
+
 
     async function applyRelativeTopUpToDatabase(username, addedAmount, memo, roleLabel = '', maxCap = 35) {
       if (!supabaseClient) return;
