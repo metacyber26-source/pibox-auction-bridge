@@ -2027,9 +2027,11 @@
         }
       },
 
+      MAX_ROLE_COLLATERAL: 35,
+
       applyPrecisionDepositUpdate: function(existingRecord, roleNorm, addedAmount, maxCap = 35) {
-        const exactAdded = this.clampExact(addedAmount, 0, Infinity);
-        const exactCap = this.clampExact(maxCap || 35, 0, Infinity);
+        const exactAdded = this.clampExact(addedAmount, 0, this.MAX_ROLE_COLLATERAL);
+        const exactCap = this.clampExact(Math.min(maxCap || this.MAX_ROLE_COLLATERAL, this.MAX_ROLE_COLLATERAL), 0, this.MAX_ROLE_COLLATERAL);
 
         const prevBuyer = existingRecord
           ? VerificationStandardCore.getBuyerDepositAmount(existingRecord)
@@ -2044,16 +2046,16 @@
           : '';
         const combinedRole = VerificationStandardCore.combineRoles(existingRole, targetRole);
 
-        let nextBuyer = prevBuyer;
-        let nextSeller = prevSeller;
+        let nextBuyer = this.clampExact(prevBuyer, 0, this.MAX_ROLE_COLLATERAL);
+        let nextSeller = this.clampExact(prevSeller, 0, this.MAX_ROLE_COLLATERAL);
 
         if (targetRole === VerificationStandardCore.ROLE_BOTH) {
-          nextBuyer = this.clampExact(this.addExact(prevBuyer, exactAdded), 0, exactCap);
-          nextSeller = this.clampExact(this.addExact(prevSeller, exactAdded), 0, exactCap);
+          nextBuyer = this.clampExact(this.addExact(nextBuyer, exactAdded), 0, exactCap);
+          nextSeller = this.clampExact(this.addExact(nextSeller, exactAdded), 0, exactCap);
         } else if (targetRole === VerificationStandardCore.ROLE_SELLER) {
-          nextSeller = this.clampExact(this.addExact(prevSeller, exactAdded), 0, exactCap);
+          nextSeller = this.clampExact(this.addExact(nextSeller, exactAdded), 0, exactCap);
         } else {
-          nextBuyer = this.clampExact(this.addExact(prevBuyer, exactAdded), 0, exactCap);
+          nextBuyer = this.clampExact(this.addExact(nextBuyer, exactAdded), 0, exactCap);
         }
 
         const totalDeposit = this.addExact(nextBuyer, nextSeller);
