@@ -1916,15 +1916,43 @@
           if (typeof renderBuyersTable === 'function') renderBuyersTable();
         }
 
-        const roleTargetDeposit = combinedRole === 'Penjual & Pembeli' ? maxDepositForRole : 35.00;
-        if (currentBalance >= roleTargetDeposit) {
+        const roleDeposits = computeRoleDeposits(buyer);
+        const buyerDepositBal = parseFloat(roleDeposits.buyerBalance || 0);
+        const sellerDepositBal = parseFloat(roleDeposits.sellerBalance || 0);
+
+        if (selectedRole === 'Pembeli') {
+          if (buyerDepositBal >= 35) {
+            await supabaseClient.from('buyers').update({ status: 'aktif' }).eq('username', username);
+            await fetchBuyersList();
+            if (typeof renderBuyersTable === 'function') renderBuyersTable();
+            alert(`✅ Saldo jaminan sebagai pembeli sudah ${buyerDepositBal} pi (>= 35 pi). Status verifikasi otomatis Aktif.`);
+            await checkBuyerStatusInDatabase(username);
+            return;
+          }
+
+          await supabaseClient.from('buyers').update({ status: 'pending' }).eq('username', username);
+          await fetchBuyersList();
+          if (typeof renderBuyersTable === 'function') renderBuyersTable();
+
+          const buyerDeficit = parseFloat((35 - buyerDepositBal).toFixed(2));
+          alert(`ℹ️ Pendaftaran pembeli tercatat dengan status Pending.\nSaldo jaminan pembeli saat ini: ${buyerDepositBal} pi (< 35 pi).\nSilakan top up kekurangan sebesar ${buyerDeficit} pi.`);
+          executeRelativeDepositPayment(username, buyerDeficit, combinedRole, 35.00);
+          return;
+        }
+
+        const roleTargetDeposit = combinedRole === 'Penjual & Pembeli' ? Math.max(35, buyerDepositBal + 35) : 35.00;
+        if (sellerDepositBal >= 35 && currentBalance >= roleTargetDeposit) {
           alert(`✅ Pendaftaran ${selectedRole} tercatat & saldo jaminan Anda sudah mencukupi (${currentBalance} Pi).`);
           await checkBuyerStatusInDatabase(username);
           return;
         }
 
-        const deficit = roleTargetDeposit - currentBalance;
-        executeRelativeDepositPayment(username, deficit, combinedRole, roleTargetDeposit);
+        const deficit = Math.max(0, parseFloat((roleTargetDeposit - currentBalance).toFixed(2)));
+        if (deficit > 0) {
+          executeRelativeDepositPayment(username, deficit, combinedRole, roleTargetDeposit);
+        } else {
+          await checkBuyerStatusInDatabase(username);
+        }
 
       } catch (err) {
         alert("Gagal memproses pendaftaran jaminan: " + err.message);
