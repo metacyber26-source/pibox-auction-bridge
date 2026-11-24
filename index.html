@@ -4260,7 +4260,21 @@
         const channel = supabaseClient.channel('public-cluster-auctions');
         
         channel
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, (payload) => {
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'buyers' }, async (payload) => {
+            await fetchBuyersList();
+            if (typeof renderBuyersTable === 'function') {
+              const bModal = document.getElementById('buyersTableModal');
+              if (bModal && !bModal.classList.contains('hidden')) {
+                renderBuyersTable();
+              }
+            }
+            if (authenticatedPiUser && payload && payload.new && (payload.new.username || '').toLowerCase() === authenticatedPiUser.username.toLowerCase()) {
+              await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+            } else {
+              renderGallery();
+            }
+          })
+
             if (payload && payload.new) {
               const updated = payload.new;
               const idx = activeAuctionsList.findIndex(a => String(a.id) === String(updated.id));
