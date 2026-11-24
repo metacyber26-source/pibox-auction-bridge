@@ -3888,32 +3888,53 @@
               }
               let lines = [`📋 Laporan Penawar — ${title} (Total ${rows.length} Penawar):`];
               rows.forEach((r, i) => {
-                lines.push(`${i + 1}. @${r.username} — ${r.count}x penawaran (Terakhir: ${r.lastAmount} Pi)`);
+                lines.push(`${i + 1}. @${r.username} — ${r.count}x penawaran`);
               });
               return lines.join('\n');
             },
             pushImmediateDistribution: function(auctionId, newBid, bidder, ledgerEntry) {
+              const cleanId = String(auctionId);
+              const numericBid = parseFloat(newBid);
+              const dispatchedAt = Date.now();
+
               if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.pushInstantState === 'function') {
-                _RealtimeBidEnforcementCore.pushInstantState(auctionId, newBid, bidder);
+                _RealtimeBidEnforcementCore.pushInstantState(cleanId, numericBid, bidder);
               }
               if (typeof _SilentLogicEngine !== 'undefined' && typeof _SilentLogicEngine.applyLiveBidToAllViews === 'function') {
-                _SilentLogicEngine.applyLiveBidToAllViews(auctionId, newBid, bidder);
+                _SilentLogicEngine.applyLiveBidToAllViews(cleanId, numericBid, bidder);
               }
+
+              try {
+                if (typeof BroadcastChannel !== 'undefined') {
+                  const tabBus = new BroadcastChannel('pibox_live_auction_bus');
+                  tabBus.postMessage({
+                    type: 'live_bid_update',
+                    auctionId: cleanId,
+                    newBid: numericBid,
+                    bidder: bidder,
+                    ledgerEntry: ledgerEntry || null,
+                    dispatchedAt
+                  });
+                  tabBus.close();
+                }
+              } catch (_) {}
+
               if (supabaseClient) {
                 try {
                   supabaseClient.channel('public-cluster-auctions').send({
                     type: 'broadcast',
                     event: 'live_bid_update',
                     payload: {
-                      auctionId: String(auctionId),
-                      newBid: parseFloat(newBid),
+                      auctionId: cleanId,
+                      newBid: numericBid,
                       bidder: bidder,
                       ledgerEntry: ledgerEntry || null,
-                      timestamp: Date.now()
+                      timestamp: dispatchedAt
                     }
                   });
                 } catch (_) {}
               }
+
               const biddersModal = document.getElementById('activeBiddersModal');
               if (biddersModal && !biddersModal.classList.contains('hidden')) {
                 if (typeof renderActiveBiddersModalTable === 'function') {
