@@ -375,6 +375,213 @@
       if (typeof updateActiveCounts === "function") updateActiveCounts();
     };
 
+    const _BiddersDataHydratorCore = {
+      ledgerKey: "pibox_all_bids_audit_ledger_v1",
+
+      readLedger: function() {
+        try {
+          const raw = localStorage.getItem(this.ledgerKey);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+          }
+        } catch (_) {}
+        try {
+          if (typeof window.name === "string" && window.name.startsWith("PIBOX_LEDGER:")) {
+            const parsedName = JSON.parse(window.name.slice("PIBOX_LEDGER:".length));
+            if (Array.isArray(parsedName)) return parsedName;
+          }
+        } catch (_) {}
+        return [];
+      },
+
+      writeLedger: function(entries) {
+        try {
+          localStorage.setItem(this.ledgerKey, JSON.stringify(entries));
+        } catch (_) {}
+        try {
+          window.name = "PIBOX_LEDGER:" + JSON.stringify(entries.slice(-500));
+        } catch (_) {}
+      },
+
+      collectBiddersSummary: function() {
+        const orderedMap = new Map();
+        const ledger = this.readLedger();
+
+        const addBidderOccurrence = function(rawUsername, explicitCount) {
+          if (!rawUsername || typeof rawUsername !== "string") return;
+          const cleanUser = rawUsername.trim().replace(/^@/, "");
+          if (!cleanUser) return;
+
+          const existing = orderedMap.get(cleanUser);
+          const inc = (typeof explicitCount === "number" && !isNaN(explicitCount) && explicitCount > 0) ? 1 : 1;
+          if (!existing) {
+            orderedMap.set(cleanUser, {
+              username: cleanUser,
+              bidCount: inc
+            });
+          } else {
+            existing.bidCount += inc;
+          }
+        };
+
+        ledger.forEach((entry) => {
+          if (entry && entry.username) {
+            addBidderOccurrence(entry.username, 1);
+          }
+        });
+
+        try {
+          const cachedRaw = localStorage.getItem("nusantara_cached_auctions");
+          if (cachedRaw) {
+            const cachedList = JSON.parse(cachedRaw);
+            if (Array.isArray(cachedList)) {
+              cachedList.forEach((auc) => {
+                if (auc && auc.highest_bidder) {
+                  addBidderOccurrence(auc.highest_bidder, 1);
+                }
+              });
+            }
+          }
+        } catch (_) {}
+
+        if (typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
+          activeAuctionsList.forEach((auc) => {
+            if (auc && auc.highest_bidder) {
+              addBidderOccurrence(auc.highest_bidder, 1);
+            }
+          });
+        }
+
+        return Array.from(orderedMap.values());
+      },
+
+      hydrateFromSupabase: async function() {
+        if (typeof supabaseClient === "undefined" || !supabaseClient) return;
+        try {
+          const { data: logs } = await supabaseClient
+            .from("auction_bids_log")
+            .select("username, auction_id, asset_title, bid_amount, created_at")
+            .order("created_at", { ascending: true })
+            .limit(500);
+
+          if (Array.isArray(logs) && logs.length > 0) {
+            const currentLedger = this.readLedger();
+            const merged = [...currentLedger];
+            logs.forEach((row) => {
+              if (!row || !row.username) return;
+              const exists = merged.some(
+                (m) =>
+                  String(m.username).toLowerCase() === String(row.username).trim().toLowerCase() &&
+                  String(m.created_at || "") === String(row.created_at || "") &&
+                  String(m.auction_id || "") === String(row.auction_id || "")
+              );
+              if (!exists) {
+                merged.push({
+                  id: "db_" + Math.random().toString(36).slice(2, 8),
+                  auction_id: String(row.auction_id || ""),
+                  asset_title: row.asset_title || "Untitled",
+                  username: String(row.username).trim().replace(/^@/, ""),
+                  bid_amount: parseFloat(row.bid_amount || 0),
+                  created_at: row.created_at || new Date().toISOString()
+                });
+              }
+            });
+            this.writeLedger(merged);
+          }
+        } catch (_) {}
+
+        try {
+          const { data: auctions } = await supabaseClient
+            .from("auctions")
+            .select("id, title, highest_bidder, highest_bid")
+            .not("highest_bidder", "is", null);
+
+          if (Array.isArray(auctions) && auctions.length > 0) {
+            const currentLedger = this.readLedger();
+            const merged = [...currentLedger];
+            auctions.forEach((auc) => {
+              if (!auc || !auc.highest_bidder) return;
+              const cleanBidder = String(auc.highest_bidder).trim().replace(/^@/, "");
+              if (!cleanBidder) return;
+              const hasAnyForAsset = merged.some(
+                (m) =>
+                  String(m.username).toLowerCase() === cleanBidder.toLowerCase() &&
+                  String(m.auction_id || "") === String(auc.id || "")
+              );
+              if (!hasAnyForAsset) {
+                merged.push({
+                  id: "auc_" + String(auc.id || "") + "_" + cleanBidder,
+                  auction_id: String(auc.id || ""),
+                  asset_title: auc.title || "Untitled",
+                  username: cleanBidder,
+                  bid_amount: parseFloat(auc.highest_bid || 0),
+                  created_at: new Date().toISOString()
+                });
+              }
+            });
+            this.writeLedger(merged);
+          }
+        } catch (_) {}
+      },
+
+      renderBiddersTableNow: function() {
+        const tbody = document.getElementById("activeBiddersModalTableBody");
+        const list = this.collectBiddersSummary();
+
+        const countEl = document.getElementById("activeBiddersCount");
+        if (countEl) {
+          countEl.innerText = `${list.length} User`;
+        }
+
+        if (!tbody) return;
+
+        if (!list.length) {
+          tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">No recorded bidders yet.</td></tr>`;
+          return;
+        }
+
+        const isResetEnabled = (typeof _LoginAndAdminControlCore !== "undefined" && typeof _LoginAndAdminControlCore.isResetButtonEnabled === "function")
+          ? _LoginAndAdminControlCore.isResetButtonEnabled()
+          : true;
+        const disabledAttr = !isResetEnabled ? "disabled" : "";
+
+        tbody.innerHTML = list
+          .map((item) => {
+            const safeUser = (typeof SecureShield !== "undefined" && SecureShield.sanitizeHTML)
+              ? SecureShield.sanitizeHTML(item.username)
+              : item.username;
+            const totalBids = parseInt(item.bidCount, 10) || 1;
+            return `
+              <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
+                <td class="p-2 text-center">
+                  <input type="checkbox" class="bidder-row-checkbox cursor-pointer accent-emerald-500" value="${safeUser}" ${disabledAttr}>
+                </td>
+                <td class="p-2 font-mono text-yellow-400 font-semibold">@${safeUser}</td>
+                <td class="p-2 text-right">
+                  <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
+                    ${totalBids}x
+                  </span>
+                </td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        if (typeof _LoginAndAdminControlCore !== "undefined" && typeof _LoginAndAdminControlCore.syncResetControlUI === "function") {
+          _LoginAndAdminControlCore.syncResetControlUI();
+        }
+      },
+
+      syncAndRender: async function() {
+        this.renderBiddersTableNow();
+        await this.hydrateFromSupabase();
+        this.renderBiddersTableNow();
+      }
+    };
+
+    window._BiddersDataHydratorCore = _BiddersDataHydratorCore;
+
     function handleUserLogin(inputUsername) {
       try {
         const verifiedUsername = SystemGuardianCore.enforceRealIdentity(inputUsername);
@@ -388,6 +595,7 @@
         alert(error.message);
       }
     }
+
 
     document.addEventListener("DOMContentLoaded", () => {
       SystemGuardianCore.monitorStream();
