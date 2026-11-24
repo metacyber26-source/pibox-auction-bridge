@@ -310,7 +310,7 @@
 
     const list = getOrderedBiddersList();
     if (!list.length) {
-      tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Belum ada penawar lelang tercatat.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">No recorded bidders yet.</td></tr>`;
       return;
     }
 
@@ -321,19 +321,17 @@
           ? SecureShield.sanitizeHTML(item.username)
           : item.username;
         const count = parseInt(item.bidCount, 10) || 1;
-        const lastBid = parseFloat(item.lastBid || 0);
         return `
           <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
             <td class="p-2 text-center">
               <input type="checkbox" class="bidder-row-checkbox cursor-pointer accent-emerald-500" value="${safeUser}" ${disabledAttr}>
             </td>
             <td class="p-2 font-mono text-yellow-400 font-semibold">@${safeUser}</td>
-            <td class="p-2 text-center">
+            <td class="p-2 text-right">
               <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
                 ${count}x
               </span>
             </td>
-            <td class="p-2 text-right font-mono text-emerald-400 font-bold">${lastBid} Pi</td>
           </tr>
         `;
       })
@@ -341,6 +339,7 @@
 
     syncResetButtonAndAdminToggleUI();
   }
+
 
   const _AutonomousMeshCoordinator = {
     seqCounter: Date.now(),
