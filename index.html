@@ -4195,7 +4195,33 @@
 
           .subscribe();
 
+        try {
+          if (typeof BroadcastChannel !== 'undefined') {
+            if (window.__piboxLiveTabBus) {
+              try { window.__piboxLiveTabBus.close(); } catch (_) {}
+            }
+            const bus = new BroadcastChannel('pibox_live_auction_bus');
+            bus.onmessage = (evt) => {
+              const msg = evt && evt.data;
+              if (!msg || msg.type !== 'live_bid_update') return;
+              _RealtimeBidEnforcementCore.pushInstantState(msg.auctionId, msg.newBid, msg.bidder);
+              _AutonomousLogicEngine.syncBidStateLocally(msg.auctionId, msg.newBid, msg.bidder);
+              if (msg.ledgerEntry && msg.ledgerEntry.username) {
+                const existing = _BidLedgerAndDistributionCore.readAllRecords();
+                if (!existing.some(r => r.id === msg.ledgerEntry.id)) {
+                  existing.push(msg.ledgerEntry);
+                  _BidLedgerAndDistributionCore.writeAllRecords(existing);
+                }
+              }
+              updateActiveCounts();
+              filterGallery();
+            };
+            window.__piboxLiveTabBus = bus;
+          }
+        } catch (_) {}
+
         _RealtimeBidEnforcementCore.initInstantSyncGuardian();
+
       } catch (e) {}
     }
 
