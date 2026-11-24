@@ -2940,21 +2940,28 @@
     }
 
     async function updateBuyerStatus(username, newStatus) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      if (!currentUsr || !ADMIN_USERNAMES.includes(currentUsr)) {
+        alert("⛔ Akses Ditolak: Hanya Admin yang dapat mengubah status verifikasi.");
+        return;
+      }
+      const normalizedTarget = (newStatus || '').toString().toLowerCase().trim() === 'aktif' ? 'aktif' : 'pending';
       if (!supabaseClient) return;
       try {
         const { error } = await supabaseClient
           .from('buyers')
-          .update({ status: newStatus, has_requested_withdrawal: false })
+          .update({ status: normalizedTarget, has_requested_withdrawal: false })
           .eq('username', username);
         
         if (error) throw error;
         await fetchBuyersList();
         renderBuyersTable();
-        alert(`✅ Status pembeli @${username} berhasil diubah menjadi ${newStatus.toUpperCase()}!`);
+        alert(`✅ Status verifikasi @${username} berhasil diubah menjadi ${formatVerificationBadgeLabel(normalizedTarget)}!`);
       } catch(e) { 
         alert("Gagal memperbarui status: " + e.message); 
       }
     }
+
 
     async function adminResetBuyerDeposit(username) {
       if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
