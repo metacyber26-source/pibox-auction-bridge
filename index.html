@@ -599,7 +599,7 @@
       </div>
     </div>
 
-  <!-- Indikator Pengguna Real & Panel Penawar Aktif (Terhubung langsung ke bidders-tracker.js) -->
+    <!-- Indikator Pengguna Real & Panel Penawar Aktif (Terhubung langsung ke bidders-tracker.js) -->
     <div class="bg-gray-950/80 border-b border-gray-800 p-2 flex justify-around items-center text-center">
       <div class="flex flex-col items-center">
         <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeSellersLabel">📦 Penjual Aktif</span>
@@ -617,7 +617,7 @@
 
     <!-- MODAL: DAFTAR PENAWAR LELANG & FREKUENSI (DIKENDALIKAN OLEH bidders-tracker.js) -->
     <div id="activeBiddersModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 z-50">
-      <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 w-full max-w-md space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
         <div class="flex justify-between items-center border-b border-gray-800 pb-2">
           <div class="flex items-center gap-2">
             <span class="text-emerald-400 text-lg">🔨</span>
@@ -629,8 +629,29 @@
           <button type="button" onclick="closeActiveBiddersModal()" class="text-gray-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
         </div>
 
-        <div id="adminResetBiddersContainer" class="hidden">
-          <button type="button" onclick="adminResetSelectedOrAllBidders()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5">
+        <!-- Kontrol Khusus Admin/Dev: Aktifkan / Nonaktifkan Tombol Reset Penawar -->
+        <div id="adminToggleResetFeatureBox" class="hidden flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30">
+          <span class="text-[11px] font-semibold text-amber-300">
+            🛡️ Kontrol Admin/Dev: Akses Tombol Reset Penawar
+          </span>
+          <button
+            type="button"
+            id="adminToggleResetButtonBtn"
+            onclick="toggleResetBiddersButtonAccess()"
+            class="px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white"
+          >
+            Aktif
+          </button>
+        </div>
+
+        <!-- Wadah Tombol Reset Penawar (Dapat Diakses Semua User Saat Diaktifkan Admin) -->
+        <div id="adminResetBiddersContainer">
+          <button
+            type="button"
+            id="resetSelectedBiddersBtn"
+            onclick="adminResetSelectedOrAllBidders()"
+            class="w-full bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-3 rounded-xl text-xs transition shadow cursor-pointer flex items-center justify-center gap-1.5"
+          >
             🗑️ Hapus / Reset Penawar Terpilih
           </button>
         </div>
@@ -1553,6 +1574,9 @@
         alert("🔄 Mode Normal Dipulihkan.");
       }
 
+      if (window.BidderFrequencyEngine && typeof window.BidderFrequencyEngine.syncViews === 'function') {
+        window.BidderFrequencyEngine.syncViews();
+      }
       if (typeof checkBuyerStatusInDatabase === 'function' && authenticatedPiUser) {
         checkBuyerStatusInDatabase(authenticatedPiUser.username);
       }
@@ -2399,7 +2423,6 @@
       let externalP2PCount = 0;
       let externalP2PVolume = 0;
 
-      // Integrasi data jumlah penawar aktif secara otomatis dari laporan bulanan
       const activeBiddersCountTotal = _SystemAutonomousGuardian.syncActiveBiddersCount(activeAuctionsList);
 
       filtered.forEach(ast => {
@@ -3446,7 +3469,6 @@
       }
     };
 
-    // --- PENANGANAN VARIABEL PEMENANG LELANG PADA SERTIFIKAT ---
     function copyCertificateLink(auctionId) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       if (!currentUsr || !SystemLogicEngine.validateExecution(currentUsr)) {
@@ -3671,7 +3693,6 @@
       }
     };
 
-    // --- FUNGSI UTAMA PENAWARAN (BIDDING) ---
     async function placeBidOnAuction(auctionId, amount) {
       if (_AutonomousLogicEngine.isProcessingBid) return;
 
@@ -4218,7 +4239,7 @@
       hasReleasedToGallery = false;
     }
   </script>
-    <script src="./i18n.js"></script>
+  <script src="./i18n.js"></script>
   <script>
     (function() {
       const SUPPORTED_LANGS = ['id', 'en', 'zh', 'es'];
@@ -4592,6 +4613,6 @@
     })();
   </script>
 
- <script src="./tabel%20penawar%20lelang%20dan%20frekuensi%20penawaran.js"></script>
+  <script src="./tabel%20penawar%20lelang%20dan%20frekuensi%20penawaran.js"></script>
 </body>
 </html>
