@@ -3824,9 +3824,15 @@
       const isAdminOrDev = ADMIN_USERNAMES.includes(username);
 
       if (!isAdminOrDev && !isBuyerApproved) {
-        alert("⛔ Status akun Anda masih Pending. Harap lakukan Top Up Jaminan minimal 35 Pi.");
+        const currentBuyerRec = buyersList.find(b => (b.username || '').trim().toLowerCase() === username.trim().toLowerCase());
+        const currentBuyerDep = currentBuyerRec ? parseFloat(computeRoleDeposits(currentBuyerRec).buyerBalance || 0) : 0;
+        const missingPi = Math.max(0, parseFloat((35 - currentBuyerDep).toFixed(2)));
+        alert(missingPi > 0
+          ? `⛔ Status verifikasi Anda masih Pending. Saldo jaminan pembeli saat ini ${currentBuyerDep} pi (< 35 pi), harap top up kekurangan sebesar ${missingPi} pi.`
+          : "⛔ Status verifikasi Anda masih Pending. Menunggu persetujuan Admin.");
         return;
       }
+
 
       if (!isAuctionCurrentlyOpen) {
         alert("🔴 Lelang sedang ditutup.");
