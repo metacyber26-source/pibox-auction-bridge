@@ -2095,6 +2095,39 @@
       reader.readAsDataURL(proofFile);
     }
 
+    function evaluateBuyerVerificationStatus(buyerRecord, adminApprovedOverride = false) {
+      const roleDeposits = computeRoleDeposits(buyerRecord);
+      const buyerDeposit = parseFloat(roleDeposits.buyerBalance || 0);
+      const rawStatus = (buyerRecord && buyerRecord.status ? buyerRecord.status : '').toString().toLowerCase().trim();
+
+      if (buyerDeposit >= 35) {
+        return 'aktif';
+      }
+      if (adminApprovedOverride || rawStatus === 'approved' || rawStatus === 'aktif' || rawStatus === 'active') {
+        return buyerDeposit >= 35 ? 'aktif' : 'pending';
+      }
+      return 'pending';
+    }
+
+    function formatVerificationBadgeLabel(statusVal) {
+      const normalized = (statusVal || '').toString().toLowerCase().trim();
+      return (normalized === 'aktif' || normalized === 'approved' || normalized === 'active') ? 'Aktif' : 'Pending';
+    }
+
+    async function syncBuyerVerificationInDB(username, buyerDeposit, currentStatus) {
+      const targetStatus = buyerDeposit >= 35 ? 'aktif' : 'pending';
+      if (!supabaseClient || !username || currentStatus === targetStatus) {
+        return targetStatus;
+      }
+      try {
+        await supabaseClient
+          .from('buyers')
+          .update({ status: targetStatus })
+          .eq('username', username);
+      } catch (_) {}
+      return targetStatus;
+    }
+
     async function checkBuyerStatusInDatabase(username) {
       if (!supabaseClient || !username) return;
       try {
@@ -2102,6 +2135,25 @@
         const roleDeposits = computeRoleDeposits(data);
         updateDetailedDepositDisplay(roleDeposits.buyerBalance, roleDeposits.sellerBalance);
 
+        const resolvedStatus = evaluateBuyerVerificationStatus(data, false);
+        await syncBuyerVerificationInDB(username, roleDeposits.buyerBalance, (data && data.status) || '');
+
+        const statusEl = document.getElementById('buyerApprovalStatusText');
+        if (resolvedStatus === 'aktif') {
+          isBuyerApproved = true;
+          if (statusEl) statusEl.innerText = "Status Verifikasi: Aktif (Saldo Jaminan Pembeli >= 35 pi)";
+        } else {
+          isBuyerApproved = false;
+          const deficit = Math.max(0, 35 - parseFloat(roleDeposits.buyerBalance || 0));
+          if (statusEl) {
+            statusEl.innerText = deficit > 0
+              ? `Status Verifikasi: Pending (Kurang ${deficit} pi untuk aktif otomatis)`
+              : "Status Verifikasi: Pending (Menunggu Persetujuan Admin)";
+          }
+        }
+        renderGallery();
+      } catch(e) {}
+    }
 
         if (data && (data.status === 'approved' || data.status === 'aktif' || data.status === 'active')) {
           isBuyerApproved = true;
