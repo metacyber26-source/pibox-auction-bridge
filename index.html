@@ -2279,9 +2279,9 @@
 
       computeBuyerShortfall: function(buyerDepositBalance) {
         const current = parseFloat(buyerDepositBalance || 0);
-        if (isNaN(current) || current < 0) return this.targetBuyerDeposit;
-        const diff = parseFloat((this.targetBuyerDeposit - current).toFixed(2));
-        return diff > 0 ? diff : 0;
+        if (isNaN(current) || current <= 0) return this.targetBuyerDeposit;
+        if (current >= this.targetBuyerDeposit) return 0;
+        return parseFloat((this.targetBuyerDeposit - current).toFixed(2));
       },
 
       ensureBuyerWalletSaved: async function(username, buyerRecord) {
@@ -2336,7 +2336,7 @@
         const sellerDepositBal = parseFloat(roleDeposits.sellerBalance || 0);
         updateDetailedDepositDisplay(buyerDepositBal, sellerDepositBal);
 
-        if (buyerDepositBal >= this.targetBuyerDeposit || VerificationStandardCore.isManualAdminApproved(latestBuyer)) {
+        if (buyerDepositBal >= this.targetBuyerDeposit) {
           if (supabaseClient) {
             try {
               await supabaseClient
@@ -2348,7 +2348,7 @@
           await fetchBuyersList();
           if (typeof renderBuyersTable === 'function') renderBuyersTable();
           await checkBuyerStatusInDatabase(username);
-          alert(`✅ Buyer collateral balance is ${buyerDepositBal} pi (>= 35 pi). Verification status: Active.`);
+          alert(`Buyer collateral balance is ${buyerDepositBal} pi (>= 35 pi). Verification status: Active.`);
           return;
         }
 
@@ -2364,6 +2364,8 @@
         await fetchBuyersList();
         if (typeof renderBuyersTable === 'function') renderBuyersTable();
         await checkBuyerStatusInDatabase(username);
+
+        alert(`Buyer collateral balance is ${buyerDepositBal} pi (< 35 pi). Proceeding to Pi SDK payment: ${shortfall.toFixed(2)} pi.`);
 
         await executeRelativeDepositPayment(
           username,
@@ -2444,7 +2446,7 @@
 
         const roleTargetDeposit = combinedRoleNorm === VerificationStandardCore.ROLE_BOTH ? Math.max(35, buyerDepositBal + 35) : 35.00;
         if (sellerDepositBal >= 35 && currentBalance >= roleTargetDeposit) {
-          alert(`✅ Pendaftaran ${selectedRoleLabel} tercatat & saldo jaminan Anda sudah mencukupi (${currentBalance} Pi).`);
+          alert(`Pendaftaran ${selectedRoleLabel} tercatat & saldo jaminan Anda sudah mencukupi (${currentBalance} Pi).`);
           await checkBuyerStatusInDatabase(username);
           return;
         }
