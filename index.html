@@ -3704,6 +3704,9 @@ const _AGI_CollateralGuardianCore = (() => {
       if (typeof fetchBuyersList === 'function') await fetchBuyersList();
       _HighPrecisionDepositLedgerCore.syncLocalBuyerState(cleanUser, finalRecord);
       updateDetailedDepositDisplay(finalRecord.buyer_deposit_balance, finalRecord.seller_deposit_balance);
+      if (window._CollateralSyncGuardian && typeof window._CollateralSyncGuardian.broadcastCollateralSync === 'function') {
+        window._CollateralSyncGuardian.broadcastCollateralSync(cleanUser, finalRecord);
+      }
 
       const statusEl = document.getElementById('buyerApprovalStatusText');
       if (finalRecord.status === VerificationStandardCore.APPROVED) {
@@ -3716,123 +3719,47 @@ const _AGI_CollateralGuardianCore = (() => {
       if (typeof renderGallery === 'function') renderGallery();
     }
 
-    async function executeRelativeDepositPayment(username, amountToPay, roleLabel = '', maxCap = 35) {
-      const exactAmount = _HighPrecisionDepositLedgerCore.toExactNumber(amountToPay) || 35;
-      const roleNorm = VerificationStandardCore.normalizeRole(roleLabel) || VerificationStandardCore.ROLE_BUYER;
-      const memoText = `PIBOX-AUCTION: Collateral Top Up (${roleNorm}) ${_HighPrecisionDepositLedgerCore.formatPrecision(exactAmount)} Pi - @${username}`;
+    const _CollateralSyncGuardian = {
+      channelName: 'pibox_collateral_unified_sync_v1',
+      bc: null,
 
-      const paymentData = {
-        amount: exactAmount,
-        memo: memoText,
-        metadata: { type: 'auction_deposit_relative', role: roleNorm, username: username }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await applyRelativeTopUpToDatabase(username, exactAmount, memoText, roleNorm, maxCap);
-            },
-            onCancel: () => { alert("Top up jaminan dibatalkan."); },
-            onError: () => {
-              applyRelativeTopUpToDatabase(username, exactAmount, memoText, roleNorm, maxCap);
-            }
-          });
-        } else {
-          await applyRelativeTopUpToDatabase(username, exactAmount, memoText, roleNorm, maxCap);
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran: " + err.message);
-      }
-    }
-
-    const CLAIM_ROOM_CACHE_KEY = 'pibox_collateral_claim_room_v1';
-    let withdrawalProofBase64Cache = '';
-
-    const _CollateralClaimSyncCore = {
-      broadcastChannel: null,
-
-      initChannel: function() {
+      init: function() {
         try {
-          if (typeof BroadcastChannel !== 'undefined' && !this.broadcastChannel) {
-            this.broadcastChannel = new BroadcastChannel('pibox_collateral_claim_channel');
-            this.broadcastChannel.onmessage = (event) => {
-              if (!event || !event.data) return;
-              if (event.data.type === 'claim_message' && event.data.payload) {
-                this.appendLocalClaimMessage(event.data.payload);
-                if (currentChatRoom === 'collateral_claim' && !document.getElementById('chatModal')?.classList.contains('hidden')) {
-                  loadChatMessages();
-                }
-              } else if (event.data.type === 'buyer_wallet_sync' && event.data.payload) {
-                this.applyBuyerWalletPatch(event.data.payload.username, event.data.payload.wallet_address, event.data.payload.patch || {});
-              }
+          if (typeof BroadcastChannel !== 'undefined' && !this.bc) {
+            this.bc = new BroadcastChannel(this.channelName);
+            this.bc.onmessage = (ev) => {
+              if (!ev || !ev.data || !ev.data.record) return;
+              this.applyRemoteRecord(ev.data.record);
             };
           }
         } catch (_) {}
       },
 
-      normalizeUsername: function(u) {
-        return (u || '').toString().trim().replace(/^@/, '');
-      },
-
-      readLocalClaimMessages: function() {
-        try {
-          const raw = localStorage.getItem(CLAIM_ROOM_CACHE_KEY);
-          const list = raw ? JSON.parse(raw) : [];
-          return Array.isArray(list) ? list : [];
-        } catch (_) {
-          return [];
-        }
-      },
-
-      writeLocalClaimMessages: function(list) {
-        try {
-          localStorage.setItem(CLAIM_ROOM_CACHE_KEY, JSON.stringify((list || []).slice(-200)));
-        } catch (_) {}
-      },
-
-      appendLocalClaimMessage: function(msg) {
-        if (!msg) return;
-        const list = this.readLocalClaimMessages();
-        const exists = list.some(m =>
-          m.id && msg.id
-            ? String(m.id) === String(msg.id)
-            : (String(m.sender || '') === String(msg.sender || '') &&
-               String(m.message || '') === String(msg.message || '') &&
-               String(m.created_at || '') === String(msg.created_at || ''))
-        );
-        if (!exists) {
-          list.push(msg);
-          this.writeLocalClaimMessages(list);
-        }
-      },
-
-      applyBuyerWalletPatch: function(username, walletAddress, extraPatch = {}) {
-        const cleanUser = this.normalizeUsername(username);
-        const cleanWallet = (walletAddress || '').toString().trim();
+      applyRemoteRecord: function(rec) {
+        const cleanUser = (rec.username || '').toString().trim().replace(/^@/, '');
         if (!cleanUser) return;
+        const buyerBal = _HighPrecisionDepositLedgerCore.toExactNumber(rec.buyer_deposit_balance ?? 0);
+        const sellerBal = _HighPrecisionDepositLedgerCore.toExactNumber(rec.seller_deposit_balance ?? 0);
+        const totalBal = _HighPrecisionDepositLedgerCore.addExact(buyerBal, sellerBal);
+        const walletVal = (rec.wallet_address || rec.wallet || '').toString().trim();
 
         const patch = {
+          ...rec,
           username: cleanUser,
-          ...(cleanWallet ? { wallet_address: cleanWallet, wallet: cleanWallet } : {}),
-          ...extraPatch
+          buyer_deposit_balance: buyerBal,
+          seller_deposit_balance: sellerBal,
+          deposit_balance: totalBal,
+          ...(walletVal ? { wallet_address: walletVal, wallet: walletVal } : {})
         };
 
-        if (typeof _HighPrecisionDepositLedgerCore !== 'undefined' && typeof _HighPrecisionDepositLedgerCore.syncLocalBuyerState === 'function') {
-          _HighPrecisionDepositLedgerCore.syncLocalBuyerState(cleanUser, patch);
-        } else if (Array.isArray(buyersList)) {
-          const idx = buyersList.findIndex(b => this.normalizeUsername(b.username).toLowerCase() === cleanUser.toLowerCase());
-          if (idx !== -1) buyersList[idx] = { ...buyersList[idx], ...patch };
-          else buyersList.push(patch);
-        }
+        writeCollateralCache(cleanUser, patch);
+        _HighPrecisionDepositLedgerCore.syncLocalBuyerState(cleanUser, patch);
 
-        if (typeof writeCollateralCache === 'function') {
-          writeCollateralCache(cleanUser, patch);
+        const activeUser = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser?.username)
+          ? authenticatedPiUser.username.trim().replace(/^@/, '')
+          : '';
+        if (activeUser && activeUser.toLowerCase() === cleanUser.toLowerCase()) {
+          updateDetailedDepositDisplay(buyerBal, sellerBal);
         }
 
         if (typeof renderBuyersTable === 'function') {
@@ -3840,328 +3767,83 @@ const _AGI_CollateralGuardianCore = (() => {
         }
       },
 
-      persistBuyerWalletToDB: async function(username, walletAddress, extraPatch = {}) {
-        const cleanUser = this.normalizeUsername(username);
-        const cleanWallet = (walletAddress || '').toString().trim();
-        if (!cleanUser || !cleanWallet) return;
+      broadcastCollateralSync: function(username, record) {
+        const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+        if (!cleanUser) return;
+        const buyerBal = _HighPrecisionDepositLedgerCore.toExactNumber(record.buyer_deposit_balance ?? 0);
+        const sellerBal = _HighPrecisionDepositLedgerCore.toExactNumber(record.seller_deposit_balance ?? 0);
+        const totalBal = _HighPrecisionDepositLedgerCore.addExact(buyerBal, sellerBal);
+        const walletVal = (record.wallet_address || record.wallet || '').toString().trim();
 
-        this.applyBuyerWalletPatch(cleanUser, cleanWallet, extraPatch);
-
-        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-          try {
-            const { data: existing } = await supabaseClient
-              .from('buyers')
-              .select('username, status, role, deposit_balance')
-              .eq('username', cleanUser)
-              .maybeSingle();
-
-            if (!existing) {
-              const insertPayload = {
-                username: cleanUser,
-                role: extraPatch.role || VerificationStandardCore.ROLE_BUYER,
-                buyer_deposit_balance: extraPatch.buyer_deposit_balance ?? 0,
-                seller_deposit_balance: extraPatch.seller_deposit_balance ?? 0,
-                deposit_balance: extraPatch.deposit_balance ?? 0,
-                status: extraPatch.status || VerificationStandardCore.PENDING,
-                wallet_address: cleanWallet,
-                has_requested_withdrawal: extraPatch.has_requested_withdrawal ?? false
-              };
-              const { error: insErr } = await supabaseClient.from('buyers').insert([insertPayload]);
-              if (insErr) {
-                await supabaseClient.from('buyers').insert([{
-                  username: cleanUser,
-                  role: insertPayload.role,
-                  deposit_balance: insertPayload.deposit_balance,
-                  status: insertPayload.status,
-                  wallet_address: cleanWallet
-                }]);
-              }
-            } else {
-              const updatePayload = {
-                wallet_address: cleanWallet,
-                ...extraPatch
-              };
-              const { error: updErr } = await supabaseClient
-                .from('buyers')
-                .update(updatePayload)
-                .eq('username', cleanUser);
-
-              if (updErr) {
-                await supabaseClient
-                  .from('buyers')
-                  .update({ wallet_address: cleanWallet })
-                  .eq('username', cleanUser);
-              }
-            }
-          } catch (_) {}
-
-          try {
-            supabaseClient.channel('public-cluster-auctions').send({
-              type: 'broadcast',
-              event: 'collateral_claim_sync',
-              payload: {
-                kind: 'buyer_wallet_sync',
-                username: cleanUser,
-                wallet_address: cleanWallet,
-                patch: extraPatch,
-                timestamp: Date.now()
-              }
-            });
-          } catch (_) {}
-        }
+        const payload = {
+          username: cleanUser,
+          role: record.role || VerificationStandardCore.ROLE_BUYER,
+          buyer_deposit_balance: buyerBal,
+          seller_deposit_balance: sellerBal,
+          deposit_balance: totalBal,
+          status: record.status || VerificationStandardCore.PENDING,
+          ...(walletVal ? { wallet_address: walletVal, wallet: walletVal } : {})
+        };
 
         try {
-          if (this.broadcastChannel) {
-            this.broadcastChannel.postMessage({
-              type: 'buyer_wallet_sync',
-              payload: { username: cleanUser, wallet_address: cleanWallet, patch: extraPatch }
+          if (this.bc) {
+            this.bc.postMessage({ type: 'collateral_update', record: payload, ts: Date.now() });
+          }
+        } catch (_) {}
+
+        try {
+          if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            supabaseClient.channel('public-cluster-auctions').send({
+              type: 'broadcast',
+              event: 'collateral_unified_sync',
+              payload: { record: payload, ts: Date.now() }
             });
           }
         } catch (_) {}
       },
 
-      publishClaimToRoom: async function(claimPayload) {
-        this.appendLocalClaimMessage(claimPayload);
+      enforceUnifiedConsistency: function() {
+        const activeUser = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser?.username)
+          ? authenticatedPiUser.username.trim().replace(/^@/, '')
+          : '';
+        if (!activeUser) return;
 
-        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-          try {
-            const dbPayload = {
-              sender: claimPayload.sender,
-              message: claimPayload.message,
-              room_type: 'collateral_claim',
-              receiver: null,
-              image_url: claimPayload.image_url || null,
-              created_at: claimPayload.created_at
-            };
-            const { error } = await supabaseClient.from('chats').insert([dbPayload]);
-            if (error) {
-              await supabaseClient.from('chats').insert([{
-                sender: claimPayload.sender,
-                message: claimPayload.message,
-                room_type: 'forum',
-                receiver: null,
-                image_url: claimPayload.image_url || null,
-                created_at: claimPayload.created_at
-              }]);
-            }
-          } catch (_) {}
+        const cached = readCollateralCache(activeUser);
+        const inList = Array.isArray(buyersList)
+          ? buyersList.find(b => (b.username || '').trim().replace(/^@/, '').toLowerCase() === activeUser.toLowerCase())
+          : null;
 
-          try {
-            supabaseClient.channel('public-cluster-auctions').send({
-              type: 'broadcast',
-              event: 'collateral_claim_sync',
-              payload: {
-                kind: 'claim_message',
-                claim: claimPayload,
-                timestamp: Date.now()
-              }
-            });
-          } catch (_) {}
+        const bCached = cached ? _HighPrecisionDepositLedgerCore.toExactNumber(cached.buyer_deposit_balance) : 0;
+        const sCached = cached ? _HighPrecisionDepositLedgerCore.toExactNumber(cached.seller_deposit_balance) : 0;
+        const bList = inList ? _HighPrecisionDepositLedgerCore.toExactNumber(VerificationStandardCore.getBuyerDepositAmount(inList)) : 0;
+        const sList = inList ? _HighPrecisionDepositLedgerCore.toExactNumber(VerificationStandardCore.getSellerDepositAmount(inList)) : 0;
+
+        const bFinal = Math.max(bCached, bList);
+        const sFinal = Math.max(sCached, sList);
+        const totalFinal = _HighPrecisionDepositLedgerCore.addExact(bFinal, sFinal);
+        const walletFinal = (inList?.wallet_address || inList?.wallet || cached?.wallet_address || cached?.wallet || '').toString().trim();
+
+        if (bFinal > 0 || sFinal > 0 || walletFinal) {
+          const merged = {
+            ...(inList || {}),
+            ...(cached || {}),
+            username: activeUser,
+            buyer_deposit_balance: bFinal,
+            seller_deposit_balance: sFinal,
+            deposit_balance: totalFinal,
+            ...(walletFinal ? { wallet_address: walletFinal, wallet: walletFinal } : {})
+          };
+          _HighPrecisionDepositLedgerCore.syncLocalBuyerState(activeUser, merged);
+          updateDetailedDepositDisplay(bFinal, sFinal);
         }
-
-        try {
-          if (this.broadcastChannel) {
-            this.broadcastChannel.postMessage({
-              type: 'claim_message',
-              payload: claimPayload
-            });
-          }
-        } catch (_) {}
       }
     };
 
-    _CollateralClaimSyncCore.initChannel();
-    window._CollateralClaimSyncCore = _CollateralClaimSyncCore;
-
-    function syncClaimDraftToBuyersTable() {
-      const username = _CollateralClaimSyncCore.normalizeUsername(
-        document.getElementById('withdrawalUsernameInput')?.value ||
-        (authenticatedPiUser && authenticatedPiUser.username) || ''
-      );
-      const wallet = (document.getElementById('withdrawalWalletInput')?.value || '').trim();
-      if (!username) return;
-      _CollateralClaimSyncCore.applyBuyerWalletPatch(username, wallet);
-    }
-
-    function handleWithdrawalProofFileChange(input) {
-      const previewBox = document.getElementById('withdrawalProofPreviewBox');
-      const previewImg = document.getElementById('withdrawalProofPreviewImg');
-      const fileNameEl = document.getElementById('withdrawalProofFileName');
-      const file = input && input.files && input.files[0];
-
-      if (!file) {
-        withdrawalProofBase64Cache = '';
-        if (previewBox) previewBox.classList.add('hidden');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        withdrawalProofBase64Cache = e.target.result || '';
-        if (previewImg) previewImg.src = withdrawalProofBase64Cache;
-        if (fileNameEl) fileNameEl.innerText = file.name;
-        if (previewBox) previewBox.classList.remove('hidden');
-      };
-      reader.readAsDataURL(file);
-    }
-
-    async function requestDepositWithdrawal() {
-      if (!authenticatedPiUser || !authenticatedPiUser.username) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-      const username = _CollateralClaimSyncCore.normalizeUsername(authenticatedPiUser.username);
-      withdrawalProofBase64Cache = '';
-
-      let existingWallet = '';
-      if (Array.isArray(buyersList)) {
-        const matched = buyersList.find(b => _CollateralClaimSyncCore.normalizeUsername(b.username).toLowerCase() === username.toLowerCase());
-        if (matched) existingWallet = (matched.wallet_address || matched.wallet || '').toString().trim();
-      }
-      if (!existingWallet && typeof readCollateralCache === 'function') {
-        const cached = readCollateralCache(username);
-        if (cached) existingWallet = (cached.wallet_address || cached.wallet || '').toString().trim();
-      }
-
-      const usernameInput = document.getElementById('withdrawalUsernameInput');
-      const walletInput = document.getElementById('withdrawalWalletInput');
-      const proofInput = document.getElementById('withdrawalProofFile');
-      const previewBox = document.getElementById('withdrawalProofPreviewBox');
-
-      if (usernameInput) usernameInput.value = username;
-      if (walletInput) walletInput.value = existingWallet;
-      if (proofInput) proofInput.value = '';
-      if (previewBox) previewBox.classList.add('hidden');
-
-      _CollateralClaimSyncCore.applyBuyerWalletPatch(username, existingWallet);
-      document.getElementById('withdrawalProofModal').classList.remove('hidden');
-    }
-
-    function closeWithdrawalProofModal() {
-      document.getElementById('withdrawalProofModal').classList.add('hidden');
-    }
-
-    async function submitWithdrawalWithProof() {
-      if (!authenticatedPiUser || !authenticatedPiUser.username) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      const username = _CollateralClaimSyncCore.normalizeUsername(
-        document.getElementById('withdrawalUsernameInput')?.value || authenticatedPiUser.username
-      );
-      const wallet = (document.getElementById('withdrawalWalletInput')?.value || '').trim();
-      const proofFile = document.getElementById('withdrawalProofFile')?.files?.[0];
-
-      if (!wallet) {
-        alert(t('walletRequiredAlert'));
-        return;
-      }
-
-      if (!proofFile && !withdrawalProofBase64Cache) {
-        alert(t('proofRequiredAlert'));
-        return;
-      }
-
-      const submitBtn = document.getElementById('btnSubmitWithdrawalClaim');
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerText = "⏳...";
-      }
-
-      const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
-        if (!file) {
-          resolve(withdrawalProofBase64Cache || '');
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve(ev.target.result || '');
-        reader.onerror = (err) => reject(err);
-        reader.readAsDataURL(file);
-      });
-
-      try {
-        const proofBase64 = await readFileAsDataUrl(proofFile);
-        withdrawalProofBase64Cache = proofBase64;
-
-        let dbBuyer = null;
-        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-          try {
-            const { data } = await supabaseClient
-              .from('buyers')
-              .select('*')
-              .eq('username', username)
-              .maybeSingle();
-            dbBuyer = data || null;
-          } catch (_) {}
-        }
-
-        const currentBal = dbBuyer ? parseFloat(dbBuyer.deposit_balance || 0) : 0;
-        const buyerPatch = {
-          wallet_address: wallet,
-          wallet: wallet,
-          has_requested_withdrawal: true,
-          ...(currentBal > 0 ? { deposit_balance: 0.00, status: VerificationStandardCore.PENDING } : {})
-        };
-
-        await _CollateralClaimSyncCore.persistBuyerWalletToDB(username, wallet, buyerPatch);
-
-        if (typeof supabaseClient !== 'undefined' && supabaseClient && currentBal > 0) {
-          try {
-            await supabaseClient.from('auction_deposits_log').insert([{
-              username: username,
-              amount: currentBal,
-              type: 'withdraw',
-              memo: `Collateral withdrawal claim by @${username} | Wallet: ${wallet}`
-            }]);
-          } catch (_) {}
-        }
-
-        const nowIso = new Date().toISOString();
-        const claimFormattedText =
-          `📥 COLLATERAL WITHDRAWAL CLAIM\n` +
-          `• Username: @${username}\n` +
-          `• Wallet: ${wallet}\n` +
-          `• Proof Screenshot: Attached`;
-
-        const claimMessageObj = {
-          id: 'claim_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-          sender: username,
-          wallet_address: wallet,
-          message: claimFormattedText,
-          room_type: 'collateral_claim',
-          receiver: null,
-          image_url: proofBase64 || null,
-          created_at: nowIso
-        };
-
-        await _CollateralClaimSyncCore.publishClaimToRoom(claimMessageObj);
-
-        if (typeof fetchBuyersList === 'function') {
-          await fetchBuyersList();
-        }
-        _CollateralClaimSyncCore.applyBuyerWalletPatch(username, wallet, buyerPatch);
-
-        if (typeof checkBuyerStatusInDatabase === 'function') {
-          await checkBuyerStatusInDatabase(username);
-        }
-
-        alert(`✅ ${t('claimSentSuccess')}\n@${username} | ${wallet}`);
-        closeWithdrawalProofModal();
-        openChatModal();
-        switchChatTab('collateral_claim');
-      } catch (err) {
-        alert("Gagal mengirim klaim penarikan jaminan: " + (err && err.message ? err.message : err));
-      } finally {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = `<span data-i18n="submitWithdrawBtn">${t('submitWithdrawBtn')}</span>`;
-        }
-      }
-    }
-
+    _CollateralSyncGuardian.init();
+    window._CollateralSyncGuardian = _CollateralSyncGuardian;
+    setInterval(() => {
+      _CollateralSyncGuardian.enforceUnifiedConsistency();
+    }, 500);
 
     function evaluateBuyerVerificationStatus(buyerRecord, adminApprovedOverride = false) {
       if (adminApprovedOverride) {
