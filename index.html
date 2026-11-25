@@ -3272,31 +3272,34 @@ const _AGI_CollateralGuardianCore = (() => {
       },
 
       ensureBuyerWalletSaved: async function(username, buyerRecord) {
-        const existingWallet = buyerRecord ? (buyerRecord.wallet_address || buyerRecord.wallet || '').toString().trim() : '';
-        const walletInput = await promptRefundWalletInput(existingWallet);
-        if (!walletInput) return null;
+      const existingWallet = buyerRecord ? (buyerRecord.wallet_address || buyerRecord.wallet || '').toString().trim() : '';
+      const confirmed = await promptRefundWalletInput(existingWallet);
+      if (!confirmed) return null;
 
-        if (supabaseClient) {
-          try {
-            const { error } = await supabaseClient
+      if (existingWallet && supabaseClient) {
+        try {
+          const { error } = await supabaseClient
+            .from('buyers')
+            .update({ wallet_address: existingWallet })
+            .eq('username', username);
+          if (error && /wallet_address|column/i.test(error.message || '')) {
+            await supabaseClient
               .from('buyers')
-              .update({ wallet_address: walletInput })
+              .update({ wallet: existingWallet })
               .eq('username', username);
-            if (error && /wallet_address|column/i.test(error.message || '')) {
-              await supabaseClient
-                .from('buyers')
-                .update({ wallet: walletInput })
-                .eq('username', username);
-            }
-          } catch (_) {}
-        }
+          }
+        } catch (_) {}
+      }
 
+      if (existingWallet) {
         _HighPrecisionDepositLedgerCore.syncLocalBuyerState(username, {
-          wallet_address: walletInput,
-          wallet: walletInput
+          wallet_address: existingWallet,
+          wallet: existingWallet
         });
-        return walletInput;
-      },
+      }
+      return existingWallet || 'CONFIRMED';
+    },
+
 
       evaluateAndRouteBuyerDeposit: async function(username, combinedRoleNorm) {
         let latestBuyer = null;
