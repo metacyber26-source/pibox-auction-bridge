@@ -3664,34 +3664,44 @@
 
     function closeBuyersTableModal() { document.getElementById('buyersTableModal').classList.add('hidden'); }
 
+    function isStrictAdminTester() {
+      if (typeof isTestUserModeActive !== 'undefined' && isTestUserModeActive) return false;
+      const currentUsr = (authenticatedPiUser && authenticatedPiUser.username ? authenticatedPiUser.username : '').trim();
+      return Boolean(currentUsr && Array.isArray(ADMIN_USERNAMES) && ADMIN_USERNAMES.includes(currentUsr));
+    }
+
     function renderBuyersTable() {
       const tbody = document.getElementById('buyersTableBody');
       if (!tbody) return;
       const query = (document.getElementById('searchBuyerInput')?.value || '').toLowerCase().trim();
-      const isAdminOrDev = authenticatedPiUser && ADMIN_USERNAMES.includes(authenticatedPiUser.username);
+      const isAdminOrDev = isStrictAdminTester();
       const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
 
-      if (filtered.length === 0) { 
-        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Kosong.</td></tr>`; 
-        return; 
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Kosong.</td></tr>`;
+        return;
       }
-      
+
       let html = '';
       filtered.forEach(b => {
         const roleDeposits = computeRoleDeposits(b);
-        const buyerDepositVal = parseFloat(roleDeposits.buyerBalance || 0);
+        const buyerDepositVal = _HighPrecisionDepositLedgerCore.toExactNumber(roleDeposits.buyerBalance || 0);
+        const sellerDepositVal = _HighPrecisionDepositLedgerCore.toExactNumber(roleDeposits.sellerBalance || 0);
+        const strBuyerDep = _HighPrecisionDepositLedgerCore.formatPrecision(buyerDepositVal);
+        const strSellerDep = _HighPrecisionDepositLedgerCore.formatPrecision(sellerDepositVal);
+
         const effectiveStatus = VerificationStandardCore.evaluateStatus(b);
         const isApproved = VerificationStandardCore.isApprovedStatus(effectiveStatus);
         const displayedUsername = isAdminOrDev ? b.username : SecureShield.maskUsername(b.username);
-        const buyerBalance = parseFloat(b.deposit_balance || 0);
+        const totalBalance = _HighPrecisionDepositLedgerCore.addExact(buyerDepositVal, sellerDepositVal);
         const roleText = VerificationStandardCore.roleToDisplayLabel(b.role || b.keterangan || '');
         const walletVal = (b.wallet_address || b.wallet || '-').toString();
-        const refundAmount = Math.max(0, buyerBalance - _SystemRoleDepositGuardian.getRefundDeductionForRole(roleText));
+        const refundAmount = Math.max(0, _HighPrecisionDepositLedgerCore.subExact(totalBalance, _SystemRoleDepositGuardian.getRefundDeductionForRole(roleText)));
 
         let withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
         if (VerificationStandardCore.normalizeStatus(b.status) === VerificationStandardCore.CASHBACK || b.has_requested_withdrawal === true || b.is_cashback === true) {
           withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">Cash Back</span>`;
-        } else if (buyerDepositVal >= 35 || buyerBalance >= 35) {
+        } else if (buyerDepositVal >= 35 || sellerDepositVal >= 35 || totalBalance >= 35) {
           withdrawalNotice = `<span class="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Depo</span>`;
         } else {
           withdrawalNotice = `<span class="text-[9px] text-gray-400">Belum</span>`;
@@ -3707,7 +3717,8 @@
 
           <td class="p-2 font-mono text-yellow-400 sticky left-8 z-20 bg-gray-950 border-r border-gray-800 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.6)]">
             @${displayedUsername}
-            <div class="text-[9px] text-emerald-400 font-sans">Jaminan Pembeli: ${buyerDepositVal} pi</div>
+            <div class="text-[9px] text-emerald-400 font-sans">Jaminan Pembeli: ${strBuyerDep} pi</div>
+            <div class="text-[9px] text-yellow-400 font-sans">Jaminan Penjual: ${strSellerDep} pi</div>
           </td>
 
           <td class="p-2 text-center bg-gray-950">
@@ -3716,7 +3727,7 @@
           </td>
           <td class="p-2 bg-gray-950"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${isApproved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}">${VerificationStandardCore.toDisplayLabel(effectiveStatus)}</span></td>
 
-          <td class="p-2 text-right space-x-1 bg-gray-950">
+          <td class="p-2 text-right space-y-1 bg-gray-950">
             ${isAdminOrDev ? `
               <button type="button" onclick="adminResetBuyerDeposit('${b.username}')" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow cursor-pointer">Reset Saldo</button>
               <button type="button" onclick="updateBuyerStatus('${b.username}', '${nextActionStatus}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold transition shadow cursor-pointer">${nextActionLabel}</button>
@@ -3725,7 +3736,7 @@
 
           <td class="p-2 text-center bg-gray-950">
             ${isAdminOrDev ? `
-              <button type="button" onclick="sendDepositRefundToUser('${b.username}', ${buyerBalance})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer">
+              <button type="button" onclick="sendDepositRefundToUser('${b.username}', ${totalBalance})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold transition shadow flex items-center justify-center gap-1 mx-auto cursor-pointer">
                 🚀 Kirim (${refundAmount} Pi)
               </button>
             ` : '<span class="text-[9px] text-gray-500">-</span>'}
@@ -3747,8 +3758,7 @@
     }
 
     async function updateBuyerStatus(username, newStatus) {
-      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      if (!currentUsr || !ADMIN_USERNAMES.includes(currentUsr)) {
+      if (!isStrictAdminTester()) {
         alert("⛔ Akses Ditolak: Hanya Admin yang dapat mengubah status verifikasi.");
         return;
       }
@@ -3798,6 +3808,8 @@
             username,
             status: finalStatus,
             manual_approved: manualApprovedFlag,
+            buyer_deposit_balance: 0,
+            seller_deposit_balance: 0,
             deposit_balance: 0,
             has_requested_withdrawal: false
           });
@@ -3816,41 +3828,84 @@
         } else {
           alert(`✅ Status verifikasi @${username} berhasil diubah menjadi ${VerificationStandardCore.toDisplayLabel(finalStatus)}!`);
         }
-      } catch(e) { 
-        alert("Gagal memperbarui status: " + e.message); 
+      } catch(e) {
+        alert("Gagal memperbarui status: " + e.message);
       }
     }
 
     async function adminResetBuyerDeposit(username) {
-      if (!authenticatedPiUser || !ADMIN_USERNAMES.includes(authenticatedPiUser.username)) {
-        alert("⛔ Akses Ditolak!");
+      if (!isStrictAdminTester()) {
+        alert("⛔ Akses Ditolak: Tombol Reset Saldo hanya aktif untuk Admin.");
         return;
       }
-      if (!confirm(`⚠️ Apakah Anda yakin ingin mereset saldo jaminan akun @${username}?`)) return;
-      if (!supabaseClient) return;
+      const cleanUser = String(username || '').trim().replace(/^@/, '');
+      if (!cleanUser) return;
+      if (!confirm(`⚠️ [Uji Coba Admin] Reset saldo jaminan pembeli & penjual untuk @${cleanUser} menjadi 0 pi?`)) return;
 
-      try {
-        const { error } = await supabaseClient
-          .from('buyers')
-          .update({ deposit_balance: 0.00, buyer_deposit_balance: 0.00, status: VerificationStandardCore.PENDING, manual_approved: false })
-          .eq('username', username);
+      const resetState = {
+        username: cleanUser,
+        buyer_deposit_balance: 0,
+        seller_deposit_balance: 0,
+        deposit_balance: 0,
+        status: VerificationStandardCore.PENDING,
+        manual_approved: false
+      };
 
-        if (error && /buyer_deposit_balance|manual_approved|column/i.test(error.message || '')) {
-          const fallbackRes = await supabaseClient
-            .from('buyers')
-            .update({ deposit_balance: 0.00, status: VerificationStandardCore.PENDING })
-            .eq('username', username);
-          if (fallbackRes.error) throw fallbackRes.error;
-        } else if (error) {
-          throw error;
-        }
-
-        await fetchBuyersList();
-        renderBuyersTable();
-        alert(`✅ Saldo jaminan untuk @${username} berhasil direset.`);
-      } catch (err) {
-        alert("Gagal mereset: " + err.message);
+      // Update instan ke state, cache, dan UI
+      writeCollateralCache(cleanUser, resetState);
+      _HighPrecisionDepositLedgerCore.syncLocalBuyerState(cleanUser, resetState);
+      if (authenticatedPiUser && authenticatedPiUser.username.toLowerCase() === cleanUser.toLowerCase()) {
+        updateDetailedDepositDisplay(0, 0);
       }
+      renderBuyersTable();
+
+      if (supabaseClient) {
+        try {
+          let rpcResetDone = false;
+          try {
+            const { error: rpcErr } = await supabaseClient.rpc('admin_reset_collateral_balance', {
+              p_username: cleanUser,
+              p_admin_username: authenticatedPiUser.username
+            });
+            if (!rpcErr) rpcResetDone = true;
+          } catch (_) {}
+
+          if (!rpcResetDone) {
+            const { error } = await supabaseClient
+              .from('buyers')
+              .update({
+                buyer_deposit_balance: 0,
+                seller_deposit_balance: 0,
+                deposit_balance: 0,
+                status: VerificationStandardCore.PENDING,
+                manual_approved: false
+              })
+              .eq('username', cleanUser);
+
+            if (error && /buyer_deposit_balance|seller_deposit_balance|manual_approved|column/i.test(error.message || '')) {
+              const fallbackRes = await supabaseClient
+                .from('buyers')
+                .update({
+                  deposit_balance: 0,
+                  status: VerificationStandardCore.PENDING
+                })
+                .eq('username', cleanUser);
+              if (fallbackRes.error) throw fallbackRes.error;
+            } else if (error) {
+              throw error;
+            }
+          }
+        } catch (err) {
+          alert("Gagal mereset di database: " + err.message);
+          return;
+        }
+      }
+
+      if (authenticatedPiUser && authenticatedPiUser.username.toLowerCase() === cleanUser.toLowerCase()) {
+        await checkBuyerStatusInDatabase(cleanUser);
+      }
+      renderBuyersTable();
+      alert(`✅ Saldo jaminan pembeli & penjual untuk @${cleanUser} berhasil direset ke 0 pi.`);
     }
 
     async function sendDepositRefundToUser(username, currentBalance) {
