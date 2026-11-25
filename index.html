@@ -2760,7 +2760,7 @@ const _AGI_CollateralGuardianCore = (() => {
     }
 
     function showInsufficientBuyerDepositPopup() {
-      const popupMessage = "Buyer collateral balance is < 35 pi. Please click Buyer Register.";
+      const popupMessage = "Buyer collateral balance is < 34.9 pi. Please click Buyer Register.";
       alert(popupMessage);
       const btnBuyerRole = document.getElementById('btnRegisterBuyerRole');
       if (btnBuyerRole) {
@@ -2779,6 +2779,13 @@ const _AGI_CollateralGuardianCore = (() => {
         return;
       }
 
+      const cachedBuyer = typeof readCollateralCache === 'function'
+        ? readCollateralCache(authenticatedPiUser.username.trim())
+        : null;
+      if (cachedBuyer) {
+        _HighPrecisionDepositLedgerCore.syncLocalBuyerState(authenticatedPiUser.username.trim(), cachedBuyer);
+      }
+
       if (supabaseClient) {
         try {
           const { data } = await supabaseClient
@@ -2787,15 +2794,31 @@ const _AGI_CollateralGuardianCore = (() => {
             .eq('username', authenticatedPiUser.username.trim())
             .maybeSingle();
           if (data) {
-            const idx = buyersList.findIndex(b => (b.username || '').toLowerCase() === authenticatedPiUser.username.trim().toLowerCase());
-            if (idx !== -1) buyersList[idx] = data;
-            else buyersList.push(data);
+            const existingRow = Array.isArray(buyersList)
+              ? buyersList.find(b => (b.username || '').toLowerCase() === authenticatedPiUser.username.trim().toLowerCase())
+              : null;
+            const mergedBuyer = {
+              ...(existingRow || {}),
+              ...(cachedBuyer || {}),
+              ...data,
+              buyer_deposit_balance: Math.max(
+                _HighPrecisionDepositLedgerCore.toExactNumber(existingRow && existingRow.buyer_deposit_balance),
+                _HighPrecisionDepositLedgerCore.toExactNumber(cachedBuyer && cachedBuyer.buyer_deposit_balance),
+                _HighPrecisionDepositLedgerCore.toExactNumber(data.buyer_deposit_balance)
+              ),
+              seller_deposit_balance: Math.max(
+                _HighPrecisionDepositLedgerCore.toExactNumber(existingRow && existingRow.seller_deposit_balance),
+                _HighPrecisionDepositLedgerCore.toExactNumber(cachedBuyer && cachedBuyer.seller_deposit_balance),
+                _HighPrecisionDepositLedgerCore.toExactNumber(data.seller_deposit_balance)
+              )
+            };
+            _HighPrecisionDepositLedgerCore.syncLocalBuyerState(authenticatedPiUser.username.trim(), mergedBuyer);
           }
         } catch (_) {}
       }
 
       const buyerDeposit = getCurrentBuyerDepositBalance();
-      if (buyerDeposit >= VerificationStandardCore.MIN_BUYER_DEPOSIT) {
+      if (VerificationStandardCore.isOfferDepositEligible(buyerDeposit)) {
         openDetailModalWithData(auctionId);
       } else {
         showInsufficientBuyerDepositPopup();
