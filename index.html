@@ -3961,6 +3961,102 @@ const _AGI_CollateralGuardianCore = (() => {
     <pre style="white-space: pre-wrap;">${text}</pre>
     <p style="font-size: 10px; color: #9ca3af; margin-top: 20px;">Generated securely via PiBox Auction Bridge Engine</p>
   </div>
+
+  <script>
+(function initOfferAccessAndFastPriceDistributionGuard() {
+  const OFFER_THRESHOLD = 34.9;
+
+  function toNum(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function hasEligibleBuyerCollateral() {
+    if (typeof getCurrentBuyerDepositBalance === "function") {
+      return toNum(getCurrentBuyerDepositBalance()) > OFFER_THRESHOLD;
+    }
+    return false;
+  }
+
+  function syncOfferButtonsState() {
+    const eligible = hasEligibleBuyerCollateral();
+    const offerButtons = Array.from(document.querySelectorAll("button")).filter((btn) => {
+      const handler = btn.getAttribute("onclick") || "";
+      const txt = (btn.textContent || "").trim().toLowerCase();
+      return handler.includes("handleOpenOfferModal") || txt === "penawaran" || txt === "offer";
+    });
+
+    offerButtons.forEach((btn) => {
+      if (eligible) {
+        btn.disabled = false;
+        btn.removeAttribute("aria-disabled");
+        btn.classList.remove("opacity-45", "cursor-not-allowed");
+        btn.classList.add("cursor-pointer");
+      } else {
+        btn.disabled = true;
+        btn.setAttribute("aria-disabled", "true");
+        btn.classList.add("opacity-45", "cursor-not-allowed");
+      }
+    });
+  }
+
+  function fastPropagatePriceUpdate(auctionId, newBid, bidder, statusVal) {
+    const cleanId = String(auctionId || "");
+    const numericBid = toNum(newBid);
+    if (!cleanId || numericBid <= 0) return;
+
+    if (typeof _RealtimeBidEnforcementCore !== "undefined" && typeof _RealtimeBidEnforcementCore.pushInstantState === "function") {
+      _RealtimeBidEnforcementCore.pushInstantState(cleanId, numericBid, bidder, statusVal);
+    }
+    if (typeof _AutonomousLogicEngine !== "undefined" && typeof _AutonomousLogicEngine.syncBidStateLocally === "function") {
+      _AutonomousLogicEngine.syncBidStateLocally(cleanId, numericBid, bidder);
+    }
+    if (typeof updateActiveCounts === "function") {
+      updateActiveCounts();
+    }
+    if (typeof filterGallery === "function") {
+      filterGallery();
+    } else if (typeof renderGallery === "function") {
+      renderGallery();
+    }
+    syncOfferButtonsState();
+  }
+
+  window._OfferAccessAndPriceGuard = {
+    hasEligibleBuyerCollateral,
+    syncOfferButtonsState,
+    fastPropagatePriceUpdate
+  };
+
+  if (typeof window.renderGallery === "function" && !window.renderGallery.__offerGuardWrapped) {
+    const origRenderGallery = window.renderGallery;
+    window.renderGallery = function (...args) {
+      const res = origRenderGallery.apply(this, args);
+      syncOfferButtonsState();
+      return res;
+    };
+    window.renderGallery.__offerGuardWrapped = true;
+  }
+
+  if (typeof window.checkBuyerStatusInDatabase === "function" && !window.checkBuyerStatusInDatabase.__offerGuardWrapped) {
+    const origCheckBuyer = window.checkBuyerStatusInDatabase;
+    window.checkBuyerStatusInDatabase = async function (...args) {
+      const res = await origCheckBuyer.apply(this, args);
+      syncOfferButtonsState();
+      return res;
+    };
+    window.checkBuyerStatusInDatabase.__offerGuardWrapped = true;
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", syncOfferButtonsState);
+  } else {
+    syncOfferButtonsState();
+  }
+  setInterval(syncOfferButtonsState, 300);
+})();
+</script>
+
 </body>
 </html>`;
 
