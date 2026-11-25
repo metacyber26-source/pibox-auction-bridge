@@ -5856,51 +5856,15 @@ const _AGI_CollateralGuardianCore = (() => {
       selectedAuction = item;
 
       const content = document.getElementById('modalDetailContent');
-      const isSeller = authenticatedPiUser && item.seller === authenticatedPiUser.username;
+      const currentUserClean = (authenticatedPiUser && authenticatedPiUser.username ? authenticatedPiUser.username : "").toString().trim().replace(/^@/, "").toLowerCase();
+      const itemSellerClean = (item.seller || "").toString().trim().replace(/^@/, "").toLowerCase();
+      const isSeller = Boolean(currentUserClean && itemSellerClean && currentUserClean === itemSellerClean);
       const isHighestBidder = authenticatedPiUser && item.highest_bidder === authenticatedPiUser.username;
       const currentPrice = parseFloat(item.highest_bid || item.reserve_price || 0);
-      const minNextBid = parseFloat((currentPrice + 0.1).toFixed(2));
+      const minStrictNextBid = parseFloat((currentPrice + 0.01).toFixed(2));
+      const suggestedBid = parseFloat((currentPrice + 0.1).toFixed(2));
       const isFinishedOrCancelled = (item.status === 'finished' || item.status === 'ended' || item.status === 'cancelled');
-
-      let extraImagesHTML = '';
-      if (item.extra_image_url) {
-        extraImagesHTML = `
-          <div class="space-y-1">
-            <span class="text-[10px] text-purple-400 font-semibold">${t('extraPhotoLabel')}</span>
-            <div class="w-full h-32 bg-gray-900 rounded-xl overflow-hidden cursor-pointer border border-purple-500/30" onclick="openImageZoomModal('${item.extra_image_url}')">
-              <img src="${item.extra_image_url}" class="w-full h-full object-cover">
-            </div>
-          </div>
-        `;
-      }
-
-      let winnerActionsHTML = '';
-      if (isFinishedOrCancelled) {
-        if (isHighestBidder) {
-          winnerActionsHTML = `
-            <div class="bg-yellow-500/10 border border-yellow-500/40 rounded-xl p-3 space-y-2 text-center">
-              <p class="text-xs font-extrabold text-yellow-400 animate-pulse">${t('congratsWinner')}</p>
-              <p class="text-[10px] text-gray-300">Harga Pemenang: <span class="text-yellow-400 font-bold">${currentPrice.toFixed(2)} Pi</span></p>
-              <button type="button" onclick="payWinnerSettlement()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl transition shadow-lg cursor-pointer flex items-center justify-center gap-1.5">
-                ${t('btnSettleWinner')} (${currentPrice.toFixed(2)} Pi)
-              </button>
-            </div>
-          `;
-        } else {
-          winnerActionsHTML = `<div class="bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-center text-[11px] text-gray-400 font-semibold">${t('auctionClosedMsg')}</div>`;
-        }
-      } else {
-        if (isSeller) {
-          winnerActionsHTML = `<div class="bg-indigo-950/50 border border-indigo-500/30 rounded-xl p-2.5 text-center text-[11px] text-indigo-300 font-semibold">${t('ownAssetMsg')}</div>`;
-        } else {
-          winnerActionsHTML = `
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2.5">
-              <div class="flex justify-between text-[10px]">
-                <span class="text-gray-400">${t('minBidLabel')}</span>
-                <span class="text-emerald-400 font-bold">${minNextBid.toFixed(2)} Pi</span>
-              </div>
-              <input type="number" step="0.01" id="bidAmountInput" value="${minNextBid.toFixed(2)}" min="${minNextBid.toFixed(2)}" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-2.5 text-xs text-white font-bold focus:outline-none focus:border-yellow-500">
-              <button type="button" onclick="submitBidOffer()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold text-xs py-2.5 px-4 rounded-xl transition shadow-lg cursor-pointer flex items-center justify-center gap-1.5">
+             <button type="button" onclick="submitBidOffer()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-extrabold text-xs py-2.5 px-4 rounded-xl transition shadow-lg cursor-pointer flex items-center justify-center gap-1.5">
                 ${t('btnSubmitBid')}
               </button>
             </div>
