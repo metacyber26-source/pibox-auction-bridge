@@ -6100,10 +6100,132 @@ const _AGI_CollateralGuardianCore = (() => {
       }
     };
 
+    const _BidFeeAndRuleGuardian = {
+      storageKey: "pibox_asset_first_bid_paid_v1",
+
+      normalizeUser: function(u) {
+        return (u || "").toString().trim().replace(/^@/, "").toLowerCase();
+      },
+
+      readPaidMap: function() {
+        try {
+          const raw = localStorage.getItem(this.storageKey);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === "object") return parsed;
+          }
+        } catch (_) {}
+        try {
+          if (typeof window.name === "string" && window.name.includes("|PIBOX_FIRST_BID:")) {
+            const part = window.name.split("|PIBOX_FIRST_BID:")[1];
+            const parsedName = JSON.parse(part);
+            if (parsedName && typeof parsedName === "object") return parsedName;
+          }
+        } catch (_) {}
+        return {};
+      },
+
+      writePaidMap: function(map) {
+        try {
+          localStorage.setItem(this.storageKey, JSON.stringify(map));
+        } catch (_) {}
+        try {
+          const base = typeof window.name === "string" ? window.name.split("|PIBOX_FIRST_BID:")[0] : "";
+          window.name = `${base}|PIBOX_FIRST_BID:${JSON.stringify(map)}`;
+        } catch (_) {}
+      },
+
+      getKey: function(auctionId, username) {
+        return `${String(auctionId || "").trim()}__${this.normalizeUser(username)}`;
+      },
+
+      hasPaidFirstBidFee: function(auctionId, username) {
+        const cleanUser = this.normalizeUser(username);
+        if (!cleanUser) return false;
+        const map = this.readPaidMap();
+        return Boolean(map[this.getKey(auctionId, cleanUser)]);
+      },
+
+      markFirstBidFeePaid: function(auctionId, username, txInfo = {}) {
+        const cleanUser = this.normalizeUser(username);
+        if (!cleanUser) return;
+        const map = this.readPaidMap();
+        map[this.getKey(auctionId, cleanUser)] = {
+          auctionId: String(auctionId || ""),
+          username: cleanUser,
+          feeAmount: 0.2,
+          paidAt: new Date().toISOString(),
+          ...txInfo
+        };
+        this.writePaidMap(map);
+      },
+
+      isSameUser: function(userA, userB) {
+        const a = this.normalizeUser(userA);
+        const b = this.normalizeUser(userB);
+        return Boolean(a && b && a === b);
+      },
+
+      chargeFirstBidSdkFee: function(auction, bidderUsername) {
+        return new Promise((resolve, reject) => {
+          const feeAmount = 0.2;
+          const memoText = `PIBOX-AUCTION: First Bid Fee 0.2 Pi - ${auction.title || "Asset"} (@${bidderUsername})`;
+          const paymentData = {
+            amount: feeAmount,
+            memo: memoText,
+            metadata: {
+              type: "auction_first_bid_fee",
+              auctionId: auction.id,
+              bidder: bidderUsername,
+              fee: feeAmount
+            }
+          };
+
+          const piInstance = window.Pi || (typeof Pi !== "undefined" ? Pi : null);
+          if (piInstance && typeof piInstance.createPayment === "function") {
+            try {
+              piInstance.createPayment(paymentData, {
+                onReadyForServerApproval: async (pid) => {
+                  await fetch("/api/pi/approve", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ paymentId: pid })
+                  }).catch(() => {});
+                },
+                onReadyForServerCompletion: async (pid, txid) => {
+                  await fetch("/api/pi/complete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ paymentId: pid, txid })
+                  }).catch(() => {});
+                  resolve({ paymentId: pid, txid });
+                },
+                onCancel: () => {
+                  reject(new Error("PAYMENT_CANCELLED"));
+                },
+                onError: (err) => {
+                  reject(err || new Error("PAYMENT_FAILED"));
+                }
+              });
+              return;
+            } catch (err) {
+              reject(err);
+              return;
+            }
+          }
+
+          resolve({ paymentId: "direct_sdk_" + Date.now(), txid: "direct_tx_" + Date.now() });
+        });
+      }
+    };
 
     async function submitBidOffer() {
       if (!selectedAuction) return;
-      if (!authenticatedPiUser) { alert(t('loginFirstAlert')); authenticatePiUser(); return; }
+      if (!authenticatedPiUser || !authenticatedPiUser.username) {
+        alert(t("loginFirstAlert"));
+        authenticatePiUser();
+        return;
+      }
 
       const currentBuyerBal = getCurrentBuyerDepositBalance();
       if (!VerificationStandardCore.isOfferDepositEligible(currentBuyerBal)) {
@@ -6112,76 +6234,81 @@ const _AGI_CollateralGuardianCore = (() => {
         return;
       }
 
-      if (authenticatedPiUser.username === selectedAuction.seller) {
-        alert("🚫 Penjual tidak diperbolehkan menawar aset sendiri.");
+      const bidderUser = authenticatedPiUser.username.trim().replace(/^@/, "");
+      const sellerUser = (selectedAuction.seller || "").toString().trim().replace(/^@/, "");
+
+      if (_BidFeeAndRuleGuardian.isSameUser(bidderUser, sellerUser)) {
+        alert("🚫 Seller is not allowed to bid on their own asset.");
         return;
       }
 
-      const bidInput = document.getElementById('bidAmountInput');
+      const bidInput = document.getElementById("bidAmountInput");
       const bidAmount = parseFloat(bidInput?.value);
       const currentPrice = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
-      const minNextBid = parseFloat((currentPrice + 0.1).toFixed(2));
 
-      if (isNaN(bidAmount) || bidAmount < minNextBid) {
-        alert(`${t('minBidAlert')} ${minNextBid.toFixed(2)} Pi!`);
+      if (isNaN(bidAmount) || !(bidAmount > currentPrice)) {
+        alert(`${t("minBidAlert")} > ${currentPrice.toFixed(2)} Pi!`);
         return;
       }
 
-      const currentBidCount = getUserBidCount(selectedAuction.id, authenticatedPiUser.username);
-      if (currentBidCount >= 3) {
-        alert("⛔ Anda telah mencapai batas maksimal 3 kali penawaran pada aset ini.");
+      const isFirstBidOnAsset = !_BidFeeAndRuleGuardian.hasPaidFirstBidFee(selectedAuction.id, bidderUser);
+      const feeNotice = isFirstBidOnAsset
+        ? "First bid on this asset requires a 0.2 Pi SDK fee. Subsequent bids on this asset are free."
+        : "Subsequent bid on this asset is free (0 Pi SDK fee).";
+
+      if (!confirm(`${t("confirmBidPrefix")} ${bidAmount.toFixed(2)} Pi for "${selectedAuction.title}"?\n${feeNotice}`)) {
         return;
       }
 
-      if (!confirm(`${t('confirmBidPrefix')} ${bidAmount.toFixed(2)} Pi untuk "${selectedAuction.title}"?`)) return;
-
-      const finishBidAction = async () => {
+      const executeBidRecord = async () => {
         try {
           if (supabaseClient) {
             const { error } = await supabaseClient
-              .from('auctions')
-              .update({ 
-                highest_bid: bidAmount, 
-                highest_bidder: authenticatedPiUser.username 
+              .from("auctions")
+              .update({
+                highest_bid: bidAmount,
+                highest_bidder: bidderUser
               })
-              .eq('id', selectedAuction.id);
-              
+              .eq("id", selectedAuction.id);
+
             if (error) throw error;
           }
 
-          incrementUserBidCount(selectedAuction.id, authenticatedPiUser.username);
-          _AutonomousLogicEngine.syncBidStateLocally(selectedAuction.id, bidAmount, authenticatedPiUser.username);
-          _AutonomousLogicEngine.recordBidFrequency(selectedAuction.id, selectedAuction.title, authenticatedPiUser.username, bidAmount);
-          if (window._OfferAccessAndPriceGuard && typeof window._OfferAccessAndPriceGuard.fastPropagatePriceUpdate === 'function') {
-            window._OfferAccessAndPriceGuard.fastPropagatePriceUpdate(selectedAuction.id, bidAmount, authenticatedPiUser.username, 'active');
+          if (isFirstBidOnAsset) {
+            _BidFeeAndRuleGuardian.markFirstBidFeePaid(selectedAuction.id, bidderUser);
           }
 
-          alert(`🎉 Tawaran ${bidAmount.toFixed(2)} Pi berhasil diajukan!`);
+          incrementUserBidCount(selectedAuction.id, bidderUser);
+          _AutonomousLogicEngine.syncBidStateLocally(selectedAuction.id, bidAmount, bidderUser);
+          _AutonomousLogicEngine.recordBidFrequency(selectedAuction.id, selectedAuction.title, bidderUser, bidAmount);
+          if (window._OfferAccessAndPriceGuard && typeof window._OfferAccessAndPriceGuard.fastPropagatePriceUpdate === "function") {
+            window._OfferAccessAndPriceGuard.fastPropagatePriceUpdate(selectedAuction.id, bidAmount, bidderUser, "active");
+          }
+
+          alert(`🎉 Bid of ${bidAmount.toFixed(2)} Pi submitted successfully!`);
           closeDetailModal();
           fetchActiveAuctions();
-        } catch(err) { 
-          alert("Gagal mengajukan tawaran: " + err.message); 
+        } catch (err) {
+          alert("Failed to submit bid: " + err.message);
         }
       };
 
-      const paymentData = {
-        amount: bidAmount,
-        memo: `PIBOX-AUCTION: Bid ${bidAmount.toFixed(2)} Pi - ${selectedAuction.title} (@${authenticatedPiUser.username})`,
-        metadata: { type: 'auction_bid', auctionId: selectedAuction.id, bidder: authenticatedPiUser.username }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
-            onReadyForServerCompletion: async (pid, txid) => { await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); await finishBidAction(); },
-            onCancel: () => { alert("Tawaran dibatalkan."); },
-            onError: () => { finishBidAction(); }
-          });
-        } else { await finishBidAction(); }
-      } catch (err) { finishBidAction(); }
+      if (isFirstBidOnAsset) {
+        try {
+          await _BidFeeAndRuleGuardian.chargeFirstBidSdkFee(selectedAuction, bidderUser);
+          await executeBidRecord();
+        } catch (err) {
+          if (err && err.message === "PAYMENT_CANCELLED") {
+            alert("0.2 Pi SDK fee payment was cancelled. Bid not submitted.");
+          } else {
+            alert("0.2 Pi SDK fee payment failed: " + (err && err.message ? err.message : "Unknown error"));
+          }
+        }
+      } else {
+        await executeBidRecord();
+      }
     }
+
 
     async function payWinnerSettlement() {
       if (!selectedAuction) return;
