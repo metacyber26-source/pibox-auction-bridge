@@ -264,7 +264,9 @@
       const htmlChunks = [];
       filtered.forEach((b) => {
         const username = b.username || 'Unknown';
-        const depositBal = parseFloat(b.deposit_balance || 0);
+        const buyerBal = _BuyersTableSyncGuardian.toExact(b.buyer_deposit_balance ?? 0);
+        const sellerBal = _BuyersTableSyncGuardian.toExact(b.seller_deposit_balance ?? 0);
+        const depositBal = _BuyersTableSyncGuardian.addExact(buyerBal, sellerBal) || parseFloat(b.deposit_balance || 0);
         const status = (b.status || 'pending').toLowerCase();
         const hasWithdrawalReq = b.has_requested_withdrawal;
         const rawRole = (b.role || b.keterangan || '').toString().toLowerCase().trim();
