@@ -3402,39 +3402,54 @@
       URL.revokeObjectURL(url);
     }
 
-    async function handleBuyerRegistrationAction() {
-      if (!authenticatedPiUser) {
+    const _AdminUsersTableGuard = {
+      enforceAdminOnly: function() {
+        const btn = document.getElementById('btnAdminRegisterBuyer');
+        const allowed = typeof isStrictAdminTester === 'function'
+          ? isStrictAdminTester()
+          : Boolean(
+              authenticatedPiUser &&
+              authenticatedPiUser.username &&
+              !(typeof isTestUserModeActive !== 'undefined' && isTestUserModeActive) &&
+              Array.isArray(ADMIN_USERNAMES) &&
+              ADMIN_USERNAMES.includes(authenticatedPiUser.username.trim())
+            );
+
+        if (btn) {
+          if (allowed) {
+            btn.classList.remove('hidden');
+          } else {
+            btn.classList.add('hidden');
+          }
+        }
+        return allowed;
+      }
+    };
+
+    window._AdminUsersTableGuard = _AdminUsersTableGuard;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      _AdminUsersTableGuard.enforceAdminOnly();
+      setInterval(() => {
+        _AdminUsersTableGuard.enforceAdminOnly();
+      }, 500);
+    });
+
+    async function handleAdminUsersTableAction() {
+      if (!authenticatedPiUser || !authenticatedPiUser.username) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
         return;
       }
-      const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
-      if (isAdminOrDev) {
-        openBuyersTableModal();
+      if (!_AdminUsersTableGuard.enforceAdminOnly()) {
+        alert("⛔ Access Denied: Users Table is restricted to Admin only.");
         return;
       }
-      if (!supabaseClient) return;
-      try {
-        const { data: existingBuyer } = await supabaseClient
-          .from('buyers')
-          .select('*')
-          .eq('username', authenticatedPiUser.username)
-          .maybeSingle();
+      openBuyersTableModal();
+    }
 
-        if (!existingBuyer) {
-          const { error } = await supabaseClient
-            .from('buyers')
-            .upsert([{ username: authenticatedPiUser.username, status: VerificationStandardCore.PENDING, win_count: 0, has_requested_withdrawal: false }], { onConflict: 'username' });
-          
-          if (error) throw error;
-          alert("📋 Pendaftaran pembeli berhasil dikirim dengan status 'Pending'. Silakan tunggu verifikasi Admin/Dev.");
-        } else {
-          alert(`⏳ Anda sudah terdaftar. Status pendaftaran saat ini: ${VerificationStandardCore.toDisplayLabel(existingBuyer.status).toUpperCase()}`);
-        }
-        checkBuyerStatusInDatabase(authenticatedPiUser.username);
-      } catch (err) {
-        alert("Gagal memproses pendaftaran: " + err.message);
-      }
+    async function handleBuyerRegistrationAction() {
+      await handleAdminUsersTableAction();
     }
 
     async function fetchBuyersList() {
