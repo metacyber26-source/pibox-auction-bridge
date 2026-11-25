@@ -30,172 +30,7 @@
  * 3. Melakukan audit & self-healing otomatis bila ada ketidaksinkronan state.
  * ============================================================================
  */
-   <script>
-/**
- * ============================================================================
- * PENGAWAL AKSES TOMBOL "PENAWARAN" (> 34.9 pi)
- * Syarat aktif: Saldo jaminan sebagai pembeli > 34.9 pi
- * Syarat nonaktif: Saldo jaminan sebagai pembeli < 34.9 pi (atau <= 34.9 pi)
- * ============================================================================
- */
-(() => {
-  const BUYER_OFFER_THRESHOLD = 34.9;
-  const SCALE = 1e6;
-
-  function toExact(val) {
-    if (val === null || val === undefined || val === "") return 0;
-    const num = Number(String(val).replace(/[^\d.-]/g, ""));
-    if (!Number.isFinite(num)) return 0;
-    return Math.round((num + Number.EPSILON) * SCALE) / SCALE;
-  }
-
-  function fmtExact(val) {
-    const p = toExact(val);
-    return `${p.toFixed(6).replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "")} pi`;
-  }
-
-  // Ambil saldo jaminan pembeli secara presisi dari guardian / state / DOM
-  function getCurrentBuyerCollateral() {
-    const activeUser = (
-      (typeof authenticatedPiUser !== "undefined" && authenticatedPiUser?.username) ||
-      window.authenticatedPiUser?.username ||
-      ""
-    ).toString().trim().replace(/^@/, "");
-
-    if (window._AGI_CollateralGuardianCore && activeUser) {
-      try {
-        const map = JSON.parse(localStorage.getItem("pibox_agi_collateral_ledger_v2") || "{}");
-        const cached = map[activeUser.toLowerCase()];
-        const inList = Array.isArray(window.buyersList)
-          ? window.buyersList.find(
-              (b) => (b.username || "").toString().trim().replace(/^@/, "").toLowerCase() === activeUser.toLowerCase()
-            )
-          : null;
-        const bCache = cached ? window._AGI_CollateralGuardianCore.extractBalances(cached).buyer : 0;
-        const bList = inList ? window._AGI_CollateralGuardianCore.extractBalances(inList).buyer : 0;
-        const best = Math.max(toExact(bCache), toExact(bList));
-        if (best > 0) return toExact(best);
-      } catch (_) {}
-    }
-
-    const el = document.getElementById("buyerDepositBalanceText");
-    if (el) {
-      const match = (el.textContent || "").match(/([\d.]+)\s*pi/i);
-      if (match) return toExact(match[1]);
-    }
-    return 0;
-  }
-
-  function isOfferButtonAllowed(buyerBalance) {
-    return toExact(buyerBalance) > BUYER_OFFER_THRESHOLD;
-  }
-
-  // Temukan semua tombol/elemen "Penawaran"
-  function findOfferButtons() {
-    const candidates = Array.from(
-      document.querySelectorAll("button, a, [role='button'], .offer-btn, #offerBtn, #penawaranBtn")
-    );
-    return candidates.filter((el) => {
-      const idOrCls = `${el.id || ""} ${el.className || ""}`.toLowerCase();
-      const txt = (el.textContent || "").trim().toLowerCase();
-      return (
-        idOrCls.includes("offer") ||
-        idOrCls.includes("penawaran") ||
-        txt === "penawaran" ||
-        txt.startsWith("penawaran ") ||
-        txt.includes("ajukan penawaran") ||
-        txt.includes("buat penawaran")
-      );
-    });
-  }
-
-  function syncOfferButtonsState() {
-    const buyerBal = getCurrentBuyerCollateral();
-    const allowed = isOfferButtonAllowed(buyerBal);
-    const buttons = findOfferButtons();
-
-    buttons.forEach((btn) => {
-      btn.dataset.buyerCollateral = String(buyerBal);
-      btn.dataset.offerAllowed = allowed ? "1" : "0";
-
-      if (allowed) {
-        btn.disabled = false;
-        btn.removeAttribute("aria-disabled");
-        btn.classList.remove("offer-locked", "disabled", "opacity-50", "cursor-not-allowed");
-        btn.style.pointerEvents = "auto";
-        btn.style.opacity = "1";
-        btn.title = `Akses aktif: Saldo jaminan pembeli (${fmtExact(buyerBal)}) > 34.9 pi`;
-      } else {
-        btn.disabled = true;
-        btn.setAttribute("aria-disabled", "true");
-        btn.classList.add("offer-locked", "opacity-50", "cursor-not-allowed");
-        btn.style.pointerEvents = "none";
-        btn.style.opacity = "0.5";
-        btn.title = `Terkunci: Saldo jaminan pembeli (${fmtExact(buyerBal)}) harus > 34.9 pi`;
-      }
-    });
-  }
-
-  // Blokir klik/interaksi jika saldo jaminan pembeli <= 34.9 pi
-  document.addEventListener(
-    "click",
-    (e) => {
-      const target = e.target.closest("button, a, [role='button'], .offer-btn, #offerBtn, #penawaranBtn");
-      if (!target) return;
-      const buttons = findOfferButtons();
-      if (!buttons.includes(target)) return;
-
-      const buyerBal = getCurrentBuyerCollateral();
-      if (!isOfferButtonAllowed(buyerBal)) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        syncOfferButtonsState();
-        alert(
-          `🔒 Tombol "Penawaran" tidak berfungsi karena saldo jaminan sebagai pembeli saat ini ${fmtExact(buyerBal)} (< 34.9 pi).\n` +
-          `Saldo jaminan sebagai pembeli harus lebih besar dari 34.9 pi untuk mengakses fitur Penawaran.`
-        );
-      }
-    },
-    true
-  );
-
-  // Lindungi fungsi pembuka modal/aksi penawaran bila dipanggil langsung dari kode lain
-  ["openOfferModal", "bukaModalPenawaran", "submitOffer", "ajukanPenawaran"].forEach((fnName) => {
-    if (typeof window[fnName] === "function" && !window[fnName].__offerGuarded) {
-      const origFn = window[fnName];
-      window[fnName] = function (...args) {
-        const buyerBal = getCurrentBuyerCollateral();
-        if (!isOfferButtonAllowed(buyerBal)) {
-          syncOfferButtonsState();
-          alert(
-            `🔒 Akses ditolak: Saldo jaminan sebagai pembeli (${fmtExact(buyerBal)}) belum melebihi 34.9 pi.`
-          );
-          return;
-        }
-        return origFn.apply(this, args);
-      };
-      window[fnName].__offerGuarded = true;
-    }
-  });
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", syncOfferButtonsState);
-  } else {
-    syncOfferButtonsState();
-  }
-  window.addEventListener("load", syncOfferButtonsState);
-  setInterval(syncOfferButtonsState, 250);
-
-  window._OfferAccessGuard = {
-    BUYER_OFFER_THRESHOLD,
-    getCurrentBuyerCollateral,
-    isOfferButtonAllowed,
-    syncOfferButtonsState
-  };
-})();
-</script>
- 
+     
 const _AGI_CollateralGuardianCore = (() => {
   const SCALE = 1e6; // Presisi hingga 6 angka desimal (micro-Pi)
   const MAX_ROLE_DEPOSIT = 35;
@@ -6557,6 +6392,171 @@ const _AGI_CollateralGuardianCore = (() => {
     bindCloseControls(document);
   }
 })();
+  <script>
+/**
+ * ============================================================================
+ * PENGAWAL AKSES TOMBOL "PENAWARAN" (> 34.9 pi)
+ * Syarat aktif: Saldo jaminan sebagai pembeli > 34.9 pi
+ * Syarat nonaktif: Saldo jaminan sebagai pembeli < 34.9 pi (atau <= 34.9 pi)
+ * ============================================================================
+ */
+(() => {
+  const BUYER_OFFER_THRESHOLD = 34.9;
+  const SCALE = 1e6;
+
+  function toExact(val) {
+    if (val === null || val === undefined || val === "") return 0;
+    const num = Number(String(val).replace(/[^\d.-]/g, ""));
+    if (!Number.isFinite(num)) return 0;
+    return Math.round((num + Number.EPSILON) * SCALE) / SCALE;
+  }
+
+  function fmtExact(val) {
+    const p = toExact(val);
+    return `${p.toFixed(6).replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "")} pi`;
+  }
+
+  // Ambil saldo jaminan pembeli secara presisi dari guardian / state / DOM
+  function getCurrentBuyerCollateral() {
+    const activeUser = (
+      (typeof authenticatedPiUser !== "undefined" && authenticatedPiUser?.username) ||
+      window.authenticatedPiUser?.username ||
+      ""
+    ).toString().trim().replace(/^@/, "");
+
+    if (window._AGI_CollateralGuardianCore && activeUser) {
+      try {
+        const map = JSON.parse(localStorage.getItem("pibox_agi_collateral_ledger_v2") || "{}");
+        const cached = map[activeUser.toLowerCase()];
+        const inList = Array.isArray(window.buyersList)
+          ? window.buyersList.find(
+              (b) => (b.username || "").toString().trim().replace(/^@/, "").toLowerCase() === activeUser.toLowerCase()
+            )
+          : null;
+        const bCache = cached ? window._AGI_CollateralGuardianCore.extractBalances(cached).buyer : 0;
+        const bList = inList ? window._AGI_CollateralGuardianCore.extractBalances(inList).buyer : 0;
+        const best = Math.max(toExact(bCache), toExact(bList));
+        if (best > 0) return toExact(best);
+      } catch (_) {}
+    }
+
+    const el = document.getElementById("buyerDepositBalanceText");
+    if (el) {
+      const match = (el.textContent || "").match(/([\d.]+)\s*pi/i);
+      if (match) return toExact(match[1]);
+    }
+    return 0;
+  }
+
+  function isOfferButtonAllowed(buyerBalance) {
+    return toExact(buyerBalance) > BUYER_OFFER_THRESHOLD;
+  }
+
+  // Temukan semua tombol/elemen "Penawaran"
+  function findOfferButtons() {
+    const candidates = Array.from(
+      document.querySelectorAll("button, a, [role='button'], .offer-btn, #offerBtn, #penawaranBtn")
+    );
+    return candidates.filter((el) => {
+      const idOrCls = `${el.id || ""} ${el.className || ""}`.toLowerCase();
+      const txt = (el.textContent || "").trim().toLowerCase();
+      return (
+        idOrCls.includes("offer") ||
+        idOrCls.includes("penawaran") ||
+        txt === "penawaran" ||
+        txt.startsWith("penawaran ") ||
+        txt.includes("ajukan penawaran") ||
+        txt.includes("buat penawaran")
+      );
+    });
+  }
+
+  function syncOfferButtonsState() {
+    const buyerBal = getCurrentBuyerCollateral();
+    const allowed = isOfferButtonAllowed(buyerBal);
+    const buttons = findOfferButtons();
+
+    buttons.forEach((btn) => {
+      btn.dataset.buyerCollateral = String(buyerBal);
+      btn.dataset.offerAllowed = allowed ? "1" : "0";
+
+      if (allowed) {
+        btn.disabled = false;
+        btn.removeAttribute("aria-disabled");
+        btn.classList.remove("offer-locked", "disabled", "opacity-50", "cursor-not-allowed");
+        btn.style.pointerEvents = "auto";
+        btn.style.opacity = "1";
+        btn.title = `Akses aktif: Saldo jaminan pembeli (${fmtExact(buyerBal)}) > 34.9 pi`;
+      } else {
+        btn.disabled = true;
+        btn.setAttribute("aria-disabled", "true");
+        btn.classList.add("offer-locked", "opacity-50", "cursor-not-allowed");
+        btn.style.pointerEvents = "none";
+        btn.style.opacity = "0.5";
+        btn.title = `Terkunci: Saldo jaminan pembeli (${fmtExact(buyerBal)}) harus > 34.9 pi`;
+      }
+    });
+  }
+
+  // Blokir klik/interaksi jika saldo jaminan pembeli <= 34.9 pi
+  document.addEventListener(
+    "click",
+    (e) => {
+      const target = e.target.closest("button, a, [role='button'], .offer-btn, #offerBtn, #penawaranBtn");
+      if (!target) return;
+      const buttons = findOfferButtons();
+      if (!buttons.includes(target)) return;
+
+      const buyerBal = getCurrentBuyerCollateral();
+      if (!isOfferButtonAllowed(buyerBal)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        syncOfferButtonsState();
+        alert(
+          `🔒 Tombol "Penawaran" tidak berfungsi karena saldo jaminan sebagai pembeli saat ini ${fmtExact(buyerBal)} (< 34.9 pi).\n` +
+          `Saldo jaminan sebagai pembeli harus lebih besar dari 34.9 pi untuk mengakses fitur Penawaran.`
+        );
+      }
+    },
+    true
+  );
+
+  // Lindungi fungsi pembuka modal/aksi penawaran bila dipanggil langsung dari kode lain
+  ["openOfferModal", "bukaModalPenawaran", "submitOffer", "ajukanPenawaran"].forEach((fnName) => {
+    if (typeof window[fnName] === "function" && !window[fnName].__offerGuarded) {
+      const origFn = window[fnName];
+      window[fnName] = function (...args) {
+        const buyerBal = getCurrentBuyerCollateral();
+        if (!isOfferButtonAllowed(buyerBal)) {
+          syncOfferButtonsState();
+          alert(
+            `🔒 Akses ditolak: Saldo jaminan sebagai pembeli (${fmtExact(buyerBal)}) belum melebihi 34.9 pi.`
+          );
+          return;
+        }
+        return origFn.apply(this, args);
+      };
+      window[fnName].__offerGuarded = true;
+    }
+  });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", syncOfferButtonsState);
+  } else {
+    syncOfferButtonsState();
+  }
+  window.addEventListener("load", syncOfferButtonsState);
+  setInterval(syncOfferButtonsState, 250);
+
+  window._OfferAccessGuard = {
+    BUYER_OFFER_THRESHOLD,
+    getCurrentBuyerCollateral,
+    isOfferButtonAllowed,
+    syncOfferButtonsState
+  };
+})();
+</script>
 </script>
 </body>
 </html>
