@@ -19,7 +19,6 @@
       <a href="index.html" class="text-gray-400 hover:text-white font-bold text-xs cursor-pointer">&times; Kembali</a>
     </div>
 
-    <!-- Konten Tabel Pembeli & Pencarian -->
     <div class="space-y-3 text-xs">
       <div class="flex justify-between items-center gap-2">
         <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari username pembeli..." class="flex-1 bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
@@ -53,7 +52,7 @@
   </div>
 
   <script>
-    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co"; 
+    const SUPABASE_URL = "https://lgxvdqveblueuadocimv.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -61,7 +60,6 @@
     let buyersList = [];
     let authenticatedPiUser = null;
 
-    // --- DI BALIK LAYAR: CORE OTONOM AGI & AI PENJAGA LOGIKA PEMBELI ---
     const _AgiBuyersGuardianCore = {
       version: "4.2.0-secure-buyers",
       verifyAdminAction: function(username) {
@@ -231,14 +229,6 @@
       }
     }
 
-        if (error) throw error;
-        buyersList = data || [];
-        renderBuyersTable();
-      } catch (err) {
-        console.error("Gagal memuat daftar pembeli:", err.message);
-      }
-    }
-
     function renderBuyersTable() {
       const tbody = document.getElementById('buyersTableBody');
       const batchContainer = document.getElementById('adminDeleteBatchContainer');
@@ -270,9 +260,9 @@
         const status = (b.status || 'pending').toLowerCase();
         const hasWithdrawalReq = b.has_requested_withdrawal;
         const rawRole = (b.role || b.keterangan || '').toString().toLowerCase().trim();
-        const roleLabel = (rawRole === 'penjual & pembeli' || rawRole === 'pembeli & penjual')
+        const roleLabel = (rawRole === 'penjual & pembeli' || rawRole === 'pembeli & penjual' || rawRole === 'both' || rawRole === 'seller & buyer')
           ? 'Penjual & Pembeli'
-          : (rawRole === 'penjual' ? 'Penjual' : (rawRole === 'pembeli' ? 'Pembeli' : 'Belum Ditentukan'));
+          : ((rawRole === 'penjual' || rawRole === 'seller') ? 'Penjual' : ((rawRole === 'pembeli' || rawRole === 'buyer') ? 'Pembeli' : 'Belum Ditentukan'));
         const walletAddress = (b.wallet_address || b.wallet || '-').toString();
 
         let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">PENDING</span>`;
@@ -308,7 +298,11 @@
         htmlChunks.push(`
           <tr class="border-b border-gray-800/80 hover:bg-gray-900/50 transition">
             <td class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-20 border-r border-gray-800"><input type="checkbox" class="buyer-checkbox accent-yellow-500 cursor-pointer" value="${username}"></td>
-            <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">@${username}</td>
+            <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">
+              <div>@${username}</div>
+              <div class="text-[9px] text-emerald-400 font-sans">Pembeli: ${buyerBal} Pi</div>
+              <div class="text-[9px] text-amber-300 font-sans">Penjual: ${sellerBal} Pi</div>
+            </td>
             <td class="p-2.5 text-center font-mono text-emerald-400 font-bold">${depositBal} Pi</td>
             <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">${roleLabel}</span></td>
             <td class="p-2.5">${statusBadge}</td>
@@ -323,7 +317,6 @@
           </tr>
         `);
       });
-
 
       tbody.innerHTML = htmlChunks.join('');
     }
@@ -347,7 +340,6 @@
     }
 
     function toggleSelectAllBuyers(masterCheckbox) {
-
       const checkboxes = document.querySelectorAll('.buyer-checkbox');
       checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
     }
@@ -434,6 +426,6 @@
         alert("Gagal memproses refund: " + err.message);
       }
     }
-</script>
+  </script>
 </body>
 </html>
