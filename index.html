@@ -4484,72 +4484,7 @@ const _AGI_CollateralGuardianCore = (() => {
     }
 
 
-    async function sendChatMessage() {
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
 
-      const input = document.getElementById('chatMessageInput');
-      const text = input ? input.value.trim() : '';
-      
-      if (!text && !chatSelectedImageBase64) return;
-
-      if (text && SecureShield.checkProhibitedContent(text)) {
-        alert("🚫 Pesan Anda ditolak karena mengandung unsur konten terlarang, pornografi, atau kekerasan.");
-        return;
-      }
-
-      let receiverTarget = null;
-      if (currentChatRoom === 'p2p') {
-        const selectTarget = document.getElementById('p2pTargetUserSelect');
-        if (selectTarget && selectTarget.value) {
-          currentP2PTarget = selectTarget.value;
-        }
-        if (!currentP2PTarget) { 
-          alert("Pilih target / lawan chat P2P terlebih dahulu melalui dropdown di atas!"); 
-          return; 
-        }
-        receiverTarget = currentP2PTarget;
-      } else if (currentChatRoom === 'admin') {
-        receiverTarget = ADMIN_USERNAMES[0];
-      }
-
-      const normalizedRoomType =
-        currentChatRoom === 'forum'
-          ? 'forum'
-          : (currentChatRoom === 'collateral_claim' ? 'collateral_claim' : 'p2p');
-
-      const payload = {
-        sender: authenticatedPiUser.username,
-        message: text || (normalizedRoomType === 'collateral_claim' ? 'Collateral Proof Screenshot' : '[Foto Bukti Pembayaran]'),
-        room_type: normalizedRoomType,
-        receiver: receiverTarget,
-        image_url: chatSelectedImageBase64 || null,
-        created_at: new Date().toISOString()
-      };
-
-      if (input) input.value = "";
-      clearChatImagePreview();
-
-      if (normalizedRoomType === 'collateral_claim') {
-        await _CollateralClaimSyncCore.publishClaimToRoom({
-          ...payload,
-          id: 'claim_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
-        });
-        await loadChatMessages();
-        return;
-      }
-      
-      try {
-        const { error } = await supabaseClient.from('chats').insert([payload]);
-        if (error) throw error;
-        await loadChatMessages();
-      } catch (e) {
-        alert("Gagal mengirim pesan/gambar: " + e.message);
-      }
-    }
 
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
