@@ -329,11 +329,10 @@ const _AGI_CollateralGuardianCore = (() => {
     const shortfall = clampPrecise(Math.max(0, subPrecise(MAX_ROLE_DEPOSIT, targetRoleBal)));
 
     let walletAddr = (dbRec?.wallet_address || dbRec?.wallet || inList?.wallet_address || cached?.wallet_address || "").trim();
-    if (!walletAddr && typeof promptRefundWalletInput === "function") {
-      const inputW = await promptRefundWalletInput("");
-      if (!inputW) return;
-      walletAddr = inputW.trim();
-    }
+  if (typeof promptRefundWalletInput === "function") {
+    const confirmed = await promptRefundWalletInput(walletAddr);
+    if (!confirmed) return;
+  }
 
     const finalizeDepositCredit = async (creditedAmount, memoStr) => {
       const creditExact = clampPrecise(creditedAmount);
