@@ -87,13 +87,149 @@
       await fetchBuyersList();
     });
 
+    const _BuyersTableSyncGuardian = {
+      channel: null,
+      ledgerKey: 'pibox_agi_collateral_ledger_v2',
+      fallbackKey: 'pibox_collateral_ledger_v1',
+
+      toExact: function(v) {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.round((n + Number.EPSILON) * 1e6) / 1e6 : 0;
+      },
+
+      addExact: function(a, b) {
+        return (Math.round((this.toExact(a) + Number.EPSILON) * 1e6) + Math.round((this.toExact(b) + Number.EPSILON) * 1e6)) / 1e6;
+      },
+
+      readLocalMap: function(key) {
+        try {
+          const raw = localStorage.getItem(key);
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) {
+          return {};
+        }
+      },
+
+      mergeWithLocalLedger: function(dbRows) {
+        const v2Map = this.readLocalMap(this.ledgerKey);
+        const v1Map = this.readLocalMap(this.fallbackKey);
+        const mapByUser = new Map();
+
+        (dbRows || []).forEach(row => {
+          const uname = (row.username || '').toString().trim().replace(/^@/, '');
+          if (!uname) return;
+          const k = uname.toLowerCase();
+          const c2 = v2Map[k] || {};
+          const c1 = v1Map[k] || {};
+
+          const buyerBal = Math.max(
+            this.toExact(row.buyer_deposit_balance ?? 0),
+            this.toExact(c2.buyer_deposit_balance ?? 0),
+            this.toExact(c1.buyer_deposit_balance ?? 0)
+          );
+          const sellerBal = Math.max(
+            this.toExact(row.seller_deposit_balance ?? 0),
+            this.toExact(c2.seller_deposit_balance ?? 0),
+            this.toExact(c1.seller_deposit_balance ?? 0)
+          );
+          const totalBal = this.addExact(buyerBal, sellerBal);
+          const walletVal = (row.wallet_address || row.wallet || c2.wallet_address || c1.wallet_address || '-').toString().trim();
+
+          mapByUser.set(k, {
+            ...c1,
+            ...c2,
+            ...row,
+            username: uname,
+            buyer_deposit_balance: buyerBal,
+            seller_deposit_balance: sellerBal,
+            deposit_balance: totalBal,
+            wallet_address: walletVal,
+            wallet: walletVal
+          });
+        });
+
+        Object.values(v2Map).forEach(cRec => {
+          const uname = (cRec.username || '').toString().trim().replace(/^@/, '');
+          if (!uname) return;
+          const k = uname.toLowerCase();
+          if (!mapByUser.has(k)) {
+            const buyerBal = this.toExact(cRec.buyer_deposit_balance ?? 0);
+            const sellerBal = this.toExact(cRec.seller_deposit_balance ?? 0);
+            const totalBal = this.addExact(buyerBal, sellerBal);
+            const walletVal = (cRec.wallet_address || cRec.wallet || '-').toString().trim();
+            mapByUser.set(k, {
+              ...cRec,
+              username: uname,
+              buyer_deposit_balance: buyerBal,
+              seller_deposit_balance: sellerBal,
+              deposit_balance: totalBal,
+              wallet_address: walletVal,
+              wallet: walletVal
+            });
+          }
+        });
+
+        return Array.from(mapByUser.values()).sort((a, b) => (a.username || '').localeCompare(b.username || ''));
+      },
+
+      initLiveSync: function() {
+        try {
+          if (typeof BroadcastChannel !== 'undefined') {
+            const bc1 = new BroadcastChannel('pibox_collateral_claim_channel');
+            const bc2 = new BroadcastChannel('pibox_collateral_unified_sync_v1');
+            const handleMsg = () => { fetchBuyersList(); };
+            bc1.onmessage = handleMsg;
+            bc2.onmessage = handleMsg;
+          }
+        } catch (_) {}
+
+        window.addEventListener('storage', (ev) => {
+          if (ev.key === this.ledgerKey || ev.key === this.fallbackKey || ev.key === 'pibox_collateral_claim_room_v1') {
+            fetchBuyersList();
+          }
+        });
+
+        if (supabaseClient) {
+          try {
+            supabaseClient
+              .channel('buyers-table-live-sync')
+              .on('postgres_changes', { event: '*', schema: 'public', table: 'buyers' }, () => {
+                fetchBuyersList();
+              })
+              .on('broadcast', { event: 'collateral_claim_sync' }, () => {
+                fetchBuyersList();
+              })
+              .on('broadcast', { event: 'collateral_unified_sync' }, () => {
+                fetchBuyersList();
+              })
+              .subscribe();
+          } catch (_) {}
+        }
+      }
+    };
+
+    _BuyersTableSyncGuardian.initLiveSync();
+
     async function fetchBuyersList() {
+      const localMerged = _BuyersTableSyncGuardian.mergeWithLocalLedger([]);
+      if (localMerged.length > 0 && buyersList.length === 0) {
+        buyersList = localMerged;
+        renderBuyersTable();
+      }
       if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient
           .from('buyers')
           .select('*')
           .order('username', { ascending: true });
+
+        if (error) throw error;
+        buyersList = _BuyersTableSyncGuardian.mergeWithLocalLedger(data || []);
+        renderBuyersTable();
+      } catch (err) {
+        console.error("Gagal memuat daftar pembeli:", err.message);
+      }
+    }
 
         if (error) throw error;
         buyersList = data || [];
