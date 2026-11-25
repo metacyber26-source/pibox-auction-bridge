@@ -1,0 +1,191 @@
+(function attachAuctionBiddersFrequencyTable(global) {
+  "use strict";
+
+  const STORAGE_KEY = "pibox_auction_bidders_frequency_v1";
+  const CHANNEL_NAME = "pibox_bidders_frequency_channel";
+
+  function cleanUsername(rawUser) {
+    if (!rawUser || typeof rawUser !== "string") return "";
+    return rawUser.trim().replace(/^@/, "");
+  }
+
+  function loadMap() {
+    try {
+      const raw = global.localStorage.getItem(STORAGE_KEY);
+      const obj = raw ? JSON.parse(raw) : {};
+      return obj && typeof obj === "object" ? obj : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function saveMap(map) {
+    try {
+      global.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    } catch (_) {}
+  }
+
+  let channel = null;
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      channel = new BroadcastChannel(CHANNEL_NAME);
+    }
+  } catch (_) {}
+
+  const AuctionBiddersFrequencyTable = {
+    version: "1.0.0",
+    storageKey: STORAGE_KEY,
+
+    getAllBidders: function () {
+      const map = loadMap();
+      return Object.values(map).sort((a, b) => (a.firstBidAt || 0) - (b.firstBidAt || 0));
+    },
+
+    getActiveBiddersCount: function () {
+      const bidders = this.getAllBidders();
+      const activeSet = new Set();
+      bidders.forEach((entry) => {
+        const key = cleanUsername(entry.username).toLowerCase();
+        if (key && (parseInt(entry.bidCount, 10) || 0) > 0) {
+          activeSet.add(key);
+        }
+      });
+      return activeSet.size;
+    },
+
+    recordAutomaticBid: function (bidData = {}) {
+      const username = cleanUsername(bidData.username || bidData.bidder || "");
+      if (!username) return null;
+
+      const key = username.toLowerCase();
+      const map = loadMap();
+      const now = Date.now();
+      const increment = Number.isFinite(Number(bidData.incrementBy)) && Number(bidData.incrementBy) > 0
+        ? Number(bidData.incrementBy)
+        : 1;
+
+      const prev = map[key] || {
+        username,
+        bidCount: 0,
+        firstBidAt: now,
+        lastBidAt: now,
+        lastBidAmount: 0,
+        lastAuctionId: "",
+        lastAssetTitle: "",
+        source: "automatic_bid"
+      };
+
+      const nextRecord = {
+        ...prev,
+        username,
+        bidCount: (parseInt(prev.bidCount, 10) || 0) + increment,
+        lastBidAt: now,
+        lastBidAmount: Number(bidData.bid_amount ?? bidData.amount ?? prev.lastBidAmount) || 0,
+        lastAuctionId: String(bidData.auction_id ?? bidData.auctionId ?? prev.lastAuctionId),
+        lastAssetTitle: String(bidData.asset_title ?? bidData.assetTitle ?? prev.lastAssetTitle),
+        source: bidData.source || "automatic_bid",
+        updatedAt: new Date(now).toISOString()
+      };
+
+      map[key] = nextRecord;
+      saveMap(map);
+
+      try {
+        if (channel) {
+          channel.postMessage({ type: "bid_frequency_updated", record: nextRecord, timestamp: now });
+        }
+      } catch (_) {}
+
+      this.syncPanelAndTable();
+      return nextRecord;
+    },
+
+    renderTable: function () {
+      const tbody = document.getElementById("activeBiddersModalTableBody");
+      const list = this.getAllBidders();
+
+      const countEl = document.getElementById("activeBiddersCount");
+      if (countEl) {
+        countEl.innerText = `${this.getActiveBiddersCount()} User`;
+      }
+
+      if (!tbody) return;
+
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">No recorded bidders yet.</td></tr>`;
+        return;
+      }
+
+      const isResetEnabled =
+        typeof _LoginAndAdminControlCore !== "undefined" &&
+        typeof _LoginAndAdminControlCore.isResetButtonEnabled === "function"
+          ? _LoginAndAdminControlCore.isResetButtonEnabled()
+          : true;
+      const disabledAttr = !isResetEnabled ? "disabled" : "";
+
+      tbody.innerHTML = list
+        .map((row) => {
+          const safeUser =
+            typeof SecureShield !== "undefined" && SecureShield.sanitizeHTML
+              ? SecureShield.sanitizeHTML(row.username)
+              : row.username;
+          const count = parseInt(row.bidCount, 10) || 1;
+          return `
+            <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
+              <td class="p-2 text-center">
+                <input type="checkbox" class="bidder-row-checkbox cursor-pointer accent-emerald-500" value="${safeUser}" ${disabledAttr}>
+              </td>
+              <td class="p-2 font-mono text-yellow-400 font-semibold">@${safeUser}</td>
+              <td class="p-2 text-right">
+                <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
+                  ${count}x
+                </span>
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+    },
+
+    syncPanelAndTable: function () {
+      const countEl = document.getElementById("activeBiddersCount");
+      if (countEl) {
+        countEl.innerText = `${this.getActiveBiddersCount()} User`;
+      }
+      this.renderTable();
+    },
+
+    openDetailModal: function () {
+      this.syncPanelAndTable();
+      const modal = document.getElementById("activeBiddersModal");
+      if (modal) modal.classList.remove("hidden");
+    },
+
+    closeDetailModal: function () {
+      const modal = document.getElementById("activeBiddersModal");
+      if (modal) modal.classList.add("hidden");
+    },
+
+    clearRecords: function (selectedUsers = []) {
+      const map = loadMap();
+      if (!Array.isArray(selectedUsers) || selectedUsers.length === 0) {
+        saveMap({});
+      } else {
+        const target = new Set(selectedUsers.map((u) => cleanUsername(u).toLowerCase()));
+        Object.keys(map).forEach((k) => {
+          if (target.has(k.toLowerCase())) delete map[k];
+        });
+        saveMap(map);
+      }
+      this.syncPanelAndTable();
+    }
+  };
+
+  try {
+    if (channel) {
+      channel.onmessage = () => AuctionBiddersFrequencyTable.syncPanelAndTable();
+    }
+  } catch (_) {}
+
+  global.AuctionBiddersFrequencyTable = AuctionBiddersFrequencyTable;
+})(typeof window !== "undefined" ? window : this);
