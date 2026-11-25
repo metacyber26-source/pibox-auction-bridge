@@ -4459,25 +4459,279 @@ const _AGI_CollateralGuardianCore = (() => {
       const btnForum = document.getElementById('tabBtnForum');
       const btnAdmin = document.getElementById('tabBtnAdmin');
       const btnP2P = document.getElementById('tabBtnP2P');
+      const btnClaim = document.getElementById('tabBtnClaim');
       const selectorContainer = document.getElementById('p2pTargetSelectorContainer');
 
-      btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
-      btnAdmin.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
-      btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
-      selectorContainer.classList.add('hidden');
+      if (btnForum) btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
+      if (btnAdmin) btnAdmin.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
+      if (btnP2P) btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
+      if (btnClaim) btnClaim.className = "flex-1 py-1.5 rounded-lg font-bold transition text-gray-400 hover:text-white cursor-pointer";
+      if (selectorContainer) selectorContainer.classList.add('hidden');
 
       if (roomType === 'forum') {
-        btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer";
+        if (btnForum) btnForum.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-yellow-500 text-gray-950 cursor-pointer";
       } else if (roomType === 'admin') {
-        btnAdmin.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-purple-600 text-white cursor-pointer";
+        if (btnAdmin) btnAdmin.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-purple-600 text-white cursor-pointer";
         currentP2PTarget = ADMIN_USERNAMES[0];
+      } else if (roomType === 'collateral_claim') {
+        if (btnClaim) btnClaim.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-amber-500 text-gray-950 cursor-pointer";
       } else {
-        btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-indigo-600 text-white cursor-pointer";
-        selectorContainer.classList.remove('hidden');
+        if (btnP2P) btnP2P.className = "flex-1 py-1.5 rounded-lg font-bold transition bg-indigo-600 text-white cursor-pointer";
+        if (selectorContainer) selectorContainer.classList.remove('hidden');
         populateP2PTargetOptions();
       }
       loadChatMessages();
     }
+
+    async function loadChatMessages() {
+      const box = document.getElementById('chatMessagesBox');
+      if (!box) return;
+
+      if (currentChatRoom === 'collateral_claim') {
+        let dbClaims = [];
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+          try {
+            const { data } = await supabaseClient
+              .from('chats')
+              .select('*')
+              .eq('room_type', 'collateral_claim')
+              .order('created_at', { ascending: true });
+            if (Array.isArray(data)) dbClaims = data;
+          } catch (_) {}
+        }
+
+        const localClaims = _CollateralClaimSyncCore.readLocalClaimMessages();
+        const combinedMap = new Map();
+        [...localClaims, ...dbClaims].forEach((m, i) => {
+          const key = m.id
+            ? String(m.id)
+            : `${m.sender || ''}|${m.created_at || ''}|${(m.message || '').slice(0, 40)}|${i}`;
+          combinedMap.set(key, m);
+        });
+
+        const mergedClaims = Array.from(combinedMap.values()).sort(
+          (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+        );
+
+        if (!mergedClaims.length) {
+          box.innerHTML = `<div class="text-center text-gray-500 py-6">${t('noCollateralClaimsMsg')}</div>`;
+          return;
+        }
+
+        let claimHtml = '';
+        mergedClaims.forEach((msg, idx) => {
+          const senderClean = _CollateralClaimSyncCore.normalizeUsername(msg.sender || 'user');
+          const maskedSender = SecureShield.maskUsername(senderClean);
+          const sanitizedText = SecureShield.sanitizeHTML(msg.message || '');
+          const imgContent = msg.image_url
+            ? `<div class="w-44 h-44 bg-black/50 rounded-lg overflow-hidden cursor-pointer border border-amber-500/40 mt-1" onclick="openImageZoomModal('${msg.image_url}')"><img src="${msg.image_url}" class="w-full h-full object-cover"></div>`
+            : '';
+          const timeLabel = msg.created_at
+            ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '';
+
+          claimHtml += `<div class="flex flex-col items-start space-y-0.5">
+            <span class="text-[9px] text-amber-400 font-bold">@${maskedSender}</span>
+            <div class="w-full bg-gray-950 border border-amber-500/30 text-gray-100 px-3 py-2 rounded-xl text-xs flex flex-col gap-1.5">
+              ${sanitizedText ? `<pre id="claimMsgText-${idx}" class="whitespace-pre-wrap font-sans text-xs text-gray-100">${sanitizedText}</pre>` : ''}
+              ${imgContent}
+              <div class="flex justify-between items-center pt-1 border-t border-gray-800 text-[9px] gap-2">
+                <span class="opacity-60">${timeLabel}</span>
+                ${sanitizedText ? `<button type="button" onclick="copyChatMessage(\`${encodeURIComponent(msg.message)}\`, this)" class="underline text-amber-400 hover:opacity-100 cursor-pointer flex items-center gap-1 font-bold">📋 Salin</button>` : ''}
+              </div>
+            </div>
+          </div>`;
+        });
+
+        box.innerHTML = claimHtml;
+        box.scrollTop = box.scrollHeight;
+        return;
+      }
+
+      if (!supabaseClient) return;
+      try {
+        let query = supabaseClient.from('chats').select('*').order('created_at', { ascending: true });
+        if (currentChatRoom === 'forum') {
+          query = query.eq('room_type', 'forum');
+        } else {
+          if (!currentP2PTarget && currentChatRoom === 'p2p') { 
+            box.innerHTML = `<div class="text-center text-indigo-400 py-6">Pilih lawan chat P2P terlebih dahulu.</div>`; 
+            return; 
+          }
+          const targetAdminOrUser = currentChatRoom === 'admin' ? ADMIN_USERNAMES[0] : currentP2PTarget;
+          query = query.eq('room_type', 'p2p').or(`and(sender.eq.${authenticatedPiUser.username},receiver.eq.${targetAdminOrUser}),and(sender.eq.${targetAdminOrUser},receiver.eq.${authenticatedPiUser.username})`);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+
+        if (!data || data.length === 0) { 
+          box.innerHTML = `<div class="text-center text-gray-500 py-6">Belum ada pesan.</div>`; 
+          return; 
+        }
+        
+        let html = '';
+        data.forEach((msg, idx) => {
+          const isMe = authenticatedPiUser && msg.sender === authenticatedPiUser.username;
+          const maskedSender = SecureShield.maskUsername(msg.sender);
+          const sanitizedText = SecureShield.sanitizeHTML(msg.message);
+          
+          const imgContent = msg.image_url ? `<div class="w-40 h-40 bg-black/40 rounded-lg overflow-hidden cursor-pointer border border-white/20 mt-1" onclick="openImageZoomModal('${msg.image_url}')"><img src="${msg.image_url}" class="w-full h-full object-cover"></div>` : '';
+          
+          html += `<div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-0.5">
+            <span class="text-[9px] text-gray-400 font-bold">@${maskedSender}</span>
+            <div class="max-w-[85%] px-3 py-2 rounded-xl text-xs flex flex-col gap-1.5 ${isMe ? 'bg-yellow-500 text-gray-950 font-medium' : 'bg-gray-800 text-gray-200'}">
+              ${sanitizedText ? `<span id="msgText-${idx}">${sanitizedText}</span>` : ''}
+              ${imgContent}
+              <div class="flex justify-between items-center pt-1 border-t border-black/10 text-[9px] gap-2">
+                <span class="opacity-60">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                ${sanitizedText ? `<button type="button" onclick="copyChatMessage(\`${encodeURIComponent(msg.message)}\`, this)" class="underline opacity-80 hover:opacity-100 cursor-pointer flex items-center gap-1 font-bold">📋 Salin</button>` : ''}
+              </div>
+            </div>
+          </div>`;
+        });
+
+        box.innerHTML = html;
+        box.scrollTop = box.scrollHeight;
+      } catch (e) {}
+    }
+
+    async function sendChatMessage() {
+      if (!authenticatedPiUser) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const input = document.getElementById('chatMessageInput');
+      const text = input ? input.value.trim() : '';
+      
+      if (!text && !chatSelectedImageBase64) return;
+
+      if (text && SecureShield.checkProhibitedContent(text)) {
+        alert("🚫 Pesan Anda ditolak karena mengandung unsur konten terlarang, pornografi, atau kekerasan.");
+        return;
+      }
+
+      let receiverTarget = null;
+      if (currentChatRoom === 'p2p') {
+        const selectTarget = document.getElementById('p2pTargetUserSelect');
+        if (selectTarget && selectTarget.value) {
+          currentP2PTarget = selectTarget.value;
+        }
+        if (!currentP2PTarget) { 
+          alert("Pilih target / lawan chat P2P terlebih dahulu melalui dropdown di atas!"); 
+          return; 
+        }
+        receiverTarget = currentP2PTarget;
+      } else if (currentChatRoom === 'admin') {
+        receiverTarget = ADMIN_USERNAMES[0];
+      }
+
+      const normalizedRoomType =
+        currentChatRoom === 'forum'
+          ? 'forum'
+          : (currentChatRoom === 'collateral_claim' ? 'collateral_claim' : 'p2p');
+
+      const payload = {
+        sender: authenticatedPiUser.username,
+        message: text || (normalizedRoomType === 'collateral_claim' ? 'Collateral Proof Screenshot' : '[Foto Bukti Pembayaran]'),
+        room_type: normalizedRoomType,
+        receiver: receiverTarget,
+        image_url: chatSelectedImageBase64 || null,
+        created_at: new Date().toISOString()
+      };
+
+      if (input) input.value = "";
+      clearChatImagePreview();
+
+      if (normalizedRoomType === 'collateral_claim') {
+        await _CollateralClaimSyncCore.publishClaimToRoom({
+          ...payload,
+          id: 'claim_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
+        });
+        await loadChatMessages();
+        return;
+      }
+      
+      try {
+        const { error } = await supabaseClient.from('chats').insert([payload]);
+        if (error) throw error;
+        await loadChatMessages();
+      } catch (e) {
+        alert("Gagal mengirim pesan/gambar: " + e.message);
+      }
+    }
+
+    function setupRealtimeSubscription() {
+      if (!supabaseClient) return;
+      try {
+        supabaseClient
+          .channel('public-cluster-auctions')
+          .on(
+            'postgres_changes', 
+            { event: '*', schema: 'public', table: 'auctions' }, 
+            (payload) => {
+              if (payload.new && payload.new.id) {
+                _RealtimeBidEnforcementCore.applyIncomingBidData({
+                  id: payload.new.id,
+                  highest_bid: payload.new.highest_bid,
+                  highest_bidder: payload.new.highest_bidder,
+                  status: payload.new.status
+                });
+              }
+              fetchActiveAuctions();
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'buyers' },
+            async () => {
+              await fetchBuyersList();
+              if (typeof renderBuyersTable === 'function') renderBuyersTable();
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'chats' },
+            (payload) => {
+              if (payload.new && payload.new.room_type === 'collateral_claim') {
+                _CollateralClaimSyncCore.appendLocalClaimMessage(payload.new);
+              }
+              if (currentChatRoom === 'collateral_claim' && !document.getElementById('chatModal')?.classList.contains('hidden')) {
+                loadChatMessages();
+              }
+            }
+          )
+          .on(
+            'broadcast',
+            { event: 'live_bid_update' },
+            (msg) => {
+              if (msg && msg.payload) {
+                _RealtimeBidEnforcementCore.applyIncomingBidData(msg.payload);
+              }
+            }
+          )
+          .on(
+            'broadcast',
+            { event: 'collateral_claim_sync' },
+            (msg) => {
+              const p = msg && msg.payload;
+              if (!p) return;
+              if (p.kind === 'buyer_wallet_sync') {
+                _CollateralClaimSyncCore.applyBuyerWalletPatch(p.username, p.wallet_address, p.patch || {});
+              } else if (p.kind === 'claim_message' && p.claim) {
+                _CollateralClaimSyncCore.appendLocalClaimMessage(p.claim);
+                if (currentChatRoom === 'collateral_claim' && !document.getElementById('chatModal')?.classList.contains('hidden')) {
+                  loadChatMessages();
+                }
+              }
+            }
+          )
+          .subscribe();
+      } catch (e) {}
+    }
+
 
     function populateP2PTargetOptions() {
       const select = document.getElementById('p2pTargetUserSelect');
