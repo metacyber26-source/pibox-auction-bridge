@@ -6069,8 +6069,12 @@ const _AGI_CollateralGuardianCore = (() => {
             asset_title: assetTitle || 'Untitled',
             username: cleanUser,
             bid_amount: parseFloat(bidAmount || 0),
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            automatic: true
           };
+          if (window.AuctionBiddersFrequencyTable && typeof window.AuctionBiddersFrequencyTable.recordAutomaticBid === 'function') {
+            window.AuctionBiddersFrequencyTable.recordAutomaticBid(entry);
+          }
           const currentLedger = (window._BiddersDataHydratorCore && typeof window._BiddersDataHydratorCore.readLedger === 'function')
             ? window._BiddersDataHydratorCore.readLedger()
             : JSON.parse(localStorage.getItem('pibox_all_bids_audit_ledger_v1') || '[]');
@@ -6086,9 +6090,13 @@ const _AGI_CollateralGuardianCore = (() => {
           if (window._BiddersDataHydratorCore && typeof window._BiddersDataHydratorCore.renderBiddersTableNow === 'function') {
             window._BiddersDataHydratorCore.renderBiddersTableNow();
           }
+          if (window.AuctionBiddersFrequencyTable && typeof window.AuctionBiddersFrequencyTable.syncPanelAndTable === 'function') {
+            window.AuctionBiddersFrequencyTable.syncPanelAndTable();
+          }
         } catch (_) {}
       }
     };
+
 
     async function submitBidOffer() {
       if (!selectedAuction) return;
