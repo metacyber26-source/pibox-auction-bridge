@@ -483,53 +483,62 @@ const _AGI_CollateralGuardianCore = (() => {
   }
 
   function installHooks() {
-    window.payAuctionDepositForRole = executeFastRoleDeposit;
-
-    if (typeof window.renderBuyersTable === "function" && !window.renderBuyersTable.__guardianWrapped) {
-      const origRender = window.renderBuyersTable;
-      window.renderBuyersTable = function (...args) {
-        auditAndHeal();
-        const res = origRender.apply(this, args);
-        const tbody = document.getElementById("buyersTableBody");
-        if (tbody && Array.isArray(window.buyersList)) {
-          tbody.querySelectorAll("tr").forEach((tr) => {
-            const cb = tr.querySelector("input.buyer-checkbox");
-            const uname = normalizeUser(cb?.value || tr.textContent.match(/@([A-Za-z0-9_]+)/)?.[1] || "");
-            if (!uname) return;
-            const rec =
-              window.buyersList.find((b) => normalizeUser(b.username).toLowerCase() === uname.toLowerCase()) ||
-              getCachedRecord(uname);
-            if (!rec) return;
-            const { buyer, seller } = extractBalances(rec);
-            tr.querySelectorAll("div").forEach((div) => {
-              const txt = (div.textContent || "").trim();
-              if (/^Jaminan Pembeli:/i.test(txt)) {
-                div.textContent = `Jaminan Pembeli: ${fmtPi(buyer)}`;
-              } else if (/^Jaminan Penjual:/i.test(txt)) {
-                div.textContent = `Jaminan Penjual: ${fmtPi(seller)}`;
-              }
-            });
-          });
-        }
-        return res;
-      };
-      window.renderBuyersTable.__guardianWrapped = true;
-    }
-
-    if (typeof window.checkBuyerStatusInDatabase === "function" && !window.checkBuyerStatusInDatabase.__guardianWrapped) {
-      const origCheck = window.checkBuyerStatusInDatabase;
-      window.checkBuyerStatusInDatabase = async function (username) {
-        const res = await origCheck.apply(this, arguments);
-        auditAndHeal();
-        return res;
-      };
-      window.checkBuyerStatusInDatabase.__guardianWrapped = true;
-    }
-
-    if (!window.__guardianCollateralAuditTimer) {
-      window.__guardianCollateralAuditTimer = setInterval(auditAndHeal, 300);
-    }
+  if (typeof window.payAuctionDepositForRole === "function" && !window.payAuctionDepositForRole.__guardianWrapped) {
+    const origRoleDeposit = window.payAuctionDepositForRole;
+    window.payAuctionDepositForRole = async function (roleArg, ...rest) {
+      const res = await origRoleDeposit.apply(this, [roleArg, ...rest]);
+      auditAndHeal();
+      return res;
+    };
+    window.payAuctionDepositForRole.__guardianWrapped = true;
   }
+
+  if (typeof window.renderBuyersTable === "function" && !window.renderBuyersTable.__guardianWrapped) {
+    const origRender = window.renderBuyersTable;
+    window.renderBuyersTable = function (...args) {
+      auditAndHeal();
+      const res = origRender.apply(this, args);
+      const tbody = document.getElementById("buyersTableBody");
+      if (tbody && Array.isArray(window.buyersList)) {
+        tbody.querySelectorAll("tr").forEach((tr) => {
+          const cb = tr.querySelector("input.buyer-checkbox");
+          const uname = normalizeUser(cb?.value || tr.textContent.match(/@([A-Za-z0-9_]+)/)?.[1] || "");
+          if (!uname) return;
+          const rec =
+            window.buyersList.find((b) => normalizeUser(b.username).toLowerCase() === uname.toLowerCase()) ||
+            getCachedRecord(uname);
+          if (!rec) return;
+          const { buyer, seller } = extractBalances(rec);
+          tr.querySelectorAll("div").forEach((div) => {
+            const txt = (div.textContent || "").trim();
+            if (/^Jaminan Pembeli:/i.test(txt)) {
+              div.textContent = `Jaminan Pembeli: ${fmtPi(buyer)}`;
+            } else if (/^Jaminan Penjual:/i.test(txt)) {
+              div.textContent = `Jaminan Penjual: ${fmtPi(seller)}`;
+            }
+          });
+        });
+      }
+      return res;
+    };
+    window.renderBuyersTable.__guardianWrapped = true;
+  }
+
+  if (typeof window.checkBuyerStatusInDatabase === "function" && !window.checkBuyerStatusInDatabase.__guardianWrapped) {
+    const origCheck = window.checkBuyerStatusInDatabase;
+    window.checkBuyerStatusInDatabase = async function (username) {
+      const res = await origCheck.apply(this, arguments);
+      auditAndHeal();
+      return res;
+    };
+    window.checkBuyerStatusInDatabase.__guardianWrapped = true;
+  }
+
+  if (!window.__guardianCollateralAuditTimer) {
+    window.__guardianCollateralAuditTimer = setInterval(auditAndHeal, 300);
+  }
+}
+
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", installHooks);
