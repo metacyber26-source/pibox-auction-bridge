@@ -1363,6 +1363,332 @@ const _AGI_CollateralGuardianCore = (() => {
       border-radius: 4px;
     }
   </style>
+
+    <!-- =========================================================================
+       AUCTION BIDDERS & BID FREQUENCY TABLE ENGINE
+       Loads external "tabel penawar lelang dan frekuensi penawaran.js" and
+       provides an automatic background fallback so automatic bids, usernames,
+       and bid frequencies stay synchronized everywhere.
+       ========================================================================= -->
+  <script src="./tabel penawar lelang dan frekuensi penawaran.js"></script>
+  <script>
+    (function initAuctionBiddersFrequencyModule() {
+      const STORAGE_KEY = "pibox_auction_bidders_frequency_v1";
+      const CHANNEL_NAME = "pibox_bidders_frequency_channel";
+
+      function normalizeUsername(rawUsername) {
+        if (!rawUsername || typeof rawUsername !== "string") return "";
+        return rawUsername.trim().replace(/^@/, "");
+      }
+
+      function readFrequencyStore() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          const parsed = raw ? JSON.parse(raw) : {};
+          return parsed && typeof parsed === "object" ? parsed : {};
+        } catch (_) {
+          return {};
+        }
+      }
+
+      function writeFrequencyStore(store) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+        } catch (_) {}
+      }
+
+      function createDefaultEngine() {
+        let broadcastChannel = null;
+        try {
+          if (typeof BroadcastChannel !== "undefined") {
+            broadcastChannel = new BroadcastChannel(CHANNEL_NAME);
+          }
+        } catch (_) {}
+
+        const api = {
+          version: "1.0.0",
+          storageKey: STORAGE_KEY,
+
+          readRecords: function () {
+            const store = readFrequencyStore();
+            return Object.values(store).sort((a, b) => (a.firstBidAt || 0) - (b.firstBidAt || 0));
+          },
+
+          recordAutomaticBid: function (bidPayload = {}) {
+            const cleanUser = normalizeUsername(bidPayload.username || bidPayload.bidder || "");
+            if (!cleanUser) return null;
+
+            const key = cleanUser.toLowerCase();
+            const store = readFrequencyStore();
+            const nowTs = Date.now();
+            const nowIso = bidPayload.created_at || new Date(nowTs).toISOString();
+            const bidAmount = Number(bidPayload.bid_amount ?? bidPayload.amount ?? 0) || 0;
+            const auctionId = String(bidPayload.auction_id ?? bidPayload.auctionId ?? "");
+            const assetTitle = String(bidPayload.asset_title ?? bidPayload.assetTitle ?? "Untitled");
+
+            const existing = store[key] || {
+              username: cleanUser,
+              bidCount: 0,
+              firstBidAt: nowTs,
+              lastBidAt: nowTs,
+              lastBidAmount: 0,
+              lastAuctionId: "",
+              lastAssetTitle: "",
+              source: "automatic_bid",
+              updatedAt: nowIso
+            };
+
+            const incrementBy = Number.isFinite(Number(bidPayload.incrementBy)) && Number(bidPayload.incrementBy) > 0
+              ? Number(bidPayload.incrementBy)
+              : 1;
+
+            store[key] = {
+              ...existing,
+              username: cleanUser,
+              bidCount: (parseInt(existing.bidCount, 10) || 0) + incrementBy,
+              lastBidAt: nowTs,
+              lastBidAmount: bidAmount > 0 ? bidAmount : existing.lastBidAmount,
+              lastAuctionId: auctionId || existing.lastAuctionId,
+              lastAssetTitle: assetTitle || existing.lastAssetTitle,
+              source: bidPayload.source || "automatic_bid",
+              updatedAt: nowIso
+            };
+
+            writeFrequencyStore(store);
+
+            try {
+              if (typeof _BiddersDataHydratorCore !== "undefined" && _BiddersDataHydratorCore) {
+                const ledger = typeof _BiddersDataHydratorCore.readLedger === "function"
+                  ? _BiddersDataHydratorCore.readLedger()
+                  : [];
+                ledger.push({
+                  id: "auto_bid_" + nowTs + "_" + Math.random().toString(36).slice(2, 7),
+                  auction_id: auctionId,
+                  asset_title: assetTitle,
+                  username: cleanUser,
+                  bid_amount: bidAmount,
+                  created_at: nowIso,
+                  automatic: true
+                });
+                if (typeof _BiddersDataHydratorCore.writeLedger === "function") {
+                  _BiddersDataHydratorCore.writeLedger(ledger);
+                }
+              }
+            } catch (_) {}
+
+            if (typeof supabaseClient !== "undefined" && supabaseClient) {
+              try {
+                supabaseClient
+                  .from("auction_bids_log")
+                  .insert([{
+                    username: cleanUser,
+                    auction_id: auctionId,
+                    asset_title: assetTitle,
+                    bid_amount: bidAmount,
+                    created_at: nowIso
+                  }])
+                  .then(() => {})
+                  .catch(() => {});
+              } catch (_) {}
+            }
+
+            this.broadcastSync({
+              type: "automatic_bid_recorded",
+              record: store[key],
+              timestamp: nowTs
+            });
+
+            this.syncPanelAndTable();
+            return store[key];
+          },
+
+          getActiveBiddersCount: function () {
+            const records = this.readRecords();
+            const uniqueUsers = new Set();
+
+            records.forEach((rec) => {
+              const u = normalizeUsername(rec.username).toLowerCase();
+              if (u && (parseInt(rec.bidCount, 10) || 0) > 0) {
+                uniqueUsers.add(u);
+              }
+            });
+
+            if (typeof activeAuctionsList !== "undefined" && Array.isArray(activeAuctionsList)) {
+              activeAuctionsList.forEach((auc) => {
+                const u = normalizeUsername(auc && auc.highest_bidder).toLowerCase();
+                if (u) uniqueUsers.add(u);
+              });
+            }
+
+            return uniqueUsers.size;
+          },
+
+          renderBiddersFrequencyTable: function () {
+            const tbody = document.getElementById("activeBiddersModalTableBody");
+            const records = this.readRecords();
+
+            const countEl = document.getElementById("activeBiddersCount");
+            if (countEl) {
+              countEl.innerText = `${this.getActiveBiddersCount()} User`;
+            }
+
+            if (!tbody) return;
+
+            if (!records.length) {
+              tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">No recorded bidders yet.</td></tr>`;
+              return;
+            }
+
+            const isResetEnabled =
+              typeof _LoginAndAdminControlCore !== "undefined" &&
+              typeof _LoginAndAdminControlCore.isResetButtonEnabled === "function"
+                ? _LoginAndAdminControlCore.isResetButtonEnabled()
+                : true;
+            const disabledAttr = !isResetEnabled ? "disabled" : "";
+
+            tbody.innerHTML = records
+              .map((item) => {
+                const safeUser =
+                  typeof SecureShield !== "undefined" && SecureShield.sanitizeHTML
+                    ? SecureShield.sanitizeHTML(item.username)
+                    : item.username;
+                const bidFreq = parseInt(item.bidCount, 10) || 1;
+                return `
+                  <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
+                    <td class="p-2 text-center">
+                      <input type="checkbox" class="bidder-row-checkbox cursor-pointer accent-emerald-500" value="${safeUser}" ${disabledAttr}>
+                    </td>
+                    <td class="p-2 font-mono text-yellow-400 font-semibold">@${safeUser}</td>
+                    <td class="p-2 text-right">
+                      <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
+                        ${bidFreq}x
+                      </span>
+                    </td>
+                  </tr>
+                `;
+              })
+              .join("");
+
+            if (
+              typeof _LoginAndAdminControlCore !== "undefined" &&
+              typeof _LoginAndAdminControlCore.syncResetControlUI === "function"
+            ) {
+              _LoginAndAdminControlCore.syncResetControlUI();
+            }
+          },
+
+          syncPanelAndTable: function () {
+            const countEl = document.getElementById("activeBiddersCount");
+            if (countEl) {
+              countEl.innerText = `${this.getActiveBiddersCount()} User`;
+            }
+            this.renderBiddersFrequencyTable();
+          },
+
+          openDetailModal: function () {
+            this.syncPanelAndTable();
+            const modal = document.getElementById("activeBiddersModal");
+            if (modal) modal.classList.remove("hidden");
+          },
+
+          closeDetailModal: function () {
+            const modal = document.getElementById("activeBiddersModal");
+            if (modal) modal.classList.add("hidden");
+          },
+
+          clearRecords: function (selectedUsernames = []) {
+            const store = readFrequencyStore();
+            if (!Array.isArray(selectedUsernames) || selectedUsernames.length === 0) {
+              writeFrequencyStore({});
+            } else {
+              const targetSet = new Set(selectedUsernames.map((u) => normalizeUsername(u).toLowerCase()));
+              Object.keys(store).forEach((key) => {
+                if (targetSet.has(key.toLowerCase())) {
+                  delete store[key];
+                }
+              });
+              writeFrequencyStore(store);
+            }
+            this.syncPanelAndTable();
+          },
+
+          broadcastSync: function (payload) {
+            try {
+              if (broadcastChannel) {
+                broadcastChannel.postMessage(payload);
+              }
+            } catch (_) {}
+
+            if (typeof supabaseClient !== "undefined" && supabaseClient) {
+              try {
+                supabaseClient
+                  .channel("public-cluster-auctions")
+                  .send({
+                    type: "broadcast",
+                    event: "bidders_frequency_sync",
+                    payload
+                  })
+                  .catch(() => {});
+              } catch (_) {}
+            }
+          }
+        };
+
+        try {
+          if (broadcastChannel) {
+            broadcastChannel.onmessage = (event) => {
+              if (event && event.data) {
+                api.syncPanelAndTable();
+              }
+            };
+          }
+        } catch (_) {}
+
+        window.addEventListener("storage", (event) => {
+          if (event.key === STORAGE_KEY || event.key === "pibox_all_bids_audit_ledger_v1" || event.key === "nusantara_cached_auctions") {
+            api.syncPanelAndTable();
+          }
+        });
+
+        return api;
+      }
+
+      if (!window.AuctionBiddersFrequencyTable) {
+        window.AuctionBiddersFrequencyTable = createDefaultEngine();
+      }
+
+      window.openActiveBiddersModal = function () {
+        if (window.AuctionBiddersFrequencyTable && typeof window.AuctionBiddersFrequencyTable.openDetailModal === "function") {
+          window.AuctionBiddersFrequencyTable.openDetailModal();
+        } else {
+          const modal = document.getElementById("activeBiddersModal");
+          if (modal) modal.classList.remove("hidden");
+        }
+      };
+
+      window.closeActiveBiddersModal = function () {
+        if (window.AuctionBiddersFrequencyTable && typeof window.AuctionBiddersFrequencyTable.closeDetailModal === "function") {
+          window.AuctionBiddersFrequencyTable.closeDetailModal();
+        } else {
+          const modal = document.getElementById("activeBiddersModal");
+          if (modal) modal.classList.add("hidden");
+        }
+      };
+
+      document.addEventListener("DOMContentLoaded", () => {
+        if (window.AuctionBiddersFrequencyTable && typeof window.AuctionBiddersFrequencyTable.syncPanelAndTable === "function") {
+          window.AuctionBiddersFrequencyTable.syncPanelAndTable();
+        }
+      });
+
+      setInterval(() => {
+        if (window.AuctionBiddersFrequencyTable && typeof window.AuctionBiddersFrequencyTable.syncPanelAndTable === "function") {
+          window.AuctionBiddersFrequencyTable.syncPanelAndTable();
+        }
+      }, 600);
+    })();
+  </script>
+
 </head>
 <body class="bg-gray-950 flex flex-col items-center justify-start min-h-screen p-2">
 
