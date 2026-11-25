@@ -3212,46 +3212,38 @@ const _AGI_CollateralGuardianCore = (() => {
     });
 
     function promptRefundWalletInput(defaultWallet = '') {
-      return new Promise((resolve) => {
-        const existing = document.getElementById('refundWalletPopupModal');
-        if (existing) existing.remove();
+    return new Promise((resolve) => {
+      const existing = document.getElementById('refundWalletPopupModal');
+      if (existing) existing.remove();
 
-        const modal = document.createElement('div');
-        modal.id = 'refundWalletPopupModal';
-        modal.className = 'fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-[70]';
-        modal.innerHTML = `
-          <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl text-xs">
-            <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">💳 Informasi Jaminan & Wallet</h3>
-            <p class="text-[11px] text-gray-200 leading-relaxed bg-gray-900 p-2.5 rounded-xl border border-gray-800">
-              Silahkan top up 35 pi sebagai dana jaminan, Dana ini akan dikembalikan (S&amp;K berlaku). Pengembalian jaminan dipotong 1 pi sebagai biaya pendaftaran dan gas fee pengembalian. Masukkan wallet anda untuk pengembalian dana jaminan.
-            </p>
-            <div>
-              <label class="block text-[10px] text-gray-300 font-semibold mb-1">Alamat Wallet Pengembalian Dana Jaminan:</label>
-              <input id="refundWalletPopupInput" type="text" value="${(defaultWallet || '').replace(/"/g, '&quot;')}" placeholder="Masukkan alamat wallet Anda..." class="w-full bg-gray-900 border border-emerald-500/40 rounded-xl p-2.5 text-xs text-white font-mono focus:outline-none">
-            </div>
-            <div class="flex gap-2 pt-1">
-              <button id="btnCancelRefundWallet" type="button" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-2 rounded-xl text-xs cursor-pointer">Batal</button>
-              <button id="btnConfirmRefundWallet" type="button" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-2 rounded-xl text-xs cursor-pointer shadow">OK</button>
-            </div>
+      const modal = document.createElement('div');
+      modal.id = 'refundWalletPopupModal';
+      modal.className = 'fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-[70]';
+      modal.innerHTML = `
+        <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl text-xs">
+          <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">💳 Informasi Jaminan</h3>
+          <p class="text-[11px] text-gray-200 leading-relaxed bg-gray-900 p-2.5 rounded-xl border border-gray-800">
+            Silahkan top up 35 pi sebagai dana jaminan, Dana ini akan dikembalikan (S&amp;K berlaku). Pengembalian jaminan dipotong 1 pi sebagai biaya pendaftaran dan gas fee pengembalian.
+          </p>
+          <div class="flex gap-2 pt-1">
+            <button id="btnCancelRefundWallet" type="button" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-2 rounded-xl text-xs cursor-pointer">Batal</button>
+            <button id="btnConfirmRefundWallet" type="button" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-2 rounded-xl text-xs cursor-pointer shadow">OK</button>
           </div>
-        `;
-        document.body.appendChild(modal);
+        </div>
+      `;
+      document.body.appendChild(modal);
 
-        document.getElementById('btnCancelRefundWallet').onclick = () => {
-          modal.remove();
-          resolve(null);
-        };
-        document.getElementById('btnConfirmRefundWallet').onclick = () => {
-          const val = (document.getElementById('refundWalletPopupInput')?.value || '').trim();
-          if (!val) {
-            alert("⚠️ Harap masukkan wallet Anda terlebih dahulu sebelum klik OK.");
-            return;
-          }
-          modal.remove();
-          resolve(val);
-        };
-      });
-    }
+      document.getElementById('btnCancelRefundWallet').onclick = () => {
+        modal.remove();
+        resolve(null);
+      };
+      document.getElementById('btnConfirmRefundWallet').onclick = () => {
+        modal.remove();
+        resolve((defaultWallet || '').trim() || 'CONFIRMED');
+      };
+    });
+  }
+
 
     function computeRoleDeposits(buyerRecord) {
       return {
