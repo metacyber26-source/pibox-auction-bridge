@@ -3400,9 +3400,32 @@ const _CollateralGuardianCore = (() => {
       },
 
       handleSyncPayload: function(payload) {
+        if (!payload || typeof payload !== 'object') return;
         if (payload.type === 'auction_update' && payload.auction) {
           if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.applyIncomingBidData === 'function') {
             _RealtimeBidEnforcementCore.applyIncomingBidData(payload.auction);
+          }
+        } else if (payload.type === 'buyer_collateral_update' && payload.buyer) {
+          const cleanUser = (payload.buyer.username || '').toString().trim().replace(/^@/, '');
+          if (cleanUser) {
+            if (typeof writeCollateralCache === 'function') {
+              writeCollateralCache(cleanUser, payload.buyer);
+            }
+            _HighPrecisionDepositLedgerCore.syncLocalBuyerState(cleanUser, payload.buyer);
+            const activeUser = getActiveAuthenticatedUser();
+            if (activeUser && activeUser.toLowerCase() === cleanUser.toLowerCase()) {
+              updateDetailedDepositDisplay(
+                payload.buyer.buyer_deposit_balance || 0,
+                payload.buyer.seller_deposit_balance || 0
+              );
+              if (typeof checkBuyerStatusInDatabase === 'function') {
+                checkBuyerStatusInDatabase(cleanUser);
+              }
+            }
+            if (typeof renderBuyersTable === 'function') {
+              renderBuyersTable();
+            }
+            syncBuyerRegisterButtonState();
           }
         } else if (payload.type === 'schedule_update' && payload.schedule) {
           auctionScheduleState = payload.schedule;
@@ -3410,6 +3433,7 @@ const _CollateralGuardianCore = (() => {
         } else if (payload.type === 'refresh_requested') {
           if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
           if (typeof fetchBuyersList === 'function') fetchBuyersList();
+          syncBuyerRegisterButtonState();
         }
       }
     };
