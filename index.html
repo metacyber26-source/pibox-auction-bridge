@@ -4829,21 +4829,26 @@ const _CollateralGuardianCore = (() => {
     });
 
     async function handleAdminUsersTableAction() {
-      if (!authenticatedPiUser || !authenticatedPiUser.username) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-      if (!_AdminUsersTableGuard.enforceAdminOnly()) {
-        alert("⛔ Access Denied: Users Table is restricted to Admin only.");
-        return;
-      }
-      openBuyersTableModal();
-    }
+  if (!authenticatedPiUser || !authenticatedPiUser.username) {
+    alert(t('loginFirstAlert'));
+    authenticatePiUser();
+    return;
+  }
 
-    async function handleBuyerRegistrationAction() {
-      await handleAdminUsersTableAction();
-    }
+  if (typeof _AdminUsersTableGuard !== 'undefined' && !_AdminUsersTableGuard.enforceAdminOnly()) {
+    alert("Access Denied: Users Table is restricted to Admin only.");
+    return;
+  }
+
+  const activeUser = encodeURIComponent(authenticatedPiUser.username.trim());
+  const isAdminFlag = isStrictAdminTester() ? '1' : '0';
+  window.location.href = `./buyers-table.html?user=${activeUser}&admin=${isAdminFlag}`;
+}
+
+async function handleBuyerRegistrationAction() {
+  await handleAdminUsersTableAction();
+}
+
 
     async function fetchBuyersList() {
       if (!supabaseClient) return;
