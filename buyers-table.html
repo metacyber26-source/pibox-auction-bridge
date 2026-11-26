@@ -19,6 +19,33 @@
       <a href="index.html" class="text-gray-400 hover:text-white font-bold text-xs cursor-pointer">&times; Kembali</a>
     </div>
 
+    <!-- PANEL TOMBOL PEMBAYARAN PI SDK (35 PI) -->
+    <div class="bg-gray-950/90 border border-gray-800 rounded-xl p-3.5 space-y-2.5">
+      <div class="flex flex-wrap justify-between items-center gap-2">
+        <div>
+          <h3 class="text-xs font-bold text-gray-200">💳 Deposit Jaminan On-Chain (Pi SDK)</h3>
+          <p class="text-[10px] text-gray-400">Pembayaran otomatis tercatat ke kolom tabel & mengubah status menjadi AKTIF</p>
+        </div>
+        <span id="activePiUserBadge" class="text-[10px] font-mono bg-gray-900 border border-gray-700 text-yellow-400 px-2.5 py-1 rounded-lg">
+          User: Memuat...
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <!-- Tombol untuk Kolom Merah: Seller Collateral -->
+        <button type="button" id="btnPaySellerCollateral" onclick="payCollateralWithPiSDK('seller')"
+          class="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-lg shadow-amber-900/20 cursor-pointer">
+          <span>🔒 Bayar Seller Collateral (35 Pi)</span>
+        </button>
+
+        <!-- Tombol untuk Kolom Hijau: Buyer Collateral -->
+        <button type="button" id="btnPayBuyerCollateral" onclick="payCollateralWithPiSDK('buyer')"
+          class="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-lg shadow-emerald-900/20 cursor-pointer">
+          <span>🛡️ Bayar Buyer Collateral (35 Pi)</span>
+        </button>
+      </div>
+    </div>
+
     <div class="space-y-3 text-xs">
       <div class="flex justify-between items-center gap-2">
         <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari username pembeli..." class="flex-1 bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
@@ -34,8 +61,8 @@
               <tr>
                 <th class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-40 border-r border-gray-800"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
                 <th class="p-2.5 bg-gray-950 sticky left-8 z-40 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Username</th>
-                <th class="p-2.5 text-center bg-gray-950">Seller Collateral</th>
-                <th class="p-2.5 text-center bg-gray-950">Buyer Collateral</th>
+                <th class="p-2.5 text-center bg-gray-950 text-amber-400">Seller Collateral</th>
+                <th class="p-2.5 text-center bg-gray-950 text-emerald-400">Buyer Collateral</th>
                 <th class="p-2.5 text-center bg-gray-950">Keterangan</th>
                 <th class="p-2.5 bg-gray-950">Status Verifikasi</th>
                 <th class="p-2.5 text-right bg-gray-950">Aksi Admin</th>
@@ -57,17 +84,31 @@
     const SUPABASE_ANON_KEY = "sb_publishable_TBKKXJkwiqMmAYJKqAdwgw__nqQA8xJ";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // Ganti ke false jika sudah siap untuk Mainnet Pi Network
+    const PI_SANDBOX_MODE = false;
+    // Endpoint backend Anda untuk approve & complete pembayaran Pi SDK
+    const PI_PAYMENT_API_BASE = "/api/pi"; 
+
     const ADMIN_USERNAMES = ["Ful21", "s9t9munah"];
     let buyersList = [];
     let authenticatedPiUser = null;
     let fetchSequenceId = 0;
     let syncDebounceTimer = null;
 
+    // Inisialisasi Pi SDK
+    if (window.Pi) {
+      try {
+        window.Pi.init({ version: "2.0", sandbox: PI_SANDBOX_MODE });
+      } catch (e) {
+        console.warn("Pi SDK init warning:", e);
+      }
+    }
+
     const _BuyersAccessGuardian = {
       version: "4.4.0-secure-buyers",
       verifyAdminAction: function(username) {
         if (!username) return false;
-        return ADMIN_USERNAMES.includes(username.trim());
+        return ADMIN_USERNAMES.some(admin => admin.toLowerCase() === username.trim().toLowerCase());
       },
       enforceAccess: function(username) {
         if (!this.verifyAdminAction(username)) {
@@ -77,6 +118,50 @@
       }
     };
 
+    function updateUserBadge() {
+      const badge = document.getElementById("activePiUserBadge");
+      if (badge) {
+        badge.textContent = authenticatedPiUser?.username
+          ? `User: @${authenticatedPiUser.username}`
+          : "User: Belum Login Pi";
+      }
+    }
+
+    async function ensurePiAuthenticated() {
+      if (authenticatedPiUser && authenticatedPiUser.username && authenticatedPiUser.accessToken) {
+        return authenticatedPiUser;
+      }
+
+      if (!window.Pi) {
+        throw new Error("Pi SDK tidak terdeteksi. Buka halaman ini melalui Pi Browser.");
+      }
+
+      const scopes = ['username', 'payments', 'wallet_address'];
+      const authResult = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+      authenticatedPiUser = {
+        username: authResult.user.username,
+        uid: authResult.user.uid,
+        wallet_address: authResult.user.wallet_address || '-',
+        accessToken: authResult.accessToken
+      };
+      updateUserBadge();
+      return authenticatedPiUser;
+    }
+
+    function onIncompletePaymentFound(payment) {
+      console.warn("Incomplete payment found:", payment);
+      if (payment && payment.identifier && payment.transaction && payment.transaction.txid) {
+        fetch(`${PI_PAYMENT_API_BASE}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentId: payment.identifier,
+            txid: payment.transaction.txid
+          })
+        }).catch(err => console.error("Incomplete payment sync error:", err));
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       const savedAccounts = JSON.parse(localStorage.getItem('pibox_saved_verified_accounts') || '[]');
       if (savedAccounts.length > 0 && savedAccounts[0].username) {
@@ -84,7 +169,7 @@
       } else {
         authenticatedPiUser = { username: "Ful21" };
       }
-
+      updateUserBadge();
       await fetchBuyersList();
     });
 
@@ -267,6 +352,169 @@
 
     _BuyersTableSyncGuardian.initLiveSync();
 
+    // =========================================================================
+    // FUNGSI PEMBAYARAN PI SDK SEBESAR 35 PI & PENCATATAN KE KOLOM TERKAIT
+    // =========================================================================
+    async function payCollateralWithPiSDK(collateralType) {
+      const btnSeller = document.getElementById('btnPaySellerCollateral');
+      const btnBuyer = document.getElementById('btnPayBuyerCollateral');
+      const AMOUNT_PI = 35;
+
+      try {
+        if (btnSeller) btnSeller.disabled = true;
+        if (btnBuyer) btnBuyer.disabled = true;
+
+        // 1. Autentikasi User Pi
+        const user = await ensurePiAuthenticated();
+        const cleanUser = user.username.trim().replace(/^@/, '');
+        const memoLabel = collateralType === 'seller'
+          ? `Deposit Seller Collateral 35 Pi (@${cleanUser})`
+          : `Deposit Buyer Collateral 35 Pi (@${cleanUser})`;
+
+        // 2. Jalankan Pi.createPayment
+        window.Pi.createPayment(
+          {
+            amount: AMOUNT_PI,
+            memo: memoLabel,
+            metadata: {
+              username: cleanUser,
+              collateral_type: collateralType, // 'seller' atau 'buyer'
+              amount: AMOUNT_PI
+            }
+          },
+          {
+            // Tahap A: Server-Side Approval
+            onReadyForServerApproval: async function(paymentId) {
+              try {
+                await fetch(`${PI_PAYMENT_API_BASE}/approve`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ paymentId })
+                });
+              } catch (err) {
+                console.warn("Server approval request warning:", err);
+              }
+            },
+
+            // Tahap B: Server-Side Completion & Pencatatan Data
+            onReadyForServerCompletion: async function(paymentId, txid) {
+              try {
+                await fetch(`${PI_PAYMENT_API_BASE}/complete`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ paymentId, txid })
+                });
+              } catch (err) {
+                console.warn("Server completion request warning:", err);
+              }
+
+              // Simpan saldo ke kolom yang sesuai (Seller Collateral / Buyer Collateral)
+              await recordCollateralPayment(cleanUser, collateralType, AMOUNT_PI, txid, user.wallet_address);
+            },
+
+            onCancel: function(paymentId) {
+              alert("Pembayaran 35 Pi dibatalkan.");
+            },
+
+            onError: function(error, payment) {
+              console.error("Pi Payment Error:", error, payment);
+              alert("Terjadi kesalahan saat memproses pembayaran Pi: " + (error?.message || "Unknown error"));
+            }
+          }
+        );
+      } catch (err) {
+        alert(err.message || "Gagal memulai pembayaran Pi SDK.");
+      } finally {
+        if (btnSeller) btnSeller.disabled = false;
+        if (btnBuyer) btnBuyer.disabled = false;
+      }
+    }
+
+    async function recordCollateralPayment(username, collateralType, amount, txid, walletAddress) {
+      const cleanUser = username.trim().replace(/^@/, '');
+      const userKey = cleanUser.toLowerCase();
+      const nowIso = new Date().toISOString();
+
+      // Ambil data existing user jika sudah ada di daftar
+      const existing = buyersList.find(b => (b.username || '').toLowerCase() === userKey) || {};
+      const currentSeller = _BuyersTableSyncGuardian.toExact(existing.seller_deposit_balance ?? 0);
+      const currentBuyer = _BuyersTableSyncGuardian.toExact(existing.buyer_deposit_balance ?? 0);
+
+      // Update kolom sesuai tombol yang diklik (Kotak Merah = seller, Kotak Hijau = buyer)
+      const newSellerBal = collateralType === 'seller'
+        ? Math.min(35, _BuyersTableSyncGuardian.addExact(currentSeller, amount))
+        : currentSeller;
+
+      const newBuyerBal = collateralType === 'buyer'
+        ? Math.min(35, _BuyersTableSyncGuardian.addExact(currentBuyer, amount))
+        : currentBuyer;
+
+      const newTotalBal = _BuyersTableSyncGuardian.addExact(newSellerBal, newBuyerBal);
+
+      // Tentukan Keterangan Role otomatis
+      let roleText = 'Pembeli';
+      if (newSellerBal > 0 && newBuyerBal > 0) {
+        roleText = 'Penjual & Pembeli';
+      } else if (newSellerBal > 0) {
+        roleText = 'Penjual';
+      }
+
+      const finalWallet = (walletAddress && walletAddress !== '-')
+        ? walletAddress
+        : (existing.wallet_address || existing.wallet || '-');
+
+      const updatedRecord = {
+        username: cleanUser,
+        seller_deposit_balance: newSellerBal,
+        buyer_deposit_balance: newBuyerBal,
+        deposit_balance: newTotalBal,
+        role: roleText,
+        keterangan: roleText,
+        status: 'approved',
+        wallet_address: finalWallet,
+        last_txid: txid || '',
+        isReset: false,
+        updated_at: nowIso,
+        ts: Date.now()
+      };
+
+      // 1. Simpan ke Local Ledger agar langsung tampil instan
+      _BuyersTableSyncGuardian.writeLocalRecord(userKey, updatedRecord);
+
+      // 2. Simpan / Upsert ke Supabase tabel `buyers`
+      if (supabaseClient) {
+        const { error } = await supabaseClient
+          .from('buyers')
+          .upsert({
+            username: cleanUser,
+            seller_deposit_balance: newSellerBal,
+            buyer_deposit_balance: newBuyerBal,
+            deposit_balance: newTotalBal,
+            role: roleText,
+            status: 'approved',
+            wallet_address: finalWallet,
+            updated_at: nowIso
+          }, { onConflict: 'username' });
+
+        if (error) {
+          console.error("Supabase upsert error:", error.message);
+        }
+
+        // Broadcast sinkronisasi realtime
+        try {
+          await supabaseClient.channel('buyers-table-live-sync').send({
+            type: 'broadcast',
+            event: 'collateral_unified_sync',
+            payload: { record: updatedRecord, ts: updatedRecord.ts }
+          });
+        } catch (_) {}
+      }
+
+      await fetchBuyersList();
+      const targetLabel = collateralType === 'seller' ? 'Seller Collateral' : 'Buyer Collateral';
+      alert(`✅ Pembayaran 35 Pi berhasil!\nSaldo ${targetLabel} untuk @${cleanUser} telah tercatat.`);
+    }
+
     async function fetchBuyersList() {
       const currentReqId = ++fetchSequenceId;
       const localMerged = _BuyersTableSyncGuardian.mergeWithLocalLedger([]);
@@ -346,14 +594,6 @@
           } catch (_) {}
         }
 
-        try {
-          if (typeof BroadcastChannel !== 'undefined') {
-            const bc = new BroadcastChannel('pibox_collateral_unified_sync_v1');
-            bc.postMessage({ type: 'collateral_reset', record: zeroState, ts: zeroState.ts });
-            bc.close();
-          }
-        } catch (_) {}
-
         await fetchBuyersList();
         alert(`Seller Collateral & Buyer Collateral untuk @${cleanUser} telah direset ke 0 Pi.`);
       } catch (err) {
@@ -361,93 +601,6 @@
       }
     }
 
-    const ADMIN_USERNAMES = ["ful21"];
-
-    function isAdminAuthenticated() {
-      const activeUser =
-        typeof getActiveAuthenticatedUser === "function"
-          ? normalizeCollateralUsername(getActiveAuthenticatedUser())
-          : normalizeCollateralUsername(
-              window.authenticatedPiUser && window.authenticatedPiUser.username
-            );
-
-      if (!activeUser) return false;
-      return ADMIN_USERNAMES.includes(activeUser.toLowerCase());
-    }
-
-    function enforceAdminOnlyAccess(showAlert = true) {
-      const allowed = isAdminAuthenticated();
-      if (!allowed && showAlert) {
-        alert("Akses menu ini khusus untuk admin.");
-      }
-      return allowed;
-    }
-
-    function syncBuyerVerificationPanelVisibility() {
-      const panel =
-        document.getElementById("buyerVerificationModal") ||
-        document.getElementById("buyersVerificationPanel") ||
-        document.querySelector("[data-admin-buyers-panel='true']");
-
-      if (!panel) return;
-      panel.style.display = isAdminAuthenticated() ? "" : "none";
-    }
-
-    async function fetchBuyersListFast() {
-      if (!Array.isArray(window.buyersList)) {
-        window.buyersList = [];
-      }
-
-      if (typeof readCollateralCache === "function" && window.buyersList.length === 0) {
-        try {
-          const cached = readCollateralCache();
-          if (Array.isArray(cached) && cached.length > 0) {
-            window.buyersList = cached.map((row) => standardizeBuyerCollateralRecord(row));
-          }
-        } catch (_) {}
-      }
-
-      if (typeof renderBuyersTable === "function") {
-        renderBuyersTable();
-      }
-
-      if (!supabaseClient) {
-        return window.buyersList;
-      }
-
-      try {
-        const queryPromise = supabaseClient
-          .from("buyers")
-          .select("*")
-          .order("username", { ascending: true });
-
-        const timeoutPromise = new Promise((resolve) =>
-          setTimeout(() => resolve({ data: null, timedOut: true }), 4000)
-        );
-
-        const result = await Promise.race([queryPromise, timeoutPromise]);
-        if (result && Array.isArray(result.data)) {
-          window.buyersList = result.data.map((row) =>
-            standardizeBuyerCollateralRecord(row)
-          );
-          if (typeof renderBuyersTable === "function") {
-            renderBuyersTable();
-          }
-        }
-      } catch (_) {}
-
-      return window.buyersList;
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      syncBuyerVerificationPanelVisibility();
-      syncBuyerRegisterButtonState();
-      if (isAdminAuthenticated()) {
-        fetchBuyersListFast();
-      }
-    });
-
-    
     function escapeHtmlAttr(str) {
       return String(str ?? '')
         .replace(/&/g, '&amp;')
@@ -457,26 +610,7 @@
         .replace(/>/g, '&gt;');
     }
 
-    function formatBuyerTableRowDisplay(rawRow = {}) {
-      const item = standardizeBuyerCollateralRecord(rawRow);
-      const formattedUsername = item.username ? `@${item.username}` : "-";
-      const sellerCollateralText = `${_HighPrecisionDepositLedgerCore.formatPrecision(
-        item.seller_deposit_balance
-      )} Pi`;
-      const buyerCollateralText = `${_HighPrecisionDepositLedgerCore.formatPrecision(
-        item.buyer_deposit_balance
-      )} Pi`;
-
-      return {
-        username: formattedUsername,
-        rawUsername: item.username,
-        sellerCollateralText,
-        buyerCollateralText,
-        status: item.status,
-        role: item.role
-      };
-    }
-
+    function renderBuyersTable() {
       const tbody = document.getElementById('buyersTableBody');
       const batchContainer = document.getElementById('adminDeleteBatchContainer');
       const searchInput = document.getElementById('searchBuyerInput');
