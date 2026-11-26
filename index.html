@@ -635,30 +635,65 @@ const _AGI_CollateralGuardianCore = (() => {
       }
     };
 
+    function getActiveAuthenticatedUser() {
+      try {
+        if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
+          return String(authenticatedPiUser.username).trim().replace(/^@/, '');
+        }
+      } catch (_) {}
+      try {
+        if (window.authenticatedPiUser && window.authenticatedPiUser.username) {
+          return String(window.authenticatedPiUser.username).trim().replace(/^@/, '');
+        }
+      } catch (_) {}
+      return '';
+    }
+
+    function setActiveAuthenticatedUser(username) {
+      const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+      const sessionObj = cleanUser ? { username: cleanUser } : null;
+      try {
+        if (typeof authenticatedPiUser !== 'undefined') {
+          authenticatedPiUser = sessionObj;
+        }
+      } catch (_) {}
+      window.authenticatedPiUser = sessionObj;
+      return sessionObj;
+    }
+
     // List Asset / Item button handler (protected by background guard)
     function handleOpenCreateModal() {
       try {
-        const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        
-        if (!_SystemAutonomousGuardian.validateExecution("List Aset", currentUsr)) {
-          alert("⛔ AKSES DITOLAK: Fitur Rilis/List Aset dikunci secara otomatis oleh sistem penjaga di balik layar.");
+        const currentUsr = getActiveAuthenticatedUser();
+
+        if (!currentUsr) {
+          if (typeof t === 'function') alert(t('loginFirstAlert'));
+          else alert('Silakan login akun Pi Network terlebih dahulu!');
+          if (typeof authenticatePiUser === 'function') authenticatePiUser();
+          return;
+        }
+
+        if (!_SystemAutonomousGuardian.validateExecution('List Aset', currentUsr)) {
+          alert('Akses ditolak untuk akun ini pada fitur rilis aset.');
           return;
         }
 
         const creatorInput = document.getElementById('creatorAdminInput');
         if (creatorInput) creatorInput.value = currentUsr;
-        
+
         const realSellerInput = document.getElementById('realSellerUsernameInput');
         const walletInput = document.getElementById('piboxWalletInput');
-        
+
         if (realSellerInput && !realSellerInput.value) realSellerInput.value = currentUsr;
         if (walletInput && !walletInput.value) walletInput.value = currentUsr;
 
-        document.getElementById('createModal').classList.remove('hidden');
+        const createModal = document.getElementById('createModal');
+        if (createModal) createModal.classList.remove('hidden');
       } catch (err) {
-        alert(err.message);
+        alert(err && err.message ? err.message : 'Terjadi kesalahan saat membuka form rilis aset.');
       }
     }
+
 
     // Admin toggle auction status handler
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
