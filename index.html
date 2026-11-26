@@ -3327,15 +3327,17 @@ const _AGI_CollateralGuardianCore = (() => {
           );
         }
       }
-      const buyerTextEl = document.getElementById('buyerDepositBalanceText');
-      if (buyerTextEl) {
-        const matchNum = (buyerTextEl.innerText || '').match(/(-?\d+(?:\.\d+)?)/);
-        if (matchNum) {
-          return _HighPrecisionDepositLedgerCore.toExactNumber(matchNum[1]);
-        }
+      const cachedBuyer = typeof readCollateralCache === 'function'
+        ? readCollateralCache(currentUsername)
+        : null;
+      if (cachedBuyer) {
+        return _HighPrecisionDepositLedgerCore.toExactNumber(
+          VerificationStandardCore.getBuyerDepositAmount(cachedBuyer) || 0
+        );
       }
       return 0;
     }
+
 
     const _RealtimeStateDistributor = {
       channel: null,
