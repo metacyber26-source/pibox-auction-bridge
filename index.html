@@ -4636,7 +4636,29 @@
               filterGallery();
             }
           })
+          .on('broadcast', { event: 'buyer_status_update' }, async (payload) => {
+            if (payload && payload.payload) {
+              await fetchBuyersList();
+              if (typeof renderBuyersTable === 'function') {
+                const bModal = document.getElementById('buyersTableModal');
+                if (bModal && !bModal.classList.contains('hidden')) {
+                  renderBuyersTable();
+                }
+              }
+              if (
+                authenticatedPiUser &&
+                payload.payload.username &&
+                payload.payload.username.toLowerCase() === authenticatedPiUser.username.toLowerCase() &&
+                typeof checkBuyerStatusInDatabase === 'function'
+              ) {
+                await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+              } else if (typeof renderGallery === 'function') {
+                renderGallery();
+              }
+            }
+          })
           .subscribe();
+
 
         try {
           if (typeof BroadcastChannel !== 'undefined') {
