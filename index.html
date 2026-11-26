@@ -2307,23 +2307,26 @@
 
         try {
           const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-          if (piInstance && typeof piInstance.init === 'function') {
+          if (piInstance && typeof piInstance.createPayment === 'function') {
             try {
-              piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
-            } catch (_) {}
-          }
-          if (piInstance && typeof piInstance.authenticate === 'function') {
-            try {
-              const authRes = await piInstance.authenticate(['username', 'payments'], () => {});
-              if (authRes && authRes.user && authRes.user.username) {
-                authenticatedPiUser = { username: authRes.user.username.trim() };
-                window.authenticatedPiUser = authenticatedPiUser;
+              if (typeof piInstance.init === 'function') {
+                piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+              }
+              if (typeof piInstance.authenticate === 'function') {
+                const authPromise = piInstance.authenticate(['username', 'payments'], () => {});
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Pi auth timeout")), 1500));
+                const authRes = await Promise.race([authPromise, timeoutPromise]);
+                if (authRes && authRes.user && authRes.user.username) {
+                  username = authRes.user.username.trim().replace(/^@/, '');
+                  authenticatedPiUser = { username };
+                  window.authenticatedPiUser = authenticatedPiUser;
+                }
               }
             } catch (_) {}
-          }
 
-          if (piInstance && typeof piInstance.createPayment === 'function') {
             piInstance.createPayment(paymentData, {
+
+          
               onReadyForServerApproval: async (paymentId) => {
                 await fetch('/api/pi/approve', {
                   method: 'POST',
