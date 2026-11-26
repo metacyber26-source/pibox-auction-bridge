@@ -3045,23 +3045,26 @@ const _AGI_CollateralGuardianCore = (() => {
         btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
       }
 
-      let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-      if (piInstance && typeof piInstance.authenticate === 'function') {
-        try {
-          piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+      try {
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.authenticate === 'function') {
+          if (typeof piInstance.init === 'function') {
+            piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+          }
           const authPromise = piInstance.authenticate(['username', 'payments'], () => {});
           const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Pi SDK Timeout")), 1800));
           const authResult = await Promise.race([authPromise, timeoutPromise]);
           if (authResult && authResult.user && authResult.user.username) {
             finalizeLoginSession(authResult.user.username);
-            isAuthenticating = false;
             if (!isAuto) alert(`🎉 Berhasil Login sebagai @${SecureShield.maskUsername(authResult.user.username)}`);
             return;
           }
-        } catch (_) {}
+        }
+      } catch (_) {
+      } finally {
+        isAuthenticating = false;
       }
 
-      isAuthenticating = false;
       if (btnHeaderLogin && authenticatedPiUser && authenticatedPiUser.username) {
         btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${SecureShield.maskUsername(authenticatedPiUser.username)}</span>`;
       } else if (btnHeaderLogin) {
