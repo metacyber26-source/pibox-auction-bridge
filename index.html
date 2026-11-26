@@ -3840,21 +3840,16 @@ const _CollateralGuardianCore = (() => {
       }, 600);
     });
 
-    const BUYER_COLLATERAL_ACTIVATION_THRESHOLD = 34;
-    const BUYER_COLLATERAL_TOPUP_AMOUNT = 35;
-    const COLLATERAL_INFO_MESSAGE =
+    const ROLE_REGISTER_ACTIVATION_THRESHOLD = 34.5;
+    const BUYER_COLLATERAL_PAYMENT_AMOUNT = 35;
+    const ROLE_COLLATERAL_INFO_MESSAGE =
       "Silahkan top up 35 pi sebagai dana jaminan, Dana ini akan dikembalikan (S&K berlaku). Pengembalian jaminan dipotong 1 pi sebagai biaya pendaftaran dan gas fee pengembalian.";
 
-    function getBuyerCollateralBalance(username = '') {
-      const targetUser = (
-        username ||
-        getActiveAuthenticatedUser() ||
-        ""
-      )
+    function getRoleCollateralBalance(roleKey, username = "") {
+      const targetUser = (username || getActiveAuthenticatedUser() || "")
         .toString()
         .trim()
         .replace(/^@/, "");
-
       if (!targetUser) return 0;
 
       const lowerUser = targetUser.toLowerCase();
@@ -3862,66 +3857,112 @@ const _CollateralGuardianCore = (() => {
 
       if (Array.isArray(buyersList)) {
         const matchedRow = buyersList.find(
-          (row) => (row && row.username ? String(row.username).trim().replace(/^@/, "").toLowerCase() : "") === lowerUser
+          (row) =>
+            (row && row.username ? String(row.username).trim().replace(/^@/, "").toLowerCase() : "") ===
+            lowerUser
         );
         if (matchedRow) {
-          const rowVal = _HighPrecisionDepositLedgerCore.toExactNumber(
-            VerificationStandardCore.getBuyerDepositAmount(matchedRow)
-          );
-          if (rowVal > maxBalance) maxBalance = rowVal;
+          const val =
+            roleKey === "seller"
+              ? VerificationStandardCore.getSellerDepositAmount(matchedRow)
+              : VerificationStandardCore.getBuyerDepositAmount(matchedRow);
+          const exactVal = _HighPrecisionDepositLedgerCore.toExactNumber(val);
+          if (exactVal > maxBalance) maxBalance = exactVal;
         }
       }
 
       if (typeof readCollateralCache === "function") {
         const cachedRow = readCollateralCache(targetUser);
         if (cachedRow) {
-          const cachedVal = _HighPrecisionDepositLedgerCore.toExactNumber(
-            VerificationStandardCore.getBuyerDepositAmount(cachedRow)
-          );
-          if (cachedVal > maxBalance) maxBalance = cachedVal;
+          const val =
+            roleKey === "seller"
+              ? VerificationStandardCore.getSellerDepositAmount(cachedRow)
+              : VerificationStandardCore.getBuyerDepositAmount(cachedRow);
+          const exactVal = _HighPrecisionDepositLedgerCore.toExactNumber(val);
+          if (exactVal > maxBalance) maxBalance = exactVal;
         }
       }
 
       return maxBalance;
     }
 
-    function syncBuyerRegisterButtonState() {
+    function getBuyerCollateralBalance(username = "") {
+      return getRoleCollateralBalance("buyer", username);
+    }
+
+    function getSellerCollateralBalance(username = "") {
+      return getRoleCollateralBalance("seller", username);
+    }
+
+    function syncRoleRegisterButtonsState() {
       const btnBuyer = document.getElementById("btnRegisterBuyerRole");
-      if (!btnBuyer) return;
+      const btnSeller = document.getElementById("btnRegisterSellerRole");
+      const buyerInfoEl = document.getElementById("buyerRoleCollateralInfo");
+      const sellerInfoEl = document.getElementById("sellerRoleCollateralInfo");
 
       const currentUser = getActiveAuthenticatedUser();
-      const buyerBalance = getBuyerCollateralBalance(currentUser);
-      const isEligibleForRegistration = !currentUser || buyerBalance < BUYER_COLLATERAL_ACTIVATION_THRESHOLD;
+      const buyerBal = getBuyerCollateralBalance(currentUser);
+      const sellerBal = getSellerCollateralBalance(currentUser);
 
-      btnBuyer.disabled = !isEligibleForRegistration;
-      if (isEligibleForRegistration) {
-        btnBuyer.removeAttribute("aria-disabled");
-        btnBuyer.classList.remove("opacity-45", "cursor-not-allowed");
-        btnBuyer.classList.add("cursor-pointer");
-      } else {
-        btnBuyer.setAttribute("aria-disabled", "true");
-        btnBuyer.classList.remove("cursor-pointer");
-        btnBuyer.classList.add("opacity-45", "cursor-not-allowed");
+      if (buyerInfoEl) {
+        buyerInfoEl.textContent = `Buyer Collateral: ${_HighPrecisionDepositLedgerCore.formatPrecision(buyerBal)} pi`;
+      }
+      if (sellerInfoEl) {
+        sellerInfoEl.textContent = `Seller Collateral: ${_HighPrecisionDepositLedgerCore.formatPrecision(sellerBal)} pi`;
+      }
+
+      const buyerActive = !currentUser || buyerBal < ROLE_REGISTER_ACTIVATION_THRESHOLD;
+      const sellerActive = !currentUser || sellerBal < ROLE_REGISTER_ACTIVATION_THRESHOLD;
+
+      if (btnBuyer) {
+        btnBuyer.disabled = !buyerActive;
+        if (buyerActive) {
+          btnBuyer.removeAttribute("aria-disabled");
+          btnBuyer.classList.remove("opacity-45", "cursor-not-allowed");
+          btnBuyer.classList.add("cursor-pointer");
+        } else {
+          btnBuyer.setAttribute("aria-disabled", "true");
+          btnBuyer.classList.remove("cursor-pointer");
+          btnBuyer.classList.add("opacity-45", "cursor-not-allowed");
+        }
+      }
+
+      if (btnSeller) {
+        btnSeller.disabled = !sellerActive;
+        if (sellerActive) {
+          btnSeller.removeAttribute("aria-disabled");
+          btnSeller.classList.remove("opacity-45", "cursor-not-allowed");
+          btnSeller.classList.add("cursor-pointer");
+        } else {
+          btnSeller.setAttribute("aria-disabled", "true");
+          btnSeller.classList.remove("cursor-pointer");
+          btnSeller.classList.add("opacity-45", "cursor-not-allowed");
+        }
       }
     }
 
-    function showCollateralInformationModal() {
+    function syncBuyerRegisterButtonState() {
+      syncRoleRegisterButtonsState();
+    }
+
+    function showRoleCollateralInformationModal(roleKey) {
       return new Promise((resolve) => {
         const existingModal = document.getElementById("collateralInformationModal");
         if (existingModal) existingModal.remove();
 
+        const roleLabel = roleKey === "seller" ? "Penjual" : "Pembeli";
         const modalEl = document.createElement("div");
         modalEl.id = "collateralInformationModal";
         modalEl.className = "fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-[70]";
         modalEl.innerHTML = `
           <div class="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl text-xs">
-            <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">INFORMASI JAMINAN</h3>
+            <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">INFORMASI JAMINAN (${SecureShield.sanitizeHTML(roleLabel)})</h3>
             <p class="text-[11px] text-gray-200 leading-relaxed bg-gray-900 p-3 rounded-xl border border-gray-800">
-              ${SecureShield.sanitizeHTML(COLLATERAL_INFO_MESSAGE)}
+              ${SecureShield.sanitizeHTML(ROLE_COLLATERAL_INFO_MESSAGE)}
             </p>
             <div class="flex gap-2 pt-1">
               <button id="btnCancelCollateralModal" type="button" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-2 rounded-xl text-xs cursor-pointer">Batal</button>
-              <button id="btnConfirmCollateralModal" type="button" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-2 rounded-xl text-xs cursor-pointer shadow">OK</button>
+              <button id="btnConfirmCollateralModal" type="button" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-2 rounded-xl text-xs cursor-pointer shadow">Bayar Buyer Collateral (35 Pi)</button>
             </div>
           </div>
         `;
@@ -3940,13 +3981,21 @@ const _CollateralGuardianCore = (() => {
       });
     }
 
-    function executePiSdkCollateralPayment(amountPi, memoText, metadataObj) {
+    function executePiSdkBuyerCollateral35Payment(triggeredFromRole, username) {
       return new Promise((resolve) => {
-        const paymentAmount = _HighPrecisionDepositLedgerCore.toExactNumber(amountPi) || BUYER_COLLATERAL_TOPUP_AMOUNT;
-        const piSdk = window.Pi || (typeof Pi !== "undefined" ? Pi : null);
+        const paymentAmount = BUYER_COLLATERAL_PAYMENT_AMOUNT;
+        const memoText = `PIBOX-BUYER-COLLATERAL-35:${triggeredFromRole.toUpperCase()}:@${username}`;
+        const metadataObj = {
+          type: "buyer_collateral_payment_35",
+          triggered_from: triggeredFromRole,
+          target_collateral: "buyer",
+          username,
+          amount: paymentAmount
+        };
 
+        const piSdk = window.Pi || (typeof Pi !== "undefined" ? Pi : null);
         if (!piSdk || typeof piSdk.createPayment !== "function") {
-          resolve({ status: "fallback", txid: null });
+          resolve({ status: "fallback", txid: null, memo: memoText });
           return;
         }
 
@@ -3982,243 +4031,88 @@ const _CollateralGuardianCore = (() => {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ paymentId, txid })
                 }).catch(() => {});
-                finishOnce({ status: "completed", paymentId, txid: txid || null });
+                finishOnce({ status: "completed", paymentId, txid: txid || null, memo: memoText });
               },
               onCancel: () => {
-                finishOnce({ status: "cancelled", txid: null });
+                finishOnce({ status: "cancelled", txid: null, memo: memoText });
               },
               onError: () => {
-                finishOnce({ status: "error", txid: null });
+                finishOnce({ status: "error", txid: null, memo: memoText });
               }
             }
           );
         } catch (_) {
-          finishOnce({ status: "fallback", txid: null });
+          finishOnce({ status: "fallback", txid: null, memo: memoText });
         }
       });
     }
 
-    async function recordBuyerCollateralTopUp(username, topUpAmount, memoText, txid = null) {
-      const cleanUser = (username || "").toString().trim().replace(/^@/, "");
-      if (!cleanUser) return null;
-
-      const exactTopUp = _HighPrecisionDepositLedgerCore.toExactNumber(topUpAmount) || BUYER_COLLATERAL_TOPUP_AMOUNT;
-
-      let existingDbRow = null;
-      if (supabaseClient) {
-        try {
-          const { data } = await supabaseClient
-            .from("buyers")
-            .select("*")
-            .eq("username", cleanUser)
-            .maybeSingle();
-          existingDbRow = data || null;
-        } catch (_) {}
-      }
-
-      const cachedRow = typeof readCollateralCache === "function" ? readCollateralCache(cleanUser) : null;
-      const listRow = Array.isArray(buyersList)
-        ? buyersList.find(
-            (b) => (b && b.username ? String(b.username).trim().replace(/^@/, "").toLowerCase() : "") === cleanUser.toLowerCase()
-          ) || null
-        : null;
-
-      const mergedSource = {
-        ...(listRow || {}),
-        ...(cachedRow || {}),
-        ...(existingDbRow || {})
-      };
-
-      const prevBuyerBalance = _HighPrecisionDepositLedgerCore.toExactNumber(
-        VerificationStandardCore.getBuyerDepositAmount(mergedSource)
-      );
-      const prevSellerBalance = _HighPrecisionDepositLedgerCore.toExactNumber(
-        VerificationStandardCore.getSellerDepositAmount(mergedSource)
-      );
-
-      const nextBuyerBalance = _HighPrecisionDepositLedgerCore.addExact(prevBuyerBalance, exactTopUp);
-      const nextTotalBalance = _HighPrecisionDepositLedgerCore.addExact(nextBuyerBalance, prevSellerBalance);
-
-      const existingRoleNorm = VerificationStandardCore.normalizeRole(mergedSource.role || mergedSource.keterangan || "");
-      const nextRoleNorm = VerificationStandardCore.combineRoles(existingRoleNorm, VerificationStandardCore.ROLE_BUYER);
-      const nextStatus = nextBuyerBalance >= 34.9 || VerificationStandardCore.isManualAdminApproved(mergedSource)
-        ? VerificationStandardCore.APPROVED
-        : VerificationStandardCore.PENDING;
-
-      const updatedRecord = {
-        ...mergedSource,
-        username: cleanUser,
-        role: nextRoleNorm,
-        buyer_deposit_balance: nextBuyerBalance,
-        seller_deposit_balance: prevSellerBalance,
-        deposit_balance: nextTotalBalance,
-        status: nextStatus,
-        last_collateral_txid: txid || mergedSource.last_collateral_txid || null
-      };
-
-      if (typeof writeCollateralCache === "function") {
-        writeCollateralCache(cleanUser, updatedRecord);
-      }
-      _HighPrecisionDepositLedgerCore.syncLocalBuyerState(cleanUser, updatedRecord);
-      updateDetailedDepositDisplay(nextBuyerBalance, prevSellerBalance);
-
-      if (supabaseClient) {
-        const dbPayload = {
-          username: cleanUser,
-          role: nextRoleNorm,
-          buyer_deposit_balance: nextBuyerBalance,
-          seller_deposit_balance: prevSellerBalance,
-          deposit_balance: nextTotalBalance,
-          status: nextStatus,
-          win_count: existingDbRow && existingDbRow.win_count ? existingDbRow.win_count : 0,
-          has_requested_withdrawal: existingDbRow && existingDbRow.has_requested_withdrawal ? existingDbRow.has_requested_withdrawal : false
-        };
-
-        try {
-          if (!existingDbRow) {
-            const { error: insertErr } = await supabaseClient.from("buyers").insert([dbPayload]);
-            if (insertErr && /buyer_deposit_balance|seller_deposit_balance|column/i.test(insertErr.message || "")) {
-              await supabaseClient.from("buyers").insert([{
-                username: cleanUser,
-                role: nextRoleNorm,
-                deposit_balance: nextTotalBalance,
-                status: nextStatus,
-                win_count: 0,
-                has_requested_withdrawal: false
-              }]);
-            }
-          } else {
-            const { error: updateErr } = await supabaseClient
-              .from("buyers")
-              .update(dbPayload)
-              .eq("username", cleanUser);
-            if (updateErr && /buyer_deposit_balance|seller_deposit_balance|column/i.test(updateErr.message || "")) {
-              await supabaseClient
-                .from("buyers")
-                .update({
-                  role: nextRoleNorm,
-                  deposit_balance: nextTotalBalance,
-                  status: nextStatus
-                })
-                .eq("username", cleanUser);
-            }
-          }
-        } catch (_) {}
-
-        try {
-          await supabaseClient.from("auction_deposits_log").insert([{
-            username: cleanUser,
-            amount: exactTopUp,
-            type: "deposit_buyer",
-            role: VerificationStandardCore.ROLE_BUYER,
-            buyer_deposit_after: nextBuyerBalance,
-            seller_deposit_after: prevSellerBalance,
-            memo: memoText
-          }]);
-        } catch (_) {}
-      }
-
-      if (window._CollateralSyncGuardian && typeof window._CollateralSyncGuardian.broadcastCollateralSync === "function") {
-        window._CollateralSyncGuardian.broadcastCollateralSync(cleanUser, updatedRecord);
-      }
-
-      _RealtimeStateDistributor.broadcast({
-        type: "buyer_collateral_update",
-        buyer: updatedRecord
-      });
-
-      if (typeof fetchBuyersList === "function") {
-        await fetchBuyersList();
-      }
-      if (typeof renderBuyersTable === "function") {
-        renderBuyersTable();
-      }
-      if (typeof checkBuyerStatusInDatabase === "function") {
-        await checkBuyerStatusInDatabase(cleanUser);
-      }
-      syncBuyerRegisterButtonState();
-
-      return updatedRecord;
-    }
-
-    async function handleBuyerRegisterClick() {
+    async function triggerPayBuyerCollateral35(triggeredFromRole = "buyer") {
       if (!authenticatedPiUser || !authenticatedPiUser.username) {
         alert(t("loginFirstAlert"));
         authenticatePiUser();
-        return;
+        return null;
       }
 
-      const username = authenticatedPiUser.username.trim().replace(/^@/, "");
-      const currentBuyerBalance = getBuyerCollateralBalance(username);
+      const cleanUser = authenticatedPiUser.username.trim().replace(/^@/, "");
+      const roleKey = triggeredFromRole === "seller" ? "seller" : "buyer";
+      const currentRoleBal = getRoleCollateralBalance(roleKey, cleanUser);
 
-      if (currentBuyerBalance >= BUYER_COLLATERAL_ACTIVATION_THRESHOLD) {
-        syncBuyerRegisterButtonState();
-        alert(`Saldo jaminan pembeli Anda sudah ${_HighPrecisionDepositLedgerCore.formatPrecision(currentBuyerBalance)} pi (>= 34 pi).`);
-        return;
+      if (currentRoleBal >= ROLE_REGISTER_ACTIVATION_THRESHOLD) {
+        syncRoleRegisterButtonsState();
+        return null;
       }
 
-      const confirmedModal = await showCollateralInformationModal();
-      if (!confirmedModal) {
-        return;
+      const confirmed = await showRoleCollateralInformationModal(roleKey);
+      if (!confirmed) {
+        return null;
       }
 
-      const paymentMemo = `PIBOX-BUYER-COLLATERAL:${BUYER_COLLATERAL_TOPUP_AMOUNT}:@${username}`;
-      const sdkOutcome = await executePiSdkCollateralPayment(
-        BUYER_COLLATERAL_TOPUP_AMOUNT,
-        paymentMemo,
-        {
-          type: "buyer_collateral_deposit",
-          role: VerificationStandardCore.ROLE_BUYER,
-          username,
-          amount: BUYER_COLLATERAL_TOPUP_AMOUNT
-        }
-      );
-
+      const sdkOutcome = await executePiSdkBuyerCollateral35Payment(roleKey, cleanUser);
       if (sdkOutcome && sdkOutcome.status === "cancelled") {
-        return;
+        return null;
       }
 
       const recorded = await recordBuyerCollateralTopUp(
-        username,
-        BUYER_COLLATERAL_TOPUP_AMOUNT,
-        paymentMemo,
+        cleanUser,
+        BUYER_COLLATERAL_PAYMENT_AMOUNT,
+        sdkOutcome ? sdkOutcome.memo : `PIBOX-BUYER-COLLATERAL-35:${roleKey.toUpperCase()}:@${cleanUser}`,
         sdkOutcome ? sdkOutcome.txid : null
       );
 
-      const finalBuyerBal = recorded
-        ? _HighPrecisionDepositLedgerCore.formatPrecision(recorded.buyer_deposit_balance)
-        : _HighPrecisionDepositLedgerCore.formatPrecision(BUYER_COLLATERAL_TOPUP_AMOUNT);
+      syncRoleRegisterButtonsState();
+      return recorded;
+    }
 
+    async function handleRoleRegisterTrigger(roleKey) {
+      const normalized = roleKey === "seller" ? "seller" : "buyer";
+      const recorded = await triggerPayBuyerCollateral35(normalized);
+      if (!recorded) return;
+
+      const buyerVal = _HighPrecisionDepositLedgerCore.formatPrecision(recorded.buyer_deposit_balance);
+      const sellerVal = _HighPrecisionDepositLedgerCore.formatPrecision(recorded.seller_deposit_balance);
       alert(
-        `Pembayaran jaminan sebesar ${BUYER_COLLATERAL_TOPUP_AMOUNT} pi berhasil dicatat.\n` +
-        `Jaminan Pembeli: ${finalBuyerBal} pi`
+        `Pembayaran Buyer Collateral (${BUYER_COLLATERAL_PAYMENT_AMOUNT} pi) berhasil tercatat.\n` +
+        `• Buyer Collateral: ${buyerVal} pi\n` +
+        `• Seller Collateral: ${sellerVal} pi`
       );
     }
 
+    async function handleBuyerRegisterClick() {
+      await handleRoleRegisterTrigger("buyer");
+    }
+
     async function payAuctionDepositForRole(targetRole) {
-      const normalizedRole = VerificationStandardCore.normalizeRole(targetRole) || VerificationStandardCore.ROLE_BUYER;
-      if (normalizedRole === VerificationStandardCore.ROLE_BUYER) {
-        await handleBuyerRegisterClick();
-        return;
-      }
-
-      if (!authenticatedPiUser || !authenticatedPiUser.username) {
-        alert(t("loginFirstAlert"));
-        authenticatePiUser();
-        return;
-      }
-
-      if (window._CollateralGuardianCore && typeof window._CollateralGuardianCore.executeFastRoleDeposit === "function") {
-        await window._CollateralGuardianCore.executeFastRoleDeposit(VerificationStandardCore.ROLE_SELLER);
-      }
+      const norm = VerificationStandardCore.normalizeRole(targetRole);
+      await handleRoleRegisterTrigger(norm === VerificationStandardCore.ROLE_SELLER ? "seller" : "buyer");
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-      syncBuyerRegisterButtonState();
-      setInterval(syncBuyerRegisterButtonState, 500);
+      syncRoleRegisterButtonsState();
+      setInterval(syncRoleRegisterButtonsState, 400);
     });
 
-
+        
     async function payAuctionDeposit() {
       await payAuctionDepositForRole(VerificationStandardCore.ROLE_BUYER);
     }
