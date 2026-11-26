@@ -3252,12 +3252,27 @@ const _AGI_CollateralGuardianCore = (() => {
     }
 
     function updateDetailedDepositDisplay(buyerBalance, sellerBalance) {
-      const bVal = _HighPrecisionDepositLedgerCore.formatPrecision(buyerBalance);
-      const sVal = _HighPrecisionDepositLedgerCore.formatPrecision(sellerBalance);
+      const bClamped = Math.min(35, _HighPrecisionDepositLedgerCore.toExactNumber(buyerBalance));
+      const sClamped = Math.min(35, _HighPrecisionDepositLedgerCore.toExactNumber(sellerBalance));
+      const bVal = _HighPrecisionDepositLedgerCore.formatPrecision(bClamped);
+      const sVal = _HighPrecisionDepositLedgerCore.formatPrecision(sClamped);
       const buyerEl = document.getElementById('buyerDepositBalanceText');
       const sellerEl = document.getElementById('sellerDepositBalanceText');
       if (buyerEl) buyerEl.innerText = `Saldo jaminan sebagai pembeli: ${bVal} pi`;
-      if (sellerEl) sellerEl.innerText = `Saldo jaminan sebagai penjual: ${sVal} pi`;
+      if (sellerEl) sellerEl.innerText = `Saldo jaminan sebagai Penjual: ${sVal} pi`;
+    }
+
+    function returnToMainAuctionView() {
+      ['detailModal', 'createModal', 'buyersTableModal', 'withdrawalProofModal', 'scheduleModal', 'monthlyReportModal', 'chatModal', 'semiAutoLoginModal', 'activeBiddersModal', 'refundWalletPopupModal'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+      const topBanner = document.getElementById('networkModeBanner');
+      if (topBanner) {
+        topBanner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      if (typeof filterGallery === 'function') filterGallery();
+      else if (typeof renderGallery === 'function') renderGallery();
     }
 
     const _BuyerDepositAutomationCore = {
@@ -3271,34 +3286,33 @@ const _AGI_CollateralGuardianCore = (() => {
       },
 
       ensureBuyerWalletSaved: async function(username, buyerRecord) {
-      const existingWallet = buyerRecord ? (buyerRecord.wallet_address || buyerRecord.wallet || '').toString().trim() : '';
-      const confirmed = await promptRefundWalletInput(existingWallet);
-      if (!confirmed) return null;
+        const existingWallet = buyerRecord ? (buyerRecord.wallet_address || buyerRecord.wallet || '').toString().trim() : '';
+        const confirmed = await promptRefundWalletInput(existingWallet);
+        if (!confirmed) return null;
 
-      if (existingWallet && supabaseClient) {
-        try {
-          const { error } = await supabaseClient
-            .from('buyers')
-            .update({ wallet_address: existingWallet })
-            .eq('username', username);
-          if (error && /wallet_address|column/i.test(error.message || '')) {
-            await supabaseClient
+        if (existingWallet && supabaseClient) {
+          try {
+            const { error } = await supabaseClient
               .from('buyers')
-              .update({ wallet: existingWallet })
+              .update({ wallet_address: existingWallet })
               .eq('username', username);
-          }
-        } catch (_) {}
-      }
+            if (error && /wallet_address|column/i.test(error.message || '')) {
+              await supabaseClient
+                .from('buyers')
+                .update({ wallet: existingWallet })
+                .eq('username', username);
+            }
+          } catch (_) {}
+        }
 
-      if (existingWallet) {
-        _HighPrecisionDepositLedgerCore.syncLocalBuyerState(username, {
-          wallet_address: existingWallet,
-          wallet: existingWallet
-        });
-      }
-      return existingWallet || 'CONFIRMED';
-    },
-
+        if (existingWallet) {
+          _HighPrecisionDepositLedgerCore.syncLocalBuyerState(username, {
+            wallet_address: existingWallet,
+            wallet: existingWallet
+          });
+        }
+        return existingWallet || 'CONFIRMED';
+      },
 
       evaluateAndRouteBuyerDeposit: async function(username, combinedRoleNorm) {
         let latestBuyer = null;
@@ -3313,28 +3327,53 @@ const _AGI_CollateralGuardianCore = (() => {
           } catch (_) {}
         }
 
-        if (!latestBuyer && Array.isArray(buyersList)) {
-          latestBuyer = buyersList.find(b => (b.username || '').toLowerCase() === username.toLowerCase()) || null;
-        }
+        const cached = typeof readCollateralCache === 'function' ? readCollateralCache(username) : null;
+        const inList = Array.isArray(buyersList)
+          ? buyersList.find(b => (b.username || '').toLowerCase() === username.toLowerCase()) || null
+          : null;
 
-        const roleDeposits = computeRoleDeposits(latestBuyer);
+        const mergedSource = { ...(inList || {}), ...(cached || {}), ...(latestBuyer || {}) };
+        const roleDeposits = computeRoleDeposits(mergedSource);
         const buyerDepositBal = _HighPrecisionDepositLedgerCore.toExactNumber(roleDeposits.buyerBalance || 0);
         const sellerDepositBal = _HighPrecisionDepositLedgerCore.toExactNumber(roleDeposits.sellerBalance || 0);
         updateDetailedDepositDisplay(buyerDepositBal, sellerDepositBal);
 
         if (buyerDepositBal >= this.targetBuyerDeposit) {
+          const cappedBuyer = Math.min(this.targetBuyerDeposit, buyerDepositBal);
+          const cappedSeller = Math.min(this.targetBuyerDeposit, sellerDepositBal);
+          const syncedRecord = {
+            ...mergedSource,
+            username,
+            role: combinedRoleNorm || VerificationStandardCore.ROLE_BUYER,
+            buyer_deposit_balance: cappedBuyer,
+            seller_deposit_balance: cappedSeller,
+            deposit_balance: _HighPrecisionDepositLedgerCore.addExact(cappedBuyer, cappedSeller),
+            status: VerificationStandardCore.APPROVED,
+            manual_approved: true
+          };
+          writeCollateralCache(username, syncedRecord);
+          _HighPrecisionDepositLedgerCore.syncLocalBuyerState(username, syncedRecord);
           if (supabaseClient) {
             try {
               await supabaseClient
                 .from('buyers')
-                .update({ status: VerificationStandardCore.APPROVED })
+                .update({
+                  buyer_deposit_balance: cappedBuyer,
+                  seller_deposit_balance: cappedSeller,
+                  deposit_balance: syncedRecord.deposit_balance,
+                  status: VerificationStandardCore.APPROVED
+                })
                 .eq('username', username);
             } catch (_) {}
+          }
+          if (window._CollateralSyncGuardian && typeof window._CollateralSyncGuardian.broadcastCollateralSync === 'function') {
+            window._CollateralSyncGuardian.broadcastCollateralSync(username, syncedRecord);
           }
           await fetchBuyersList();
           if (typeof renderBuyersTable === 'function') renderBuyersTable();
           await checkBuyerStatusInDatabase(username);
-          alert(`Buyer collateral balance is ${_HighPrecisionDepositLedgerCore.formatPrecision(buyerDepositBal)} pi (>= 35 pi). Verification status: approved.`);
+          alert(`Saldo jaminan sebagai pembeli sudah ${_HighPrecisionDepositLedgerCore.formatPrecision(cappedBuyer)} pi (>= 35 pi). Kembali ke halaman utama.`);
+          returnToMainAuctionView();
           return;
         }
 
@@ -3351,7 +3390,7 @@ const _AGI_CollateralGuardianCore = (() => {
         if (typeof renderBuyersTable === 'function') renderBuyersTable();
         await checkBuyerStatusInDatabase(username);
 
-        alert(`Buyer collateral balance is ${_HighPrecisionDepositLedgerCore.formatPrecision(buyerDepositBal)} pi (< 35 pi). Proceeding to Pi SDK payment: ${_HighPrecisionDepositLedgerCore.formatPrecision(shortfall)} pi.`);
+        alert(`Saldo jaminan sebagai pembeli saat ini ${_HighPrecisionDepositLedgerCore.formatPrecision(buyerDepositBal)} pi (< 35 pi). Membayar kekurangan melalui Pi SDK sebesar ${_HighPrecisionDepositLedgerCore.formatPrecision(shortfall)} pi.`);
 
         await executeRelativeDepositPayment(
           username,
@@ -3359,6 +3398,7 @@ const _AGI_CollateralGuardianCore = (() => {
           combinedRoleNorm || VerificationStandardCore.ROLE_BUYER,
           this.targetBuyerDeposit
         );
+        returnToMainAuctionView();
       }
     };
 
@@ -3370,6 +3410,126 @@ const _AGI_CollateralGuardianCore = (() => {
         authenticatePiUser();
         return;
       }
+
+      const username = authenticatedPiUser.username.trim().replace(/^@/, '');
+      if (!supabaseClient) return;
+
+      const normalizedSelectedRole = VerificationStandardCore.normalizeRole(targetRole) || VerificationStandardCore.ROLE_BUYER;
+      const selectedRoleLabel = VerificationStandardCore.roleToDisplayLabel(normalizedSelectedRole);
+
+      try {
+        let { data: buyer } = await supabaseClient
+          .from('buyers')
+          .select('*')
+          .eq('username', username)
+          .maybeSingle();
+
+        const cached = typeof readCollateralCache === 'function' ? readCollateralCache(username) : null;
+        const inList = Array.isArray(buyersList)
+          ? buyersList.find(b => (b.username || '').toLowerCase() === username.toLowerCase()) || null
+          : null;
+        const combinedSource = { ...(inList || {}), ...(cached || {}), ...(buyer || {}) };
+
+        const roleDepositsInit = computeRoleDeposits(combinedSource);
+        const existingRole = VerificationStandardCore.normalizeRole(combinedSource.role || combinedSource.keterangan || '');
+        const combinedRoleNorm = VerificationStandardCore.combineRoles(existingRole, normalizedSelectedRole);
+
+        const evaluatedStatus = VerificationStandardCore.evaluateStatus({
+          ...combinedSource,
+          role: combinedRoleNorm,
+          buyer_deposit_balance: roleDepositsInit.buyerBalance,
+          seller_deposit_balance: roleDepositsInit.sellerBalance
+        });
+
+        const recordPayload = {
+          username: username,
+          role: combinedRoleNorm,
+          buyer_deposit_balance: Math.min(35, roleDepositsInit.buyerBalance),
+          seller_deposit_balance: Math.min(35, roleDepositsInit.sellerBalance),
+          deposit_balance: _HighPrecisionDepositLedgerCore.addExact(
+            Math.min(35, roleDepositsInit.buyerBalance),
+            Math.min(35, roleDepositsInit.sellerBalance)
+          ),
+          status: evaluatedStatus,
+          win_count: buyer && buyer.win_count ? buyer.win_count : 0,
+          has_requested_withdrawal: buyer && buyer.has_requested_withdrawal ? buyer.has_requested_withdrawal : false
+        };
+
+        if (!buyer) {
+          const { error: insErr } = await supabaseClient.from('buyers').insert([recordPayload]);
+          if (insErr && /buyer_deposit_balance|seller_deposit_balance|column/i.test(insErr.message || '')) {
+            await supabaseClient.from('buyers').insert([{
+              username: username,
+              role: combinedRoleNorm,
+              deposit_balance: recordPayload.deposit_balance,
+              status: evaluatedStatus,
+              win_count: 0,
+              has_requested_withdrawal: false
+            }]);
+          }
+        } else {
+          const { error: updErr } = await supabaseClient.from('buyers').update({
+            role: combinedRoleNorm,
+            buyer_deposit_balance: recordPayload.buyer_deposit_balance,
+            seller_deposit_balance: recordPayload.seller_deposit_balance,
+            deposit_balance: recordPayload.deposit_balance,
+            status: evaluatedStatus
+          }).eq('username', username);
+          if (updErr && /buyer_deposit_balance|seller_deposit_balance|column/i.test(updErr.message || '')) {
+            await supabaseClient.from('buyers').update({
+              role: combinedRoleNorm,
+              deposit_balance: recordPayload.deposit_balance,
+              status: evaluatedStatus
+            }).eq('username', username);
+          }
+        }
+
+        writeCollateralCache(username, recordPayload);
+        _HighPrecisionDepositLedgerCore.syncLocalBuyerState(username, recordPayload);
+        updateDetailedDepositDisplay(recordPayload.buyer_deposit_balance, recordPayload.seller_deposit_balance);
+        if (window._CollateralSyncGuardian && typeof window._CollateralSyncGuardian.broadcastCollateralSync === 'function') {
+          window._CollateralSyncGuardian.broadcastCollateralSync(username, recordPayload);
+        }
+
+        await fetchBuyersList();
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
+
+        const savedWallet = await _BuyerDepositAutomationCore.ensureBuyerWalletSaved(username, combinedSource);
+        if (!savedWallet) return;
+
+        await fetchBuyersList();
+        if (typeof renderBuyersTable === 'function') renderBuyersTable();
+
+        if (normalizedSelectedRole === VerificationStandardCore.ROLE_BUYER) {
+          await _BuyerDepositAutomationCore.evaluateAndRouteBuyerDeposit(username, combinedRoleNorm);
+          return;
+        }
+
+        const updatedBuyer = buyersList.find(b => (b.username || '').toLowerCase() === username.toLowerCase()) || recordPayload;
+        const roleDeposits = computeRoleDeposits(updatedBuyer);
+        const buyerDepositBal = _HighPrecisionDepositLedgerCore.toExactNumber(roleDeposits.buyerBalance || 0);
+        const sellerDepositBal = _HighPrecisionDepositLedgerCore.toExactNumber(roleDeposits.sellerBalance || 0);
+        const roleTargetDeposit = 35;
+
+        if (sellerDepositBal >= roleTargetDeposit) {
+          alert(`Saldo jaminan sebagai Penjual sudah ${_HighPrecisionDepositLedgerCore.formatPrecision(Math.min(roleTargetDeposit, sellerDepositBal))} pi (>= 35 pi). Kembali ke halaman utama.`);
+          await checkBuyerStatusInDatabase(username);
+          returnToMainAuctionView();
+          return;
+        }
+
+        const deficit = _HighPrecisionDepositLedgerCore.subExact(roleTargetDeposit, sellerDepositBal);
+        if (deficit > 0) {
+          await executeRelativeDepositPayment(username, deficit, VerificationStandardCore.ROLE_SELLER, roleTargetDeposit);
+          returnToMainAuctionView();
+        } else {
+          await checkBuyerStatusInDatabase(username);
+          returnToMainAuctionView();
+        }
+      } catch (err) {
+        alert("Gagal memproses pendaftaran jaminan: " + err.message);
+      }
+    }
 
       const username = authenticatedPiUser.username;
       if (!supabaseClient) return;
