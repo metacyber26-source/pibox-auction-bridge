@@ -2344,6 +2344,153 @@
       document.getElementById('withdrawalProofModal').classList.add('hidden');
     }
 
+    const ChatNotificationEngine = {
+      unreadCounts: { forum: 0, admin: 0, p2p: 0, claim: 0 },
+      seenMessageIds: new Set(),
+      initialized: false,
+      classifyRoom: function(msg) {
+        const rt = (msg.room_type || '').toLowerCase();
+        if (rt === 'claim' || rt === 'klaim') return 'claim';
+        if (rt === 'p2p') {
+          if (ADMIN_USERNAMES.includes(msg.sender) || ADMIN_USERNAMES.includes(msg.receiver)) {
+            return 'admin';
+          }
+          return 'p2p';
+        }
+        return 'forum';
+      },
+      showToast: function(sender, roomKey, previewText) {
+        const roomNames = {
+          forum: '🌐 Forum',
+          admin: '🛡️ Admin',
+          p2p: '🔒 P2P',
+          claim: '📥 Klaim Jaminan'
+        };
+        const label = roomNames[roomKey] || '💬 Chat Room';
+        let toast = document.getElementById('chatIncomingToast');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'chatIncomingToast';
+          toast.className = 'fixed bottom-16 right-3 z-[80] max-w-xs bg-gray-950 border border-emerald-500/60 text-white rounded-xl p-3 shadow-2xl text-[11px] flex items-start gap-2.5 cursor-pointer transition';
+          toast.onclick = () => {
+            toast.classList.add('hidden');
+            openChatModal(roomKey);
+          };
+          document.body.appendChild(toast);
+        }
+        toast.innerHTML = `
+          <span class="text-base">🔔</span>
+          <div class="min-w-0 flex-1">
+            <p class="font-extrabold text-emerald-400 text-[10px]">Pesan Baru di ${label}</p>
+            <p class="font-bold text-yellow-300 truncate">@${SecureShield.sanitizeHTML(sender || 'User')}</p>
+            <p class="text-gray-300 truncate text-[10px]">${SecureShield.sanitizeHTML(previewText || '[Lampiran SS]')}</p>
+          </div>
+          <button type="button" onclick="event.stopPropagation(); document.getElementById('chatIncomingToast').classList.add('hidden');" class="text-gray-400 hover:text-white font-bold px-1">✕</button>
+        `;
+        toast.classList.remove('hidden');
+        clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => {
+          if (toast) toast.classList.add('hidden');
+        }, 4500);
+      },
+      handleIncomingMessage: function(msg) {
+        if (!msg) return;
+        const msgKey = msg.id ? String(msg.id) : `${msg.sender}_${msg.created_at}_${(msg.message || '').slice(0, 20)}`;
+        if (this.seenMessageIds.has(msgKey)) return;
+        this.seenMessageIds.add(msgKey);
+
+        if (!this.initialized) return;
+
+        const currentUser = authenticatedPiUser && authenticatedPiUser.username ? authenticatedPiUser.username.toLowerCase() : '';
+        const isOwnMessage = currentUser && (msg.sender || '').toLowerCase() === currentUser;
+        if (isOwnMessage) return;
+
+        const roomKey = this.classifyRoom(msg);
+        const chatModal = document.getElementById('chatModal');
+        const isChatOpen = chatModal && !chatModal.classList.contains('hidden');
+        const isViewingSameRoom = isChatOpen && currentChatRoom === roomKey;
+
+        if (!isViewingSameRoom) {
+          this.unreadCounts[roomKey] = (this.unreadCounts[roomKey] || 0) + 1;
+          this.renderBadges();
+        }
+
+        if (typeof _AudioBeepEngine !== 'undefined' && typeof _AudioBeepEngine.playBeep === 'function') {
+          _AudioBeepEngine.playBeep(1046, 0.12);
+        }
+        this.showToast(msg.sender, roomKey, msg.message);
+      },
+      clearRoomUnread: function(roomKey) {
+        if (roomKey && this.unreadCounts[roomKey] !== undefined) {
+          this.unreadCounts[roomKey] = 0;
+        }
+        this.renderBadges();
+      },
+      clearAllUnread: function() {
+        this.unreadCounts = { forum: 0, admin: 0, p2p: 0, claim: 0 };
+        this.renderBadges();
+      },
+      renderBadges: function() {
+        const total = Object.values(this.unreadCounts).reduce((acc, v) => acc + (parseInt(v, 10) || 0), 0);
+        const mainBadge = document.getElementById('chatRoomUnreadBadge');
+        if (mainBadge) {
+          if (total > 0) {
+            mainBadge.innerText = total > 99 ? '99+' : String(total);
+            mainBadge.classList.remove('hidden');
+          } else {
+            mainBadge.classList.add('hidden');
+          }
+        }
+
+        const mapIds = {
+          forum: 'badgeTabForum',
+          admin: 'badgeTabAdmin',
+          p2p: 'badgeTabP2P',
+          claim: 'badgeTabClaim'
+        };
+
+        Object.entries(mapIds).forEach(([key, elId]) => {
+          const el = document.getElementById(elId);
+          const count = this.unreadCounts[key] || 0;
+          if (el) {
+            if (count > 0) {
+              el.innerText = count > 99 ? '99+' : String(count);
+              el.classList.remove('hidden');
+            } else {
+              el.classList.add('hidden');
+            }
+          }
+        });
+      },
+      seedInitialMessages: async function() {
+        if (!supabaseClient) return;
+        try {
+          const { data } = await supabaseClient
+            .from('chats')
+            .select('id, sender, receiver, room_type, message, created_at')
+            .order('created_at', { ascending: false })
+            .limit(30);
+          if (Array.isArray(data)) {
+            data.forEach(m => {
+              const mk = m.id ? String(m.id) : `${m.sender}_${m.created_at}_${(m.message || '').slice(0, 20)}`;
+              this.seenMessageIds.add(mk);
+            });
+          }
+          this.initialized = true;
+        } catch (_) {
+          this.initialized = true;
+        }
+      }
+    };
+
+    window.ChatNotificationEngine = ChatNotificationEngine;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      setTimeout(() => {
+        ChatNotificationEngine.seedInitialMessages();
+      }, 1200);
+    });
+
     async function submitWithdrawalWithProof() {
       if (!authenticatedPiUser) return;
       const username = authenticatedPiUser.username;
@@ -2368,42 +2515,58 @@
 
         try {
           const { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-          if (!buyer || parseFloat(buyer.deposit_balance || 0) <= 0) {
-            alert("Saldo jaminan Anda kosong.");
-            closeWithdrawalProofModal();
-            return;
-          }
-
-          const currentBal = parseFloat(buyer.deposit_balance);
+          const currentBal = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
           let refundAmount = currentBal;
           let penaltyFee = 0;
 
-          await supabaseClient.from('buyers').update({ 
-            deposit_balance: 0.00, 
-            status: VerificationStandardCore.PENDING, 
-            has_requested_withdrawal: true 
-          }).eq('username', username);
+          if (buyer && currentBal > 0) {
+            await supabaseClient.from('buyers').update({ 
+              deposit_balance: 0.00, 
+              status: VerificationStandardCore.PENDING, 
+              has_requested_withdrawal: true 
+            }).eq('username', username);
 
-          await supabaseClient.from('auction_deposits_log').insert([
-            { 
-              username: username, 
-              amount: refundAmount, 
-              type: 'withdraw', 
-              memo: `Penarikan oleh ${username} (Wallet: ${wallet}, Penalti: ${penaltyFee} Pi, Bukti Terlampir)` 
-            }
-          ]);
+            await supabaseClient.from('auction_deposits_log').insert([
+              { 
+                username: username, 
+                amount: refundAmount, 
+                type: 'withdraw', 
+                memo: `Penarikan oleh ${username} (Wallet: ${wallet}, Penalti: ${penaltyFee} Pi, Bukti Terlampir)` 
+              }
+            ]);
+          }
 
-          alert(`📤 Klaim Penarikan Berhasil Dikirim!\nWallet: ${wallet}\nJumlah Dikembalikan: ${refundAmount.toFixed(2)} Pi (Tanpa Penalti).\nStatus Anda diatur ke 'Pending'.`);
+          const claimSummaryMessage =
+            `📥 KLAIM JAMINAN\n` +
+            `• Username: @${username}\n` +
+            `• PiBox Wallet: ${wallet}\n` +
+            `• Screenshot Bukti: Terlampir`;
+
+          const { error: chatErr } = await supabaseClient.from('chats').insert([{
+            sender: username,
+            message: claimSummaryMessage,
+            room_type: 'claim',
+            receiver: ADMIN_USERNAMES[0] || null,
+            image_url: proofBase64,
+            created_at: new Date().toISOString()
+          }]);
+
+          if (chatErr) throw chatErr;
+
+          alert(`📤 Klaim Penarikan Terkirim ke Chat Room (Klaim Jaminan)!\nUsername: @${username}\nWallet: ${wallet}\nBukti SS: Terlampir`);
 
           closeWithdrawalProofModal();
           checkBuyerStatusInDatabase(username);
           if (typeof renderBuyersTable === 'function') renderBuyersTable();
+
+          openChatModal('claim');
         } catch (e) {
           alert("Gagal memproses klaim penarikan: " + e.message);
         }
       };
       reader.readAsDataURL(proofFile);
     }
+
 
     function evaluateBuyerVerificationStatus(buyerRecord, adminApprovedOverride = false) {
       if (adminApprovedOverride) {
