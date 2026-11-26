@@ -4666,10 +4666,32 @@
               try { window.__piboxLiveTabBus.close(); } catch (_) {}
             }
             const bus = new BroadcastChannel('pibox_live_auction_bus');
-            bus.onmessage = (evt) => {
+            bus.onmessage = async (evt) => {
               const msg = evt && evt.data;
-              if (!msg || msg.type !== 'live_bid_update') return;
+              if (!msg) return;
+              if (msg.type === 'buyer_status_update') {
+                await fetchBuyersList();
+                if (typeof renderBuyersTable === 'function') {
+                  const bModal = document.getElementById('buyersTableModal');
+                  if (bModal && !bModal.classList.contains('hidden')) {
+                    renderBuyersTable();
+                  }
+                }
+                if (
+                  authenticatedPiUser &&
+                  msg.username &&
+                  msg.username.toLowerCase() === authenticatedPiUser.username.toLowerCase() &&
+                  typeof checkBuyerStatusInDatabase === 'function'
+                ) {
+                  await checkBuyerStatusInDatabase(authenticatedPiUser.username);
+                } else if (typeof renderGallery === 'function') {
+                  renderGallery();
+                }
+                return;
+              }
+              if (msg.type !== 'live_bid_update') return;
               _RealtimeBidEnforcementCore.pushInstantState(msg.auctionId, msg.newBid, msg.bidder);
+
               _AutonomousLogicEngine.syncBidStateLocally(msg.auctionId, msg.newBid, msg.bidder);
               if (msg.ledgerEntry && msg.ledgerEntry.username && window._BidLedgerAndDistributionCore) {
                 const existing = window._BidLedgerAndDistributionCore.readAllRecords();
