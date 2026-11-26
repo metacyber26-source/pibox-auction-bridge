@@ -60,9 +60,11 @@
     const ADMIN_USERNAMES = ["Ful21", "s9t9munah"];
     let buyersList = [];
     let authenticatedPiUser = null;
+    let fetchSequenceId = 0;
+    let syncDebounceTimer = null;
 
     const _BuyersAccessGuardian = {
-      version: "4.3.0-secure-buyers",
+      version: "4.4.0-secure-buyers",
       verifyAdminAction: function(username) {
         if (!username) return false;
         return ADMIN_USERNAMES.includes(username.trim());
@@ -88,7 +90,8 @@
 
     const _BuyersTableSyncGuardian = {
       channel: null,
-      ledgerKey: 'pibox_agi_collateral_ledger_v2',
+      ledgerKey: 'pibox_collateral_ledger_v2',
+      legacyLedgerKey: 'pibox_agi_collateral_ledger_v2',
       fallbackKey: 'pibox_collateral_ledger_v1',
 
       toExact: function(v) {
@@ -100,6 +103,13 @@
         return (Math.round((this.toExact(a) + Number.EPSILON) * 1e6) + Math.round((this.toExact(b) + Number.EPSILON) * 1e6)) / 1e6;
       },
 
+      parseTimestampMs: function(val) {
+        if (!val) return 0;
+        if (typeof val === 'number' && Number.isFinite(val)) return val;
+        const parsed = Date.parse(String(val));
+        return Number.isFinite(parsed) ? parsed : 0;
+      },
+
       readLocalMap: function(key) {
         try {
           const raw = localStorage.getItem(key);
@@ -109,8 +119,20 @@
         }
       },
 
+      writeLocalRecord: function(usernameKey, record) {
+        const keys = [this.ledgerKey, this.legacyLedgerKey, this.fallbackKey];
+        keys.forEach((storageKey) => {
+          try {
+            const currentMap = this.readLocalMap(storageKey);
+            currentMap[usernameKey] = record;
+            localStorage.setItem(storageKey, JSON.stringify(currentMap));
+          } catch (_) {}
+        });
+      },
+
       mergeWithLocalLedger: function(dbRows) {
-        const v2Map = this.readLocalMap(this.ledgerKey);
+        const v2PrimaryMap = this.readLocalMap(this.ledgerKey);
+        const v2LegacyMap = this.readLocalMap(this.legacyLedgerKey);
         const v1Map = this.readLocalMap(this.fallbackKey);
         const mapByUser = new Map();
 
@@ -118,19 +140,33 @@
           const uname = (row.username || '').toString().trim().replace(/^@/, '');
           if (!uname) return;
           const k = uname.toLowerCase();
-          const c2 = v2Map[k] || {};
+          const c2 = v2PrimaryMap[k] || v2LegacyMap[k] || {};
           const c1 = v1Map[k] || {};
 
-          const buyerBal = Math.max(
-            this.toExact(row.buyer_deposit_balance ?? 0),
-            this.toExact(c2.buyer_deposit_balance ?? 0),
-            this.toExact(c1.buyer_deposit_balance ?? 0)
+          const dbUpdatedMs = this.parseTimestampMs(row.updated_at);
+          const localUpdatedMs = Math.max(
+            this.parseTimestampMs(c2.updated_at || c2.ts),
+            this.parseTimestampMs(c1.updated_at || c1.ts)
           );
-          const sellerBal = Math.max(
-            this.toExact(row.seller_deposit_balance ?? 0),
-            this.toExact(c2.seller_deposit_balance ?? 0),
-            this.toExact(c1.seller_deposit_balance ?? 0)
-          );
+
+          const isExplicitZeroReset = Boolean(c2.isReset || c2.isRefunded || localUpdatedMs > dbUpdatedMs);
+
+          const buyerBal = isExplicitZeroReset
+            ? this.toExact(c2.buyer_deposit_balance ?? row.buyer_deposit_balance ?? 0)
+            : Math.max(
+                this.toExact(row.buyer_deposit_balance ?? 0),
+                this.toExact(c2.buyer_deposit_balance ?? 0),
+                this.toExact(c1.buyer_deposit_balance ?? 0)
+              );
+
+          const sellerBal = isExplicitZeroReset
+            ? this.toExact(c2.seller_deposit_balance ?? row.seller_deposit_balance ?? 0)
+            : Math.max(
+                this.toExact(row.seller_deposit_balance ?? 0),
+                this.toExact(c2.seller_deposit_balance ?? 0),
+                this.toExact(c1.seller_deposit_balance ?? 0)
+              );
+
           const totalBal = this.addExact(buyerBal, sellerBal);
           const walletVal = (row.wallet_address || row.wallet || c2.wallet_address || c1.wallet_address || '-').toString().trim();
 
@@ -139,28 +175,35 @@
             ...c2,
             ...row,
             username: uname,
-            buyer_deposit_balance: buyerBal,
             seller_deposit_balance: sellerBal,
+            buyer_deposit_balance: buyerBal,
             deposit_balance: totalBal,
             wallet_address: walletVal,
             wallet: walletVal
           });
         });
 
-        Object.values(v2Map).forEach(cRec => {
+        const combinedLocalRecords = {
+          ...v1Map,
+          ...v2LegacyMap,
+          ...v2PrimaryMap
+        };
+
+        Object.values(combinedLocalRecords).forEach(cRec => {
+          if (!cRec || typeof cRec !== 'object') return;
           const uname = (cRec.username || '').toString().trim().replace(/^@/, '');
           if (!uname) return;
           const k = uname.toLowerCase();
           if (!mapByUser.has(k)) {
-            const buyerBal = this.toExact(cRec.buyer_deposit_balance ?? 0);
             const sellerBal = this.toExact(cRec.seller_deposit_balance ?? 0);
+            const buyerBal = this.toExact(cRec.buyer_deposit_balance ?? 0);
             const totalBal = this.addExact(buyerBal, sellerBal);
             const walletVal = (cRec.wallet_address || cRec.wallet || '-').toString().trim();
             mapByUser.set(k, {
               ...cRec,
               username: uname,
-              buyer_deposit_balance: buyerBal,
               seller_deposit_balance: sellerBal,
+              buyer_deposit_balance: buyerBal,
               deposit_balance: totalBal,
               wallet_address: walletVal,
               wallet: walletVal
@@ -171,35 +214,50 @@
         return Array.from(mapByUser.values()).sort((a, b) => (a.username || '').localeCompare(b.username || ''));
       },
 
+      scheduleLiveRefresh: function() {
+        if (syncDebounceTimer) {
+          clearTimeout(syncDebounceTimer);
+        }
+        syncDebounceTimer = setTimeout(() => {
+          syncDebounceTimer = null;
+          fetchBuyersList();
+        }, 60);
+      },
+
       initLiveSync: function() {
         try {
           if (typeof BroadcastChannel !== 'undefined') {
             const bc1 = new BroadcastChannel('pibox_collateral_claim_channel');
             const bc2 = new BroadcastChannel('pibox_collateral_unified_sync_v1');
-            const handleMsg = () => { fetchBuyersList(); };
+            const handleMsg = () => { this.scheduleLiveRefresh(); };
             bc1.onmessage = handleMsg;
             bc2.onmessage = handleMsg;
           }
         } catch (_) {}
 
         window.addEventListener('storage', (ev) => {
-          if (ev.key === this.ledgerKey || ev.key === this.fallbackKey || ev.key === 'pibox_collateral_claim_room_v1') {
-            fetchBuyersList();
+          if (
+            ev.key === this.ledgerKey ||
+            ev.key === this.legacyLedgerKey ||
+            ev.key === this.fallbackKey ||
+            ev.key === 'pibox_collateral_claim_room_v1'
+          ) {
+            this.scheduleLiveRefresh();
           }
         });
 
         if (supabaseClient) {
           try {
-            supabaseClient
+            this.channel = supabaseClient
               .channel('buyers-table-live-sync')
               .on('postgres_changes', { event: '*', schema: 'public', table: 'buyers' }, () => {
-                fetchBuyersList();
+                this.scheduleLiveRefresh();
               })
               .on('broadcast', { event: 'collateral_claim_sync' }, () => {
-                fetchBuyersList();
+                this.scheduleLiveRefresh();
               })
               .on('broadcast', { event: 'collateral_unified_sync' }, () => {
-                fetchBuyersList();
+                this.scheduleLiveRefresh();
               })
               .subscribe();
           } catch (_) {}
@@ -210,6 +268,7 @@
     _BuyersTableSyncGuardian.initLiveSync();
 
     async function fetchBuyersList() {
+      const currentReqId = ++fetchSequenceId;
       const localMerged = _BuyersTableSyncGuardian.mergeWithLocalLedger([]);
       if (localMerged.length > 0 && buyersList.length === 0) {
         buyersList = localMerged;
@@ -223,6 +282,8 @@
           .order('username', { ascending: true });
 
         if (error) throw error;
+        if (currentReqId !== fetchSequenceId) return;
+
         buyersList = _BuyersTableSyncGuardian.mergeWithLocalLedger(data || []);
         renderBuyersTable();
       } catch (err) {
@@ -238,40 +299,35 @@
         if (!cleanUser) return;
         if (!confirm(`Reset Seller Collateral & Buyer Collateral untuk @${cleanUser} menjadi 0 Pi?`)) return;
 
+        const nowIso = new Date().toISOString();
         const zeroState = {
           username: cleanUser,
-          buyer_deposit_balance: 0,
           seller_deposit_balance: 0,
+          buyer_deposit_balance: 0,
           deposit_balance: 0,
           status: 'pending',
-          manual_approved: false
+          manual_approved: false,
+          isReset: true,
+          updated_at: nowIso,
+          ts: Date.now()
         };
 
-        try {
-          const v2Raw = localStorage.getItem(_BuyersTableSyncGuardian.ledgerKey);
-          const v2Map = v2Raw ? JSON.parse(v2Raw) : {};
-          v2Map[cleanUser.toLowerCase()] = zeroState;
-          localStorage.setItem(_BuyersTableSyncGuardian.ledgerKey, JSON.stringify(v2Map));
-
-          const v1Raw = localStorage.getItem(_BuyersTableSyncGuardian.fallbackKey);
-          const v1Map = v1Raw ? JSON.parse(v1Raw) : {};
-          v1Map[cleanUser.toLowerCase()] = zeroState;
-          localStorage.setItem(_BuyersTableSyncGuardian.fallbackKey, JSON.stringify(v1Map));
-        } catch (_) {}
+        _BuyersTableSyncGuardian.writeLocalRecord(cleanUser.toLowerCase(), zeroState);
 
         if (supabaseClient) {
           const { error } = await supabaseClient
             .from('buyers')
             .update({
-              buyer_deposit_balance: 0,
               seller_deposit_balance: 0,
+              buyer_deposit_balance: 0,
               deposit_balance: 0,
               status: 'pending',
-              manual_approved: false
+              manual_approved: false,
+              updated_at: nowIso
             })
             .eq('username', cleanUser);
 
-          if (error && /buyer_deposit_balance|seller_deposit_balance|manual_approved|column/i.test(error.message || '')) {
+          if (error && /buyer_deposit_balance|seller_deposit_balance|manual_approved|updated_at|column/i.test(error.message || '')) {
             const fb = await supabaseClient
               .from('buyers')
               .update({ deposit_balance: 0, status: 'pending' })
@@ -285,7 +341,7 @@
             await supabaseClient.channel('buyers-table-live-sync').send({
               type: 'broadcast',
               event: 'collateral_unified_sync',
-              payload: { record: zeroState, ts: Date.now() }
+              payload: { record: zeroState, ts: zeroState.ts }
             });
           } catch (_) {}
         }
@@ -293,7 +349,7 @@
         try {
           if (typeof BroadcastChannel !== 'undefined') {
             const bc = new BroadcastChannel('pibox_collateral_unified_sync_v1');
-            bc.postMessage({ type: 'collateral_reset', record: zeroState, ts: Date.now() });
+            bc.postMessage({ type: 'collateral_reset', record: zeroState, ts: zeroState.ts });
             bc.close();
           }
         } catch (_) {}
@@ -303,6 +359,15 @@
       } catch (err) {
         alert(err.message);
       }
+    }
+
+    function escapeHtmlAttr(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
     }
 
     function renderBuyersTable() {
@@ -329,33 +394,35 @@
 
       const htmlChunks = [];
       filtered.forEach((b) => {
-        const username = b.username || 'Unknown';
+        const username = (b.username || 'Unknown').toString();
+        const safeUsernameAttr = escapeHtmlAttr(username);
         const sellerBal = Math.min(35, _BuyersTableSyncGuardian.toExact(b.seller_deposit_balance ?? 0));
         const buyerBal = Math.min(35, _BuyersTableSyncGuardian.toExact(b.buyer_deposit_balance ?? 0));
         const status = (b.status || 'pending').toLowerCase();
-        const hasWithdrawalReq = b.has_requested_withdrawal;
+        const hasWithdrawalReq = Boolean(b.has_requested_withdrawal);
         const rawRole = (b.role || b.keterangan || '').toString().toLowerCase().trim();
         const roleLabel = (rawRole === 'penjual & pembeli' || rawRole === 'pembeli & penjual' || rawRole === 'both' || rawRole === 'seller & buyer')
           ? 'Penjual & Pembeli'
           : ((rawRole === 'penjual' || rawRole === 'seller') ? 'Penjual' : ((rawRole === 'pembeli' || rawRole === 'buyer') ? 'Pembeli' : 'Belum Ditentukan'));
         const walletAddress = (b.wallet_address || b.wallet || '-').toString();
+        const safeWalletAttr = escapeHtmlAttr(walletAddress);
 
         let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">PENDING</span>`;
-        if (status === 'approved' || status === 'aktif' || status === 'active' || buyerBal >= 35) {
+        if (status === 'approved' || status === 'aktif' || status === 'active' || buyerBal >= 35 || sellerBal >= 35) {
           statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">AKTIF</span>`;
         }
 
         let actionButtons = '';
         if (isAdminOrDev) {
-          const nextStatus = (status === 'approved' || status === 'aktif' || status === 'active' || buyerBal >= 35) ? 'pending' : 'approved';
+          const nextStatus = (status === 'approved' || status === 'aktif' || status === 'active' || buyerBal >= 35 || sellerBal >= 35) ? 'pending' : 'approved';
           const btnText = nextStatus === 'approved' ? 'Verifikasi' : 'Pending-kan';
           const btnClass = nextStatus === 'approved' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-amber-600 hover:bg-amber-500 text-white';
 
           actionButtons = `
             <div class="flex flex-wrap gap-1 justify-end">
-              <button type="button" onclick="resetCollateralBalanceByAdmin('${username}')" class="bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded-lg text-[10px] transition cursor-pointer">Reset Saldo</button>
-              <button type="button" onclick="updateBuyerStatus('${username}', '${nextStatus}')" class="${btnClass} font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">${btnText}</button>
-              <button type="button" onclick="deleteBuyerRecord('${username}')" class="bg-red-600 hover:bg-red-500 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">Hapus</button>
+              <button type="button" data-username="${safeUsernameAttr}" onclick="resetCollateralBalanceByAdmin(this.dataset.username)" class="bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded-lg text-[10px] transition cursor-pointer">Reset Saldo</button>
+              <button type="button" data-username="${safeUsernameAttr}" data-next-status="${escapeHtmlAttr(nextStatus)}" onclick="updateBuyerStatus(this.dataset.username, this.dataset.nextStatus)" class="${btnClass} font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">${btnText}</button>
+              <button type="button" data-username="${safeUsernameAttr}" onclick="deleteBuyerRecord(this.dataset.username)" class="bg-red-600 hover:bg-red-500 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">Hapus</button>
             </div>
           `;
         } else {
@@ -365,7 +432,7 @@
         let withdrawalAction = '<span class="text-gray-500">-</span>';
         if (hasWithdrawalReq) {
           if (isAdminOrDev) {
-            withdrawalAction = `<button type="button" onclick="processWithdrawalRefund('${username}')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1 rounded-lg text-[9px] transition cursor-pointer">Kirim Refund</button>`;
+            withdrawalAction = `<button type="button" data-username="${safeUsernameAttr}" onclick="processWithdrawalRefund(this.dataset.username)" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1 rounded-lg text-[9px] transition cursor-pointer">Kirim Refund</button>`;
           } else {
             withdrawalAction = `<span class="text-amber-400 font-bold text-[9px]">Menunggu Refund</span>`;
           }
@@ -373,18 +440,18 @@
 
         htmlChunks.push(`
           <tr class="border-b border-gray-800/80 hover:bg-gray-900/50 transition">
-            <td class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-20 border-r border-gray-800"><input type="checkbox" class="buyer-checkbox accent-yellow-500 cursor-pointer" value="${username}"></td>
-            <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">@${username}</td>
+            <td class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-20 border-r border-gray-800"><input type="checkbox" class="buyer-checkbox accent-yellow-500 cursor-pointer" value="${safeUsernameAttr}"></td>
+            <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">@${escapeHtmlAttr(username)}</td>
             <td class="p-2.5 text-center font-mono text-amber-300 font-bold">${sellerBal} Pi</td>
             <td class="p-2.5 text-center font-mono text-emerald-400 font-bold">${buyerBal} Pi</td>
-            <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">${roleLabel}</span></td>
+            <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">${escapeHtmlAttr(roleLabel)}</span></td>
             <td class="p-2.5">${statusBadge}</td>
             <td class="p-2.5 text-right">${actionButtons}</td>
             <td class="p-2.5 text-center">${withdrawalAction}</td>
             <td class="p-2.5">
               <div class="flex items-center gap-1.5 min-w-[155px]">
-                <input type="text" readonly value="${walletAddress.replace(/"/g, '&quot;')}" aria-label="Wallet Pengguna" class="bg-gray-950 border border-gray-800 rounded px-2 py-1 text-[10px] font-mono text-gray-200 w-28 select-all focus:outline-none cursor-default">
-                <button type="button" onclick="copyBuyerWallet('${walletAddress.replace(/'/g, "\\'")}', this)" class="bg-gray-800 hover:bg-gray-700 text-yellow-400 px-2 py-1 rounded text-[9px] font-bold border border-gray-700 cursor-pointer">📋 Copy</button>
+                <input type="text" readonly value="${safeWalletAttr}" aria-label="Wallet Pengguna" class="bg-gray-950 border border-gray-800 rounded px-2 py-1 text-[10px] font-mono text-gray-200 w-28 select-all focus:outline-none cursor-default">
+                <button type="button" data-wallet="${safeWalletAttr}" onclick="copyBuyerWallet(this.dataset.wallet, this)" class="bg-gray-800 hover:bg-gray-700 text-yellow-400 px-2 py-1 rounded text-[9px] font-bold border border-gray-700 cursor-pointer">📋 Copy</button>
               </div>
             </td>
           </tr>
@@ -425,7 +492,7 @@
 
         const { error } = await supabaseClient
           .from('buyers')
-          .update({ status: newStatus })
+          .update({ status: newStatus, updated_at: new Date().toISOString() })
           .eq('username', username);
 
         if (error) throw error;
@@ -487,6 +554,22 @@
         if (!confirm(`Proses pengembalian jaminan (refund) untuk @${username}?`)) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
+        const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+        const nowIso = new Date().toISOString();
+        const refundedState = {
+          username: cleanUser,
+          has_requested_withdrawal: false,
+          seller_deposit_balance: 0.00,
+          buyer_deposit_balance: 0.00,
+          deposit_balance: 0.00,
+          status: 'pending',
+          isRefunded: true,
+          updated_at: nowIso,
+          ts: Date.now()
+        };
+
+        _BuyersTableSyncGuardian.writeLocalRecord(cleanUser.toLowerCase(), refundedState);
+
         const { error } = await supabaseClient
           .from('buyers')
           .update({
@@ -494,12 +577,13 @@
             seller_deposit_balance: 0.00,
             buyer_deposit_balance: 0.00,
             deposit_balance: 0.00,
-            status: 'pending'
+            status: 'pending',
+            updated_at: nowIso
           })
-          .eq('username', username);
+          .eq('username', cleanUser);
 
         if (error) throw error;
-        alert(`✅ Refund jaminan untuk @${username} berhasil disetujui & diselesaikan.`);
+        alert(`✅ Refund jaminan untuk @${cleanUser} berhasil disetujui & diselesaikan.`);
         await fetchBuyersList();
       } catch (err) {
         alert("Gagal memproses refund: " + err.message);
