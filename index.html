@@ -2318,8 +2318,41 @@
       },
 
       initSync: function() {
-        this.syncHomeButtonsUI();
-        setInterval(() => this.syncHomeButtonsUI(), 1200);
+        const forceBind = () => {
+          const sBtn = document.getElementById('homeDuplicateSellerCollateralBtn');
+          const bBtn = document.getElementById('homeDuplicateBuyerCollateralBtn');
+          if (sBtn) {
+            sBtn.disabled = false;
+            sBtn.removeAttribute('disabled');
+            sBtn.style.pointerEvents = 'auto';
+            if (!sBtn.dataset.boundRolePayment) {
+              sBtn.dataset.boundRolePayment = '1';
+              sBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                this.executePayment('seller');
+              });
+            }
+          }
+          if (bBtn) {
+            bBtn.disabled = false;
+            bBtn.removeAttribute('disabled');
+            bBtn.style.pointerEvents = 'auto';
+            if (!bBtn.dataset.boundRolePayment) {
+              bBtn.dataset.boundRolePayment = '1';
+              bBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                this.executePayment('buyer');
+              });
+            }
+          }
+          this.syncHomeButtonsUI();
+        };
+
+        forceBind();
+        setInterval(forceBind, 1000);
+
         try {
           if (typeof BroadcastChannel !== 'undefined') {
             ['pibox_collateral_claim_channel', 'pibox_collateral_unified_sync_v1', 'pibox_global_state_sync_v1', 'pibox_live_auction_bus'].forEach((chName) => {
