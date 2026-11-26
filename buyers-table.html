@@ -10,7 +10,7 @@
 </head>
 <body class="bg-gray-950 text-gray-100 flex flex-col items-center justify-start min-h-screen p-3">
 
-  <div class="w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4 shadow-2xl">
+  <div class="w-full max-w-3xl bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4 shadow-2xl">
     <div class="flex justify-between items-center border-b border-gray-800 pb-3">
       <div>
         <h2 class="text-sm font-bold text-yellow-400">👥 Tabel Daftar Calon Pembeli & Status Verifikasi</h2>
@@ -23,13 +23,13 @@
       <div class="flex justify-between items-center gap-2">
         <input type="text" id="searchBuyerInput" oninput="renderBuyersTable()" placeholder="Cari username pembeli..." class="flex-1 bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-500">
         <div id="adminDeleteBatchContainer" class="hidden">
-          <button onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-3 py-2 rounded-xl transition shadow cursor-pointer">🗑 Hapus Terpilih</button>
+          <button type="button" onclick="deleteSelectedBuyers()" class="bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] px-3 py-2 rounded-xl transition shadow cursor-pointer">🗑 Hapus Terpilih</button>
         </div>
       </div>
 
       <div class="border border-gray-800 rounded-xl overflow-hidden max-h-[60vh] flex flex-col">
         <div class="overflow-x-auto custom-scrollbar flex-1">
-          <table class="w-full text-left text-[11px] text-gray-300 min-w-[690px] border-collapse">
+          <table class="w-full text-left text-[11px] text-gray-300 min-w-[780px] border-collapse">
             <thead class="bg-gray-950 text-gray-400 uppercase text-[9px] border-b border-gray-800 sticky top-0 z-30 shadow-md">
               <tr>
                 <th class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-40 border-r border-gray-800"><input type="checkbox" id="selectAllBuyers" onclick="toggleSelectAllBuyers(this)"></th>
@@ -37,7 +37,6 @@
                 <th class="p-2.5 text-center bg-gray-950">Seller Collateral</th>
                 <th class="p-2.5 text-center bg-gray-950">Buyer Collateral</th>
                 <th class="p-2.5 text-center bg-gray-950">Keterangan</th>
-
                 <th class="p-2.5 bg-gray-950">Status Verifikasi</th>
                 <th class="p-2.5 text-right bg-gray-950">Aksi Admin</th>
                 <th class="p-2.5 text-center bg-gray-950">Pengembalian Jaminan</th>
@@ -45,7 +44,7 @@
               </tr>
             </thead>
             <tbody id="buyersTableBody" class="overflow-y-auto max-h-[50vh]">
-              <tr><td colspan="8" class="text-center py-10 text-gray-500 animate-pulse">Memuat data pembeli...</td></tr>
+              <tr><td colspan="9" class="text-center py-10 text-gray-500 animate-pulse">Memuat data pembeli...</td></tr>
             </tbody>
           </table>
         </div>
@@ -62,8 +61,8 @@
     let buyersList = [];
     let authenticatedPiUser = null;
 
-    const _AgiBuyersGuardianCore = {
-      version: "4.2.0-secure-buyers",
+    const _BuyersAccessGuardian = {
+      version: "4.3.0-secure-buyers",
       verifyAdminAction: function(username) {
         if (!username) return false;
         return ADMIN_USERNAMES.includes(username.trim());
@@ -234,10 +233,10 @@
     async function resetCollateralBalanceByAdmin(username) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       try {
-        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        _BuyersAccessGuardian.enforceAccess(currentUsr);
         const cleanUser = (username || '').toString().trim().replace(/^@/, '');
         if (!cleanUser) return;
-        if (!confirm(`Reset Saldo jaminan sebagai pembeli & Saldo jaminan sebagai Penjual untuk @${cleanUser} menjadi 0 pi?`)) return;
+        if (!confirm(`Reset Seller Collateral & Buyer Collateral untuk @${cleanUser} menjadi 0 Pi?`)) return;
 
         const zeroState = {
           username: cleanUser,
@@ -300,7 +299,7 @@
         } catch (_) {}
 
         await fetchBuyersList();
-        alert(`Saldo jaminan sebagai pembeli & Saldo jaminan sebagai Penjual untuk @${cleanUser} telah direset ke 0 pi.`);
+        alert(`Seller Collateral & Buyer Collateral untuk @${cleanUser} telah direset ke 0 Pi.`);
       } catch (err) {
         alert(err.message);
       }
@@ -315,7 +314,7 @@
       if (!tbody) return;
 
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isAdminOrDev = _AgiBuyersGuardianCore.verifyAdminAction(currentUsr);
+      const isAdminOrDev = _BuyersAccessGuardian.verifyAdminAction(currentUsr);
 
       if (isAdminOrDev && batchContainer) {
         batchContainer.classList.remove('hidden');
@@ -324,16 +323,15 @@
       const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-gray-500">Tidak ada data pembeli ditemukan.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-gray-500">Tidak ada data pembeli ditemukan.</td></tr>`;
         return;
       }
 
       const htmlChunks = [];
       filtered.forEach((b) => {
         const username = b.username || 'Unknown';
-        const buyerBal = Math.min(35, _BuyersTableSyncGuardian.toExact(b.buyer_deposit_balance ?? 0));
         const sellerBal = Math.min(35, _BuyersTableSyncGuardian.toExact(b.seller_deposit_balance ?? 0));
-        const depositBal = _BuyersTableSyncGuardian.addExact(buyerBal, sellerBal);
+        const buyerBal = Math.min(35, _BuyersTableSyncGuardian.toExact(b.buyer_deposit_balance ?? 0));
         const status = (b.status || 'pending').toLowerCase();
         const hasWithdrawalReq = b.has_requested_withdrawal;
         const rawRole = (b.role || b.keterangan || '').toString().toLowerCase().trim();
@@ -376,12 +374,9 @@
         htmlChunks.push(`
           <tr class="border-b border-gray-800/80 hover:bg-gray-900/50 transition">
             <td class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-20 border-r border-gray-800"><input type="checkbox" class="buyer-checkbox accent-yellow-500 cursor-pointer" value="${username}"></td>
-            <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">
-              <div>@${username}</div>
-              <div class="text-[9px] text-emerald-400 font-sans">Saldo jaminan sebagai pembeli: ${buyerBal} pi</div>
-              <div class="text-[9px] text-amber-300 font-sans">Saldo jaminan sebagai Penjual: ${sellerBal} pi</div>
-            </td>
-            <td class="p-2.5 text-center font-mono text-emerald-400 font-bold">${depositBal} pi</td>
+            <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">@${username}</td>
+            <td class="p-2.5 text-center font-mono text-amber-300 font-bold">${sellerBal} Pi</td>
+            <td class="p-2.5 text-center font-mono text-emerald-400 font-bold">${buyerBal} Pi</td>
             <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">${roleLabel}</span></td>
             <td class="p-2.5">${statusBadge}</td>
             <td class="p-2.5 text-right">${actionButtons}</td>
@@ -398,7 +393,7 @@
 
       tbody.innerHTML = htmlChunks.join('');
     }
-            
+
     function copyBuyerWallet(walletAddr, btnEl) {
       if (!walletAddr || walletAddr === '-') return;
       const done = () => {
@@ -425,7 +420,7 @@
     async function updateBuyerStatus(username, newStatus) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       try {
-        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        _BuyersAccessGuardian.enforceAccess(currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const { error } = await supabaseClient
@@ -444,7 +439,7 @@
     async function deleteBuyerRecord(username) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       try {
-        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        _BuyersAccessGuardian.enforceAccess(currentUsr);
         if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus data pembeli @${username}?`)) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
@@ -464,7 +459,7 @@
     async function deleteSelectedBuyers() {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       try {
-        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        _BuyersAccessGuardian.enforceAccess(currentUsr);
         const selected = Array.from(document.querySelectorAll('.buyer-checkbox:checked')).map(cb => cb.value);
         if (selected.length === 0) {
           alert("Pilih setidaknya satu pembeli yang ingin dihapus.");
@@ -488,13 +483,19 @@
     async function processWithdrawalRefund(username) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       try {
-        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        _BuyersAccessGuardian.enforceAccess(currentUsr);
         if (!confirm(`Proses pengembalian jaminan (refund) untuk @${username}?`)) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const { error } = await supabaseClient
           .from('buyers')
-          .update({ has_requested_withdrawal: false, deposit_balance: 0.00, status: 'pending' })
+          .update({
+            has_requested_withdrawal: false,
+            seller_deposit_balance: 0.00,
+            buyer_deposit_balance: 0.00,
+            deposit_balance: 0.00,
+            status: 'pending'
+          })
           .eq('username', username);
 
         if (error) throw error;
