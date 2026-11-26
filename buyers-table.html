@@ -746,7 +746,7 @@
       const filtered = buyersList.filter(b => (b.username || '').toLowerCase().includes(query));
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-gray-500">Tidak ada data pembeli ditemukan.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-gray-500">Tidak ada data pembeli ditemukan.</td></tr>`;
         return;
       }
 
@@ -759,9 +759,10 @@
         const status = (b.status || 'pending').toLowerCase();
         const hasWithdrawalReq = Boolean(b.has_requested_withdrawal);
         const rawRole = (b.role || b.keterangan || '').toString().toLowerCase().trim();
-        const roleLabel = (rawRole === 'penjual & pembeli' || rawRole === 'pembeli & penjual' || rawRole === 'both' || rawRole === 'seller & buyer')
-          ? 'Penjual & Pembeli'
-          : ((rawRole === 'penjual' || rawRole === 'seller') ? 'Penjual' : ((rawRole === 'pembeli' || rawRole === 'buyer') ? 'Pembeli' : 'Belum Ditentukan'));
+        const isSellerPaid = sellerBal >= COLLATERAL_AMOUNT_PI;
+        const isBuyerPaid = buyerBal >= COLLATERAL_AMOUNT_PI;
+        const roleLabel = _RoleCollateralPaymentEngine.resolveRoleLabel(isSellerPaid, isBuyerPaid, rawRole);
+        const canPayRow = _BuyersAccessGuardian.canPayCollateralForRole(currentUsr, username, 'seller');
         const walletAddress = (b.wallet_address || b.wallet || '-').toString();
         const safeWalletAttr = escapeHtmlAttr(walletAddress);
 
