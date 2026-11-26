@@ -4050,42 +4050,265 @@ const _CollateralGuardianCore = (() => {
       });
     }
 
-    async function triggerPayBuyerCollateral35(triggeredFromRole = "buyer") {
+    const COLLATERAL_35_PI_AMOUNT = 35;
+
+    function computeRoleCollateral35Update(existingRecord, collateralType, addedAmountPi = COLLATERAL_35_PI_AMOUNT) {
+      const exactAdd = _HighPrecisionDepositLedgerCore.clampExact(addedAmountPi, 0, COLLATERAL_35_PI_AMOUNT);
+      const prevBuyer = existingRecord
+        ? _HighPrecisionDepositLedgerCore.toExactNumber(VerificationStandardCore.getBuyerDepositAmount(existingRecord))
+        : 0;
+      const prevSeller = existingRecord
+        ? _HighPrecisionDepositLedgerCore.toExactNumber(VerificationStandardCore.getSellerDepositAmount(existingRecord))
+        : 0;
+
+      const nextBuyer = collateralType === "buyer"
+        ? _HighPrecisionDepositLedgerCore.clampExact(
+            _HighPrecisionDepositLedgerCore.addExact(prevBuyer, exactAdd),
+            0,
+            COLLATERAL_35_PI_AMOUNT
+          )
+        : _HighPrecisionDepositLedgerCore.clampExact(prevBuyer, 0, COLLATERAL_35_PI_AMOUNT);
+
+      const nextSeller = collateralType === "seller"
+        ? _HighPrecisionDepositLedgerCore.clampExact(
+            _HighPrecisionDepositLedgerCore.addExact(prevSeller, exactAdd),
+            0,
+            COLLATERAL_35_PI_AMOUNT
+          )
+        : _HighPrecisionDepositLedgerCore.clampExact(prevSeller, 0, COLLATERAL_35_PI_AMOUNT);
+
+      const nextTotal = _HighPrecisionDepositLedgerCore.addExact(nextBuyer, nextSeller);
+      const existingRoleNorm = existingRecord
+        ? VerificationStandardCore.normalizeRole(existingRecord.role || existingRecord.keterangan || "")
+        : "";
+      const addedRoleNorm = collateralType === "seller"
+        ? VerificationStandardCore.ROLE_SELLER
+        : VerificationStandardCore.ROLE_BUYER;
+      const combinedRoleNorm = VerificationStandardCore.combineRoles(existingRoleNorm, addedRoleNorm);
+      const isActive = nextBuyer >= 34.9 || nextSeller >= 34.9 || VerificationStandardCore.isManualAdminApproved(existingRecord);
+
+      return {
+        role: combinedRoleNorm,
+        buyer_deposit_balance: nextBuyer,
+        seller_deposit_balance: nextSeller,
+        deposit_balance: nextTotal,
+        status: isActive ? VerificationStandardCore.APPROVED : VerificationStandardCore.PENDING
+      };
+    }
+
+    async function recordCollateral35Payment(username, collateralType, amountPi, memoStr, txid = null) {
+      const cleanUser = (username || "").toString().trim().replace(/^@/, "");
+      if (!cleanUser) return null;
+
+      const roleKey = collateralType === "seller" ? "seller" : "buyer";
+      const exactAmount = _HighPrecisionDepositLedgerCore.toExactNumber(amountPi) || COLLATERAL_35_PI_AMOUNT;
+
+      let existingDbRow = null;
+      if (supabaseClient) {
+        try {
+          const { data } = await supabaseClient
+            .from("buyers")
+            .select("*")
+            .eq("username", cleanUser)
+            .maybeSingle();
+          existingDbRow = data || null;
+        } catch (_) {}
+      }
+
+      const cachedRow = typeof readCollateralCache === "function" ? readCollateralCache(cleanUser) : null;
+      const listRow = Array.isArray(buyersList)
+        ? buyersList.find(
+            (b) => (b && b.username ? String(b.username).trim().replace(/^@/, "").toLowerCase() : "") === cleanUser.toLowerCase()
+          ) || null
+        : null;
+
+      const mergedExisting = { ...(listRow || {}), ...(cachedRow || {}), ...(existingDbRow || {}) };
+      const computed = computeRoleCollateral35Update(mergedExisting, roleKey, exactAmount);
+
+      const updatedRecord = {
+        ...mergedExisting,
+        username: cleanUser,
+        role: computed.role,
+        buyer_deposit_balance: computed.buyer_deposit_balance,
+        seller_deposit_balance: computed.seller_deposit_balance,
+        deposit_balance: computed.deposit_balance,
+        status: computed.status,
+        last_collateral_txid: txid || mergedExisting.last_collateral_txid || null,
+        updated_at: new Date().toISOString(),
+        ts: Date.now()
+      };
+
+      if (typeof writeCollateralCache === "function") {
+        writeCollateralCache(cleanUser, updatedRecord);
+      }
+      _HighPrecisionDepositLedgerCore.syncLocalBuyerState(cleanUser, updatedRecord);
+      updateDetailedDepositDisplay(updatedRecord.buyer_deposit_balance, updatedRecord.seller_deposit_balance);
+
+      if (supabaseClient) {
+        const dbPayload = {
+          username: cleanUser,
+          role: updatedRecord.role,
+          buyer_deposit_balance: updatedRecord.buyer_deposit_balance,
+          seller_deposit_balance: updatedRecord.seller_deposit_balance,
+          deposit_balance: updatedRecord.deposit_balance,
+          status: updatedRecord.status,
+          win_count: existingDbRow && existingDbRow.win_count ? existingDbRow.win_count : 0,
+          has_requested_withdrawal: existingDbRow && existingDbRow.has_requested_withdrawal ? existingDbRow.has_requested_withdrawal : false,
+          updated_at: updatedRecord.updated_at
+        };
+
+        try {
+          if (!existingDbRow) {
+            const { error: insErr } = await supabaseClient.from("buyers").insert([dbPayload]);
+            if (insErr && /buyer_deposit_balance|seller_deposit_balance|updated_at|column/i.test(insErr.message || "")) {
+              await supabaseClient.from("buyers").insert([{
+                username: cleanUser,
+                role: updatedRecord.role,
+                deposit_balance: updatedRecord.deposit_balance,
+                status: updatedRecord.status,
+                win_count: 0,
+                has_requested_withdrawal: false
+              }]);
+            }
+          } else {
+            const { error: updErr } = await supabaseClient.from("buyers").update(dbPayload).eq("username", cleanUser);
+            if (updErr && /buyer_deposit_balance|seller_deposit_balance|updated_at|column/i.test(updErr.message || "")) {
+              await supabaseClient.from("buyers").update({
+                role: updatedRecord.role,
+                deposit_balance: updatedRecord.deposit_balance,
+                status: updatedRecord.status
+              }).eq("username", cleanUser);
+            }
+          }
+        } catch (_) {}
+
+        try {
+          await supabaseClient.from("auction_deposits_log").insert([{
+            username: cleanUser,
+            amount: exactAmount,
+            type: roleKey === "seller" ? "deposit_seller" : "deposit_buyer",
+            role: roleKey,
+            buyer_deposit_after: updatedRecord.buyer_deposit_balance,
+            seller_deposit_after: updatedRecord.seller_deposit_balance,
+            memo: memoStr
+          }]);
+        } catch (_) {}
+      }
+
+      if (window._CollateralSyncGuardian && typeof window._CollateralSyncGuardian.broadcastCollateralSync === "function") {
+        window._CollateralSyncGuardian.broadcastCollateralSync(cleanUser, updatedRecord);
+      }
+      _RealtimeStateDistributor.broadcast({
+        type: "buyer_collateral_update",
+        buyer: updatedRecord
+      });
+
+      if (typeof fetchBuyersList === "function") await fetchBuyersList();
+      if (typeof renderBuyersTable === "function") renderBuyersTable();
+      if (typeof checkBuyerStatusInDatabase === "function") await checkBuyerStatusInDatabase(cleanUser);
+
+      return updatedRecord;
+    }
+
+    async function payCollateral35FromHome(collateralType) {
       if (!authenticatedPiUser || !authenticatedPiUser.username) {
         alert(t("loginFirstAlert"));
         authenticatePiUser();
         return null;
       }
 
+      const roleKey = collateralType === "seller" ? "seller" : "buyer";
       const cleanUser = authenticatedPiUser.username.trim().replace(/^@/, "");
-      const roleKey = triggeredFromRole === "seller" ? "seller" : "buyer";
-      const currentRoleBal = getRoleCollateralBalance(roleKey, cleanUser);
+      const memoText = `PIBOX-${roleKey.toUpperCase()}-COLLATERAL-35:@${cleanUser}`;
 
-      if (currentRoleBal >= ROLE_REGISTER_ACTIVATION_THRESHOLD) {
-        syncRoleRegisterButtonsState();
-        return null;
+      const btnSeller = document.getElementById("btnPaySellerCollateral");
+      const btnBuyer = document.getElementById("btnPayBuyerCollateral");
+      if (btnSeller) btnSeller.disabled = true;
+      if (btnBuyer) btnBuyer.disabled = true;
+
+      try {
+        const piSdk = window.Pi || (typeof Pi !== "undefined" ? Pi : null);
+        if (piSdk && typeof piSdk.createPayment === "function") {
+          const outcome = await new Promise((resolve) => {
+            let done = false;
+            const finish = (res) => {
+              if (done) return;
+              done = true;
+              resolve(res);
+            };
+            try {
+              if (typeof piSdk.init === "function") {
+                piSdk.init({ version: "2.0", sandbox: IS_TESTNET });
+              }
+              piSdk.createPayment(
+                {
+                  amount: COLLATERAL_35_PI_AMOUNT,
+                  memo: memoText,
+                  metadata: {
+                    type: "collateral_35_payment",
+                    collateral_type: roleKey,
+                    username: cleanUser,
+                    amount: COLLATERAL_35_PI_AMOUNT
+                  }
+                },
+                {
+                  onReadyForServerApproval: (paymentId) => {
+                    fetch("/api/pi/approve", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ paymentId })
+                    }).catch(() => {});
+                  },
+                  onReadyForServerCompletion: (paymentId, txid) => {
+                    fetch("/api/pi/complete", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ paymentId, txid })
+                    }).catch(() => {});
+                    finish({ status: "completed", txid: txid || null });
+                  },
+                  onCancel: () => finish({ status: "cancelled", txid: null }),
+                  onError: () => finish({ status: "error", txid: null })
+                }
+              );
+            } catch (_) {
+              finish({ status: "fallback", txid: null });
+            }
+          });
+
+          if (outcome && outcome.status === "cancelled") {
+            alert("Pembayaran 35 Pi dibatalkan.");
+            return null;
+          }
+
+          const recorded = await recordCollateral35Payment(
+            cleanUser,
+            roleKey,
+            COLLATERAL_35_PI_AMOUNT,
+            memoText,
+            outcome ? outcome.txid : null
+          );
+          const label = roleKey === "seller" ? "Seller Collateral" : "Buyer Collateral";
+          alert(
+            `✅ Pembayaran ${COLLATERAL_35_PI_AMOUNT} Pi berhasil dicatat!\n` +
+            `• ${label}: ${_HighPrecisionDepositLedgerCore.formatPrecision(roleKey === "seller" ? recorded.seller_deposit_balance : recorded.buyer_deposit_balance)} pi`
+          );
+          return recorded;
+        }
+
+        const recorded = await recordCollateral35Payment(cleanUser, roleKey, COLLATERAL_35_PI_AMOUNT, memoText, null);
+        const label = roleKey === "seller" ? "Seller Collateral" : "Buyer Collateral";
+        alert(
+          `✅ Pembayaran ${COLLATERAL_35_PI_AMOUNT} Pi berhasil dicatat!\n` +
+          `• ${label}: ${_HighPrecisionDepositLedgerCore.formatPrecision(roleKey === "seller" ? recorded.seller_deposit_balance : recorded.buyer_deposit_balance)} pi`
+        );
+        return recorded;
+      } finally {
+        if (btnSeller) btnSeller.disabled = false;
+        if (btnBuyer) btnBuyer.disabled = false;
       }
-
-      const confirmed = await showRoleCollateralInformationModal(roleKey);
-      if (!confirmed) {
-        return null;
-      }
-
-      const sdkOutcome = await executePiSdkBuyerCollateral35Payment(roleKey, cleanUser);
-      if (sdkOutcome && sdkOutcome.status === "cancelled") {
-        return null;
-      }
-
-      const recorded = await recordBuyerCollateralTopUp(
-        cleanUser,
-        BUYER_COLLATERAL_PAYMENT_AMOUNT,
-        sdkOutcome ? sdkOutcome.memo : `PIBOX-BUYER-COLLATERAL-35:${roleKey.toUpperCase()}:@${cleanUser}`,
-        sdkOutcome ? sdkOutcome.txid : null
-      );
-
-      syncRoleRegisterButtonsState();
-      return recorded;
     }
+
 
     async function handleRoleRegisterTrigger(roleKey) {
       const normalized = roleKey === "seller" ? "seller" : "buyer";
