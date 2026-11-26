@@ -464,18 +464,14 @@ const _AGI_CollateralGuardianCore = (() => {
       const b = clampPrecise(Math.max(extractBalances(cached).buyer, extractBalances(inList).buyer));
       const s = clampPrecise(Math.max(extractBalances(cached).seller, extractBalances(inList).seller));
 
-      if (b > 0 || s > 0) {
-        const buyerTextEl = document.getElementById("buyerDepositBalanceText");
-        const sellerTextEl = document.getElementById("sellerDepositBalanceText");
-        if (buyerTextEl && buyerTextEl.innerText !== `Saldo jaminan sebagai pembeli: ${fmtPi(b)}`) {
-          buyerTextEl.innerText = `Saldo jaminan sebagai pembeli: ${fmtPi(b)}`;
-        }
-        if (sellerTextEl && sellerTextEl.innerText !== `Saldo jaminan sebagai Penjual: ${fmtPi(s)}`) {
-          sellerTextEl.innerText = `Saldo jaminan sebagai Penjual: ${fmtPi(s)}`;
-        }
+      if ((b > 0 || s > 0) && inList) {
+        inList.buyer_deposit_balance = b;
+        inList.seller_deposit_balance = s;
+        inList.deposit_balance = addPrecise(b, s);
       }
     }
   }
+
 
   function installHooks() {
   if (typeof window.payAuctionDepositForRole === "function" && !window.payAuctionDepositForRole.__guardianWrapped) {
