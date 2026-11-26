@@ -390,9 +390,49 @@
             await finalizeSuccess('PI-SDK-DIRECT');
           }
         } catch (err) {
+          const errMsg = err?.message || String(err || 'Unable to initialize payment.');
+          if (/scope|payments/i.test(errMsg)) {
+            const piRetry = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+            const retryScopeOk = await this.ensurePiPaymentScope(piRetry);
+            if (retryScopeOk && piRetry && typeof piRetry.createPayment === 'function') {
+              try {
+                piRetry.createPayment(paymentData, {
+                  onReadyForServerApproval: async (paymentId) => {
+                    await fetch(`${PI_PAYMENT_API_BASE}/approve`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ paymentId })
+                    }).catch(() => {});
+                  },
+                  onReadyForServerCompletion: async (paymentId, txid) => {
+                    await fetch(`${PI_PAYMENT_API_BASE}/complete`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ paymentId, txid })
+                    }).catch(() => {});
+                    await finalizeSuccess(txid || paymentId || '');
+                  },
+                  onCancel: () => {
+                    this.pendingPayments.delete(lockKey);
+                    alert(`${roleTitle} collateral payment was cancelled.`);
+                  },
+                  onError: (retryErr) => {
+                    this.pendingPayments.delete(lockKey);
+                    alert(`Pi SDK payment error: ${retryErr?.message || 'Unable to complete payment.'}`);
+                  }
+                });
+                return;
+              } catch (secondErr) {
+                this.pendingPayments.delete(lockKey);
+                alert("Failed to initialize Pi SDK payment: " + (secondErr?.message || secondErr));
+                return;
+              }
+            }
+          }
           this.pendingPayments.delete(lockKey);
-          alert("Failed to initialize Pi SDK payment: " + err.message);
+          alert("Failed to initialize Pi SDK payment: " + errMsg);
         }
+
       }
     };
 
