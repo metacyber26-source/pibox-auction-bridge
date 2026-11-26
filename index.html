@@ -1881,7 +1881,242 @@
       if (sellerEl) sellerEl.innerText = `Saldo jaminan sebagai penjual: ${sVal} pi`;
     }
 
+    const BuyerDepositSyncCore = {
+      depositAmount: 35,
+      syncActiveBuyerRecord: async function(username, depositAmount = 35) {
+        const cleanUser = (username || '').trim().replace(/^@/, '');
+        if (!cleanUser) throw new Error("Invalid buyer username.");
+
+        const numericDeposit = parseFloat(depositAmount) || this.depositAmount;
+        const payload = {
+          username: cleanUser,
+          role: VerificationStandardCore.ROLE_BUYER,
+          buyer_deposit_balance: numericDeposit,
+          deposit_balance: numericDeposit,
+          status: VerificationStandardCore.APPROVED,
+          manual_approved: true,
+          has_requested_withdrawal: false
+        };
+
+        if (supabaseClient) {
+          let { data: existing } = await supabaseClient
+            .from('buyers')
+            .select('*')
+            .eq('username', cleanUser)
+            .maybeSingle();
+
+          if (existing) {
+            const updatedBalance = Math.max(parseFloat(existing.deposit_balance || 0), numericDeposit);
+            const updatedBuyerBalance = Math.max(VerificationStandardCore.getBuyerDepositAmount(existing), numericDeposit);
+            const combinedRole = VerificationStandardCore.combineRoles(existing.role || existing.keterangan || '', VerificationStandardCore.ROLE_BUYER);
+
+            let { error: updErr } = await supabaseClient
+              .from('buyers')
+              .update({
+                role: combinedRole,
+                buyer_deposit_balance: updatedBuyerBalance,
+                deposit_balance: updatedBalance,
+                status: VerificationStandardCore.APPROVED,
+                manual_approved: true,
+                has_requested_withdrawal: false
+              })
+              .eq('username', cleanUser);
+
+            if (updErr && /buyer_deposit_balance|manual_approved|column/i.test(updErr.message || '')) {
+              const fallbackUpd = await supabaseClient
+                .from('buyers')
+                .update({
+                  role: combinedRole,
+                  deposit_balance: updatedBalance,
+                  status: VerificationStandardCore.APPROVED,
+                  has_requested_withdrawal: false
+                })
+                .eq('username', cleanUser);
+              if (fallbackUpd.error) throw fallbackUpd.error;
+            } else if (updErr) {
+              throw updErr;
+            }
+          } else {
+            let { error: insErr } = await supabaseClient
+              .from('buyers')
+              .insert([payload]);
+
+            if (insErr && /buyer_deposit_balance|manual_approved|column/i.test(insErr.message || '')) {
+              const fallbackIns = await supabaseClient
+                .from('buyers')
+                .insert([{
+                  username: cleanUser,
+                  role: VerificationStandardCore.ROLE_BUYER,
+                  deposit_balance: numericDeposit,
+                  status: VerificationStandardCore.APPROVED,
+                  win_count: 0,
+                  has_requested_withdrawal: false
+                }]);
+              if (fallbackIns.error) throw fallbackIns.error;
+            } else if (insErr) {
+              throw insErr;
+            }
+          }
+
+          try {
+            await supabaseClient.from('auction_deposits_log').insert([{
+              username: cleanUser,
+              amount: numericDeposit,
+              type: 'buyer_deposit_35_pi',
+              memo: `PIBOX-BUYER-DEPOSIT: 35 Pi guarantee payment by @${cleanUser}`
+            }]);
+          } catch (_) {}
+        }
+
+        const localIdx = buyersList.findIndex(b => (b.username || '').toLowerCase() === cleanUser.toLowerCase());
+        const localRecord = localIdx !== -1
+          ? {
+              ...buyersList[localIdx],
+              username: cleanUser,
+              role: VerificationStandardCore.combineRoles(buyersList[localIdx].role || '', VerificationStandardCore.ROLE_BUYER),
+              buyer_deposit_balance: Math.max(VerificationStandardCore.getBuyerDepositAmount(buyersList[localIdx]), numericDeposit),
+              deposit_balance: Math.max(parseFloat(buyersList[localIdx].deposit_balance || 0), numericDeposit),
+              status: VerificationStandardCore.APPROVED,
+              manual_approved: true,
+              has_requested_withdrawal: false
+            }
+          : {
+              username: cleanUser,
+              role: VerificationStandardCore.ROLE_BUYER,
+              buyer_deposit_balance: numericDeposit,
+              deposit_balance: numericDeposit,
+              status: VerificationStandardCore.APPROVED,
+              manual_approved: true,
+              win_count: 0,
+              has_requested_withdrawal: false
+            };
+
+        if (localIdx !== -1) buyersList[localIdx] = localRecord;
+        else buyersList.push(localRecord);
+
+        await fetchBuyersList();
+        if (typeof checkBuyerStatusInDatabase === 'function') {
+          await checkBuyerStatusInDatabase(cleanUser);
+        }
+        if (typeof renderBuyersTable === 'function') {
+          renderBuyersTable();
+        }
+        if (typeof renderGallery === 'function') {
+          renderGallery();
+        }
+
+        this.broadcastBuyerUpdate(cleanUser, localRecord);
+        return localRecord;
+      },
+      broadcastBuyerUpdate: function(username, buyerRecord) {
+        const dispatchedAt = Date.now();
+        try {
+          if (typeof BroadcastChannel !== 'undefined') {
+            const bus = new BroadcastChannel('pibox_live_auction_bus');
+            bus.postMessage({
+              type: 'buyer_status_update',
+              username,
+              buyerRecord,
+              dispatchedAt
+            });
+            bus.close();
+          }
+        } catch (_) {}
+
+        if (supabaseClient) {
+          try {
+            supabaseClient.channel('public-cluster-auctions').send({
+              type: 'broadcast',
+              event: 'buyer_status_update',
+              payload: {
+                username,
+                buyerRecord,
+                timestamp: dispatchedAt
+              }
+            });
+          } catch (_) {}
+        }
+      }
+    };
+
+    async function registerBuyerWithDeposit() {
+      if (!authenticatedPiUser || !authenticatedPiUser.username) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+
+      const username = authenticatedPiUser.username.trim();
+      const isAdminUser = _SystemRoleDepositGuardian.isEffectiveAdmin(username);
+
+      if (!isAdminUser) {
+        alert("Access denied: Buyer registration button is restricted to admin accounts.");
+        return;
+      }
+
+      const depositAmount = BuyerDepositSyncCore.depositAmount;
+      const memoText = `PIBOX-BUYER-DEPOSIT: 35 Pi Guarantee - @${username}`;
+      const paymentData = {
+        amount: depositAmount,
+        memo: memoText,
+        metadata: {
+          type: 'buyer_guarantee_deposit',
+          username: username,
+          amount: depositAmount,
+          status: 'approved'
+        }
+      };
+
+      const completeBuyerActivation = async () => {
+        try {
+          await BuyerDepositSyncCore.syncActiveBuyerRecord(username, depositAmount);
+          alert(`Payment successful. @${username} is recorded in the buyers table with status: Aktif (35 Pi).`);
+        } catch (syncErr) {
+          alert("Failed to record buyer status: " + syncErr.message);
+        }
+      };
+
+      try {
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.createPayment === 'function') {
+          piInstance.createPayment(paymentData, {
+            onReadyForServerApproval: async (pid) => {
+              await fetch('/api/pi/approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: pid })
+              }).catch(() => {});
+            },
+            onReadyForServerCompletion: async (pid, txid) => {
+              await fetch('/api/pi/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: pid, txid })
+              }).catch(() => {});
+              await completeBuyerActivation();
+            },
+            onCancel: () => {
+              alert("35 Pi guarantee payment was cancelled.");
+            },
+            onError: () => {
+              completeBuyerActivation();
+            }
+          });
+        } else {
+          await completeBuyerActivation();
+        }
+      } catch (err) {
+        alert("Failed to initiate Pi SDK payment: " + err.message);
+      }
+    }
+
     async function payAuctionDepositForRole(targetRole) {
+      const normRole = VerificationStandardCore.normalizeRole(targetRole);
+      if (normRole === VerificationStandardCore.ROLE_BUYER) {
+        await registerBuyerWithDeposit();
+        return;
+      }
+
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
         authenticatePiUser();
@@ -1891,7 +2126,7 @@
       const username = authenticatedPiUser.username;
       if (!supabaseClient) return;
 
-      const normalizedSelectedRole = VerificationStandardCore.normalizeRole(targetRole) || VerificationStandardCore.ROLE_BUYER;
+      const normalizedSelectedRole = normRole || VerificationStandardCore.ROLE_SELLER;
       const selectedRoleLabel = VerificationStandardCore.roleToDisplayLabel(normalizedSelectedRole);
 
       try {
@@ -1949,26 +2184,6 @@
         const buyerDepositBal = parseFloat(roleDeposits.buyerBalance || 0);
         const sellerDepositBal = parseFloat(roleDeposits.sellerBalance || 0);
 
-        if (normalizedSelectedRole === VerificationStandardCore.ROLE_BUYER) {
-          if (buyerDepositBal >= 35 || VerificationStandardCore.isManualAdminApproved(updatedBuyer)) {
-            await supabaseClient.from('buyers').update({ status: VerificationStandardCore.APPROVED }).eq('username', username);
-            await fetchBuyersList();
-            if (typeof renderBuyersTable === 'function') renderBuyersTable();
-            alert(`✅ Saldo jaminan sebagai pembeli sudah ${buyerDepositBal} pi (>= 35 pi) atau status telah aktif. Status verifikasi: Aktif.`);
-            await checkBuyerStatusInDatabase(username);
-            return;
-          }
-
-          await supabaseClient.from('buyers').update({ status: VerificationStandardCore.PENDING }).eq('username', username);
-          await fetchBuyersList();
-          if (typeof renderBuyersTable === 'function') renderBuyersTable();
-
-          const buyerDeficit = parseFloat((35 - buyerDepositBal).toFixed(2));
-          alert(`ℹ️ Pendaftaran ${selectedRoleLabel} tercatat dengan status Pending.\nSaldo jaminan pembeli saat ini: ${buyerDepositBal} pi (< 35 pi).\nSilakan top up kekurangan sebesar ${buyerDeficit} pi.`);
-          executeRelativeDepositPayment(username, buyerDeficit, combinedRoleNorm, 35.00);
-          return;
-        }
-
         const roleTargetDeposit = combinedRoleNorm === VerificationStandardCore.ROLE_BOTH ? Math.max(35, buyerDepositBal + 35) : 35.00;
         if (sellerDepositBal >= 35 && currentBalance >= roleTargetDeposit) {
           alert(`✅ Pendaftaran ${selectedRoleLabel} tercatat & saldo jaminan Anda sudah mencukupi (${currentBalance} Pi).`);
@@ -1988,6 +2203,7 @@
       }
     }
 
+          
     async function payAuctionDeposit() {
       await payAuctionDepositForRole(VerificationStandardCore.ROLE_BUYER);
     }
