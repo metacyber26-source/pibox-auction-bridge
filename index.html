@@ -1360,76 +1360,78 @@ const _AGI_CollateralGuardianCore = (() => {
 
     _LoginSessionSyncGuardian.init();
 
-    function renderSavedAccountsList() {
-      const container = document.getElementById('savedAccountsContainer');
-      const listEl = document.getElementById('savedAccountsList');
-      if (!container || !listEl) return;
+    const _SilentButtonAndDistributionCore = {
+      channel: null,
 
-      let savedAccounts = [];
-      try {
-        savedAccounts = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-        if (!Array.isArray(savedAccounts)) savedAccounts = [];
-      } catch (_) {
-        savedAccounts = [];
-      }
+      init: function() {
+        try {
+          if (typeof BroadcastChannel !== 'undefined' && !this.channel) {
+            this.channel = new BroadcastChannel('pibox_fast_data_bus_v1');
+            this.channel.onmessage = (ev) => {
+              if (!ev || !ev.data) return;
+              this.applyDistributedPayload(ev.data);
+            };
+          }
+        } catch (_) {}
+      },
 
-      if (savedAccounts.length === 0) {
-        container.classList.add('hidden');
-        listEl.innerHTML = '';
-        return;
-      }
+      publishUpdate: function(type, data) {
+        const packet = { type, data, ts: Date.now() };
+        try {
+          if (this.channel) this.channel.postMessage(packet);
+        } catch (_) {}
+        try {
+          if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            supabaseClient
+              .channel('public-cluster-auctions')
+              .send({
+                type: 'broadcast',
+                event: 'fast_data_distribution',
+                payload: packet
+              })
+              .catch(() => {});
+          }
+        } catch (_) {}
+      },
 
-      container.classList.remove('hidden');
-      listEl.innerHTML = '';
+      applyDistributedPayload: function(packet) {
+        if (!packet || !packet.type) return;
+        if (packet.type === 'auctions_sync' && Array.isArray(packet.data)) {
+          if (typeof activeAuctionsList !== 'undefined') {
+            activeAuctionsList = packet.data;
+            if (typeof _SystemAutonomousGuardian !== 'undefined') {
+              _SystemAutonomousGuardian.normalizeAuctionPrices(activeAuctionsList);
+            }
+            if (typeof updateActiveCounts === 'function') updateActiveCounts();
+            if (typeof filterGallery === 'function') filterGallery();
+          }
+        } else if (packet.type === 'schedule_sync' && packet.data) {
+          if (typeof auctionScheduleState !== 'undefined') {
+            auctionScheduleState = packet.data;
+            if (typeof checkAuctionSchedule === 'function') checkAuctionSchedule();
+          }
+        }
+      },
 
-      savedAccounts.forEach((acc) => {
-        const cleanAccUser = _LoginSessionSyncGuardian.normalizeUsername(acc && acc.username);
-        if (!cleanAccUser) return;
-
-        const row = document.createElement('div');
-        row.className = 'flex items-center justify-between bg-gray-900 hover:bg-gray-800 border border-emerald-500/30 rounded-xl p-2.5 transition';
-
-        const loginBtn = document.createElement('button');
-        loginBtn.type = 'button';
-        loginBtn.className = 'flex-1 flex items-center gap-2 text-left cursor-pointer min-w-0';
-        loginBtn.addEventListener('click', () => {
-          quickLoginWithSavedAccount(cleanAccUser, acc.token || '');
+      ensureInteractiveButtonsReady: function() {
+        document.querySelectorAll('button').forEach((btn) => {
+          if (!btn.getAttribute('type')) {
+            btn.setAttribute('type', 'button');
+          }
         });
+      }
+    };
 
-        const dot = document.createElement('span');
-        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0';
+    _SilentButtonAndDistributionCore.init();
+    window._SilentButtonAndDistributionCore = _SilentButtonAndDistributionCore;
 
-        const textWrap = document.createElement('div');
-        textWrap.className = 'min-w-0';
+    document.addEventListener('DOMContentLoaded', () => {
+      _SilentButtonAndDistributionCore.ensureInteractiveButtonsReady();
+      setInterval(() => {
+        _SilentButtonAndDistributionCore.ensureInteractiveButtonsReady();
+      }, 1000);
+    });
 
-        const userTitle = document.createElement('p');
-        userTitle.className = 'text-xs font-bold text-white truncate';
-        userTitle.textContent = `@${cleanAccUser}`;
-
-        const subLabel = document.createElement('p');
-        subLabel.className = 'text-[9px] text-emerald-400';
-        subLabel.textContent = 'Terverifikasi • Klik untuk masuk';
-
-        textWrap.appendChild(userTitle);
-        textWrap.appendChild(subLabel);
-        loginBtn.appendChild(dot);
-        loginBtn.appendChild(textWrap);
-
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.title = 'Hapus dari perangkat ini';
-        removeBtn.className = 'text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer flex-shrink-0';
-        removeBtn.textContent = '✕';
-        removeBtn.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          removeSavedAccount(cleanAccUser);
-        });
-
-        row.appendChild(loginBtn);
-        row.appendChild(removeBtn);
-        listEl.appendChild(row);
-      });
-    }
 
     async function processManualLoginSubmit() {
       const userInput = document.getElementById('manualLoginUsername');
