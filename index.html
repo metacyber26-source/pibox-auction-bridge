@@ -2690,6 +2690,278 @@ const _CollateralGuardianCore = (() => {
         resetCreateForm();
         alert("🧹 Form berhasil dibersihkan dan dikembalikan ke kondisi awal.");
       }
+
+          const COLLATERAL_FIELD_SCHEMA = Object.freeze({
+      username: "username",
+      role: "role",
+      buyerDepositBalance: "buyer_deposit_balance",
+      sellerDepositBalance: "seller_deposit_balance",
+      totalDepositBalance: "deposit_balance",
+      status: "status",
+      lastCollateralTxid: "last_collateral_txid"
+    });
+
+    function normalizeCollateralUsername(rawUsername = "") {
+      return String(rawUsername || "")
+        .trim()
+        .replace(/^@+/, "")
+        .trim();
+    }
+
+    function standardizeBuyerCollateralRecord(source = {}, fallbackUsername = "") {
+      const cleanUsername = normalizeCollateralUsername(
+        source.username || fallbackUsername || ""
+      );
+
+      const buyerDepositBalance = _HighPrecisionDepositLedgerCore.toExactNumber(
+        source.buyer_deposit_balance ??
+          source.buyerDepositBalance ??
+          (typeof VerificationStandardCore !== "undefined" &&
+          typeof VerificationStandardCore.getBuyerDepositAmount === "function"
+            ? VerificationStandardCore.getBuyerDepositAmount(source)
+            : 0)
+      );
+
+      const sellerDepositBalance = _HighPrecisionDepositLedgerCore.toExactNumber(
+        source.seller_deposit_balance ??
+          source.sellerDepositBalance ??
+          (typeof VerificationStandardCore !== "undefined" &&
+          typeof VerificationStandardCore.getSellerDepositAmount === "function"
+            ? VerificationStandardCore.getSellerDepositAmount(source)
+            : 0)
+      );
+
+      const rawTotal =
+        source.deposit_balance ??
+        source.totalDepositBalance ??
+        _HighPrecisionDepositLedgerCore.addExact(buyerDepositBalance, sellerDepositBalance);
+
+      const depositBalance = _HighPrecisionDepositLedgerCore.toExactNumber(rawTotal);
+
+      const roleValue =
+        source.role ||
+        (typeof VerificationStandardCore !== "undefined" &&
+        typeof VerificationStandardCore.normalizeRole === "function"
+          ? VerificationStandardCore.normalizeRole(source.role || "")
+          : "buyer");
+
+      const statusValue =
+        source.status ||
+        (buyerDepositBalance >= 34.9 ? "approved" : "pending");
+
+      return {
+        ...source,
+        username: cleanUsername,
+        role: roleValue,
+        buyer_deposit_balance: buyerDepositBalance,
+        seller_deposit_balance: sellerDepositBalance,
+        deposit_balance: depositBalance,
+        status: statusValue,
+        last_collateral_txid:
+          source.last_collateral_txid ?? source.lastCollateralTxid ?? null
+      };
+    }
+
+    async function recordBuyerCollateralTopUp(username, topUpAmount, memoText, txid = null) {
+      const cleanUser = normalizeCollateralUsername(username);
+      if (!cleanUser) return null;
+
+      const exactTopUp =
+        _HighPrecisionDepositLedgerCore.toExactNumber(topUpAmount) ||
+        BUYER_COLLATERAL_TOPUP_AMOUNT;
+
+      let existingDbRow = null;
+      if (supabaseClient) {
+        try {
+          const { data } = await supabaseClient
+            .from("buyers")
+            .select("*")
+            .ilike("username", cleanUser)
+            .maybeSingle();
+          existingDbRow = data || null;
+        } catch (_) {}
+      }
+
+      const cachedRow =
+        typeof readCollateralCache === "function"
+          ? readCollateralCache(cleanUser)
+          : null;
+
+      const listRow = Array.isArray(buyersList)
+        ? buyersList.find(
+            (row) =>
+              normalizeCollateralUsername(row && row.username)
+                .toLowerCase() === cleanUser.toLowerCase()
+          ) || null
+        : null;
+
+      const mergedSource = standardizeBuyerCollateralRecord(
+        {
+          ...(listRow || {}),
+          ...(cachedRow || {}),
+          ...(existingDbRow || {})
+        },
+        cleanUser
+      );
+
+      const nextBuyerBalance = _HighPrecisionDepositLedgerCore.addExact(
+        mergedSource.buyer_deposit_balance,
+        exactTopUp
+      );
+      const nextSellerBalance = mergedSource.seller_deposit_balance;
+      const nextTotalBalance = _HighPrecisionDepositLedgerCore.addExact(
+        nextBuyerBalance,
+        nextSellerBalance
+      );
+
+      const nextRole =
+        typeof VerificationStandardCore !== "undefined" &&
+        typeof VerificationStandardCore.combineRoles === "function"
+          ? VerificationStandardCore.combineRoles(
+              mergedSource.role,
+              VerificationStandardCore.ROLE_BUYER
+            )
+          : mergedSource.role || "buyer";
+
+      const nextStatus =
+        nextBuyerBalance >= 34.9 || mergedSource.status === "approved"
+          ? "approved"
+          : "pending";
+
+      const standardizedRecord = standardizeBuyerCollateralRecord(
+        {
+          ...mergedSource,
+          username: cleanUser,
+          role: nextRole,
+          buyer_deposit_balance: nextBuyerBalance,
+          seller_deposit_balance: nextSellerBalance,
+          deposit_balance: nextTotalBalance,
+          status: nextStatus,
+          last_collateral_txid: txid || mergedSource.last_collateral_txid || null
+        },
+        cleanUser
+      );
+
+      if (typeof writeCollateralCache === "function") {
+        writeCollateralCache(cleanUser, standardizedRecord);
+      }
+      _HighPrecisionDepositLedgerCore.syncLocalBuyerState(
+        cleanUser,
+        standardizedRecord
+      );
+      updateDetailedDepositDisplay(nextBuyerBalance, nextSellerBalance);
+
+      if (supabaseClient) {
+        const dbPayload = {
+          username: cleanUser,
+          role: standardizedRecord.role,
+          buyer_deposit_balance: standardizedRecord.buyer_deposit_balance,
+          seller_deposit_balance: standardizedRecord.seller_deposit_balance,
+          deposit_balance: standardizedRecord.deposit_balance,
+          status: standardizedRecord.status,
+          last_collateral_txid: standardizedRecord.last_collateral_txid,
+          win_count:
+            existingDbRow && existingDbRow.win_count ? existingDbRow.win_count : 0,
+          has_requested_withdrawal:
+            existingDbRow && existingDbRow.has_requested_withdrawal
+              ? existingDbRow.has_requested_withdrawal
+              : false
+        };
+
+        try {
+          if (!existingDbRow) {
+            const { error: insertErr } = await supabaseClient
+              .from("buyers")
+              .insert([dbPayload]);
+
+            if (
+              insertErr &&
+              /buyer_deposit_balance|seller_deposit_balance|last_collateral_txid|column/i.test(
+                insertErr.message || ""
+              )
+            ) {
+              await supabaseClient.from("buyers").insert([
+                {
+                  username: cleanUser,
+                  role: standardizedRecord.role,
+                  deposit_balance: standardizedRecord.deposit_balance,
+                  status: standardizedRecord.status,
+                  win_count: 0,
+                  has_requested_withdrawal: false
+                }
+              ]);
+            }
+          } else {
+            const targetKey = existingDbRow.username || cleanUser;
+            const { error: updateErr } = await supabaseClient
+              .from("buyers")
+              .update(dbPayload)
+              .eq("username", targetKey);
+
+            if (
+              updateErr &&
+              /buyer_deposit_balance|seller_deposit_balance|last_collateral_txid|column/i.test(
+                updateErr.message || ""
+              )
+            ) {
+              await supabaseClient
+                .from("buyers")
+                .update({
+                  role: standardizedRecord.role,
+                  deposit_balance: standardizedRecord.deposit_balance,
+                  status: standardizedRecord.status
+                })
+                .eq("username", targetKey);
+            }
+          }
+        } catch (_) {}
+
+        try {
+          await supabaseClient.from("auction_deposits_log").insert([
+            {
+              username: cleanUser,
+              amount: exactTopUp,
+              type: "deposit_buyer",
+              role: "buyer",
+              buyer_deposit_balance: standardizedRecord.buyer_deposit_balance,
+              seller_deposit_balance: standardizedRecord.seller_deposit_balance,
+              deposit_balance: standardizedRecord.deposit_balance,
+              memo: memoText
+            }
+          ]);
+        } catch (_) {}
+      }
+
+      if (
+        window._CollateralSyncGuardian &&
+        typeof window._CollateralSyncGuardian.broadcastCollateralSync ===
+          "function"
+      ) {
+        window._CollateralSyncGuardian.broadcastCollateralSync(
+          cleanUser,
+          standardizedRecord
+        );
+      }
+
+      _RealtimeStateDistributor.broadcast({
+        type: "buyer_collateral_update",
+        buyer: standardizedRecord
+      });
+
+      if (typeof fetchBuyersList === "function") {
+        await fetchBuyersList();
+      }
+      if (typeof renderBuyersTable === "function") {
+        renderBuyersTable();
+      }
+      if (typeof checkBuyerStatusInDatabase === "function") {
+        await checkBuyerStatusInDatabase(cleanUser);
+      }
+      syncBuyerRegisterButtonState();
+
+      return standardizedRecord;
+    }
+
     }
   </script>
 
