@@ -276,10 +276,48 @@
         return updatedRecord;
       },
 
+      ensurePiPaymentScope: async function(piInstance) {
+        if (!piInstance || typeof piInstance.authenticate !== 'function') {
+          return true;
+        }
+        try {
+          const authResult = await piInstance.authenticate(['username', 'payments'], onIncompletePaymentFound);
+          if (authResult && authResult.user && authResult.user.username) {
+            authenticatedPiUser = { username: authResult.user.username.trim() };
+            updateUserBadge();
+            renderBuyersTable();
+          }
+          return true;
+        } catch (authErr) {
+          console.warn("Pi payments scope authentication warning:", authErr);
+          return false;
+        }
+      },
+
       payCollateralViaPiSDK: async function(targetUsername, roleType) {
-        const activeUsr = authenticatedPiUser?.username ? authenticatedPiUser.username.trim() : '';
         const cleanTarget = (targetUsername || '').toString().trim().replace(/^@/, '');
         const cleanRole = (roleType || '').toString().trim().toLowerCase();
+
+        if (!cleanTarget || (cleanRole !== 'seller' && cleanRole !== 'buyer')) {
+          return;
+        }
+
+        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+        if (piInstance && typeof piInstance.init === 'function') {
+          try {
+            piInstance.init({ version: "2.0", sandbox: PI_SANDBOX_MODE });
+          } catch (_) {}
+        }
+
+        let activeUsr = authenticatedPiUser?.username ? authenticatedPiUser.username.trim() : '';
+        if (piInstance && typeof piInstance.authenticate === 'function') {
+          const scopeReady = await this.ensurePiPaymentScope(piInstance);
+          if (!scopeReady) {
+            alert("Pi Network authorization with 'payments' scope is required to complete the payment.");
+            return;
+          }
+          activeUsr = authenticatedPiUser?.username ? authenticatedPiUser.username.trim() : activeUsr;
+        }
 
         if (!activeUsr) {
           alert("Please log in with your Pi Network account first.");
@@ -290,6 +328,7 @@
           alert(`Access denied: You can only pay ${COLLATERAL_AMOUNT_PI} Pi collateral for your own account (@${activeUsr}).`);
           return;
         }
+
 
         const lockKey = `${cleanTarget.toLowerCase()}|${cleanRole}`;
         if (this.pendingPayments.has(lockKey)) return;
