@@ -3325,11 +3325,15 @@ const _AGI_CollateralGuardianCore = (() => {
     window.VerificationStandardCore = VerificationStandardCore;
 
     function getCurrentBuyerDepositBalance() {
-      const currentUsername = (authenticatedPiUser && authenticatedPiUser.username ? authenticatedPiUser.username : '').trim();
+      const currentUsername = getActiveAuthenticatedUser();
       if (currentUsername && Array.isArray(buyersList)) {
-        const matched = buyersList.find(b => (b.username || '').trim().toLowerCase() === currentUsername.toLowerCase());
+        const matched = buyersList.find(
+          (b) => (b.username || '').trim().replace(/^@/, '').toLowerCase() === currentUsername.toLowerCase()
+        );
         if (matched) {
-          return _HighPrecisionDepositLedgerCore.toExactNumber(VerificationStandardCore.getBuyerDepositAmount(matched) || 0);
+          return _HighPrecisionDepositLedgerCore.toExactNumber(
+            VerificationStandardCore.getBuyerDepositAmount(matched) || 0
+          );
         }
       }
       const buyerTextEl = document.getElementById('buyerDepositBalanceText');
@@ -3341,6 +3345,62 @@ const _AGI_CollateralGuardianCore = (() => {
       }
       return 0;
     }
+
+    const _RealtimeStateDistributor = {
+      channel: null,
+
+      init: function() {
+        try {
+          if (typeof BroadcastChannel !== 'undefined' && !this.channel) {
+            this.channel = new BroadcastChannel('pibox_global_state_sync_v1');
+            this.channel.onmessage = (event) => {
+              if (!event || !event.data) return;
+              this.handleSyncPayload(event.data);
+            };
+          }
+        } catch (_) {}
+      },
+
+      broadcast: function(payload) {
+        if (!payload || typeof payload !== 'object') return;
+        const enrichedPayload = { ...payload, timestamp: Date.now() };
+        try {
+          if (this.channel) {
+            this.channel.postMessage(enrichedPayload);
+          }
+        } catch (_) {}
+
+        try {
+          if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            supabaseClient
+              .channel('public-cluster-auctions')
+              .send({
+                type: 'broadcast',
+                event: 'global_state_sync',
+                payload: enrichedPayload
+              })
+              .catch(() => {});
+          }
+        } catch (_) {}
+      },
+
+      handleSyncPayload: function(payload) {
+        if (payload.type === 'auction_update' && payload.auction) {
+          if (typeof _RealtimeBidEnforcementCore !== 'undefined' && typeof _RealtimeBidEnforcementCore.applyIncomingBidData === 'function') {
+            _RealtimeBidEnforcementCore.applyIncomingBidData(payload.auction);
+          }
+        } else if (payload.type === 'schedule_update' && payload.schedule) {
+          auctionScheduleState = payload.schedule;
+          if (typeof checkAuctionSchedule === 'function') checkAuctionSchedule();
+        } else if (payload.type === 'refresh_requested') {
+          if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
+          if (typeof fetchBuyersList === 'function') fetchBuyersList();
+        }
+      }
+    };
+
+    _RealtimeStateDistributor.init();
+
 
     function showInsufficientBuyerDepositPopup() {
       const popupMessage = "Buyer collateral balance is < 34.9 pi. Please click Buyer Register.";
