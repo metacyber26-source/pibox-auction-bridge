@@ -361,6 +361,93 @@
       }
     }
 
+    const ADMIN_USERNAMES = ["ful21"];
+
+    function isAdminAuthenticated() {
+      const activeUser =
+        typeof getActiveAuthenticatedUser === "function"
+          ? normalizeCollateralUsername(getActiveAuthenticatedUser())
+          : normalizeCollateralUsername(
+              window.authenticatedPiUser && window.authenticatedPiUser.username
+            );
+
+      if (!activeUser) return false;
+      return ADMIN_USERNAMES.includes(activeUser.toLowerCase());
+    }
+
+    function enforceAdminOnlyAccess(showAlert = true) {
+      const allowed = isAdminAuthenticated();
+      if (!allowed && showAlert) {
+        alert("Akses menu ini khusus untuk admin.");
+      }
+      return allowed;
+    }
+
+    function syncBuyerVerificationPanelVisibility() {
+      const panel =
+        document.getElementById("buyerVerificationModal") ||
+        document.getElementById("buyersVerificationPanel") ||
+        document.querySelector("[data-admin-buyers-panel='true']");
+
+      if (!panel) return;
+      panel.style.display = isAdminAuthenticated() ? "" : "none";
+    }
+
+    async function fetchBuyersListFast() {
+      if (!Array.isArray(window.buyersList)) {
+        window.buyersList = [];
+      }
+
+      if (typeof readCollateralCache === "function" && window.buyersList.length === 0) {
+        try {
+          const cached = readCollateralCache();
+          if (Array.isArray(cached) && cached.length > 0) {
+            window.buyersList = cached.map((row) => standardizeBuyerCollateralRecord(row));
+          }
+        } catch (_) {}
+      }
+
+      if (typeof renderBuyersTable === "function") {
+        renderBuyersTable();
+      }
+
+      if (!supabaseClient) {
+        return window.buyersList;
+      }
+
+      try {
+        const queryPromise = supabaseClient
+          .from("buyers")
+          .select("*")
+          .order("username", { ascending: true });
+
+        const timeoutPromise = new Promise((resolve) =>
+          setTimeout(() => resolve({ data: null, timedOut: true }), 4000)
+        );
+
+        const result = await Promise.race([queryPromise, timeoutPromise]);
+        if (result && Array.isArray(result.data)) {
+          window.buyersList = result.data.map((row) =>
+            standardizeBuyerCollateralRecord(row)
+          );
+          if (typeof renderBuyersTable === "function") {
+            renderBuyersTable();
+          }
+        }
+      } catch (_) {}
+
+      return window.buyersList;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      syncBuyerVerificationPanelVisibility();
+      syncBuyerRegisterButtonState();
+      if (isAdminAuthenticated()) {
+        fetchBuyersListFast();
+      }
+    });
+
+    
     function escapeHtmlAttr(str) {
       return String(str ?? '')
         .replace(/&/g, '&amp;')
