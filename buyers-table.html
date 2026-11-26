@@ -225,7 +225,82 @@
         buyersList = _BuyersTableSyncGuardian.mergeWithLocalLedger(data || []);
         renderBuyersTable();
       } catch (err) {
-        console.error("Gagal memuat daftar pembeli:", err.message);
+        console.error("Failed to load buyers list:", err.message);
+      }
+    }
+
+    async function resetCollateralBalanceByAdmin(username) {
+      const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
+      try {
+        _AgiBuyersGuardianCore.enforceAccess(currentUsr);
+        const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+        if (!cleanUser) return;
+        if (!confirm(`Reset Saldo jaminan sebagai pembeli & Saldo jaminan sebagai Penjual untuk @${cleanUser} menjadi 0 pi?`)) return;
+
+        const zeroState = {
+          username: cleanUser,
+          buyer_deposit_balance: 0,
+          seller_deposit_balance: 0,
+          deposit_balance: 0,
+          status: 'pending',
+          manual_approved: false
+        };
+
+        try {
+          const v2Raw = localStorage.getItem(_BuyersTableSyncGuardian.ledgerKey);
+          const v2Map = v2Raw ? JSON.parse(v2Raw) : {};
+          v2Map[cleanUser.toLowerCase()] = zeroState;
+          localStorage.setItem(_BuyersTableSyncGuardian.ledgerKey, JSON.stringify(v2Map));
+
+          const v1Raw = localStorage.getItem(_BuyersTableSyncGuardian.fallbackKey);
+          const v1Map = v1Raw ? JSON.parse(v1Raw) : {};
+          v1Map[cleanUser.toLowerCase()] = zeroState;
+          localStorage.setItem(_BuyersTableSyncGuardian.fallbackKey, JSON.stringify(v1Map));
+        } catch (_) {}
+
+        if (supabaseClient) {
+          const { error } = await supabaseClient
+            .from('buyers')
+            .update({
+              buyer_deposit_balance: 0,
+              seller_deposit_balance: 0,
+              deposit_balance: 0,
+              status: 'pending',
+              manual_approved: false
+            })
+            .eq('username', cleanUser);
+
+          if (error && /buyer_deposit_balance|seller_deposit_balance|manual_approved|column/i.test(error.message || '')) {
+            const fb = await supabaseClient
+              .from('buyers')
+              .update({ deposit_balance: 0, status: 'pending' })
+              .eq('username', cleanUser);
+            if (fb.error) throw fb.error;
+          } else if (error) {
+            throw error;
+          }
+
+          try {
+            await supabaseClient.channel('buyers-table-live-sync').send({
+              type: 'broadcast',
+              event: 'collateral_unified_sync',
+              payload: { record: zeroState, ts: Date.now() }
+            });
+          } catch (_) {}
+        }
+
+        try {
+          if (typeof BroadcastChannel !== 'undefined') {
+            const bc = new BroadcastChannel('pibox_collateral_unified_sync_v1');
+            bc.postMessage({ type: 'collateral_reset', record: zeroState, ts: Date.now() });
+            bc.close();
+          }
+        } catch (_) {}
+
+        await fetchBuyersList();
+        alert(`Saldo jaminan sebagai pembeli & Saldo jaminan sebagai Penjual untuk @${cleanUser} telah direset ke 0 pi.`);
+      } catch (err) {
+        alert(err.message);
       }
     }
 
@@ -238,7 +313,7 @@
       if (!tbody) return;
 
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-      const isAdminOrDev = ADMIN_USERNAMES.includes(currentUsr);
+      const isAdminOrDev = _AgiBuyersGuardianCore.verifyAdminAction(currentUsr);
 
       if (isAdminOrDev && batchContainer) {
         batchContainer.classList.remove('hidden');
@@ -254,9 +329,9 @@
       const htmlChunks = [];
       filtered.forEach((b) => {
         const username = b.username || 'Unknown';
-        const buyerBal = _BuyersTableSyncGuardian.toExact(b.buyer_deposit_balance ?? 0);
-        const sellerBal = _BuyersTableSyncGuardian.toExact(b.seller_deposit_balance ?? 0);
-        const depositBal = _BuyersTableSyncGuardian.addExact(buyerBal, sellerBal) || parseFloat(b.deposit_balance || 0);
+        const buyerBal = Math.min(35, _BuyersTableSyncGuardian.toExact(b.buyer_deposit_balance ?? 0));
+        const sellerBal = Math.min(35, _BuyersTableSyncGuardian.toExact(b.seller_deposit_balance ?? 0));
+        const depositBal = _BuyersTableSyncGuardian.addExact(buyerBal, sellerBal);
         const status = (b.status || 'pending').toLowerCase();
         const hasWithdrawalReq = b.has_requested_withdrawal;
         const rawRole = (b.role || b.keterangan || '').toString().toLowerCase().trim();
@@ -266,20 +341,21 @@
         const walletAddress = (b.wallet_address || b.wallet || '-').toString();
 
         let statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">PENDING</span>`;
-        if (status === 'approved' || status === 'aktif' || status === 'active') {
+        if (status === 'approved' || status === 'aktif' || status === 'active' || buyerBal >= 35) {
           statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">AKTIF</span>`;
         }
 
         let actionButtons = '';
         if (isAdminOrDev) {
-          const nextStatus = (status === 'approved' || status === 'aktif' || status === 'active') ? 'pending' : 'approved';
+          const nextStatus = (status === 'approved' || status === 'aktif' || status === 'active' || buyerBal >= 35) ? 'pending' : 'approved';
           const btnText = nextStatus === 'approved' ? 'Verifikasi' : 'Pending-kan';
           const btnClass = nextStatus === 'approved' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-amber-600 hover:bg-amber-500 text-white';
 
           actionButtons = `
-            <div class="flex gap-1 justify-end">
-              <button onclick="updateBuyerStatus('${username}', '${nextStatus}')" class="${btnClass} font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">${btnText}</button>
-              <button onclick="deleteBuyerRecord('${username}')" class="bg-red-600 hover:bg-red-500 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">Hapus</button>
+            <div class="flex flex-wrap gap-1 justify-end">
+              <button type="button" onclick="resetCollateralBalanceByAdmin('${username}')" class="bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded-lg text-[10px] transition cursor-pointer">Reset Saldo</button>
+              <button type="button" onclick="updateBuyerStatus('${username}', '${nextStatus}')" class="${btnClass} font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">${btnText}</button>
+              <button type="button" onclick="deleteBuyerRecord('${username}')" class="bg-red-600 hover:bg-red-500 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition cursor-pointer">Hapus</button>
             </div>
           `;
         } else {
@@ -289,7 +365,7 @@
         let withdrawalAction = '<span class="text-gray-500">-</span>';
         if (hasWithdrawalReq) {
           if (isAdminOrDev) {
-            withdrawalAction = `<button onclick="processWithdrawalRefund('${username}')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1 rounded-lg text-[9px] transition cursor-pointer">Kirim Refund</button>`;
+            withdrawalAction = `<button type="button" onclick="processWithdrawalRefund('${username}')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-1 rounded-lg text-[9px] transition cursor-pointer">Kirim Refund</button>`;
           } else {
             withdrawalAction = `<span class="text-amber-400 font-bold text-[9px]">Menunggu Refund</span>`;
           }
@@ -300,9 +376,26 @@
             <td class="p-2.5 text-center w-8 bg-gray-950 sticky left-0 z-20 border-r border-gray-800"><input type="checkbox" class="buyer-checkbox accent-yellow-500 cursor-pointer" value="${username}"></td>
             <td class="p-2.5 font-mono text-yellow-400 bg-gray-950 sticky left-8 z-20 border-r border-gray-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">
               <div>@${username}</div>
-              <div class="text-[9px] text-emerald-400 font-sans">Pembeli: ${buyerBal} Pi</div>
-              <div class="text-[9px] text-amber-300 font-sans">Penjual: ${sellerBal} Pi</div>
+              <div class="text-[9px] text-emerald-400 font-sans">Saldo jaminan sebagai pembeli: ${buyerBal} pi</div>
+              <div class="text-[9px] text-amber-300 font-sans">Saldo jaminan sebagai Penjual: ${sellerBal} pi</div>
             </td>
+            <td class="p-2.5 text-center font-mono text-emerald-400 font-bold">${depositBal} pi</td>
+            <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">${roleLabel}</span></td>
+            <td class="p-2.5">${statusBadge}</td>
+            <td class="p-2.5 text-right">${actionButtons}</td>
+            <td class="p-2.5 text-center">${withdrawalAction}</td>
+            <td class="p-2.5">
+              <div class="flex items-center gap-1.5 min-w-[155px]">
+                <input type="text" readonly value="${walletAddress.replace(/"/g, '&quot;')}" aria-label="Wallet Pengguna" class="bg-gray-950 border border-gray-800 rounded px-2 py-1 text-[10px] font-mono text-gray-200 w-28 select-all focus:outline-none cursor-default">
+                <button type="button" onclick="copyBuyerWallet('${walletAddress.replace(/'/g, "\\'")}', this)" class="bg-gray-800 hover:bg-gray-700 text-yellow-400 px-2 py-1 rounded text-[9px] font-bold border border-gray-700 cursor-pointer">📋 Copy</button>
+              </div>
+            </td>
+          </tr>
+        `);
+      });
+
+      tbody.innerHTML = htmlChunks.join('');
+    }
             <td class="p-2.5 text-center font-mono text-emerald-400 font-bold">${depositBal} Pi</td>
             <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">${roleLabel}</span></td>
             <td class="p-2.5">${statusBadge}</td>
