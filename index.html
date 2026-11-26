@@ -1234,14 +1234,180 @@ const _AGI_CollateralGuardianCore = (() => {
       `).join('');
     }
 
-    async function processManualLoginSubmit() {
-      const rawUser = (document.getElementById('manualLoginUsername')?.value || '').trim().replace(/^@/, '');
-      const rawPass = (document.getElementById('manualLoginPassword')?.value || '').trim();
+    const _LoginSessionSyncGuardian = {
+      channelName: 'pibox_auth_session_sync_v1',
+      channel: null,
 
-      if (!rawUser || !rawPass) {
-        alert("Please enter both Username and Security Password.");
+      init: function() {
+        try {
+          if (typeof BroadcastChannel !== 'undefined' && !this.channel) {
+            this.channel = new BroadcastChannel(this.channelName);
+            this.channel.onmessage = (event) => {
+              const payload = event && event.data;
+              if (!payload || !payload.username) return;
+              if (payload.type === 'session_login') {
+                this.applyRemoteSession(payload.username);
+              } else if (payload.type === 'session_logout') {
+                this.applyRemoteLogout();
+              }
+            };
+          }
+        } catch (_) {}
+      },
+
+      encodeCredentialToken: function(secret) {
+        try {
+          const bytes = new TextEncoder().encode(String(secret || ''));
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          return 'v1.' + btoa(binary);
+        } catch (_) {
+          return String(secret || '');
+        }
+      },
+
+      verifyCredentialToken: function(savedToken, rawPassword) {
+        const cleanPass = String(rawPassword || '');
+        const cleanToken = String(savedToken || '');
+        if (!cleanToken) return false;
+        if (cleanToken.startsWith('v1.')) {
+          return cleanToken === this.encodeCredentialToken(cleanPass);
+        }
+        return cleanToken === cleanPass;
+      },
+
+      normalizeUsername: function(rawUsername) {
+        return (rawUsername || '').toString().trim().replace(/^@/, '');
+      },
+
+      broadcastSessionLogin: function(username) {
+        try {
+          if (this.channel) {
+            this.channel.postMessage({
+              type: 'session_login',
+              username: this.normalizeUsername(username),
+              timestamp: Date.now()
+            });
+          }
+        } catch (_) {}
+      },
+
+      applyRemoteSession: function(username) {
+        const cleanUser = this.normalizeUsername(username);
+        if (!cleanUser) return;
+        const currentUser = this.normalizeUsername(
+          (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) ||
+          (window.authenticatedPiUser && window.authenticatedPiUser.username) ||
+          ''
+        );
+        if (currentUser.toLowerCase() === cleanUser.toLowerCase()) return;
+        try {
+          _LoginAndAdminControlCore.applyAuthHeaderState(cleanUser);
+          if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(cleanUser);
+          if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
+          if (typeof fetchBuyersList === 'function') fetchBuyersList();
+        } catch (_) {}
+      },
+
+      applyRemoteLogout: function() {
+        try {
+          authenticatedPiUser = null;
+          window.authenticatedPiUser = null;
+          const statusEl = document.getElementById('userStatusDisplay');
+          const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+          if (statusEl && typeof t === 'function') statusEl.innerText = t('guestUser');
+          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">${typeof t === 'function' ? t('loginBtn') : 'Login'}</span>`;
+        } catch (_) {}
+      }
+    };
+
+    _LoginSessionSyncGuardian.init();
+
+    function renderSavedAccountsList() {
+      const container = document.getElementById('savedAccountsContainer');
+      const listEl = document.getElementById('savedAccountsList');
+      if (!container || !listEl) return;
+
+      let savedAccounts = [];
+      try {
+        savedAccounts = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+        if (!Array.isArray(savedAccounts)) savedAccounts = [];
+      } catch (_) {
+        savedAccounts = [];
+      }
+
+      if (savedAccounts.length === 0) {
+        container.classList.add('hidden');
+        listEl.innerHTML = '';
         return;
       }
+
+      container.classList.remove('hidden');
+      listEl.innerHTML = '';
+
+      savedAccounts.forEach((acc) => {
+        const cleanAccUser = _LoginSessionSyncGuardian.normalizeUsername(acc && acc.username);
+        if (!cleanAccUser) return;
+
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between bg-gray-900 hover:bg-gray-800 border border-emerald-500/30 rounded-xl p-2.5 transition';
+
+        const loginBtn = document.createElement('button');
+        loginBtn.type = 'button';
+        loginBtn.className = 'flex-1 flex items-center gap-2 text-left cursor-pointer min-w-0';
+        loginBtn.addEventListener('click', () => {
+          quickLoginWithSavedAccount(cleanAccUser, acc.token || '');
+        });
+
+        const dot = document.createElement('span');
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0';
+
+        const textWrap = document.createElement('div');
+        textWrap.className = 'min-w-0';
+
+        const userTitle = document.createElement('p');
+        userTitle.className = 'text-xs font-bold text-white truncate';
+        userTitle.textContent = `@${cleanAccUser}`;
+
+        const subLabel = document.createElement('p');
+        subLabel.className = 'text-[9px] text-emerald-400';
+        subLabel.textContent = 'Terverifikasi • Klik untuk masuk';
+
+        textWrap.appendChild(userTitle);
+        textWrap.appendChild(subLabel);
+        loginBtn.appendChild(dot);
+        loginBtn.appendChild(textWrap);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.title = 'Hapus dari perangkat ini';
+        removeBtn.className = 'text-gray-500 hover:text-red-400 text-xs px-2 py-1 cursor-pointer flex-shrink-0';
+        removeBtn.textContent = '✕';
+        removeBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          removeSavedAccount(cleanAccUser);
+        });
+
+        row.appendChild(loginBtn);
+        row.appendChild(removeBtn);
+        listEl.appendChild(row);
+      });
+    }
+
+    async function processManualLoginSubmit() {
+      const userInput = document.getElementById('manualLoginUsername');
+      const passInput = document.getElementById('manualLoginPassword');
+      const rawUser = _LoginSessionSyncGuardian.normalizeUsername(userInput ? userInput.value : '');
+      const rawPass = (passInput ? passInput.value : '').trim();
+
+      if (!rawUser || !rawPass) {
+        alert('Please enter both Username and Security Password.');
+        return;
+      }
+
+      const encodedCredential = _LoginSessionSyncGuardian.encodeCredentialToken(rawPass);
 
       if (typeof supabaseClient !== 'undefined' && supabaseClient) {
         try {
@@ -1254,79 +1420,132 @@ const _AGI_CollateralGuardianCore = (() => {
           if (error) throw error;
 
           if (!secRecord) {
-            const { data: existingPass } = await supabaseClient
+            const { data: existingByEncoded } = await supabaseClient
               .from('pioneers_security')
-              .select('*')
-              .eq('password_hash', rawPass)
+              .select('username')
+              .eq('password_hash', encodedCredential)
               .maybeSingle();
 
-            if (existingPass && existingPass.username !== rawUser) {
-              alert(`Password is already used by @${existingPass.username}. Please use another password.`);
+            const { data: existingByRaw } = existingByEncoded
+              ? { data: existingByEncoded }
+              : await supabaseClient
+                  .from('pioneers_security')
+                  .select('username')
+                  .eq('password_hash', rawPass)
+                  .maybeSingle();
+
+            const conflictOwner = existingByEncoded?.username || existingByRaw?.username;
+            if (conflictOwner && conflictOwner.toLowerCase() !== rawUser.toLowerCase()) {
+              alert(`Password is already used by @${conflictOwner}. Please use another password.`);
               return;
             }
 
             const { error: insertErr } = await supabaseClient
               .from('pioneers_security')
-              .insert([{ username: rawUser, password_hash: rawPass }]);
+              .insert([{ username: rawUser, password_hash: encodedCredential }]);
 
             if (insertErr) throw insertErr;
-          } else if (secRecord.password_hash !== rawPass) {
-            alert(`Invalid password for @${rawUser}. Access denied.`);
-            return;
+          } else {
+            const storedHash = String(secRecord.password_hash || '');
+            const isValid = storedHash === encodedCredential || storedHash === rawPass;
+            if (!isValid) {
+              alert(`Invalid password for @${rawUser}. Access denied.`);
+              return;
+            }
+            if (storedHash === rawPass) {
+              await supabaseClient
+                .from('pioneers_security')
+                .update({ password_hash: encodedCredential })
+                .eq('username', rawUser)
+                .catch(() => {});
+            }
           }
         } catch (err) {
-          alert("Server verification failed: " + err.message);
+          alert('Server verification failed: ' + err.message);
           return;
         }
       }
 
-      saveAccountToDevice(rawUser, rawPass);
+      if (passInput) passInput.value = '';
+      saveAccountToDevice(rawUser, encodedCredential);
       finalizeLoginSession(rawUser);
       closeSemiAutoLoginModal();
     }
 
     async function quickLoginWithSavedAccount(username, savedToken) {
-      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-        const { data: secRecord } = await supabaseClient
-          .from('pioneers_security')
-          .select('password_hash')
-          .eq('username', username)
-          .maybeSingle();
+      const cleanUser = _LoginSessionSyncGuardian.normalizeUsername(username);
+      if (!cleanUser) return;
 
-        if (secRecord && secRecord.password_hash !== savedToken) {
-          alert("⚠️ Sesi kadaluarsa atau password telah diubah. Silakan masukkan password kembali.");
-          removeSavedAccount(username);
-          return;
-        }
+      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        try {
+          const { data: secRecord, error } = await supabaseClient
+            .from('pioneers_security')
+            .select('password_hash')
+            .eq('username', cleanUser)
+            .maybeSingle();
+
+          if (error) throw error;
+
+          if (secRecord && secRecord.password_hash) {
+            const dbHash = String(secRecord.password_hash);
+            const matchesToken = String(savedToken || '') === dbHash;
+            if (!matchesToken) {
+              alert('⚠️ Sesi kadaluarsa atau password telah diubah. Silakan masukkan password kembali.');
+              removeSavedAccount(cleanUser);
+              return;
+            }
+          }
+        } catch (_) {}
       }
 
-      finalizeLoginSession(username);
+      finalizeLoginSession(cleanUser);
       closeSemiAutoLoginModal();
     }
 
     function saveAccountToDevice(username, token) {
-      let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-      saved = saved.filter(item => item.username !== username);
-      saved.unshift({ username, token });
-      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
+      const cleanUser = _LoginSessionSyncGuardian.normalizeUsername(username);
+      if (!cleanUser) return;
+      let saved = [];
+      try {
+        saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+        if (!Array.isArray(saved)) saved = [];
+      } catch (_) {
+        saved = [];
+      }
+      saved = saved.filter((item) => _LoginSessionSyncGuardian.normalizeUsername(item && item.username).toLowerCase() !== cleanUser.toLowerCase());
+      saved.unshift({ username: cleanUser, token: String(token || '') });
+      try {
+        localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
+      } catch (_) {}
     }
 
     function removeSavedAccount(username) {
-      let saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
-      saved = saved.filter(item => item.username !== username);
-      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
+      const cleanUser = _LoginSessionSyncGuardian.normalizeUsername(username);
+      if (!cleanUser) return;
+      let saved = [];
+      try {
+        saved = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+        if (!Array.isArray(saved)) saved = [];
+      } catch (_) {
+        saved = [];
+      }
+      saved = saved.filter((item) => _LoginSessionSyncGuardian.normalizeUsername(item && item.username).toLowerCase() !== cleanUser.toLowerCase());
+      try {
+        localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(saved));
+      } catch (_) {}
       renderSavedAccountsList();
     }
 
     function finalizeLoginSession(username) {
-      const rawName = (username || "").toString().trim().replace(/^@/, "");
+      const rawName = _LoginSessionSyncGuardian.normalizeUsername(username);
       const cleanUser = SystemGuardianCore.enforceRealIdentity(rawName);
       _LoginAndAdminControlCore.applyAuthHeaderState(cleanUser);
+      _LoginSessionSyncGuardian.broadcastSessionLogin(cleanUser);
 
-      if (typeof checkBuyerStatusInDatabase === "function") checkBuyerStatusInDatabase(cleanUser);
-      if (typeof fetchAndListenAuctionSchedule === "function") fetchAndListenAuctionSchedule();
-      if (typeof fetchActiveAuctions === "function") fetchActiveAuctions();
-      if (typeof fetchBuyersList === "function") fetchBuyersList();
+      if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(cleanUser);
+      if (typeof fetchAndListenAuctionSchedule === 'function') fetchAndListenAuctionSchedule();
+      if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
+      if (typeof fetchBuyersList === 'function') fetchBuyersList();
     }
 
     const CertificateSystemGuardian = {
