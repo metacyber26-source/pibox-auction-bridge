@@ -3029,6 +3029,16 @@
       URL.revokeObjectURL(url);
     }
 
+    function openBuyersTablePage() {
+      if (!authenticatedPiUser || !authenticatedPiUser.username) {
+        alert(t('loginFirstAlert'));
+        authenticatePiUser();
+        return;
+      }
+      const cleanUser = encodeURIComponent(authenticatedPiUser.username.trim().replace(/^@/, ''));
+      window.location.href = `buyers-table.html?user=${cleanUser}`;
+    }
+
     async function handleBuyerRegistrationAction() {
       if (!authenticatedPiUser) {
         alert(t('loginFirstAlert'));
@@ -3037,9 +3047,10 @@
       }
       const isAdminOrDev = ADMIN_USERNAMES.includes(authenticatedPiUser.username);
       if (isAdminOrDev) {
-        openBuyersTableModal();
+        openBuyersTablePage();
         return;
       }
+
       if (!supabaseClient) return;
       try {
         const { data: existingBuyer } = await supabaseClient
