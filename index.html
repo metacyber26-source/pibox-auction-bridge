@@ -1990,20 +1990,43 @@
         };
       },
 
+      resolveActiveUsername: function() {
+        if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
+          return authenticatedPiUser.username.trim().replace(/^@/, '');
+        }
+        if (window.authenticatedPiUser && window.authenticatedPiUser.username) {
+          return window.authenticatedPiUser.username.trim().replace(/^@/, '');
+        }
+        try {
+          const badgeEl = document.getElementById('activeUserBadge') || document.getElementById('userBadge') || document.querySelector('[data-user-badge]');
+          if (badgeEl && badgeEl.textContent) {
+            const match = badgeEl.textContent.match(/@([A-Za-z0-9_.-]+)/);
+            if (match && match[1]) return match[1].trim();
+          }
+          const savedAccounts = JSON.parse(localStorage.getItem('pibox_saved_verified_accounts') || '[]');
+          if (Array.isArray(savedAccounts) && savedAccounts.length > 0 && savedAccounts[0].username) {
+            return savedAccounts[0].username.toString().trim().replace(/^@/, '');
+          }
+        } catch (_) {}
+        return '';
+      },
+
       syncHomeButtonsUI: function() {
         const sellerBtn = document.getElementById('homeDuplicateSellerCollateralBtn');
         const buyerBtn = document.getElementById('homeDuplicateBuyerCollateralBtn');
-        const currentUser = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username)
-          ? authenticatedPiUser.username.trim().replace(/^@/, '')
-          : '';
+        const currentUser = this.resolveActiveUsername();
 
         if (!currentUser) {
           if (sellerBtn) {
             sellerBtn.disabled = false;
+            sellerBtn.removeAttribute('disabled');
+            sellerBtn.style.pointerEvents = 'auto';
             sellerBtn.innerHTML = 'Penjual (35 Pi)';
           }
           if (buyerBtn) {
             buyerBtn.disabled = false;
+            buyerBtn.removeAttribute('disabled');
+            buyerBtn.style.pointerEvents = 'auto';
             buyerBtn.innerHTML = 'Pembeli (35 Pi)';
           }
           return;
