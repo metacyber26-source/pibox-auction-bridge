@@ -1913,78 +1913,253 @@
       if (sellerEl) sellerEl.innerText = `Saldo jaminan sebagai penjual: ${sVal} pi`;
     }
 
-    const BuyerDepositSyncCore = {
-      depositAmount: 35,
-      syncActiveBuyerRecord: async function(username, depositAmount = 35) {
-        const cleanUser = (username || '').trim().replace(/^@/, '');
-        if (!cleanUser) throw new Error("Invalid buyer username.");
+    const HomeCollateralBridge = {
+      collateralAmount: 35,
+      ledgerKey: 'pibox_collateral_ledger_v2',
+      legacyLedgerKey: 'pibox_agi_collateral_ledger_v2',
+      fallbackKey: 'pibox_collateral_ledger_v1',
+      cacheKey: 'pibox_collateral_cache_v1',
+      activeLocks: new Set(),
 
-        const numericDeposit = parseFloat(depositAmount) || this.depositAmount;
-        const payload = {
-          username: cleanUser,
-          role: VerificationStandardCore.ROLE_BUYER,
-          buyer_deposit_balance: numericDeposit,
-          deposit_balance: numericDeposit,
-          status: VerificationStandardCore.APPROVED,
-          manual_approved: true,
-          has_requested_withdrawal: false
+      toExact: function(val) {
+        const num = Number(val);
+        return Number.isFinite(num) ? Math.round((num + Number.EPSILON) * 1e6) / 1e6 : 0;
+      },
+
+      addExact: function(a, b) {
+        return (Math.round((this.toExact(a) + Number.EPSILON) * 1e6) + Math.round((this.toExact(b) + Number.EPSILON) * 1e6)) / 1e6;
+      },
+
+      readMap: function(storageKey) {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) {
+          return {};
+        }
+      },
+
+      writeLedgerRecord: function(username, record) {
+        const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+        if (!cleanUser) return;
+        const k = cleanUser.toLowerCase();
+        [this.ledgerKey, this.legacyLedgerKey, this.fallbackKey, this.cacheKey].forEach((key) => {
+          try {
+            const map = this.readMap(key);
+            map[k] = { ...(map[k] || {}), ...record, username: cleanUser };
+            localStorage.setItem(key, JSON.stringify(map));
+          } catch (_) {}
+        });
+      },
+
+      getUserCollateralState: function(username) {
+        const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+        const k = cleanUser.toLowerCase();
+        const v2 = this.readMap(this.ledgerKey)[k] || this.readMap(this.legacyLedgerKey)[k] || {};
+        const v1 = this.readMap(this.fallbackKey)[k] || {};
+        const cc = this.readMap(this.cacheKey)[k] || {};
+        const listRec = (typeof buyersList !== 'undefined' && Array.isArray(buyersList))
+          ? (buyersList.find(b => (b.username || '').toString().trim().replace(/^@/, '').toLowerCase() === k) || {})
+          : {};
+
+        const sellerBal = Math.min(
+          this.collateralAmount,
+          Math.max(
+            this.toExact(listRec.seller_deposit_balance ?? 0),
+            this.toExact(v2.seller_deposit_balance ?? 0),
+            this.toExact(v1.seller_deposit_balance ?? 0),
+            this.toExact(cc.seller_deposit_balance ?? 0)
+          )
+        );
+
+        const buyerBal = Math.min(
+          this.collateralAmount,
+          Math.max(
+            this.toExact(listRec.buyer_deposit_balance ?? 0),
+            this.toExact(v2.buyer_deposit_balance ?? 0),
+            this.toExact(v1.buyer_deposit_balance ?? 0),
+            this.toExact(cc.buyer_deposit_balance ?? 0)
+          )
+        );
+
+        return {
+          sellerPaid: sellerBal >= this.collateralAmount,
+          buyerPaid: buyerBal >= this.collateralAmount,
+          sellerBalance: sellerBal,
+          buyerBalance: buyerBal
         };
+      },
+
+      syncHomeButtonsUI: function() {
+        const sellerBtn = document.getElementById('homeDuplicateSellerCollateralBtn');
+        const buyerBtn = document.getElementById('homeDuplicateBuyerCollateralBtn');
+        const currentUser = (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username)
+          ? authenticatedPiUser.username.trim().replace(/^@/, '')
+          : '';
+
+        if (!currentUser) {
+          if (sellerBtn) {
+            sellerBtn.disabled = false;
+            sellerBtn.innerHTML = 'Penjual (35 Pi)';
+          }
+          if (buyerBtn) {
+            buyerBtn.disabled = false;
+            buyerBtn.innerHTML = 'Pembeli (35 Pi)';
+          }
+          return;
+        }
+
+        const state = this.getUserCollateralState(currentUser);
+        if (sellerBtn) {
+          if (state.sellerPaid) {
+            sellerBtn.disabled = true;
+            sellerBtn.innerHTML = `Lunas (${state.sellerBalance} Pi)`;
+          } else {
+            sellerBtn.disabled = false;
+            sellerBtn.innerHTML = 'Penjual (35 Pi)';
+          }
+        }
+        if (buyerBtn) {
+          if (state.buyerPaid) {
+            buyerBtn.disabled = true;
+            buyerBtn.innerHTML = `Lunas (${state.buyerBalance} Pi)`;
+          } else {
+            buyerBtn.disabled = false;
+            buyerBtn.innerHTML = 'Pembeli (35 Pi)';
+          }
+        }
+      },
+
+      broadcastCollateralSync: function(record) {
+        const payload = {
+          type: 'collateral_role_payment_sync',
+          record: record,
+          ts: Date.now()
+        };
+        try {
+          if (typeof BroadcastChannel !== 'undefined') {
+            ['pibox_collateral_claim_channel', 'pibox_collateral_unified_sync_v1', 'pibox_global_state_sync_v1', 'pibox_live_auction_bus'].forEach((chName) => {
+              const bc = new BroadcastChannel(chName);
+              bc.postMessage(payload);
+              bc.close();
+            });
+          }
+        } catch (_) {}
 
         if (supabaseClient) {
-          let { data: existing } = await supabaseClient
+          try {
+            supabaseClient.channel('public-cluster-auctions').send({
+              type: 'broadcast',
+              event: 'collateral_unified_sync',
+              payload: payload
+            });
+          } catch (_) {}
+        }
+      },
+
+      persistSingleCollateralPayment: async function(username, roleType, paymentRef = '') {
+        const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+        const cleanRole = (roleType || '').toString().trim().toLowerCase();
+        if (!cleanUser || (cleanRole !== 'seller' && cleanRole !== 'buyer')) {
+          throw new Error("Invalid collateral role type.");
+        }
+
+        const nowIso = new Date().toISOString();
+        const currentState = this.getUserCollateralState(cleanUser);
+        const existingRow = (typeof buyersList !== 'undefined' && Array.isArray(buyersList))
+          ? (buyersList.find(b => (b.username || '').toString().trim().replace(/^@/, '').toLowerCase() === cleanUser.toLowerCase()) || {})
+          : {};
+
+        const nextSeller = cleanRole === 'seller'
+          ? this.collateralAmount
+          : Math.min(this.collateralAmount, currentState.sellerBalance);
+        const nextBuyer = cleanRole === 'buyer'
+          ? this.collateralAmount
+          : Math.min(this.collateralAmount, currentState.buyerBalance);
+        const nextTotal = this.addExact(nextSeller, nextBuyer);
+
+        const roleLabel = (nextSeller >= this.collateralAmount && nextBuyer >= this.collateralAmount)
+          ? 'Penjual & Pembeli'
+          : (nextSeller >= this.collateralAmount ? 'Penjual' : 'Pembeli');
+
+        const updatedRecord = {
+          ...existingRow,
+          username: cleanUser,
+          role: roleLabel,
+          seller_deposit_balance: nextSeller,
+          buyer_deposit_balance: nextBuyer,
+          deposit_balance: nextTotal,
+          status: VerificationStandardCore.APPROVED,
+          manual_approved: true,
+          has_requested_withdrawal: false,
+          isReset: false,
+          isRefunded: false,
+          updated_at: nowIso,
+          ts: Date.now()
+        };
+
+        this.writeLedgerRecord(cleanUser, updatedRecord);
+
+        if (typeof buyersList !== 'undefined' && Array.isArray(buyersList)) {
+          const idx = buyersList.findIndex(b => (b.username || '').toString().trim().replace(/^@/, '').toLowerCase() === cleanUser.toLowerCase());
+          if (idx !== -1) buyersList[idx] = { ...buyersList[idx], ...updatedRecord };
+          else buyersList.push(updatedRecord);
+        }
+
+        if (supabaseClient) {
+          const { data: dbRow } = await supabaseClient
             .from('buyers')
             .select('*')
             .eq('username', cleanUser)
             .maybeSingle();
 
-          if (existing) {
-            const updatedBalance = Math.max(parseFloat(existing.deposit_balance || 0), numericDeposit);
-            const updatedBuyerBalance = Math.max(VerificationStandardCore.getBuyerDepositAmount(existing), numericDeposit);
-            const combinedRole = VerificationStandardCore.combineRoles(existing.role || existing.keterangan || '', VerificationStandardCore.ROLE_BUYER);
+          const dbPayload = {
+            username: cleanUser,
+            role: roleLabel,
+            seller_deposit_balance: nextSeller,
+            buyer_deposit_balance: nextBuyer,
+            deposit_balance: nextTotal,
+            status: VerificationStandardCore.APPROVED,
+            manual_approved: true,
+            has_requested_withdrawal: false,
+            updated_at: nowIso
+          };
 
-            let { error: updErr } = await supabaseClient
+          if (dbRow) {
+            const { error: updErr } = await supabaseClient
               .from('buyers')
-              .update({
-                role: combinedRole,
-                buyer_deposit_balance: updatedBuyerBalance,
-                deposit_balance: updatedBalance,
-                status: VerificationStandardCore.APPROVED,
-                manual_approved: true,
-                has_requested_withdrawal: false
-              })
+              .update(dbPayload)
               .eq('username', cleanUser);
 
-            if (updErr && /buyer_deposit_balance|manual_approved|column/i.test(updErr.message || '')) {
-              const fallbackUpd = await supabaseClient
+            if (updErr && /seller_deposit_balance|buyer_deposit_balance|role|manual_approved|updated_at|column/i.test(updErr.message || '')) {
+              const fbUpd = await supabaseClient
                 .from('buyers')
                 .update({
-                  role: combinedRole,
-                  deposit_balance: updatedBalance,
+                  deposit_balance: nextTotal,
                   status: VerificationStandardCore.APPROVED,
                   has_requested_withdrawal: false
                 })
                 .eq('username', cleanUser);
-              if (fallbackUpd.error) throw fallbackUpd.error;
+              if (fbUpd.error) throw fbUpd.error;
             } else if (updErr) {
               throw updErr;
             }
           } else {
-            let { error: insErr } = await supabaseClient
+            const { error: insErr } = await supabaseClient
               .from('buyers')
-              .insert([payload]);
+              .insert([dbPayload]);
 
-            if (insErr && /buyer_deposit_balance|manual_approved|column/i.test(insErr.message || '')) {
-              const fallbackIns = await supabaseClient
+            if (insErr && /seller_deposit_balance|buyer_deposit_balance|role|manual_approved|updated_at|column/i.test(insErr.message || '')) {
+              const fbIns = await supabaseClient
                 .from('buyers')
                 .insert([{
                   username: cleanUser,
-                  role: VerificationStandardCore.ROLE_BUYER,
-                  deposit_balance: numericDeposit,
+                  deposit_balance: nextTotal,
                   status: VerificationStandardCore.APPROVED,
                   win_count: 0,
                   has_requested_withdrawal: false
                 }]);
-              if (fallbackIns.error) throw fallbackIns.error;
+              if (fbIns.error) throw fbIns.error;
             } else if (insErr) {
               throw insErr;
             }
@@ -1993,40 +2168,16 @@
           try {
             await supabaseClient.from('auction_deposits_log').insert([{
               username: cleanUser,
-              amount: numericDeposit,
-              type: 'buyer_deposit_35_pi',
-              memo: `PIBOX-BUYER-DEPOSIT: 35 Pi guarantee payment by @${cleanUser}`
+              amount: this.collateralAmount,
+              type: `${cleanRole}_collateral_35_pi`,
+              memo: `PIBOX-${cleanRole.toUpperCase()}-COLLATERAL: ${this.collateralAmount} Pi by @${cleanUser}${paymentRef ? ` (${paymentRef})` : ''}`
             }]);
           } catch (_) {}
         }
 
-        const localIdx = buyersList.findIndex(b => (b.username || '').toLowerCase() === cleanUser.toLowerCase());
-        const localRecord = localIdx !== -1
-          ? {
-              ...buyersList[localIdx],
-              username: cleanUser,
-              role: VerificationStandardCore.combineRoles(buyersList[localIdx].role || '', VerificationStandardCore.ROLE_BUYER),
-              buyer_deposit_balance: Math.max(VerificationStandardCore.getBuyerDepositAmount(buyersList[localIdx]), numericDeposit),
-              deposit_balance: Math.max(parseFloat(buyersList[localIdx].deposit_balance || 0), numericDeposit),
-              status: VerificationStandardCore.APPROVED,
-              manual_approved: true,
-              has_requested_withdrawal: false
-            }
-          : {
-              username: cleanUser,
-              role: VerificationStandardCore.ROLE_BUYER,
-              buyer_deposit_balance: numericDeposit,
-              deposit_balance: numericDeposit,
-              status: VerificationStandardCore.APPROVED,
-              manual_approved: true,
-              win_count: 0,
-              has_requested_withdrawal: false
-            };
-
-        if (localIdx !== -1) buyersList[localIdx] = localRecord;
-        else buyersList.push(localRecord);
-
-        await fetchBuyersList();
+        if (typeof updateDetailedDepositDisplay === 'function') {
+          updateDetailedDepositDisplay(nextBuyer, nextSeller);
+        }
         if (typeof checkBuyerStatusInDatabase === 'function') {
           await checkBuyerStatusInDatabase(cleanUser);
         }
@@ -2037,268 +2188,134 @@
           renderGallery();
         }
 
-        this.broadcastBuyerUpdate(cleanUser, localRecord);
-        return localRecord;
+        this.syncHomeButtonsUI();
+        this.broadcastCollateralSync(updatedRecord);
+        return updatedRecord;
       },
-      broadcastBuyerUpdate: function(username, buyerRecord) {
-        const dispatchedAt = Date.now();
-        try {
-          if (typeof BroadcastChannel !== 'undefined') {
-            const bus = new BroadcastChannel('pibox_live_auction_bus');
-            bus.postMessage({
-              type: 'buyer_status_update',
-              username,
-              buyerRecord,
-              dispatchedAt
-            });
-            bus.close();
-          }
-        } catch (_) {}
 
-        if (supabaseClient) {
-          try {
-            supabaseClient.channel('public-cluster-auctions').send({
-              type: 'broadcast',
-              event: 'buyer_status_update',
-              payload: {
-                username,
-                buyerRecord,
-                timestamp: dispatchedAt
-              }
-            });
-          } catch (_) {}
-        }
-      }
-    };
+      executePayment: async function(roleType) {
+        const cleanRole = (roleType || '').toString().trim().toLowerCase();
+        if (cleanRole !== 'seller' && cleanRole !== 'buyer') return;
 
-    async function registerBuyerWithDeposit() {
-      if (!authenticatedPiUser || !authenticatedPiUser.username) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      const username = authenticatedPiUser.username.trim();
-      const isAdminUser = _SystemRoleDepositGuardian.isEffectiveAdmin(username);
-
-      if (!isAdminUser) {
-        alert("Access denied: Buyer registration button is restricted to admin accounts.");
-        return;
-      }
-
-      const depositAmount = BuyerDepositSyncCore.depositAmount;
-      const memoText = `PIBOX-BUYER-DEPOSIT: 35 Pi Guarantee - @${username}`;
-      const paymentData = {
-        amount: depositAmount,
-        memo: memoText,
-        metadata: {
-          type: 'buyer_guarantee_deposit',
-          username: username,
-          amount: depositAmount,
-          status: 'approved'
-        }
-      };
-
-      const completeBuyerActivation = async () => {
-        try {
-          await BuyerDepositSyncCore.syncActiveBuyerRecord(username, depositAmount);
-          alert(`Payment successful. @${username} is recorded in the buyers table with status: Aktif (35 Pi).`);
-        } catch (syncErr) {
-          alert("Failed to record buyer status: " + syncErr.message);
-        }
-      };
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paymentId: pid })
-              }).catch(() => {});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paymentId: pid, txid })
-              }).catch(() => {});
-              await completeBuyerActivation();
-            },
-            onCancel: () => {
-              alert("35 Pi guarantee payment was cancelled.");
-            },
-            onError: () => {
-              completeBuyerActivation();
-            }
-          });
-        } else {
-          await completeBuyerActivation();
-        }
-      } catch (err) {
-        alert("Failed to initiate Pi SDK payment: " + err.message);
-      }
-    }
-
-    async function payAuctionDepositForRole(targetRole) {
-      const normRole = VerificationStandardCore.normalizeRole(targetRole);
-      if (normRole === VerificationStandardCore.ROLE_BUYER) {
-        await registerBuyerWithDeposit();
-        return;
-      }
-
-      if (!authenticatedPiUser) {
-        alert(t('loginFirstAlert'));
-        authenticatePiUser();
-        return;
-      }
-
-      const username = authenticatedPiUser.username;
-      if (!supabaseClient) return;
-
-      const normalizedSelectedRole = normRole || VerificationStandardCore.ROLE_SELLER;
-      const selectedRoleLabel = VerificationStandardCore.roleToDisplayLabel(normalizedSelectedRole);
-
-      try {
-        let { data: buyer } = await supabaseClient
-          .from('buyers')
-          .select('*')
-          .eq('username', username)
-          .maybeSingle();
-
-        const currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
-        const existingRole = buyer ? VerificationStandardCore.normalizeRole(buyer.role || buyer.keterangan || '') : '';
-        const existingWallet = buyer ? (buyer.wallet_address || buyer.wallet || '') : '';
-        const combinedRoleNorm = VerificationStandardCore.combineRoles(existingRole, normalizedSelectedRole);
-        const combinedRoleLabel = VerificationStandardCore.roleToDisplayLabel(combinedRoleNorm);
-
-        const evaluatedStatus = VerificationStandardCore.evaluateStatus({
-          ...(buyer || {}),
-          role: combinedRoleNorm,
-          deposit_balance: currentBalance
-        });
-
-        if (!buyer) {
-          await supabaseClient.from('buyers').insert([{
-            username: username,
-            role: combinedRoleNorm,
-            deposit_balance: currentBalance,
-            status: evaluatedStatus,
-            win_count: 0,
-            has_requested_withdrawal: false
-          }]);
-        } else {
-          await supabaseClient.from('buyers').update({
-            role: combinedRoleNorm,
-            status: evaluatedStatus
-          }).eq('username', username);
-        }
-
-        await fetchBuyersList();
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
-
-        if (!existingWallet) {
-          const walletInput = await promptRefundWalletInput('');
-          if (!walletInput) return;
-
-          await supabaseClient.from('buyers').update({
-            wallet_address: walletInput
-          }).eq('username', username);
-
-          await fetchBuyersList();
-          if (typeof renderBuyersTable === 'function') renderBuyersTable();
-        }
-
-        const updatedBuyer = buyersList.find(b => (b.username || '').toLowerCase() === username.toLowerCase()) || buyer;
-        const roleDeposits = computeRoleDeposits(updatedBuyer);
-        const buyerDepositBal = parseFloat(roleDeposits.buyerBalance || 0);
-        const sellerDepositBal = parseFloat(roleDeposits.sellerBalance || 0);
-
-        const roleTargetDeposit = combinedRoleNorm === VerificationStandardCore.ROLE_BOTH ? Math.max(35, buyerDepositBal + 35) : 35.00;
-        if (sellerDepositBal >= 35 && currentBalance >= roleTargetDeposit) {
-          alert(`✅ Pendaftaran ${selectedRoleLabel} tercatat & saldo jaminan Anda sudah mencukupi (${currentBalance} Pi).`);
-          await checkBuyerStatusInDatabase(username);
+        if (!authenticatedPiUser || !authenticatedPiUser.username) {
+          alert(t('loginFirstAlert'));
+          authenticatePiUser();
           return;
         }
 
-        const deficit = Math.max(0, parseFloat((roleTargetDeposit - currentBalance).toFixed(2)));
-        if (deficit > 0) {
-          executeRelativeDepositPayment(username, deficit, combinedRoleNorm, roleTargetDeposit);
-        } else {
-          await checkBuyerStatusInDatabase(username);
+        const username = authenticatedPiUser.username.trim().replace(/^@/, '');
+        const currentState = this.getUserCollateralState(username);
+        if (cleanRole === 'seller' && currentState.sellerPaid) {
+          alert(`Jaminan Penjual (${this.collateralAmount} Pi) untuk @${username} sudah lunas.`);
+          return;
+        }
+        if (cleanRole === 'buyer' && currentState.buyerPaid) {
+          alert(`Jaminan Pembeli (${this.collateralAmount} Pi) untuk @${username} sudah lunas.`);
+          return;
         }
 
-      } catch (err) {
-        alert("Gagal memproses pendaftaran jaminan: " + err.message);
-      }
-    }
+        const lockKey = `${username.toLowerCase()}|${cleanRole}`;
+        if (this.activeLocks.has(lockKey)) return;
+        this.activeLocks.add(lockKey);
 
-          
-    async function payAuctionDeposit() {
-      await payAuctionDepositForRole(VerificationStandardCore.ROLE_BUYER);
-    }
-
-    async function applyRelativeTopUpToDatabase(username, addedAmount, memo, roleLabel = '', maxCap = 35) {
-      if (!supabaseClient) return;
-      try {
-        let { data: buyer } = await supabaseClient.from('buyers').select('*').eq('username', username).maybeSingle();
-        
-        const roleFinalNorm = VerificationStandardCore.normalizeRole(roleLabel || (buyer && (buyer.role || buyer.keterangan)) || 'buyer') || VerificationStandardCore.ROLE_BUYER;
-        const roleFinalLabel = VerificationStandardCore.roleToDisplayLabel(roleFinalNorm);
-        const capFinal = maxCap || _SystemRoleDepositGuardian.getMaxDepositForRole(roleFinalNorm);
-        const deductionFinal = _SystemRoleDepositGuardian.getRefundDeductionForRole(roleFinalNorm);
-
-        let currentBalance = buyer ? parseFloat(buyer.deposit_balance || 0) : 0;
-        let newBalance = Math.min(capFinal, currentBalance + addedAmount);
-        const nextBuyerDeposit = roleFinalNorm === VerificationStandardCore.ROLE_SELLER
-          ? parseFloat(computeRoleDeposits(buyer).buyerBalance || 0)
-          : Math.min(35, parseFloat(computeRoleDeposits(buyer).buyerBalance || 0) + addedAmount);
-        let newStatus = (nextBuyerDeposit >= 35 || VerificationStandardCore.isManualAdminApproved(buyer))
-          ? VerificationStandardCore.APPROVED
-          : VerificationStandardCore.PENDING;
-
-        if (!buyer) {
-          await supabaseClient.from('buyers').insert([{ 
+        const roleLabel = cleanRole === 'seller' ? 'Penjual' : 'Pembeli';
+        const memoText = `PIBOX-${cleanRole.toUpperCase()}-COLLATERAL: ${this.collateralAmount} Pi ${roleLabel} - @${username}`;
+        const paymentData = {
+          amount: this.collateralAmount,
+          memo: memoText,
+          metadata: {
+            type: `${cleanRole}_collateral_deposit`,
+            role: cleanRole,
             username: username,
-            role: roleFinalNorm,
-            deposit_balance: newBalance, 
-            status: newStatus, 
-            win_count: 0, 
-            has_requested_withdrawal: false 
-          }]);
-        } else {
-          await supabaseClient.from('buyers').update({ 
-            role: roleFinalNorm,
-            deposit_balance: newBalance, 
-            status: newStatus 
-          }).eq('username', username);
+            amount: this.collateralAmount
+          }
+        };
+
+        const completeSuccess = async (refId = '') => {
+          try {
+            await this.persistSingleCollateralPayment(username, cleanRole, refId);
+            alert(`Pembayaran jaminan ${roleLabel} sebesar ${this.collateralAmount} Pi untuk @${username} berhasil dicatat.`);
+          } catch (err) {
+            alert("Gagal mencatat pembayaran jaminan: " + err.message);
+          } finally {
+            this.activeLocks.delete(lockKey);
+          }
+        };
+
+        try {
+          const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+          if (piInstance && typeof piInstance.init === 'function') {
+            try {
+              piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
+            } catch (_) {}
+          }
+          if (piInstance && typeof piInstance.authenticate === 'function') {
+            try {
+              const authRes = await piInstance.authenticate(['username', 'payments'], () => {});
+              if (authRes && authRes.user && authRes.user.username) {
+                authenticatedPiUser = { username: authRes.user.username.trim() };
+                window.authenticatedPiUser = authenticatedPiUser;
+              }
+            } catch (_) {}
+          }
+
+          if (piInstance && typeof piInstance.createPayment === 'function') {
+            piInstance.createPayment(paymentData, {
+              onReadyForServerApproval: async (paymentId) => {
+                await fetch('/api/pi/approve', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ paymentId })
+                }).catch(() => {});
+              },
+              onReadyForServerCompletion: async (paymentId, txid) => {
+                await fetch('/api/pi/complete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ paymentId, txid })
+                }).catch(() => {});
+                await completeSuccess(txid || paymentId || '');
+              },
+              onCancel: () => {
+                this.activeLocks.delete(lockKey);
+                alert(`Pembayaran jaminan ${roleLabel} dibatalkan.`);
+              },
+              onError: (err) => {
+                this.activeLocks.delete(lockKey);
+                alert(`Gagal memproses pembayaran Pi SDK: ${err?.message || 'Terjadi kesalahan.'}`);
+              }
+            });
+          } else {
+            await completeSuccess('PI-SDK-DIRECT');
+          }
+        } catch (err) {
+          this.activeLocks.delete(lockKey);
+          alert("Gagal menginisialisasi pembayaran Pi SDK: " + (err?.message || err));
         }
+      },
 
-        await supabaseClient.from('auction_deposits_log').insert([{ 
-          username: username, 
-          amount: addedAmount, 
-          type: 'deposit_relative', 
-          memo: memo 
-        }]);
-
-        alert(`✅ Top Up Berhasil!\nPeran: ${roleFinalLabel} (Maks Jaminan: ${capFinal} Pi, Potongan Pengembalian: ${deductionFinal} Pi)\nTotal Saldo Jaminan: ${newBalance} Pi\nStatus Akses: ${VerificationStandardCore.toDisplayLabel(newStatus).toUpperCase()}`);
-        await checkBuyerStatusInDatabase(username);
-        if (typeof renderBuyersTable === 'function') renderBuyersTable();
-      } catch (e) {
-        alert("Gagal memperbarui database: " + e.message);
+      initSync: function() {
+        this.syncHomeButtonsUI();
+        setInterval(() => this.syncHomeButtonsUI(), 1200);
+        try {
+          if (typeof BroadcastChannel !== 'undefined') {
+            ['pibox_collateral_claim_channel', 'pibox_collateral_unified_sync_v1', 'pibox_global_state_sync_v1', 'pibox_live_auction_bus'].forEach((chName) => {
+              const bc = new BroadcastChannel(chName);
+              bc.onmessage = () => this.syncHomeButtonsUI();
+            });
+          }
+        } catch (_) {}
+        window.addEventListener('storage', () => this.syncHomeButtonsUI());
       }
+    };
+
+    function triggerHomeRoleCollateral(roleType) {
+      return HomeCollateralBridge.executePayment(roleType);
     }
 
-    async function executeRelativeDepositPayment(username, amountToPay, roleLabel = '', maxCap = 35) {
-      const memoText = `PIBOX-AUCTION: Top Up Kekurangan Jaminan ${amountToPay.toFixed(2)} Pi - @${username}`;
-
-      const paymentData = {
-        amount: parseFloat(amountToPay.toFixed(2)),
-        memo: memoText,
-        metadata: { type: 'auction_deposit_relative', username: username }
-      };
+    document.addEventListener('DOMContentLoaded', () => {
+      HomeCollateralBridge.initSync();
+    });
 
       try {
         const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
