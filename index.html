@@ -2220,13 +2220,21 @@
         const cleanRole = (roleType || '').toString().trim().toLowerCase();
         if (cleanRole !== 'seller' && cleanRole !== 'buyer') return;
 
-        if (!authenticatedPiUser || !authenticatedPiUser.username) {
-          alert(t('loginFirstAlert'));
-          authenticatePiUser();
+        let username = this.resolveActiveUsername();
+        if (!username) {
+          if (typeof authenticatePiUser === 'function') {
+            try {
+              await authenticatePiUser();
+            } catch (_) {}
+            username = this.resolveActiveUsername();
+          }
+        }
+        if (!username) {
+          const alertText = (typeof t === 'function') ? t('loginFirstAlert') : 'Silakan login akun Pi Network terlebih dahulu.';
+          alert(alertText);
           return;
         }
 
-        const username = authenticatedPiUser.username.trim().replace(/^@/, '');
         const currentState = this.getUserCollateralState(username);
         if (cleanRole === 'seller' && currentState.sellerPaid) {
           alert(`Jaminan Penjual (${this.collateralAmount} Pi) untuk @${username} sudah lunas.`);
