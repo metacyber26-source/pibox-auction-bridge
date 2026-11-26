@@ -19,22 +19,12 @@
       <a href="index.html" class="text-gray-400 hover:text-white font-bold text-xs cursor-pointer">&times; Kembali</a>
     </div>
 
-    <!-- PANEL REGISTRASI & PEMBAYARAN PI SDK (35 PI) -->
-    <div class="bg-gray-950/90 border border-gray-800 rounded-xl p-3.5 space-y-3">
-      <div class="flex flex-wrap justify-between items-center gap-2">
-        <div>
-          <h3 class="text-xs font-bold text-gray-200">💳 Registrasi & Deposit Jaminan On-Chain (35 Pi)</h3>
-          <p class="text-[10px] text-gray-400">Aktif jika saldo &lt; 34.5 Pi • Pembayaran otomatis tercatat &amp; tersinkronisasi</p>
-        </div>
-        <span id="activePiUserBadge" class="text-[10px] font-mono bg-gray-900 border border-gray-700 text-yellow-400 px-2.5 py-1 rounded-lg">
-          User: Memuat...
-        </span>
-      </div>
-
+    <!-- PANEL INFORMASI SINKRONISASI DEPOSIT -->
+    <div class="bg-gray-950/90 border border-gray-800 rounded-xl p-3.5">
       <div class="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 class="text-xs font-bold text-gray-200">💳 Deposit Jaminan On-Chain (35 Pi)</h3>
-          <p class="text-[10px] text-gray-400">Pembayaran otomatis tercatat ke kolom tabel &amp; mengubah status menjadi AKTIF</p>
+          <p class="text-[10px] text-gray-400">Pembayaran 35 Pi dari halaman utama otomatis tercatat ke kolom tabel &amp; mengubah status menjadi AKTIF</p>
         </div>
         <span id="activePiUserBadge" class="text-[10px] font-mono bg-gray-900 border border-gray-700 text-yellow-400 px-2.5 py-1 rounded-lg">
           User: Memuat...
@@ -83,13 +73,11 @@
     const PI_SANDBOX_MODE = false;
     const PI_PAYMENT_API_BASE = "/api/pi";
     const COLLATERAL_AMOUNT_PI = 35;
-    const ROLE_BUTTON_MAX_THRESHOLD_PI = 34.5;
 
     const ADMIN_USERNAMES = ["Ful21", "s9t9munah"];
     let buyersList = [];
     let authenticatedPiUser = null;
     let fetchSequenceId = 0;
-    let syncDebounceTimer = null;
 
     if (window.Pi) {
       try {
@@ -100,7 +88,7 @@
     }
 
     const _BuyersAccessGuardian = {
-      version: "4.5.0-secure-buyers",
+      version: "4.6.0-secure-buyers",
       verifyAdminAction: function(username) {
         if (!username) return false;
         return ADMIN_USERNAMES.some(admin => admin.toLowerCase() === username.trim().toLowerCase());
@@ -120,28 +108,6 @@
           ? `User: @${authenticatedPiUser.username}`
           : "User: Belum Login Pi";
       }
-      updateRoleRegistrationPanel();
-    }
-
-    async function ensurePiAuthenticated() {
-      if (authenticatedPiUser && authenticatedPiUser.username && authenticatedPiUser.accessToken) {
-        return authenticatedPiUser;
-      }
-
-      if (!window.Pi) {
-        throw new Error("Pi SDK tidak terdeteksi. Buka halaman ini melalui Pi Browser.");
-      }
-
-      const scopes = ['username', 'payments', 'wallet_address'];
-      const authResult = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
-      authenticatedPiUser = {
-        username: authResult.user.username,
-        uid: authResult.user.uid,
-        wallet_address: authResult.user.wallet_address || '-',
-        accessToken: authResult.accessToken
-      };
-      updateUserBadge();
-      return authenticatedPiUser;
     }
 
     function onIncompletePaymentFound(payment) {
@@ -180,6 +146,7 @@
       ledgerKey: 'pibox_collateral_ledger_v2',
       legacyLedgerKey: 'pibox_agi_collateral_ledger_v2',
       fallbackKey: 'pibox_collateral_ledger_v1',
+      cacheKey: 'pibox_collateral_cache_v1',
 
       toExact: function(v) {
         const n = Number(v);
@@ -207,20 +174,41 @@
       },
 
       writeLocalRecord: function(usernameKey, record) {
-        const keys = [this.ledgerKey, this.legacyLedgerKey, this.fallbackKey];
+        const keys = [this.ledgerKey, this.legacyLedgerKey, this.fallbackKey, this.cacheKey];
         keys.forEach((storageKey) => {
           try {
             const currentMap = this.readLocalMap(storageKey);
-            currentMap[usernameKey] = record;
+            currentMap[usernameKey] = { ...(currentMap[usernameKey] || {}), ...record };
             localStorage.setItem(storageKey, JSON.stringify(currentMap));
           } catch (_) {}
         });
+      },
+
+      ingestIncomingRecord: function(rec) {
+        if (!rec || typeof rec !== 'object') return;
+        const uname = (rec.username || '').toString().trim().replace(/^@/, '');
+        if (!uname) return;
+        const k = uname.toLowerCase();
+        const sellerBal = this.toExact(rec.seller_deposit_balance ?? 0);
+        const buyerBal = this.toExact(rec.buyer_deposit_balance ?? 0);
+        const totalBal = this.toExact(rec.deposit_balance ?? this.addExact(sellerBal, buyerBal));
+        const normalized = {
+          ...rec,
+          username: uname,
+          seller_deposit_balance: sellerBal,
+          buyer_deposit_balance: buyerBal,
+          deposit_balance: totalBal,
+          updated_at: rec.updated_at || new Date().toISOString(),
+          ts: rec.ts || Date.now()
+        };
+        this.writeLocalRecord(k, normalized);
       },
 
       mergeWithLocalLedger: function(dbRows) {
         const v2PrimaryMap = this.readLocalMap(this.ledgerKey);
         const v2LegacyMap = this.readLocalMap(this.legacyLedgerKey);
         const v1Map = this.readLocalMap(this.fallbackKey);
+        const cacheMap = this.readLocalMap(this.cacheKey);
         const mapByUser = new Map();
 
         (dbRows || []).forEach(row => {
@@ -229,42 +217,51 @@
           const k = uname.toLowerCase();
           const c2 = v2PrimaryMap[k] || v2LegacyMap[k] || {};
           const c1 = v1Map[k] || {};
+          const cc = cacheMap[k] || {};
 
           const dbUpdatedMs = this.parseTimestampMs(row.updated_at);
           const localUpdatedMs = Math.max(
             this.parseTimestampMs(c2.updated_at || c2.ts),
-            this.parseTimestampMs(c1.updated_at || c1.ts)
+            this.parseTimestampMs(c1.updated_at || c1.ts),
+            this.parseTimestampMs(cc.updated_at || cc.ts)
           );
 
           const isExplicitZeroReset = Boolean(c2.isReset || c2.isRefunded || localUpdatedMs > dbUpdatedMs);
 
           const buyerBal = isExplicitZeroReset
-            ? this.toExact(c2.buyer_deposit_balance ?? row.buyer_deposit_balance ?? 0)
+            ? this.toExact(c2.buyer_deposit_balance ?? cc.buyer_deposit_balance ?? row.buyer_deposit_balance ?? 0)
             : Math.max(
                 this.toExact(row.buyer_deposit_balance ?? 0),
                 this.toExact(c2.buyer_deposit_balance ?? 0),
-                this.toExact(c1.buyer_deposit_balance ?? 0)
+                this.toExact(c1.buyer_deposit_balance ?? 0),
+                this.toExact(cc.buyer_deposit_balance ?? 0)
               );
 
           const sellerBal = isExplicitZeroReset
-            ? this.toExact(c2.seller_deposit_balance ?? row.seller_deposit_balance ?? 0)
+            ? this.toExact(c2.seller_deposit_balance ?? cc.seller_deposit_balance ?? row.seller_deposit_balance ?? 0)
             : Math.max(
                 this.toExact(row.seller_deposit_balance ?? 0),
                 this.toExact(c2.seller_deposit_balance ?? 0),
-                this.toExact(c1.seller_deposit_balance ?? 0)
+                this.toExact(c1.seller_deposit_balance ?? 0),
+                this.toExact(cc.seller_deposit_balance ?? 0)
               );
 
           const totalBal = this.addExact(buyerBal, sellerBal);
-          const walletVal = (row.wallet_address || row.wallet || c2.wallet_address || c1.wallet_address || '-').toString().trim();
+          const walletVal = (row.wallet_address || row.wallet || c2.wallet_address || cc.wallet_address || c1.wallet_address || '-').toString().trim();
+          const bestStatus = (buyerBal >= COLLATERAL_AMOUNT_PI || sellerBal >= COLLATERAL_AMOUNT_PI || localUpdatedMs > dbUpdatedMs)
+            ? (c2.status || cc.status || row.status || 'approved')
+            : (row.status || c2.status || cc.status || 'pending');
 
           mapByUser.set(k, {
             ...c1,
+            ...cc,
             ...c2,
             ...row,
             username: uname,
             seller_deposit_balance: sellerBal,
             buyer_deposit_balance: buyerBal,
             deposit_balance: totalBal,
+            status: bestStatus,
             wallet_address: walletVal,
             wallet: walletVal
           });
@@ -272,6 +269,7 @@
 
         const combinedLocalRecords = {
           ...v1Map,
+          ...cacheMap,
           ...v2LegacyMap,
           ...v2PrimaryMap
         };
@@ -301,26 +299,32 @@
         return Array.from(mapByUser.values()).sort((a, b) => (a.username || '').localeCompare(b.username || ''));
       },
 
-      scheduleLiveRefresh: function() {
-        if (syncDebounceTimer) {
-          clearTimeout(syncDebounceTimer);
+      triggerImmediateSync: function(payload) {
+        if (payload && typeof payload === 'object') {
+          const rec = payload.buyer || payload.record || (payload.payload && payload.payload.record) || null;
+          if (rec) {
+            this.ingestIncomingRecord(rec);
+          }
         }
-        syncDebounceTimer = setTimeout(() => {
-          syncDebounceTimer = null;
-          fetchBuyersList();
-        }, 60);
+        buyersList = this.mergeWithLocalLedger(buyersList);
+        renderBuyersTable();
+        fetchBuyersList();
       },
 
       initLiveSync: function() {
         try {
           if (typeof BroadcastChannel !== 'undefined') {
-            const bc1 = new BroadcastChannel('pibox_collateral_claim_channel');
-            const bc2 = new BroadcastChannel('pibox_collateral_unified_sync_v1');
-            const bc3 = new BroadcastChannel('pibox_global_state_sync_v1');
-            const handleMsg = () => { this.scheduleLiveRefresh(); };
-            bc1.onmessage = handleMsg;
-            bc2.onmessage = handleMsg;
-            bc3.onmessage = handleMsg;
+            const channels = [
+              'pibox_collateral_claim_channel',
+              'pibox_collateral_unified_sync_v1',
+              'pibox_global_state_sync_v1'
+            ];
+            channels.forEach((chName) => {
+              const bc = new BroadcastChannel(chName);
+              bc.onmessage = (ev) => {
+                this.triggerImmediateSync(ev ? ev.data : null);
+              };
+            });
           }
         } catch (_) {}
 
@@ -329,9 +333,20 @@
             ev.key === this.ledgerKey ||
             ev.key === this.legacyLedgerKey ||
             ev.key === this.fallbackKey ||
+            ev.key === this.cacheKey ||
             ev.key === 'pibox_collateral_claim_room_v1'
           ) {
-            this.scheduleLiveRefresh();
+            this.triggerImmediateSync(null);
+          }
+        });
+
+        window.addEventListener('focus', () => {
+          this.triggerImmediateSync(null);
+        });
+
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) {
+            this.triggerImmediateSync(null);
           }
         });
 
@@ -339,14 +354,15 @@
           try {
             this.channel = supabaseClient
               .channel('buyers-table-live-sync')
-              .on('postgres_changes', { event: '*', schema: 'public', table: 'buyers' }, () => {
-                this.scheduleLiveRefresh();
+              .on('postgres_changes', { event: '*', schema: 'public', table: 'buyers' }, (payload) => {
+                const row = payload && (payload.new || payload.record) ? (payload.new || payload.record) : null;
+                this.triggerImmediateSync(row ? { record: row } : null);
               })
-              .on('broadcast', { event: 'collateral_claim_sync' }, () => {
-                this.scheduleLiveRefresh();
+              .on('broadcast', { event: 'collateral_claim_sync' }, (payload) => {
+                this.triggerImmediateSync(payload);
               })
-              .on('broadcast', { event: 'collateral_unified_sync' }, () => {
-                this.scheduleLiveRefresh();
+              .on('broadcast', { event: 'collateral_unified_sync' }, (payload) => {
+                this.triggerImmediateSync(payload);
               })
               .subscribe();
           } catch (_) {}
@@ -356,232 +372,10 @@
 
     _BuyersTableSyncGuardian.initLiveSync();
 
-    function getActiveUserCollateralBalances() {
-      const currentUsername = (authenticatedPiUser?.username || '').trim().replace(/^@/, '').toLowerCase();
-      if (!currentUsername) {
-        return { sellerBalance: 0, buyerBalance: 0 };
-      }
-      const matched = buyersList.find(b => (b.username || '').trim().replace(/^@/, '').toLowerCase() === currentUsername);
-      if (!matched) {
-        return { sellerBalance: 0, buyerBalance: 0 };
-      }
-      return {
-        sellerBalance: Math.min(COLLATERAL_AMOUNT_PI, _BuyersTableSyncGuardian.toExact(matched.seller_deposit_balance ?? 0)),
-        buyerBalance: Math.min(COLLATERAL_AMOUNT_PI, _BuyersTableSyncGuardian.toExact(matched.buyer_deposit_balance ?? 0))
-      };
-    }
-
-    function updateRoleRegistrationPanel() {
-      const { sellerBalance, buyerBalance } = getActiveUserCollateralBalances();
-      const buyerInfoEl = document.getElementById('infoBuyerCollateralBalance');
-      const sellerInfoEl = document.getElementById('infoSellerCollateralBalance');
-      const btnBuyerReg = document.getElementById('btnRegisterBuyer');
-      const btnSellerReg = document.getElementById('btnRegisterSeller');
-
-      if (buyerInfoEl) {
-        buyerInfoEl.textContent = `Buyer Collateral: ${buyerBalance} Pi`;
-      }
-      if (sellerInfoEl) {
-        sellerInfoEl.textContent = `Seller Collateral: ${sellerBalance} Pi`;
-      }
-
-      if (btnBuyerReg) {
-        btnBuyerReg.disabled = buyerBalance >= ROLE_BUTTON_MAX_THRESHOLD_PI;
-      }
-      if (btnSellerReg) {
-        btnSellerReg.disabled = sellerBalance >= ROLE_BUTTON_MAX_THRESHOLD_PI;
-      }
-    }
-
-    // Menghubungkan tombol Daftar Pembeli & Daftar Penjual ke pembayaran Buyer Collateral (35 Pi)
-    function triggerRegisterRole(roleType) {
-      const { sellerBalance, buyerBalance } = getActiveUserCollateralBalances();
-      const targetBalance = roleType === 'seller' ? sellerBalance : buyerBalance;
-
-      if (targetBalance >= ROLE_BUTTON_MAX_THRESHOLD_PI) {
-        alert(`Saldo jaminan sudah >= ${ROLE_BUTTON_MAX_THRESHOLD_PI} Pi.`);
-        updateRoleRegistrationPanel();
-        return;
-      }
-
-      const btnBuyerPay = document.getElementById('btnPayBuyerCollateral');
-      if (btnBuyerPay) {
-        btnBuyerPay.click();
-      } else {
-        payCollateralWithPiSDK('buyer');
-      }
-    }
-
-    async function payCollateralWithPiSDK(collateralType) {
-      const btnSeller = document.getElementById('btnPaySellerCollateral');
-      const btnBuyer = document.getElementById('btnPayBuyerCollateral');
-      const btnBuyerReg = document.getElementById('btnRegisterBuyer');
-      const btnSellerReg = document.getElementById('btnRegisterSeller');
-
-      try {
-        if (btnSeller) btnSeller.disabled = true;
-        if (btnBuyer) btnBuyer.disabled = true;
-        if (btnBuyerReg) btnBuyerReg.disabled = true;
-        if (btnSellerReg) btnSellerReg.disabled = true;
-
-        const user = await ensurePiAuthenticated();
-        const cleanUser = user.username.trim().replace(/^@/, '');
-        const memoLabel = collateralType === 'seller'
-          ? `Deposit Seller Collateral 35 Pi (@${cleanUser})`
-          : `Deposit Buyer Collateral 35 Pi (@${cleanUser})`;
-
-        if (window.Pi && typeof window.Pi.createPayment === 'function') {
-          window.Pi.createPayment(
-            {
-              amount: COLLATERAL_AMOUNT_PI,
-              memo: memoLabel,
-              metadata: {
-                username: cleanUser,
-                collateral_type: collateralType,
-                amount: COLLATERAL_AMOUNT_PI
-              }
-            },
-            {
-              onReadyForServerApproval: async function(paymentId) {
-                try {
-                  await fetch(`${PI_PAYMENT_API_BASE}/approve`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ paymentId })
-                  });
-                } catch (err) {
-                  console.warn("Server approval request warning:", err);
-                }
-              },
-
-              onReadyForServerCompletion: async function(paymentId, txid) {
-                try {
-                  await fetch(`${PI_PAYMENT_API_BASE}/complete`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ paymentId, txid })
-                  });
-                } catch (err) {
-                  console.warn("Server completion request warning:", err);
-                }
-
-                await recordCollateralPayment(cleanUser, collateralType, COLLATERAL_AMOUNT_PI, txid, user.wallet_address);
-              },
-
-              onCancel: function() {
-                alert("Pembayaran 35 Pi dibatalkan.");
-              },
-
-              onError: function(error, payment) {
-                console.error("Pi Payment Error:", error, payment);
-                alert("Terjadi kesalahan saat memproses pembayaran Pi: " + (error?.message || "Unknown error"));
-              }
-            }
-          );
-        } else {
-          await recordCollateralPayment(cleanUser, collateralType, COLLATERAL_AMOUNT_PI, null, user.wallet_address);
-        }
-      } catch (err) {
-        alert(err.message || "Gagal memulai pembayaran Pi SDK.");
-      } finally {
-        if (btnSeller) btnSeller.disabled = false;
-        if (btnBuyer) btnBuyer.disabled = false;
-        updateRoleRegistrationPanel();
-      }
-    }
-
-    async function recordCollateralPayment(username, collateralType, amount, txid, walletAddress) {
-      const cleanUser = username.trim().replace(/^@/, '');
-      const userKey = cleanUser.toLowerCase();
-      const nowIso = new Date().toISOString();
-
-      const existing = buyersList.find(b => (b.username || '').toLowerCase() === userKey) || {};
-      const currentSeller = _BuyersTableSyncGuardian.toExact(existing.seller_deposit_balance ?? 0);
-      const currentBuyer = _BuyersTableSyncGuardian.toExact(existing.buyer_deposit_balance ?? 0);
-
-      const newSellerBal = collateralType === 'seller'
-        ? Math.min(COLLATERAL_AMOUNT_PI, _BuyersTableSyncGuardian.addExact(currentSeller, amount))
-        : currentSeller;
-
-      const newBuyerBal = collateralType === 'buyer'
-        ? Math.min(COLLATERAL_AMOUNT_PI, _BuyersTableSyncGuardian.addExact(currentBuyer, amount))
-        : currentBuyer;
-
-      const newTotalBal = _BuyersTableSyncGuardian.addExact(newSellerBal, newBuyerBal);
-
-      let roleText = 'Pembeli';
-      if (newSellerBal > 0 && newBuyerBal > 0) {
-        roleText = 'Penjual & Pembeli';
-      } else if (newSellerBal > 0) {
-        roleText = 'Penjual';
-      }
-
-      const finalWallet = (walletAddress && walletAddress !== '-')
-        ? walletAddress
-        : (existing.wallet_address || existing.wallet || '-');
-
-      const updatedRecord = {
-        username: cleanUser,
-        seller_deposit_balance: newSellerBal,
-        buyer_deposit_balance: newBuyerBal,
-        deposit_balance: newTotalBal,
-        role: roleText,
-        keterangan: roleText,
-        status: 'approved',
-        wallet_address: finalWallet,
-        last_txid: txid || '',
-        isReset: false,
-        updated_at: nowIso,
-        ts: Date.now()
-      };
-
-      _BuyersTableSyncGuardian.writeLocalRecord(userKey, updatedRecord);
-
-      if (supabaseClient) {
-        const { error } = await supabaseClient
-          .from('buyers')
-          .upsert({
-            username: cleanUser,
-            seller_deposit_balance: newSellerBal,
-            buyer_deposit_balance: newBuyerBal,
-            deposit_balance: newTotalBal,
-            role: roleText,
-            status: 'approved',
-            wallet_address: finalWallet,
-            updated_at: nowIso
-          }, { onConflict: 'username' });
-
-        if (error) {
-          console.error("Supabase upsert error:", error.message);
-        }
-
-        try {
-          await supabaseClient.channel('buyers-table-live-sync').send({
-            type: 'broadcast',
-            event: 'collateral_unified_sync',
-            payload: { record: updatedRecord, ts: updatedRecord.ts }
-          });
-        } catch (_) {}
-      }
-
-      try {
-        const globalBus = new BroadcastChannel('pibox_global_state_sync_v1');
-        globalBus.postMessage({
-          type: 'buyer_collateral_update',
-          buyer: updatedRecord,
-          timestamp: Date.now()
-        });
-      } catch (_) {}
-
-      await fetchBuyersList();
-      const targetLabel = collateralType === 'seller' ? 'Seller Collateral' : 'Buyer Collateral';
-      alert(`✅ Pembayaran ${COLLATERAL_AMOUNT_PI} Pi berhasil!\nSaldo ${targetLabel} untuk @${cleanUser} telah tercatat.`);
-    }
-
     async function fetchBuyersList() {
       const currentReqId = ++fetchSequenceId;
-      const localMerged = _BuyersTableSyncGuardian.mergeWithLocalLedger([]);
-      if (localMerged.length > 0 && buyersList.length === 0) {
+      const localMerged = _BuyersTableSyncGuardian.mergeWithLocalLedger(buyersList);
+      if (localMerged.length > 0) {
         buyersList = localMerged;
         renderBuyersTable();
       }
@@ -679,7 +473,6 @@
       const searchInput = document.getElementById('searchBuyerInput');
       const query = (searchInput?.value || '').toLowerCase().trim();
 
-      updateRoleRegistrationPanel();
       if (!tbody) return;
 
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
