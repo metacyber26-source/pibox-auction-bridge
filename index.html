@@ -1,3 +1,557 @@
+
+
+    return {
+      username,
+      bidCount: Math.max(0, toSafeInt(raw.bidCount ?? raw.bid_count, 0)),
+      firstBidAt,
+      lastBidAt,
+      lastBidAmount: toSafeNumber(
+        raw.lastBidAmount ?? raw.last_bid_amount ?? raw.bid_amount ?? raw.amount,
+        0
+      ),
+      lastAuctionId: String(
+        raw.lastAuctionId ?? raw.last_auction_id ?? raw.auction_id ?? raw.auctionId ?? ""
+      ),
+      lastAssetTitle: String(
+        raw.lastAssetTitle ?? raw.last_asset_title ?? raw.asset_title ?? raw.assetTitle ?? ""
+      ),
+      source: String(raw.source || "automatic_bid"),
+      updatedAt: raw.updatedAt || raw.updated_at || new Date(lastBidAt).toISOString(),
+      lastEventId: raw.lastEventId ? String(raw.lastEventId) : ""
+    };
+  }
+
+  function loadMap() {
+    try {
+      const raw = global.localStorage.getItem(STORAGE_KEY);
+      const obj = raw ? JSON.parse(raw) : {};
+      if (!obj || typeof obj !== "object") return {};
+
+      const cleanMap = {};
+      Object.entries(obj).forEach(([k, v]) => {
+        const norm = normalizeRecord(v);
+        if (norm) {
+          cleanMap[cleanUsername(k).toLowerCase() || norm.username.toLowerCase()] = norm;
+        }
+      });
+      return cleanMap;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function saveMap(map) {
+    try {
+      global.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    } catch (_) {}
+  }
+
+  let channel = null;
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      channel = new BroadcastChannel(CHANNEL_NAME);
+    }
+  } catch (_) {}
+
+  let writeQueue = Promise.resolve();
+  function enqueueWrite(taskFn) {
+    const next = writeQueue.then(taskFn, taskFn);
+    writeQueue = next.catch(() => {});
+    return next;
+  }
+
+  const remoteBridge = {
+⁰
+              bidData.asset_title ??
+                bidData.assetTitle ??
+                bidData.lastAssetTitle ??
+                bidData.last_asset_title ??
+                ""
+            )
+          : prev
+            ? prev.lastAssetTitle
+            : "",
+      source: String(bidData.source || prev?.source || "automatic_bid"),
+      updatedAt: new Date(lastBidAt).toISOString(),
+      lastEventId: eventId || prev?.lastEventId || ""
+    };
+
+    map[key] = nextRecord;
+    return nextRecord;
+
+    getTotalBidsCount: function () {
+      return this.getAllBidders().reduce(
+        (sum, item) => sum + Math.max(0, toSafeInt(item.bidCount, 0)),
+        0
+      );
+    },
+
+    recordAutomaticBid: function (bidData = {}, options = {}) {
+      const username = cleanUsername(bidData.username || bidData.bidder || "");
+      if (!username) return null;
+
+      const eventId =
+        bidData.eventId ||
+        `bid_${remoteBridge.clientId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+      const payload = {
+        ...bidData,
+        username,
+        eventId,
+        timestamp: toMillis(bidData.timestamp, Date.now()) || Date.now()
+      };
+
+      let resultRecord = null;
+      enqueueWrite(() => {
+        const map = loadMap();
+        resultRecord = mergeBidIntoMap(map, payload, options);
+        if (resultRecord) {
+          saveMap(map);
+          broadcastLocal({
+            type: "bid_frequency_updated",
+            record: resultRecord,
+            payload
+          });
+          this.syncPanelAndTable();
+
+          if (!options.fromRemote && typeof remoteBridge.onPublishBid === "function") {
+            try {
+              const maybePromise = remoteBridge.onPublishBid(payload);
+              if (maybePromise && typeof maybePromise.catch === "function") {
+                maybePromise.catch((err) => {
+                  console.warn("[AuctionBiddersFrequencyTable] Gagal kirim bid ke Supabase:", err);
+                });
+              }
+            } catch (err) {
+              console.warn("[AuctionBiddersFrequencyTable] Error publish bid:", err);
+            }
+          }
+        }
+      });
+
+      return resultRecord;
+    },
+
+    applyRemoteBidEvent: function (remoteBidData = {}) {
+      return this.recordAutomaticBid(remoteBidData, {
+        fromRemote: true,
+        isAbsoluteTotal:
+          remoteBidData.isAbsoluteTotal !== undefined ? Boolean(remoteBidData.isAbsoluteTotal) : true
+      });
+    },
+
+    applyRemoteSnapshot: function (recordsOrMap = [], options = {}) {
+      enqueueWrite(() => {
+        const nextMap = {};
+        const list = Array.isArray(recordsOrMap)
+          ? recordsOrMap
+          : recordsOrMap && typeof recordsOrMap === "object"
+            ? Object.values(recordsOrMap)
+            : [];
+
+        list.forEach((raw) => {
+          const norm = normalizeRecord(raw);
+          if (norm) {
+            nextMap[norm.username.toLowerCase()] = norm;
+          }
+        });
+
+        saveMap(nextMap);
+        if (!options.silentBroadcast) {
+          broadcastLocal({ type: "bid_frequency_snapshot" });
+        }
+        this.syncPanelAndTable();
+      });
+    },
+
+    configureRealtimeTransport: function (handlers = {}) {
+      if (typeof handlers.onPublishBid === "function") {
+        remoteBridge.onPublishBid = handlers.onPublishBid;
+      }
+      if (typeof handlers.onPublishClear === "function") {
+        remoteBridge.onPublishClear = handlers.onPublishClear;
+      }
+      if (typeof handlers.onRequestSync === "function") {
+        remoteBridge.onRequestSync = handlers.onRequestSync;
+        try {
+          remoteBridge.onRequestSync();
+        } catch (_) {}
+      }
+    },
+
+    /**
+     * Menghubungkan langsung ke instance Supabase client (`createClient(...)`)
+     */
+    connectSupabase: function (supabaseClient, config = {}) {
+      if (!supabaseClient) {
+        console.warn("[AuctionBiddersFrequencyTable] supabaseClient tidak valid.");
+        return null;
+      }
+
+      const auctionKey = config.auctionKey || DEFAULT_AUCTION_KEY;
+      remoteBridge.supabaseClient = supabaseClient;
+      remoteBridge.auctionKey = auctionKey;
+
+      // Hentikan channel lama jika connectSupabase dipanggil ulang
+      if (remoteBridge.realtimeChannel && typeof supabaseClient.removeChannel === "function") {
+        try {
+          supabaseClient.removeChannel(remoteBridge.realtimeChannel);
+        } catch (_) {}
+      }
+
+      const fetchSnapshot = async () => {
+        try {
+          const { data, error } = await supabaseClient
+            .from("auction_bidders_frequency")
+            .select("*")
+            .eq("auction_key", auctionKey)
+            .order("first_bid_at", { ascending: true });
+
+          if (error) {
+            console.warn("[AuctionBiddersFrequencyTable] Gagal fetch snapshot:", error.message);
+            return;
+          }
+
+          if (Array.isArray(data)) {
+            this.applyRemoteSnapshot(data);
+          }
+        } catch (err) {
+          console.warn("[AuctionBiddersFrequencyTable] Error fetch snapshot:", err);
+        }
+      };
+
+      this.configureRealtimeTransport({
+        onRequestSync: fetchSnapshot,
+        onPublishBid: async (payload) => {
+          const { data, error } = await supabaseClient.rpc("record_auction_bid", {
+            p_username: payload.username,
+            p_increment_by: payload.incrementBy || 1,
+            p_bid_amount: toSafeNumber(payload.bid_amount ?? payload.amount, 0),
+            p_auction_id: String(payload.auction_id ?? payload.auctionId ?? ""),
+            p_asset_title: String(payload.asset_title ?? payload.assetTitle ?? ""),
+            p_source: String(payload.source || "automatic_bid"),
+            p_auction_key: auctionKey,
+            p_bid_at: new Date(toMillis(payload.timestamp, Date.now())).toISOString()
+          });
+
+          if (error) {
+            throw error;
+          }
+
+          // Sinkronkan dengan nilai total atomik hasil RPC jika tersedia
+          if (data && data.username) {
+            this.applyRemoteBidEvent({
+              username: data.username,
+              bidCount: data.bid_count,
+              firstBidAt: data.first_bid_at,
+              lastBidAt: data.last_bid_at,
+              lastBidAmount: data.last_bid_amount,
+              lastAuctionId: data.last_auction_id,
+              lastAssetTitle: data.last_asset_title,
+              source: data.source,
+              isAbsoluteTotal: true
+            });
+          }
+        },
+        onPublishClear: async ({ selectedUsers }) => {
+          const { error } = await supabaseClient.rpc("clear_auction_bidders", {
+            p_usernames: selectedUsers && selectedUsers.length ? selectedUsers : null,
+            p_auction_key: auctionKey
+          });
+          if (error) {
+            throw error;
+          }
+        }
+      });
+
+      const rtChannel = supabaseClient
+        .channel(`abf_realtime_${auctionKey}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "auction_bidders_frequency",
+            filter: `auction_key=eq.${auctionKey}`
+          },
+          (payload) => {
+            if (payload.eventType === "DELETE") {
+              const oldRow = payload.old;
+              if (oldRow && oldRow.username) {
+                this.clearRecords([oldRow.username], { fromRemote: true });
+              } else {
+                fetchSnapshot();
+              }
+              return;
+            }
+
+            const row = payload.new;
+            if (!row) return;
+
+            this.applyRemoteBidEvent({
+              username: row.username,
+              bidCount: row.bid_count,
+              firstBidAt: row.first_bid_at,
+              lastBidAt: row.last_bid_at,
+              lastBidAmount: row.last_bid_amount,
+              lastAuctionId: row.last_auction_id,
+              lastAssetTitle: row.last_asset_title,
+              source: row.source,
+              timestamp: row.last_bid_at || row.updated_at || Date.now(),
+              isAbsoluteTotal: true
+            });
+          }
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            fetchSnapshot();
+          }
+        });
+
+      remoteBridge.realtimeChannel = rtChannel;
+      return rtChannel;
+    },
+
+    renderTable: function () {
+      const tbody = document.getElementById("activeBiddersModalTableBody");
+      const list = this.getAllBidders();
+
+      const countEl = document.getElementById("activeBiddersCount");
+      if (countEl) {
+        countEl.innerText = `${this.getActiveBiddersCount()} User`;
+      }
+
+      if (!tbody) return;
+
+      const previouslyChecked = getCheckedUsernames();
+
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">No recorded bidders yet.</td></tr>`;
+        return;
+      }
+
+      const isResetEnabled =
+        typeof _LoginAndAdminControlCore !== "undefined" &&
+        typeof _LoginAndAdminControlCore.isResetButtonEnabled === "function"
+          ? _LoginAndAdminControlCore.isResetButtonEnabled()
+          : true;
+      const disabledAttr = !isResetEnabled ? "disabled" : "";
+
+      tbody.innerHTML = list
+        .map((row) => {
+          const safeUser =
+            typeof SecureShield !== "undefined" && SecureShield.sanitizeHTML
+              ? SecureShield.sanitizeHTML(row.username)
+              : row.username;
+          const count = Math.max(0, toSafeInt(row.bidCount, 0));
+          return `
+            <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
+              <td class="p-2 text-center">
+                <input type="checkbox" class="bidder-row-checkbox cursor-pointer accent-emerald-500" value="${safeUser}" ${disabledAttr}>
+              </td>
+              <td class="p-2 font-mono text-yellow-400 font-semibold">@${safeUser}</td>
+              <td class="p-2 text-right">
+                <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
+                  ${count}x
+                </span>
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+
+      restoreCheckedUsernames(previouslyChecked);
+    },
+
+    syncPanelAndTable: function () {
+      const countEl = document.getElementById("activeBiddersCount");
+      if (countEl) {
+        countEl.innerText = `${this.getActiveBiddersCount()} User`;
+      }
+      this.renderTable();
+    },
+
+    openDetailModal: function () {
+      this.syncPanelAndTable();
+      const modal =
+        document.getElementById("activeBiddersModal") ||
+        document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
+      if (modal) {
+        modal.classList.remove("hidden", "d-none", "invisible", "opacity-0");
+        modal.classList.add("flex", "open", "active", "show");
+        modal.style.display = "flex";
+        modal.style.visibility = "visible";
+        modal.style.opacity = "1";
+        modal.setAttribute("aria-hidden", "false");
+        return;
+      }
+
+      const list = this.getAllBidders();
+      const summary = list.length
+        ? list.map((r) => `@${r.username}: ${r.bidCount || 1}x`).join("\n")
+        : "Belum ada data penawar tercatat.";
+      alert(`Penawar Aktif (${this.getActiveBiddersCount()} User)\n\n${summary}`);
+    },
+
+    closeDetailModal: function () {
+      const modal =
+        document.getElementById("activeBiddersModal") ||
+        document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
+      if (!modal) return;
+      modal.classList.remove("flex", "open", "active", "show");
+      modal.classList.add("hidden");
+      modal.style.display = "none";
+      modal.setAttribute("aria-hidden", "true");
+    },
+
+
+    clearRecords: function (selectedUsers = [], options = {}) {
+      const normalizedSelected = Array.isArray(selectedUsers)
+        ? selectedUsers.map((u) => cleanUsername(u).toLowerCase()).filter(Boolean)
+        : [];
+
+      enqueueWrite(() => {
+        const map = loadMap();
+        if (normalizedSelected.length === 0) {
+          Object.keys(map).forEach((k) => delete map[k]);
+        } else {
+          const target = new Set(normalizedSelected);
+          Object.keys(map).forEach((k) => {
+            if (target.has(k.toLowerCase())) delete map[k];
+          });
+        }
+        saveMap(map);
+
+        broadcastLocal({
+          type: "bid_frequency_cleared",
+          selectedUsers: normalizedSelected
+        });
+
+        this.syncPanelAndTable();
+
+        if (!options.fromRemote && typeof remoteBridge.onPublishClear === "function") {
+          try {
+            const maybePromise = remoteBridge.onPublishClear({ selectedUsers: normalizedSelected });
+            if (maybePromise && typeof maybePromise.catch === "function") {
+              maybePromise.catch((err) => {
+                console.warn("[AuctionBiddersFrequencyTable] Gagal clear di Supabase:", err);
+              });
+            }
+          } catch (err) {
+            console.warn("[AuctionBiddersFrequencyTable] Error publish clear:", err);
+          }
+        }
+      });
+    }
+  };
+
+  try {
+    if (channel) {
+      channel.onmessage = (event) => {
+        const data = event?.data;
+        if (!data || data.originClientId === remoteBridge.clientId) return;
+        AuctionBiddersFrequencyTable.syncPanelAndTable();
+      };
+    }
+  } catch (_) {}
+
+  try {
+    if (typeof global.addEventListener === "function") {
+      global.addEventListener("storage", (event) => {
+        if (event.key === STORAGE_KEY) {
+          AuctionBiddersFrequencyTable.syncPanelAndTable();
+        }
+      });
+    }
+  } catch (_) {}
+
+    openDetailModal: function () {
+      this.syncPanelAndTable();
+
+      // Cari modal berdasarkan ID utama atau fallback umum
+      const modal =
+        document.getElementById("activeBiddersModal") ||
+        document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
+
+      if (!modal) {
+        console.warn("[AuctionBiddersFrequencyTable] Elemen modal detail tidak ditemukan di DOM.");
+        return;
+      }
+
+      modal.classList.remove("hidden", "d-none", "invisible", "opacity-0");
+      modal.classList.add("flex", "open", "active", "show");
+      modal.style.display = "flex";
+      modal.style.visibility = "visible";
+      modal.style.opacity = "1";
+      modal.setAttribute("aria-hidden", "false");
+    },
+
+    closeDetailModal: function () {
+      const modal =
+        document.getElementById("activeBiddersModal") ||
+        document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
+
+      if (!modal) return;
+
+      modal.classList.remove("flex", "open", "active", "show");
+      modal.classList.add("hidden");
+      modal.style.display = "none";
+      modal.setAttribute("aria-hidden", "true");
+    },
+
+  function bindDetailButtonEvents() {
+    const bindTargets = () => {
+      const candidates = new Set();
+
+      document
+        .querySelectorAll(
+          '#openActiveBiddersModalBtn, #activeBiddersDetailBtn, [data-action="open-active-bidders"], [onclick*="openDetailModal"]'
+        )
+        .forEach((el) => candidates.add(el));
+
+      const countEl = document.getElementById("activeBiddersCount");
+      const container = countEl ? countEl.closest("div, section, header, tr") || document : document;
+      container.querySelectorAll("button, a, [role='button']").forEach((el) => {
+        const txt = (el.textContent || "").trim().toLowerCase();
+        if (txt === "detail" || txt.endsWith("detail")) {
+          candidates.add(el);
+        }
+      });
+
+      candidates.forEach((btn) => {
+        if (btn.dataset.abfDetailBound === "1") return;
+        btn.dataset.abfDetailBound = "1";
+        btn.style.pointerEvents = "auto";
+        btn.style.cursor = "pointer";
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          AuctionBiddersFrequencyTable.openDetailModal();
+        });
+      });
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bindTargets, { once: true });
+    } else {
+      bindTargets();
+    }
+
+    if (typeof MutationObserver !== "undefined" && document.body) {
+      const observer = new MutationObserver(() => bindTargets());
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  bindDetailButtonEvents();
+
+  global.AuctionBiddersFrequencyTable = AuctionBiddersFrequencyTable;
+})(typeof window !== "undefined" ? window : this);
+
+
+
+
+Ini kode index.html. 
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -634,12 +1188,11 @@
       <div class="h-6 w-[1px] bg-gray-800"></div>
       <div class="flex flex-col items-center">
         <span class="text-[9px] text-gray-400 font-medium" data-i18n="activeBiddersLabel">🔨 Penawar Aktif</span>
-        <button type="button" id="openActiveBiddersModalBtn" data-action="open-active-bidders" class="text-xs font-bold text-emerald-400 hover:underline cursor-pointer flex items-center gap-1.5 transition">
+        <button type="button" onclick="openActiveBiddersModal()" class="text-xs font-bold text-emerald-400 hover:underline cursor-pointer flex items-center gap-1.5 transition">
           <span id="activeBiddersCount">0 User</span> 
           <span class="text-[9px] bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">🔍 Detail</span>
         </button>
       </div>
-
     </div>
 
     <!-- MODAL: DAFTAR PENAWAR LELANG & FREKUENSI (DIKENDALIKAN OLEH bidders-tracker.js) -->
@@ -1272,116 +1825,50 @@
 
     const MODE_TESTING_OVERRIDE = false; 
 
-      const MODE_TESTING_OVERRIDE = false;
+      function bindDetailButtonEvents() {
+    const bindTargets = () => {
+      // Cari tombol berdasarkan ID/atribut umum atau teks "Detail" di sekitar #activeBiddersCount
+      const candidates = new Set();
 
-    const DetailModalDispatchBridge = {
-      openDetail: function() {
-        if (
-          window.AuctionBiddersFrequencyTable &&
-          typeof window.AuctionBiddersFrequencyTable.openDetailModal === "function"
-        ) {
-          window.AuctionBiddersFrequencyTable.openDetailModal();
-          return;
-        }
-        const modal =
-          document.getElementById("activeBiddersModal") ||
-          document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
-        if (!modal) return;
-        modal.classList.remove("hidden", "d-none", "invisible", "opacity-0");
-        modal.classList.add("flex", "open", "active", "show");
-        modal.style.display = "flex";
-        modal.style.visibility = "visible";
-        modal.style.opacity = "1";
-        modal.setAttribute("aria-hidden", "false");
-      },
-      closeDetail: function() {
-        if (
-          window.AuctionBiddersFrequencyTable &&
-          typeof window.AuctionBiddersFrequencyTable.closeDetailModal === "function"
-        ) {
-          window.AuctionBiddersFrequencyTable.closeDetailModal();
-          return;
-        }
-        const modal =
-          document.getElementById("activeBiddersModal") ||
-          document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
-        if (!modal) return;
-        modal.classList.remove("flex", "open", "active", "show");
-        modal.classList.add("hidden");
-        modal.style.display = "none";
-        modal.setAttribute("aria-hidden", "true");
-      },
-      bindTriggers: function() {
-        const targets = new Set();
-        document
-          .querySelectorAll(
-            '#openActiveBiddersModalBtn, #activeBiddersDetailBtn, [data-action="open-active-bidders"]'
-          )
-          .forEach((el) => targets.add(el));
+      document
+        .querySelectorAll(
+          '#openActiveBiddersModalBtn, #activeBiddersDetailBtn, [data-action="open-active-bidders"], [onclick*="openDetailModal"]'
+        )
+        .forEach((el) => candidates.add(el));
 
-        const countEl = document.getElementById("activeBiddersCount");
-        const scope = countEl ? countEl.closest("div, section, header, tr") || document : document;
-        scope.querySelectorAll("button, a, [role='button']").forEach((el) => {
-          const label = (el.textContent || "").trim().toLowerCase();
-          if (label === "detail" || label.endsWith("detail")) {
-            targets.add(el);
-          }
+      const countEl = document.getElementById("activeBiddersCount");
+      const container = countEl ? countEl.closest("div, section, header, tr") || document : document;
+      container.querySelectorAll("button, a, [role='button']").forEach((el) => {
+        const txt = (el.textContent || "").trim().toLowerCase();
+        if (txt === "detail" || txt.endsWith("detail")) {
+          candidates.add(el);
+        }
+      });
+
+      candidates.forEach((btn) => {
+        if (btn.dataset.abfDetailBound === "1") return;
+        btn.dataset.abfDetailBound = "1";
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          AuctionBiddersFrequencyTable.openDetailModal();
         });
-
-        targets.forEach((btn) => {
-          if (btn.dataset.detailTriggerBound === "1") return;
-          btn.dataset.detailTriggerBound = "1";
-          btn.style.pointerEvents = "auto";
-          btn.style.cursor = "pointer";
-          btn.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            this.openDetail();
-          });
-        });
-      },
-      init: function() {
-        const runBind = () => this.bindTriggers();
-        if (document.readyState === "loading") {
-          document.addEventListener("DOMContentLoaded", runBind, { once: true });
-        } else {
-          runBind();
-        }
-        if (typeof MutationObserver !== "undefined") {
-          const attachObserver = () => {
-            if (!document.body) return;
-            const obs = new MutationObserver(() => this.bindTriggers());
-            obs.observe(document.body, { childList: true, subtree: true });
-          };
-          if (document.body) {
-            attachObserver();
-          } else {
-            document.addEventListener("DOMContentLoaded", attachObserver, { once: true });
-          }
-        }
-        try {
-          if (typeof BroadcastChannel !== "undefined") {
-            const detailSyncChannel = new BroadcastChannel("pibox_bidders_frequency_channel");
-            detailSyncChannel.onmessage = () => {
-              if (
-                window.AuctionBiddersFrequencyTable &&
-                typeof window.AuctionBiddersFrequencyTable.syncPanelAndTable === "function"
-              ) {
-                window.AuctionBiddersFrequencyTable.syncPanelAndTable();
-              }
-            };
-          }
-        } catch (_) {}
-      }
+      });
     };
 
-    window.openActiveBiddersModal = function() {
-      DetailModalDispatchBridge.openDetail();
-    };
-    window.closeActiveBiddersModal = function() {
-      DetailModalDispatchBridge.closeDetail();
-    };
-    DetailModalDispatchBridge.init();
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bindTargets, { once: true });
+    } else {
+      bindTargets();
+    }
+
+    // Jaga-jaga jika tombol dirender ulang secara dinamis
+    if (typeof MutationObserver !== "undefined" && document.body) {
+      const observer = new MutationObserver(() => bindTargets());
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  bindDetailButtonEvents();
 
     function generateP2PPaymentMemo(auctionId, sellerUsername, buyerUsername, piboxAssetId) {
       const cleanAuctionId = (auctionId || 'AUC').toString().substring(0, 8);
