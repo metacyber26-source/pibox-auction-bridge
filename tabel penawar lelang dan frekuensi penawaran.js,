@@ -654,3 +654,65 @@
 
   global.AuctionBiddersFrequencyTable = AuctionBiddersFrequencyTable;
 })(typeof window !== "undefined" ? window : this);
+
+  try {
+    if (typeof global.addEventListener === "function") {
+      global.addEventListener("storage", (event) => {
+        if (event.key === STORAGE_KEY) {
+          AuctionBiddersFrequencyTable.syncPanelAndTable();
+        }
+      });
+    }
+  } catch (_) {}
+
+  function bindDetailButtonEvents() {
+    const bindTargets = () => {
+      const candidates = new Set();
+
+      document
+        .querySelectorAll(
+          '#openActiveBiddersModalBtn, #activeBiddersDetailBtn, [data-action="open-active-bidders"], [onclick*="openDetailModal"], [onclick*="openActiveBiddersModal"]'
+        )
+        .forEach((el) => candidates.add(el));
+
+      const countEl = document.getElementById("activeBiddersCount");
+      const container = countEl ? countEl.closest("div, section, header, tr") || document : document;
+      container.querySelectorAll("button, a, [role='button']").forEach((el) => {
+        const txt = (el.textContent || "").trim().toLowerCase();
+        if (txt === "detail" || txt.endsWith("detail")) {
+          candidates.add(el);
+        }
+      });
+
+      candidates.forEach((btn) => {
+        if (btn.dataset.abfDetailBound === "1") return;
+        btn.dataset.abfDetailBound = "1";
+        btn.style.pointerEvents = "auto";
+        btn.style.cursor = "pointer";
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          AuctionBiddersFrequencyTable.openDetailModal();
+        });
+      });
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bindTargets, { once: true });
+    } else {
+      bindTargets();
+    }
+
+    if (typeof MutationObserver !== "undefined") {
+      const startObserver = () => {
+        if (!document.body) return;
+        const observer = new MutationObserver(() => bindTargets());
+        observer.observe(document.body, { childList: true, subtree: true });
+      };
+      if (document.body) {
+        startObserver();
+      } else {
+        document.addEventListener("DOMContentLoaded", startObserver, { once: true });
+      }
+    }
+  }
