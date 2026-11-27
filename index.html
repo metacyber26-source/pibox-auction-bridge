@@ -1272,50 +1272,116 @@
 
     const MODE_TESTING_OVERRIDE = false; 
 
-      function bindDetailButtonEvents() {
-    const bindTargets = () => {
-      // Cari tombol berdasarkan ID/atribut umum atau teks "Detail" di sekitar #activeBiddersCount
-      const candidates = new Set();
+      const MODE_TESTING_OVERRIDE = false;
 
-      document
-        .querySelectorAll(
-          '#openActiveBiddersModalBtn, #activeBiddersDetailBtn, [data-action="open-active-bidders"], [onclick*="openDetailModal"]'
-        )
-        .forEach((el) => candidates.add(el));
-
-      const countEl = document.getElementById("activeBiddersCount");
-      const container = countEl ? countEl.closest("div, section, header, tr") || document : document;
-      container.querySelectorAll("button, a, [role='button']").forEach((el) => {
-        const txt = (el.textContent || "").trim().toLowerCase();
-        if (txt === "detail" || txt.endsWith("detail")) {
-          candidates.add(el);
+    const DetailModalDispatchBridge = {
+      openDetail: function() {
+        if (
+          window.AuctionBiddersFrequencyTable &&
+          typeof window.AuctionBiddersFrequencyTable.openDetailModal === "function"
+        ) {
+          window.AuctionBiddersFrequencyTable.openDetailModal();
+          return;
         }
-      });
+        const modal =
+          document.getElementById("activeBiddersModal") ||
+          document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
+        if (!modal) return;
+        modal.classList.remove("hidden", "d-none", "invisible", "opacity-0");
+        modal.classList.add("flex", "open", "active", "show");
+        modal.style.display = "flex";
+        modal.style.visibility = "visible";
+        modal.style.opacity = "1";
+        modal.setAttribute("aria-hidden", "false");
+      },
+      closeDetail: function() {
+        if (
+          window.AuctionBiddersFrequencyTable &&
+          typeof window.AuctionBiddersFrequencyTable.closeDetailModal === "function"
+        ) {
+          window.AuctionBiddersFrequencyTable.closeDetailModal();
+          return;
+        }
+        const modal =
+          document.getElementById("activeBiddersModal") ||
+          document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
+        if (!modal) return;
+        modal.classList.remove("flex", "open", "active", "show");
+        modal.classList.add("hidden");
+        modal.style.display = "none";
+        modal.setAttribute("aria-hidden", "true");
+      },
+      bindTriggers: function() {
+        const targets = new Set();
+        document
+          .querySelectorAll(
+            '#openActiveBiddersModalBtn, #activeBiddersDetailBtn, [data-action="open-active-bidders"]'
+          )
+          .forEach((el) => targets.add(el));
 
-      candidates.forEach((btn) => {
-        if (btn.dataset.abfDetailBound === "1") return;
-        btn.dataset.abfDetailBound = "1";
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          AuctionBiddersFrequencyTable.openDetailModal();
+        const countEl = document.getElementById("activeBiddersCount");
+        const scope = countEl ? countEl.closest("div, section, header, tr") || document : document;
+        scope.querySelectorAll("button, a, [role='button']").forEach((el) => {
+          const label = (el.textContent || "").trim().toLowerCase();
+          if (label === "detail" || label.endsWith("detail")) {
+            targets.add(el);
+          }
         });
-      });
+
+        targets.forEach((btn) => {
+          if (btn.dataset.detailTriggerBound === "1") return;
+          btn.dataset.detailTriggerBound = "1";
+          btn.style.pointerEvents = "auto";
+          btn.style.cursor = "pointer";
+          btn.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            this.openDetail();
+          });
+        });
+      },
+      init: function() {
+        const runBind = () => this.bindTriggers();
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", runBind, { once: true });
+        } else {
+          runBind();
+        }
+        if (typeof MutationObserver !== "undefined") {
+          const attachObserver = () => {
+            if (!document.body) return;
+            const obs = new MutationObserver(() => this.bindTriggers());
+            obs.observe(document.body, { childList: true, subtree: true });
+          };
+          if (document.body) {
+            attachObserver();
+          } else {
+            document.addEventListener("DOMContentLoaded", attachObserver, { once: true });
+          }
+        }
+        try {
+          if (typeof BroadcastChannel !== "undefined") {
+            const detailSyncChannel = new BroadcastChannel("pibox_bidders_frequency_channel");
+            detailSyncChannel.onmessage = () => {
+              if (
+                window.AuctionBiddersFrequencyTable &&
+                typeof window.AuctionBiddersFrequencyTable.syncPanelAndTable === "function"
+              ) {
+                window.AuctionBiddersFrequencyTable.syncPanelAndTable();
+              }
+            };
+          }
+        } catch (_) {}
+      }
     };
 
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", bindTargets, { once: true });
-    } else {
-      bindTargets();
-    }
-
-    // Jaga-jaga jika tombol dirender ulang secara dinamis
-    if (typeof MutationObserver !== "undefined" && document.body) {
-      const observer = new MutationObserver(() => bindTargets());
-      observer.observe(document.body, { childList: true, subtree: true });
-    }
-  }
-
-  bindDetailButtonEvents();
+    window.openActiveBiddersModal = function() {
+      DetailModalDispatchBridge.openDetail();
+    };
+    window.closeActiveBiddersModal = function() {
+      DetailModalDispatchBridge.closeDetail();
+    };
+    DetailModalDispatchBridge.init();
 
     function generateP2PPaymentMemo(auctionId, sellerUsername, buyerUsername, piboxAssetId) {
       const cleanAuctionId = (auctionId || 'AUC').toString().substring(0, 8);
