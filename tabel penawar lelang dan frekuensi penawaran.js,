@@ -684,5 +684,50 @@
       modal.setAttribute("aria-hidden", "true");
     },
 
+  function bindDetailButtonEvents() {
+    const bindTargets = () => {
+      const candidates = new Set();
+
+      document
+        .querySelectorAll(
+          '#openActiveBiddersModalBtn, #activeBiddersDetailBtn, [data-action="open-active-bidders"], [onclick*="openDetailModal"]'
+        )
+        .forEach((el) => candidates.add(el));
+
+      const countEl = document.getElementById("activeBiddersCount");
+      const container = countEl ? countEl.closest("div, section, header, tr") || document : document;
+      container.querySelectorAll("button, a, [role='button']").forEach((el) => {
+        const txt = (el.textContent || "").trim().toLowerCase();
+        if (txt === "detail" || txt.endsWith("detail")) {
+          candidates.add(el);
+        }
+      });
+
+      candidates.forEach((btn) => {
+        if (btn.dataset.abfDetailBound === "1") return;
+        btn.dataset.abfDetailBound = "1";
+        btn.style.pointerEvents = "auto";
+        btn.style.cursor = "pointer";
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          AuctionBiddersFrequencyTable.openDetailModal();
+        });
+      });
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bindTargets, { once: true });
+    } else {
+      bindTargets();
+    }
+
+    if (typeof MutationObserver !== "undefined" && document.body) {
+      const observer = new MutationObserver(() => bindTargets());
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  bindDetailButtonEvents();
+
   global.AuctionBiddersFrequencyTable = AuctionBiddersFrequencyTable;
 })(typeof window !== "undefined" ? window : this);
