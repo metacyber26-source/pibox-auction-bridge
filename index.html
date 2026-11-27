@@ -2327,36 +2327,30 @@
       },
 
       initSync: function() {
+        const self = this;
+        const bindCollateralButton = (btnId, roleName) => {
+          const btn = document.getElementById(btnId);
+          if (!btn) return;
+          btn.style.pointerEvents = 'auto';
+          const currentUser = self.resolveActiveUsername();
+          if (!currentUser) {
+            btn.disabled = false;
+            btn.removeAttribute('disabled');
+          }
+          if (!btn.dataset.boundRolePayment) {
+            btn.dataset.boundRolePayment = '1';
+            btn.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              self.executePayment(roleName);
+            });
+          }
+        };
+
         const forceBind = () => {
-          const sBtn = document.getElementById('homeDuplicateSellerCollateralBtn');
-          const bBtn = document.getElementById('homeDuplicateBuyerCollateralBtn');
-          if (sBtn) {
-            sBtn.disabled = false;
-            sBtn.removeAttribute('disabled');
-            sBtn.style.pointerEvents = 'auto';
-            if (!sBtn.dataset.boundRolePayment) {
-              sBtn.dataset.boundRolePayment = '1';
-              sBtn.addEventListener('click', (ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                this.executePayment('seller');
-              });
-            }
-          }
-          if (bBtn) {
-            bBtn.disabled = false;
-            bBtn.removeAttribute('disabled');
-            bBtn.style.pointerEvents = 'auto';
-            if (!bBtn.dataset.boundRolePayment) {
-              bBtn.dataset.boundRolePayment = '1';
-              bBtn.addEventListener('click', (ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                this.executePayment('buyer');
-              });
-            }
-          }
-          this.syncHomeButtonsUI();
+          bindCollateralButton('homeDuplicateSellerCollateralBtn', 'seller');
+          bindCollateralButton('homeDuplicateBuyerCollateralBtn', 'buyer');
+          self.syncHomeButtonsUI();
         };
 
         forceBind();
