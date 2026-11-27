@@ -954,20 +954,81 @@
       }
     }
 
+    function removeLocalCollateralRecord(username) {
+      const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+      const key = cleanUser.toLowerCase();
+      if (!key) return;
+
+      const keys = [
+        _BuyersTableSyncGuardian.ledgerKey,
+        _BuyersTableSyncGuardian.legacyLedgerKey,
+        _BuyersTableSyncGuardian.fallbackKey,
+        _BuyersTableSyncGuardian.cacheKey
+      ];
+      keys.forEach((storageKey) => {
+        try {
+          const currentMap = _BuyersTableSyncGuardian.readLocalMap(storageKey);
+          if (currentMap && Object.prototype.hasOwnProperty.call(currentMap, key)) {
+            delete currentMap[key];
+            localStorage.setItem(storageKey, JSON.stringify(currentMap));
+          }
+        } catch (_) {}
+      });
+
+      buyersList = buyersList.filter(
+        b => (b.username || '').toString().trim().replace(/^@/, '').toLowerCase() !== key
+      );
+    }
+
+    function broadcastBuyerDeletion(usernames) {
+      const list = Array.isArray(usernames) ? usernames : [];
+      if (!list.length) return;
+      const payload = {
+        type: 'collateral_buyer_deleted',
+        usernames: list,
+        ts: Date.now()
+      };
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          ['pibox_collateral_claim_channel', 'pibox_collateral_unified_sync_v1', 'pibox_global_state_sync_v1'].forEach((chName) => {
+            const bc = new BroadcastChannel(chName);
+            bc.postMessage(payload);
+            bc.close();
+          });
+        }
+      } catch (_) {}
+
+      if (supabaseClient) {
+        try {
+          supabaseClient.channel('buyers-table-live-sync').send({
+            type: 'broadcast',
+            event: 'collateral_buyer_deleted',
+            payload: payload
+          });
+        } catch (_) {}
+      }
+    }
+
     async function deleteBuyerRecord(username) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       try {
         _BuyersAccessGuardian.enforceAccess(currentUsr);
-        if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus data pembeli @${username}?`)) return;
+        const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+        if (!cleanUser) return;
+        if (!confirm(`⚠️ Apakah Anda yakin ingin menghapus data pembeli @${cleanUser}?`)) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const { error } = await supabaseClient
           .from('buyers')
           .delete()
-          .eq('username', username);
+          .ilike('username', cleanUser);
 
         if (error) throw error;
-        alert(`🗑️ Data pembeli @${username} berhasil dihapus.`);
+
+        removeLocalCollateralRecord(cleanUser);
+        broadcastBuyerDeletion([cleanUser]);
+        renderBuyersTable();
+        alert(`🗑️ Data pembeli @${cleanUser} berhasil dihapus.`);
         await fetchBuyersList();
       } catch (err) {
         alert("Gagal menghapus pembeli: " + err.message);
@@ -978,7 +1039,9 @@
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
       try {
         _BuyersAccessGuardian.enforceAccess(currentUsr);
-        const selected = Array.from(document.querySelectorAll('.buyer-checkbox:checked')).map(cb => cb.value);
+        const selected = Array.from(document.querySelectorAll('.buyer-checkbox:checked'))
+          .map(cb => (cb.value || '').toString().trim().replace(/^@/, ''))
+          .filter(Boolean);
         if (selected.length === 0) {
           alert("Pilih setidaknya satu pembeli yang ingin dihapus.");
           return;
@@ -987,16 +1050,24 @@
         if (!confirm(`⚠️ Hapus ${selected.length} data pembeli yang dipilih secara permanen?`)) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
-        for (let uname of selected) {
-          await supabaseClient.from('buyers').delete().eq('username', uname);
+        for (const uname of selected) {
+          const { error } = await supabaseClient
+            .from('buyers')
+            .delete()
+            .ilike('username', uname);
+          if (error) throw error;
+          removeLocalCollateralRecord(uname);
         }
 
+        broadcastBuyerDeletion(selected);
+        renderBuyersTable();
         alert("🗑️ Data pembeli terpilih berhasil dihapus.");
         await fetchBuyersList();
       } catch (err) {
         alert("Gagal menghapus data: " + err.message);
       }
     }
+
 
     async function processWithdrawalRefund(username) {
       const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
