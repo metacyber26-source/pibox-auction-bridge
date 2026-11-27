@@ -469,18 +469,22 @@
       const urlParams = new URLSearchParams(window.location.search);
       const queryUser = (urlParams.get("user") || "").trim().replace(/^@/, "");
       const savedAccounts = JSON.parse(localStorage.getItem('pibox_saved_verified_accounts') || '[]');
+      const activeSessionUser = (localStorage.getItem('pibox_active_pi_username') || '').trim().replace(/^@/, "");
 
       if (queryUser) {
         authenticatedPiUser = { username: queryUser };
+      } else if (activeSessionUser) {
+        authenticatedPiUser = { username: activeSessionUser };
       } else if (savedAccounts.length > 0 && savedAccounts[0].username) {
         authenticatedPiUser = { username: savedAccounts[0].username };
       } else {
-        authenticatedPiUser = { username: "Ful21" };
+        authenticatedPiUser = null;
       }
 
       updateUserBadge();
       await fetchBuyersList();
     });
+
 
     const _BuyersTableSyncGuardian = {
       channel: null,
