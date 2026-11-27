@@ -206,11 +206,11 @@
           const { data: dbRow } = await supabaseClient
             .from('buyers')
             .select('*')
-            .eq('username', cleanUser)
+            .ilike('username', cleanUser)
             .maybeSingle();
 
           const dbPayload = {
-            username: cleanUser,
+            username: dbRow?.username || cleanUser,
             role: roleLabel,
             seller_deposit_balance: nextSeller,
             buyer_deposit_balance: nextBuyer,
@@ -225,7 +225,7 @@
             const { error: updErr } = await supabaseClient
               .from('buyers')
               .update(dbPayload)
-              .eq('username', cleanUser);
+              .eq('username', dbRow.username);
 
             if (updErr && /seller_deposit_balance|buyer_deposit_balance|role|manual_approved|updated_at|column/i.test(updErr.message || '')) {
               const fbUpd = await supabaseClient
@@ -235,7 +235,7 @@
                   status: 'approved',
                   has_requested_withdrawal: false
                 })
-                .eq('username', cleanUser);
+                .eq('username', dbRow.username);
               if (fbUpd.error) throw fbUpd.error;
             } else if (updErr) {
               throw updErr;
@@ -275,6 +275,7 @@
         await fetchBuyersList();
         return updatedRecord;
       },
+
 
       ensurePiPaymentScope: async function(piInstance) {
         if (!piInstance || typeof piInstance.authenticate !== 'function') {
