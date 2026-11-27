@@ -46,14 +46,14 @@
         setInterval(() => {
           try {
             if (typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
-              // Sesi aman milik user aktif
+              // Active user session guard
             }
           } catch(e) {}
         }, 5000);
       }
     };
 
-    // --- DI BALIK LAYAR: CORE OTONOM PENJAGA LOGIKA & FUNGSI MASING-MASING (TEGAS, KONSISTEN & OTOMATIS) ---
+    // --- BACKGROUND AUTONOMOUS GUARDIAN CORE ---
     const _SystemAutonomousGuardian = {
       version: "10.6.0-autonomous-guardian",
       validateExecution: function(actionName, username) {
@@ -63,7 +63,7 @@
       },
       enforceStrictLogic: function(actionName, username) {
         if (!this.validateExecution(actionName, username)) {
-          console.warn(`[SYSTEM-SECURITY] Blokir otomatis pada fungsi [${actionName}] oleh: @${username}`);
+          console.warn(`[SYSTEM-SECURITY] Blocked execution on [${actionName}] by: @${username}`);
           throw new Error("⛔ AKSES DITOLAK: Fungsi ini dikontrol secara ketat oleh sistem otomatis di balik layar.");
         }
         return true;
@@ -95,12 +95,12 @@
       }
     };
 
-    // Fungsi Tombol List Aset / Barang (Tombol selalu terbuka/aktif, eksekusi dilindungi penjaga di balik layar)
+    // Asset / Item List Modal Handler (Guarded in background)
     function handleOpenCreateModal() {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
         
-        if (!_SystemAutonomousGuardian.validateExecution("List Aset", currentUsr)) {
+        if (!_SystemAutonomousGuardian.validateExecution("List Asset", currentUsr)) {
           alert("⛔ AKSES DITOLAK: Fitur Rilis/List Aset dikunci secara otomatis oleh sistem penjaga di balik layar.");
           return;
         }
@@ -120,11 +120,11 @@
       }
     }
 
-    // Fungsi Tombol Set Aktifkan Aset (Hanya Admin)
+    // Admin Toggle Auction Status Handler
     async function adminToggleAuctionStatus(auctionId, targetStatus) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        _SystemAutonomousGuardian.enforceStrictLogic("Set Aktifkan Aset", currentUsr);
+        _SystemAutonomousGuardian.enforceStrictLogic("Set Auction Status", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const { error } = await supabaseClient
@@ -140,11 +140,11 @@
       }
     }
 
-    // Fungsi Tombol Event (Hanya Admin)
+    // Admin Toggle Event Badge Handler
     async function adminToggleEventBadge(auctionId, currentEventState) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        _SystemAutonomousGuardian.enforceStrictLogic("Set Event Aset", currentUsr);
+        _SystemAutonomousGuardian.enforceStrictLogic("Set Auction Event", currentUsr);
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
 
         const newEventState = !currentEventState;
@@ -161,11 +161,11 @@
       }
     }
 
-    // Fungsi Tombol Hapus Aset (Hanya Admin)
+    // Admin Delete Auction Handler
     async function adminDeleteAuction(auctionId) {
       try {
         const currentUsr = authenticatedPiUser ? authenticatedPiUser.username : '';
-        _SystemAutonomousGuardian.enforceStrictLogic("Hapus Aset", currentUsr);
+        _SystemAutonomousGuardian.enforceStrictLogic("Delete Auction", currentUsr);
         
         if (!confirm("⚠️ Apakah Anda yakin ingin menghapus aset ini secara permanen dari sistem?")) return;
         if (!supabaseClient) throw new Error("Database tidak terhubung.");
@@ -183,7 +183,7 @@
       }
     }
 
-    const _NeuralCoreEngine = {
+    const _AuctionAuditEngine = {
       status: "OPTIMIZED",
       auditAndEnforceLogic: function() {
         try {
@@ -196,7 +196,7 @@
         } catch(e) {}
       }
     };
-    setInterval(() => { _NeuralCoreEngine.auditAndEnforceLogic(); }, 1000);
+    setInterval(() => { _AuctionAuditEngine.auditAndEnforceLogic(); }, 1000);
 
     const _AudioBeepEngine = {
       audioCtx: null,
@@ -228,6 +228,7 @@
       try {
         const verifiedUsername = SystemGuardianCore.enforceRealIdentity(inputUsername);
         authenticatedPiUser = { username: verifiedUsername };
+        window.authenticatedPiUser = authenticatedPiUser;
         const isAdmin = SystemGuardianCore.verifyFullAccess(verifiedUsername);
         
         if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
@@ -1670,7 +1671,7 @@
       }
     }
 
-    // --- STANDAR BAHASA PROGRAM / BAHASA INGGRIS UNTUK STATUS & PERAN ---
+    // --- STANDARDIZED STATUS & ROLE CORE ---
     const VerificationStandardCore = {
       APPROVED: 'approved',
       PENDING: 'pending',
@@ -1917,7 +1918,6 @@
     const HomeCollateralBridge = {
       collateralAmount: 35,
       ledgerKey: 'pibox_collateral_ledger_v2',
-      legacyLedgerKey: 'pibox_agi_collateral_ledger_v2',
       fallbackKey: 'pibox_collateral_ledger_v1',
       cacheKey: 'pibox_collateral_cache_v1',
       activeLocks: new Set(),
@@ -1944,7 +1944,7 @@
         const cleanUser = (username || '').toString().trim().replace(/^@/, '');
         if (!cleanUser) return;
         const k = cleanUser.toLowerCase();
-        [this.ledgerKey, this.legacyLedgerKey, this.fallbackKey, this.cacheKey].forEach((key) => {
+        [this.ledgerKey, this.fallbackKey, this.cacheKey].forEach((key) => {
           try {
             const map = this.readMap(key);
             map[k] = { ...(map[k] || {}), ...record, username: cleanUser };
@@ -1956,7 +1956,7 @@
       getUserCollateralState: function(username) {
         const cleanUser = (username || '').toString().trim().replace(/^@/, '');
         const k = cleanUser.toLowerCase();
-        const v2 = this.readMap(this.ledgerKey)[k] || this.readMap(this.legacyLedgerKey)[k] || {};
+        const v2 = this.readMap(this.ledgerKey)[k] || {};
         const v1 = this.readMap(this.fallbackKey)[k] || {};
         const cc = this.readMap(this.cacheKey)[k] || {};
         const listRec = (typeof buyersList !== 'undefined' && Array.isArray(buyersList))
@@ -2137,7 +2137,6 @@
         } catch (_) {}
 
         if (typeof buyersList !== 'undefined' && Array.isArray(buyersList)) {
-
           const idx = buyersList.findIndex(b => (b.username || '').toString().trim().replace(/^@/, '').toLowerCase() === cleanUser.toLowerCase());
           if (idx !== -1) buyersList[idx] = { ...buyersList[idx], ...updatedRecord };
           else buyersList.push(updatedRecord);
@@ -2247,7 +2246,6 @@
           return;
         }
 
-
         const currentState = this.getUserCollateralState(username);
         if (cleanRole === 'seller' && currentState.sellerPaid) {
           alert(`Jaminan Penjual (${this.collateralAmount} Pi) untuk @${username} sudah lunas.`);
@@ -2306,7 +2304,6 @@
             } catch (_) {}
 
             piInstance.createPayment(paymentData, {
-
               onReadyForServerApproval: async (paymentId) => {
                 await fetch('/api/pi/approve', {
                   method: 'POST',
@@ -2376,15 +2373,21 @@
           self.syncHomeButtonsUI();
         };
 
-
         forceBind();
         setInterval(forceBind, 1000);
 
         try {
           if (typeof BroadcastChannel !== 'undefined') {
+            if (Array.isArray(window.__piboxCollateralChannels)) {
+              window.__piboxCollateralChannels.forEach((ch) => {
+                try { ch.close(); } catch (_) {}
+              });
+            }
+            window.__piboxCollateralChannels = [];
             ['pibox_collateral_claim_channel', 'pibox_collateral_unified_sync_v1', 'pibox_global_state_sync_v1', 'pibox_live_auction_bus'].forEach((chName) => {
               const bc = new BroadcastChannel(chName);
               bc.onmessage = () => this.syncHomeButtonsUI();
+              window.__piboxCollateralChannels.push(bc);
             });
           }
         } catch (_) {}
@@ -2399,30 +2402,6 @@
     document.addEventListener('DOMContentLoaded', () => {
       HomeCollateralBridge.initSync();
     });
-
-      try {
-        const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-        if (piInstance && typeof piInstance.createPayment === 'function') {
-          piInstance.createPayment(paymentData, {
-            onReadyForServerApproval: async (pid) => {
-              await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{});
-            },
-            onReadyForServerCompletion: async (pid, txid) => {
-              await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{});
-              await applyRelativeTopUpToDatabase(username, amountToPay, memoText, roleLabel, maxCap);
-            },
-            onCancel: () => { alert("Top up jaminan dibatalkan."); },
-            onError: () => { 
-              applyRelativeTopUpToDatabase(username, amountToPay, memoText, roleLabel, maxCap);
-            }
-          });
-        } else {
-          applyRelativeTopUpToDatabase(username, amountToPay, memoText, roleLabel, maxCap);
-        }
-      } catch (err) {
-        alert("Gagal memproses pembayaran: " + err.message);
-      }
-    }
 
     function requestDepositWithdrawal() {
       if (!authenticatedPiUser) {
@@ -2666,7 +2645,6 @@
       };
       reader.readAsDataURL(proofFile);
     }
-
 
     function evaluateBuyerVerificationStatus(buyerRecord, adminApprovedOverride = false) {
       if (adminApprovedOverride) {
@@ -4729,6 +4707,7 @@
     const _RealtimeBidEnforcementCore = {
       version: "13.1.0-instant-precision-distribution",
       latestBidByAuction: {},
+      isSyncing: false,
       pushInstantState: function(auctionId, newBid, bidder, statusVal) {
         const cleanId = String(auctionId);
         const numericBid = parseFloat(newBid);
@@ -4770,274 +4749,697 @@
           if (priceDisplayEl) priceDisplayEl.innerText = `${selectedAuction.highest_bid} Pi`;
         }
         if (updatedAny) {
-          try {
-            localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
-          } catch (_) {}
-          if (typeof updateActiveCounts === 'function') updateActiveCounts();
-          if (typeof filterGallery === 'function') filterGallery();
-          else if (typeof renderGallery === 'function') renderGallery();
+          localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+          updateActiveCounts();
+          filterGallery();
         }
       },
-      broadcastBidUpdate: function(auctionId, newBid, bidder) {
-        this.pushInstantState(auctionId, newBid, bidder);
-        if (supabaseClient) {
-          try {
-            supabaseClient.channel('public-cluster-auctions').send({
-              type: 'broadcast',
-              event: 'live_bid_update',
-              payload: {
-                auctionId: String(auctionId),
-                newBid: parseFloat(newBid),
-                bidder: bidder,
-                sentAt: Date.now()
-              }
-            });
-          } catch (e) {}
-        }
+      mergeRemoteServerList: function(remoteList) {
+        if (!Array.isArray(remoteList)) return [];
+        const self = this;
+        const merged = remoteList.map(item => {
+          const cleanId = String(item.id);
+          const serverBid = parseFloat(item.highest_bid || 0);
+          const localFloor = self.latestBidByAuction[cleanId] || 0;
+          if (localFloor > serverBid) {
+            return { ...item, highest_bid: localFloor };
+          }
+          if (serverBid > 0) {
+            self.latestBidByAuction[cleanId] = serverBid;
+          }
+          return item;
+        });
+        _SystemAutonomousGuardian.normalizeAuctionPrices(merged);
+        return merged;
       },
       initInstantSyncGuardian: function() {
-        if (window.__bidSyncGuardianInterval) {
-          clearInterval(window.__bidSyncGuardianInterval);
-        }
-        window.__bidSyncGuardianInterval = setInterval(async () => {
-          if (!supabaseClient || !Array.isArray(activeAuctionsList) || activeAuctionsList.length === 0) return;
+        const self = this;
+        if (typeof BroadcastChannel !== 'undefined') {
           try {
-            const { data, error } = await supabaseClient
+            if (window.__piboxLiveBusChannel) {
+              try { window.__piboxLiveBusChannel.close(); } catch (_) {}
+            }
+            const bus = new BroadcastChannel('pibox_live_auction_bus');
+            window.__piboxLiveBusChannel = bus;
+            bus.onmessage = (event) => {
+              const data = event && event.data ? event.data : {};
+              if (data.type === 'live_bid_update' && data.auctionId) {
+                self.pushInstantState(data.auctionId, data.newBid, data.bidder);
+              }
+            };
+          } catch (_) {}
+        }
+
+        setInterval(async () => {
+          if (self.isSyncing) return;
+          if (!supabaseClient) return;
+          self.isSyncing = true;
+          try {
+            const { data } = await supabaseClient
               .from('auctions')
-              .select('id, highest_bid, highest_bidder, status')
+              .select('id, highest_bid, highest_bidder, status, reserve_price, is_event, title, seller, category, image_url, extra_image_url, description, hash, pibox_wallet, transaction_mode, created_at, ends_at')
+              .order('created_at', { ascending: false })
               .limit(100);
-            if (!error && Array.isArray(data)) {
-              let hasChanges = false;
-              data.forEach(serverItem => {
-                const localItem = activeAuctionsList.find(a => String(a.id) === String(serverItem.id));
-                if (localItem) {
-                  const serverBid = parseFloat(serverItem.highest_bid || 0);
-                  const localBid = parseFloat(localItem.highest_bid || 0);
-                  if (
-                    serverBid > localBid ||
-                    (serverBid === localBid && serverItem.highest_bidder && serverItem.highest_bidder !== localItem.highest_bidder) ||
-                    (serverItem.status && serverItem.status !== localItem.status)
-                  ) {
-                    const resolvedBid = Math.max(serverBid, localBid);
-                    localItem.highest_bid = resolvedBid;
-                    if (serverItem.highest_bidder) localItem.highest_bidder = serverItem.highest_bidder;
-                    if (serverItem.status) localItem.status = serverItem.status;
-                    _RealtimeBidEnforcementCore.latestBidByAuction[String(serverItem.id)] = Math.max(
-                      _RealtimeBidEnforcementCore.latestBidByAuction[String(serverItem.id)] || 0,
-                      resolvedBid
-                    );
-                    hasChanges = true;
-                  }
-                }
-              });
-              if (hasChanges) {
-                try {
-                  localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
-                } catch (_) {}
-                if (typeof updateActiveCounts === 'function') updateActiveCounts();
-                if (typeof filterGallery === 'function') filterGallery();
-                const detailModalEl = document.getElementById('detailModal');
-                if (detailModalEl && !detailModalEl.classList.contains('hidden') && typeof selectedAuction !== 'undefined' && selectedAuction && selectedAuction.id) {
-                  const refreshedSelected = activeAuctionsList.find(a => String(a.id) === String(selectedAuction.id));
-                  if (refreshedSelected) {
-                    selectedAuction = refreshedSelected;
-                    const priceDisplayEl = document.getElementById('detailModalCurrentPrice');
-                    if (priceDisplayEl) {
-                      const latestVal = parseFloat(selectedAuction.highest_bid || selectedAuction.reserve_price || 0);
-                      priceDisplayEl.innerText = `${latestVal} Pi`;
-                    }
-                  }
-                }
+
+            if (Array.isArray(data) && data.length > 0) {
+              const normalizedRemote = self.mergeRemoteServerList(data);
+              const prevSnapshot = JSON.stringify(activeAuctionsList.map(a => [a.id, a.highest_bid, a.highest_bidder, a.status, a.is_event]));
+              const nextSnapshot = JSON.stringify(normalizedRemote.map(a => [a.id, a.highest_bid, a.highest_bidder, a.status, a.is_event]));
+              if (prevSnapshot !== nextSnapshot) {
+                activeAuctionsList = normalizedRemote;
+                localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
+                updateActiveCounts();
+                filterGallery();
               }
             }
-          } catch (e) {}
-        }, 50);
+          } catch (_) {}
+          finally {
+            self.isSyncing = false;
+          }
+        }, 500);
       }
     };
 
+    window._RealtimeBidEnforcementCore = _RealtimeBidEnforcementCore;
+    document.addEventListener("DOMContentLoaded", () => {
+      _RealtimeBidEnforcementCore.initInstantSyncGuardian();
+    });
+
     function setupRealtimeSubscription() {
       if (!supabaseClient) return;
+
       try {
-        const channel = supabaseClient.channel('public-cluster-auctions');
-        
-        channel
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'buyers' }, async (payload) => {
-            await fetchBuyersList();
-            if (typeof renderBuyersTable === 'function') {
-              const bModal = document.getElementById('buyersTableModal');
-              if (bModal && !bModal.classList.contains('hidden')) {
-                renderBuyersTable();
+        supabaseClient
+          .channel('public-cluster-auctions')
+          .on(
+            'postgres_changes', 
+            { event: '*', schema: 'public', table: 'auctions' }, 
+            (payload) => {
+              if (payload.eventType === 'INSERT' && payload.new) {
+                const exists = activeAuctionsList.some(item => String(item.id) === String(payload.new.id));
+                if (!exists) {
+                  activeAuctionsList.unshift(payload.new);
+                }
+              } else if (payload.eventType === 'UPDATE' && payload.new) {
+                const idx = activeAuctionsList.findIndex(item => String(item.id) === String(payload.new.id));
+                if (idx !== -1) {
+                  activeAuctionsList[idx] = { ...activeAuctionsList[idx], ...payload.new };
+                  if (payload.new.highest_bid !== undefined && payload.new.highest_bid !== null) {
+                    _RealtimeBidEnforcementCore.pushInstantState(payload.new.id, payload.new.highest_bid, payload.new.highest_bidder, payload.new.status);
+                  }
+                }
+              } else if (payload.eventType === 'DELETE' && payload.old) {
+                activeAuctionsList = activeAuctionsList.filter(item => String(item.id) !== String(payload.old.id));
               }
-            }
-            if (authenticatedPiUser && payload && payload.new && (payload.new.username || '').toLowerCase() === authenticatedPiUser.username.toLowerCase()) {
-              await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-            } else {
-              renderGallery();
-            }
-          })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, (payload) => {
-            if (payload && payload.new) {
-              const updated = payload.new;
-              const idx = activeAuctionsList.findIndex(a => String(a.id) === String(updated.id));
-              if (idx !== -1) {
-                const existingBid = parseFloat(activeAuctionsList[idx].highest_bid || 0);
-                const incomingBid = parseFloat(updated.highest_bid || 0);
-                const finalBid = Math.max(existingBid, incomingBid);
-                activeAuctionsList[idx] = {
-                  ...activeAuctionsList[idx],
-                  ...updated,
-                  highest_bid: finalBid > 0 ? finalBid : updated.highest_bid
-                };
-              } else {
-                activeAuctionsList.unshift(updated);
-              }
+
               _SystemAutonomousGuardian.normalizeAuctionPrices(activeAuctionsList);
               localStorage.setItem('nusantara_cached_auctions', JSON.stringify(activeAuctionsList));
               updateActiveCounts();
               filterGallery();
-            } else {
-              fetchActiveAuctions();
             }
-          })
-          .on('broadcast', { event: 'live_bid_update' }, (payload) => {
-            if (payload && payload.payload) {
-              if (payload.payload.resetAction) {
-                try {
-                  localStorage.removeItem('pibox_all_bids_audit_ledger_v1');
-                  if (typeof window.name === 'string' && window.name.startsWith('PIBOX_LEDGER:')) {
-                    window.name = '';
-                  }
-                } catch (_) {}
-                if (typeof _AutonomousMeshCoordinator !== 'undefined' && typeof _AutonomousMeshCoordinator.ingestAnyPayload === 'function') {
-                  _AutonomousMeshCoordinator.ingestAnyPayload(payload.payload);
-                }
-                updateActiveCounts();
-                filterGallery();
-                return;
-              }
-              const { auctionId, newBid, bidder } = payload.payload;
-              _RealtimeBidEnforcementCore.pushInstantState(auctionId, newBid, bidder);
-              _AutonomousLogicEngine.syncBidStateLocally(auctionId, newBid, bidder);
-              if (payload.payload.ledgerEntry && payload.payload.ledgerEntry.username && window._BidLedgerAndDistributionCore) {
-                const existing = window._BidLedgerAndDistributionCore.readAllRecords();
-                const alreadyExists = existing.some(r => r.id === payload.payload.ledgerEntry.id);
-                if (!alreadyExists) {
-                  existing.push(payload.payload.ledgerEntry);
-                  window._BidLedgerAndDistributionCore.writeAllRecords(existing);
-                }
-              }
-
-              updateActiveCounts();
-              filterGallery();
-            }
-          })
-          .on('broadcast', { event: 'buyer_status_update' }, async (payload) => {
-            if (payload && payload.payload) {
-              await fetchBuyersList();
-              if (typeof renderBuyersTable === 'function') {
-                const bModal = document.getElementById('buyersTableModal');
-                if (bModal && !bModal.classList.contains('hidden')) {
-                  renderBuyersTable();
-                }
-              }
-              if (
-                authenticatedPiUser &&
-                payload.payload.username &&
-                payload.payload.username.toLowerCase() === authenticatedPiUser.username.toLowerCase() &&
-                typeof checkBuyerStatusInDatabase === 'function'
-              ) {
-                await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-              } else if (typeof renderGallery === 'function') {
-                renderGallery();
+          )
+          .on(
+            'broadcast',
+            { event: 'live_bid_update' },
+            (msg) => {
+              if (msg && msg.payload) {
+                _RealtimeBidEnforcementCore.pushInstantState(msg.payload.auctionId, msg.payload.newBid, msg.payload.bidder);
               }
             }
-          })
+          )
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'chats' },
+            (payload) => {
+              if (payload && payload.new) {
+                if (window.ChatNotificationEngine && typeof window.ChatNotificationEngine.handleIncomingMessage === 'function') {
+                  window.ChatNotificationEngine.handleIncomingMessage(payload.new);
+                }
+                const chatModal = document.getElementById('chatModal');
+                if (chatModal && !chatModal.classList.contains('hidden')) {
+                  loadChatMessages();
+                }
+              }
+            }
+          )
           .subscribe();
-
-
-        try {
-          if (typeof BroadcastChannel !== 'undefined') {
-            if (window.__piboxLiveTabBus) {
-              try { window.__piboxLiveTabBus.close(); } catch (_) {}
-            }
-            const bus = new BroadcastChannel('pibox_live_auction_bus');
-            bus.onmessage = async (evt) => {
-              const msg = evt && evt.data;
-              if (!msg) return;
-              if (msg.type === 'buyer_status_update') {
-                await fetchBuyersList();
-                if (typeof renderBuyersTable === 'function') {
-                  const bModal = document.getElementById('buyersTableModal');
-                  if (bModal && !bModal.classList.contains('hidden')) {
-                    renderBuyersTable();
-                  }
-                }
-                if (
-                  authenticatedPiUser &&
-                  msg.username &&
-                  msg.username.toLowerCase() === authenticatedPiUser.username.toLowerCase() &&
-                  typeof checkBuyerStatusInDatabase === 'function'
-                ) {
-                  await checkBuyerStatusInDatabase(authenticatedPiUser.username);
-                } else if (typeof renderGallery === 'function') {
-                  renderGallery();
-                }
-                return;
-              }
-              if (msg.type !== 'live_bid_update') return;
-              _RealtimeBidEnforcementCore.pushInstantState(msg.auctionId, msg.newBid, msg.bidder);
-
-              _AutonomousLogicEngine.syncBidStateLocally(msg.auctionId, msg.newBid, msg.bidder);
-              if (msg.ledgerEntry && msg.ledgerEntry.username && window._BidLedgerAndDistributionCore) {
-                const existing = window._BidLedgerAndDistributionCore.readAllRecords();
-                if (!existing.some(r => r.id === msg.ledgerEntry.id)) {
-                  existing.push(msg.ledgerEntry);
-                  window._BidLedgerAndDistributionCore.writeAllRecords(existing);
-                }
-              }
-              updateActiveCounts();
-              filterGallery();
-            };
-            window.__piboxLiveTabBus = bus;
-          }
-        } catch (_) {}
-
-        _RealtimeBidEnforcementCore.initInstantSyncGuardian();
-
       } catch (e) {}
     }
 
-    function updateTimers() {}
+    function updateTimers() {
+      const elements = document.querySelectorAll('[data-ends-at]');
+      elements.forEach(el => {
+        const endsAtStr = el.getAttribute('data-ends-at');
+        if (!endsAtStr) return;
+        const endsTime = new Date(endsAtStr).getTime();
+        const now = Date.now();
+        const diff = endsTime - now;
+
+        if (diff <= 0) {
+          el.innerText = "SELESAI";
+          el.className = "text-[9px] font-bold text-red-400";
+        } else {
+          const hrs = Math.floor(diff / 3600000).toString().padStart(2, '0');
+          const mins = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+          const secs = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+          el.innerText = `${hrs}:${mins}:${secs}`;
+        }
+      });
+    }
+
+    function resetCreateForm() {
+      hasCompletedServerFee = false;
+      hasReleasedToGallery = false;
+
+      const fields = ['imageFileInput', 'extraSSInput', 'assetTitleInput', 'assetDescriptionInput', 'assetHashInput', 'reservePriceInput', 'realSellerUsernameInput', 'piboxWalletInput'];
+      fields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      
+      const preview = document.getElementById('extraSSPreviewList');
+      if (preview) preview.innerHTML = '';
+
+      const disclaimer = document.getElementById('legalDisclaimerCheckbox');
+      if (disclaimer) disclaimer.checked = false;
+
+      const btnPay = document.getElementById('btnPayServerFee');
+      if (btnPay) {
+        btnPay.disabled = true;
+        btnPay.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-not-allowed shadow-inner";
+        btnPay.innerHTML = `<span data-i18n="payServerFeeBtn">💳 Bayar 0.2 Pi (Biaya Server)</span>`;
+      }
+
+      const btnRelease = document.getElementById('btnReleaseGallery');
+      if (btnRelease) {
+        btnRelease.disabled = true;
+        btnRelease.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-not-allowed shadow-inner";
+        btnRelease.innerHTML = `<span data-i18n="releaseGalleryBtn">🚀 Rilis ke Galeri ("Pending")</span>`;
+      }
+
+      const btnEmail = document.getElementById('btnSendEmail');
+      if (btnEmail) {
+        btnEmail.disabled = true;
+        btnEmail.className = "w-full bg-gray-800 text-gray-500 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-not-allowed shadow-inner";
+        btnEmail.innerHTML = `<span data-i18n="sendEmailBtn">📧 Kirim Email Verifikasi ke Admin</span>`;
+      }
+    }
 
     function triggerAggressiveRefresh() {
-      fetchActiveAuctions();
-      fetchBuyersList();
-      if (authenticatedPiUser) checkBuyerStatusInDatabase(authenticatedPiUser.username);
-    }
-
-    function openImageZoomModal(imgSrc) {
-      if (!imgSrc) return;
-      let zoomModal = document.getElementById('imageZoomModal');
-      if (!zoomModal) {
-        zoomModal = document.createElement('div');
-        zoomModal.id = 'imageZoomModal';
-        zoomModal.className = 'fixed inset-0 bg-black/95 backdrop-blur-md hidden flex items-center justify-center p-2 z-[60] cursor-zoom-out';
-        zoomModal.onclick = closeImageZoomModal;
-        zoomModal.innerHTML = `
-          <div class="relative max-w-full max-h-full flex items-center justify-center p-2">
-            <button type="button" onclick="closeImageZoomModal()" class="absolute top-2 right-2 text-white bg-gray-800/85 font-bold rounded-full w-8 h-8 flex items-center justify-center text-lg z-10 cursor-pointer">&times;</button>
-            <img id="zoomedImageElement" class="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl border border-gray-800">
-          </div>
-        `;
-        document.body.appendChild(zoomModal);
+      localStorage.removeItem('nusantara_cached_auctions');
+      const refreshBtnText = document.getElementById('refreshTextBtn');
+      if (refreshBtnText) {
+        refreshBtnText.innerText = "Menyegarkan...";
+        setTimeout(() => { refreshBtnText.innerText = t('refreshBtn'); }, 1000);
       }
-      document.getElementById('zoomedImageElement').src = imgSrc;
-      zoomModal.classList.remove('hidden');
+      if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
+      if (typeof fetchBuyersList === 'function') fetchBuyersList();
+      if (typeof checkAuctionSchedule === 'function') checkAuctionSchedule();
     }
 
-    function closeImageZoomModal() {
-      const zoomModal = document.getElementById('imageZoomModal');
-      if (zoomModal) zoomModal.classList.add('hidden');
+    const translations = {
+      id: {
+        networkModeLabel: "⚡ MODE JARINGAN:",
+        appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
+        appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
+        scheduleBtn: "Jadwal",
+        loginBtn: "Login",
+        buyerStatusTitle: "Status Akses Pembeli",
+        buyerStatusPending: "Menunggu Verifikasi Pendaftaran Admin...",
+        releaseAssetBtn: "+ List Aset/Barang",
+        chatRoomBtn: "Chat Room",
+        registerBuyerBtn: "📋 Daftar Pembeli",
+        withdrawDepositBtn: "📥 Klaim Penarikan Jaminan",
+        activeSellersLabel: "📦 Penjual Aktif",
+        activeBiddersLabel: "🔨 Penawar Aktif",
+        searchPlaceholder: "🔍 Cari nama aset, barang, properti...",
+        filterAll: "Semua Status",
+        filterActive: "Aktif",
+        filterPending: "⏳ Pending",
+        filterMyListings: "📦 Aset Saya",
+        filterMyBids: "🔨 Tawaran Saya",
+        filterEnded: "Selesai",
+        filterCancelled: "Dibatalkan",
+        catAll: "🌐 Semua Kategori Lelang",
+        catDigital: "🎨 Aset Digital & NFT",
+        catLuxury: "💎 Barang Mewah (Jam, Perhiasan)",
+        catElectronics: "📱 Elektronik & Gadget",
+        catCollectibles: "🏛️ Koleksi & Barang Antik",
+        catFashion: "👔 Fashion & Kerajinan Lokal",
+        catAutomotive: "🚗 Otomotif & Kendaraan",
+        catProperty: "🏠 Properti & Real Estate (Rumah, Tanah)",
+        catServices: "🛠️ Jasa, Layanan & Sewa",
+        loadingGallery: "Memuat Galeri Lelang...",
+        guestUser: "User: Tamu (Belum Login)",
+        piLoginBtn: "🔑 Login Pi",
+        refreshBtn: "Segarkan",
+        scheduleModalTitle: "Pengaturan Jadwal Lelang",
+        scheduleModalSub: "Khusus Admin & Developer",
+        scheduleModeLabel: "Status Mode Sesi Lelang Saat Ini:",
+        cancelBtn: "Batal",
+        saveScheduleBtn: "💾 Simpan Jadwal",
+        monthlyReportTitle: "Rekapitulasi Laporan Bulanan On-Chain",
+        monthlyReportSub: "Unduh & Share Laporan Data On-Time",
+        selectMonthLabel: "Pilih Bulan Laporan:",
+        loadingReport: "Memuat data rekapitulasi...",
+        copyReportBtn: "📋 Salin Laporan ke Clipboard",
+        downloadReportBtn: "🌐 Download File Laporan (Chrome HTML)",
+        closeBtn: "Tutup",
+        chatModalTitle: "Pusat Live Chat NFT Global Market",
+        chatModalSub: "Pilih Ruang Diskusi & Komunikasi Langsung P2P",
+        p2pSelectLabel: "Pilih Penjual / Lawan Chat P2P:",
+        p2pSelectDefault: "-- Pilih User / Seller --",
+        p2pStartBtn: "Mulai Chat",
+        chatLoading: "Memuat pesan chat...",
+        previewSSLabel: "Preview SS:",
+        deleteBtn: "✕ Hapus",
+        chatInputPlaceholder: "Ketik pesan chat atau upload SS pembayaran...",
+        chatSendBtn: "Kirim 🚀",
+        buyersModalTitle: "👥 Tabel Daftar Calon Pembeli & Status",
+        buyersModalSub: "Admin/Dev dapat memverifikasi & menghapus data pembeli.",
+        buyerSearchPlaceholder: "Cari pembeli...",
+        deleteBatchBtn: "🗑 Hapus Terpilih",
+        thUsername: "Username",
+        thNotice: "Keterangan",
+        thStatus: "Status Verifikasi",
+        thAction: "Aksi",
+        withdrawalModalTitle: "Klaim Penarikan Jaminan",
+        withdrawalModalSub: "Kirim bukti deposit, username, dan wallet",
+        withdrawUsernameLabel: "Username Pi Network:",
+        withdrawWalletLabel: "PiBox Wallet Address:",
+        withdrawWalletPlaceholder: "Masukkan alamat wallet tujuan...",
+        withdrawProofLabel: "Upload Bukti Deposit (Screenshot):",
+        submitWithdrawBtn: "🚀 Kirim Klaim",
+        modalDetailTitle: "Detail Lelang Aset / Barang",
+        modalCreateTitle: "Rilis Lelang Baru",
+        quotaDisplayMsg: "Maks 3 Listing Aktif Per Username",
+        labelCategory: "Pilih Kategori Lelang",
+        labelMainPhoto: "Foto / Screenshot Utama",
+        labelExtraPhoto: "Foto Tambahan / Spesifikasi",
+        labelTitle: "3. Identitas / Nama Aset / Barang / Jasa",
+        titleInputPlaceholder: "Masukkan nama barang, properti, atau jenis jasa...",
+        labelDescription: "Deskripsi & Spesifikasi Singkat",
+        descPlaceholder: "Tuliskan lokasi (properti), kondisi barang, atau detail layanan (Maks 500 karakter)...",
+        labelHash: "Kode Ref / Hash",
+        onChainTimeLabel: "On-chain Time (Sesuai SS Detail Aset):",
+        creatorAccountLabel: "Akun Pembuat Listing (Admin/Dev):",
+        realSellerLabel: "Username Penjual Asli (Wajib Diisi):",
+        piboxWalletLabel: "PiBox Wallet Penjual Asli (Wajib Diisi):",
+        labelReservePrice: "Harga Awal Penawaran (Reserve Price in Pi)",
+        pricePlaceholder: "Contoh: 150",
+        labelTxMode: "Mode Transaksi Aset / Barang",
+        txModeP2P: "🤝 Transaksi Direct P2P (Langsung ke Penjual)",
+        txModeMarket: "🛒 Transaksi di Market / Platform",
+        disclaimerTitle: "⚖️ PERINGATAN HUKUM & DISCLAIMER PERANTARA",
+        disclaimerText: "Aplikasi ini <strong>hanya bertindak sebagai perantara</strong>. Segala bentuk tuntutan hukum perdata maupun pidana atas keaslian, kepemilikan sah, barang palsu/KW, barang curian, cagar budaya, dokumen palsu, atau wanprestasi sepenuhnya menjadi tanggung jawab hukum penjual pribadi.",
+        disclaimerCheckbox: "Saya menyatakan dengan sesungguhnya bahwa aset/barang ini adalah milik sah saya, tidak melanggar hukum/hak cipta, dan saya membebaskan platform dari segala tuntutan hukum.",
+        payServerFeeBtn: "💳 Bayar 0.2 Pi (Biaya Server)",
+        releaseGalleryBtn: "🚀 Rilis ke Galeri (\"Pending\")",
+        sendEmailBtn: "📧 Kirim Email Verifikasi ke Admin",
+        loginFirstAlert: "Silakan login ke akun Pi Network Anda terlebih dahulu.",
+        fillAllAlert: "Harap lengkapi foto utama, nama aset, dan harga awal penawaran.",
+        emptyGallery: "Belum ada aset atau barang lelang yang tersedia.",
+        firstReleaseBtn: "+ Rilis Aset Pertama",
+        activeStatus: "Aktif",
+        pendingStatus: "Pending",
+        finishedStatus: "Selesai",
+        cancelledStatus: "Dibatalkan",
+        btnSetPending: "Set Pending",
+        btnSetActive: "Set Aktif",
+        btnDeleteAsset: "🗑 Hapus",
+        sellerLabel: "Penjual",
+        bidSuccessMsg: "✅ Penawaran Anda berhasil dikirim!"
+      },
+      en: {
+        networkModeLabel: "⚡ NETWORK MODE:",
+        appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
+        appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
+        scheduleBtn: "Schedule",
+        loginBtn: "Login",
+        buyerStatusTitle: "Buyer Access Status",
+        buyerStatusPending: "Waiting for Admin Registration Verification...",
+        releaseAssetBtn: "+ List Asset/Item",
+        chatRoomBtn: "Chat Room",
+        registerBuyerBtn: "📋 Buyer List",
+        withdrawDepositBtn: "📥 Claim Deposit Refund",
+        activeSellersLabel: "📦 Active Sellers",
+        activeBiddersLabel: "🔨 Active Bidders",
+        searchPlaceholder: "🔍 Search asset, item, property...",
+        filterAll: "All Status",
+        filterActive: "Active",
+        filterPending: "⏳ Pending",
+        filterMyListings: "📦 My Listings",
+        filterMyBids: "🔨 My Bids",
+        filterEnded: "Ended",
+        filterCancelled: "Cancelled",
+        catAll: "🌐 All Auction Categories",
+        catDigital: "🎨 Digital Assets & NFT",
+        catLuxury: "💎 Luxury Items (Watches, Jewelry)",
+        catElectronics: "📱 Electronics & Gadgets",
+        catCollectibles: "🏛️ Collectibles & Antiques",
+        catFashion: "👔 Fashion & Local Crafts",
+        catAutomotive: "🚗 Automotive & Vehicles",
+        catProperty: "🏠 Property & Real Estate",
+        catServices: "🛠️ Services & Rentals",
+        loadingGallery: "Loading Auction Gallery...",
+        guestUser: "User: Guest (Not Logged In)",
+        piLoginBtn: "🔑 Pi Login",
+        refreshBtn: "Refresh",
+        scheduleModalTitle: "Auction Schedule Settings",
+        scheduleModalSub: "Admin & Developer Only",
+        scheduleModeLabel: "Current Auction Session Mode:",
+        cancelBtn: "Cancel",
+        saveScheduleBtn: "💾 Save Schedule",
+        monthlyReportTitle: "Monthly On-Chain Report Summary",
+        monthlyReportSub: "Download & Share On-Time Report Data",
+        selectMonthLabel: "Select Report Month:",
+        loadingReport: "Loading report data...",
+        copyReportBtn: "📋 Copy Report to Clipboard",
+        downloadReportBtn: "🌐 Download Report File (Chrome HTML)",
+        closeBtn: "Close",
+        chatModalTitle: "NFT Global Market Live Chat Hub",
+        chatModalSub: "Select Discussion Room & Direct P2P Chat",
+        p2pSelectLabel: "Select Seller / P2P Chat Partner:",
+        p2pSelectDefault: "-- Select User / Seller --",
+        p2pStartBtn: "Start Chat",
+        chatLoading: "Loading chat messages...",
+        previewSSLabel: "SS Preview:",
+        deleteBtn: "✕ Delete",
+        chatInputPlaceholder: "Type a message or upload payment screenshot...",
+        chatSendBtn: "Send 🚀",
+        buyersModalTitle: "👥 Prospective Buyers & Verification Table",
+        buyersModalSub: "Admin/Dev can verify & delete buyer records.",
+        buyerSearchPlaceholder: "Search buyer...",
+        deleteBatchBtn: "🗑 Delete Selected",
+        thUsername: "Username",
+        thNotice: "Notes",
+        thStatus: "Verification Status",
+        thAction: "Action",
+        withdrawalModalTitle: "Claim Deposit Refund",
+        withdrawalModalSub: "Submit deposit proof, username, and wallet",
+        withdrawUsernameLabel: "Pi Network Username:",
+        withdrawWalletLabel: "PiBox Wallet Address:",
+        withdrawWalletPlaceholder: "Enter destination wallet address...",
+        withdrawProofLabel: "Upload Deposit Proof (Screenshot):",
+        submitWithdrawBtn: "🚀 Submit Claim",
+        modalDetailTitle: "Asset / Item Auction Details",
+        modalCreateTitle: "Release New Auction",
+        quotaDisplayMsg: "Max 3 Active Listings Per Username",
+        labelCategory: "Select Auction Category",
+        labelMainPhoto: "Main Photo / Screenshot",
+        labelExtraPhoto: "Additional Photo / Specifications",
+        labelTitle: "3. Asset / Item / Service Identity",
+        titleInputPlaceholder: "Enter item, property, or service name...",
+        labelDescription: "Short Description & Specs",
+        descPlaceholder: "Write location (property), item condition, or service details (Max 500 chars)...",
+        labelHash: "Ref Code / Hash",
+        onChainTimeLabel: "On-chain Time (Per Asset Detail SS):",
+        creatorAccountLabel: "Listing Creator Account (Admin/Dev):",
+        realSellerLabel: "Real Seller Username (Required):",
+        piboxWalletLabel: "Real Seller PiBox Wallet (Required):",
+        labelReservePrice: "Reserve Price (in Pi)",
+        pricePlaceholder: "Example: 150",
+        labelTxMode: "Asset / Item Transaction Mode",
+        txModeP2P: "🤝 Direct P2P Transaction (Direct to Seller)",
+        txModeMarket: "🛒 Market / Platform Transaction",
+        disclaimerTitle: "⚖️ LEGAL WARNING & INTERMEDIARY DISCLAIMER",
+        disclaimerText: "This application <strong>acts solely as an intermediary</strong>. Any civil or criminal legal claims regarding authenticity, lawful ownership, counterfeit goods, stolen items, cultural heritage, forged documents, or breach of contract are solely the legal responsibility of the individual seller.",
+        disclaimerCheckbox: "I solemnly declare that this asset/item is my lawful property, does not infringe laws/copyrights, and I release the platform from all legal claims.",
+        payServerFeeBtn: "💳 Pay 0.2 Pi (Server Fee)",
+        releaseGalleryBtn: "🚀 Release to Gallery (\"Pending\")",
+        sendEmailBtn: "📧 Send Verification Email to Admin",
+        loginFirstAlert: "Please log in to your Pi Network account first.",
+        fillAllAlert: "Please complete main photo, asset title, and reserve price.",
+        emptyGallery: "No auction assets or items available yet.",
+        firstReleaseBtn: "+ Release First Asset",
+        activeStatus: "Active",
+        pendingStatus: "Pending",
+        finishedStatus: "Ended",
+        cancelledStatus: "Cancelled",
+        btnSetPending: "Set Pending",
+        btnSetActive: "Set Active",
+        btnDeleteAsset: "🗑 Delete",
+        sellerLabel: "Seller",
+        bidSuccessMsg: "✅ Your bid has been submitted!"
+      },
+      zh: {
+        networkModeLabel: "⚡ 网络模式：",
+        appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
+        appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
+        scheduleBtn: "日程",
+        loginBtn: "登录",
+        buyerStatusTitle: "买家访问状态",
+        buyerStatusPending: "等待管理员审核注册...",
+        releaseAssetBtn: "+ 发布资产/商品",
+        chatRoomBtn: "聊天室",
+        registerBuyerBtn: "📋 买家列表",
+        withdrawDepositBtn: "📥 申请退还保证金",
+        activeSellersLabel: "📦 活跃卖家",
+        activeBiddersLabel: "🔨 活跃出价者",
+        searchPlaceholder: "🔍 搜索资产、商品、房产...",
+        filterAll: "全部状态",
+        filterActive: "进行中",
+        filterPending: "⏳ 待审核",
+        filterMyListings: "📦 我的发布",
+        filterMyBids: "🔨 我的出价",
+        filterEnded: "已结束",
+        filterCancelled: "已取消",
+        catAll: "🌐 全部分类",
+        catDigital: "🎨 数字资产与 NFT",
+        catLuxury: "💎 奢侈品（腕表、珠宝）",
+        catElectronics: "📱 电子产品与数码",
+        catCollectibles: "🏛️ 收藏品与古董",
+        catFashion: "👔 服饰与本地手工艺",
+        catAutomotive: "🚗 汽车与载具",
+        catProperty: "🏠 房产与地产",
+        catServices: "🛠️ 服务与租赁",
+        loadingGallery: "正在加载拍卖画廊...",
+        guestUser: "用户：访客（未登录）",
+        piLoginBtn: "🔑 Pi 登录",
+        refreshBtn: "刷新",
+        scheduleModalTitle: "拍卖日程设置",
+        scheduleModalSub: "仅限管理员与开发者",
+        scheduleModeLabel: "当前拍卖场次模式：",
+        cancelBtn: "取消",
+        saveScheduleBtn: "💾 保存日程",
+        monthlyReportTitle: "月度链上报告汇总",
+        monthlyReportSub: "下载并分享实时报告数据",
+        selectMonthLabel: "选择报告月份：",
+        loadingReport: "正在加载汇总数据...",
+        copyReportBtn: "📋 复制报告到剪贴板",
+        downloadReportBtn: "🌐 下载报告文件 (Chrome HTML)",
+        closeBtn: "关闭",
+        chatModalTitle: "NFT Global Market 实时聊天中心",
+        chatModalSub: "选择讨论室与点对点沟通",
+        p2pSelectLabel: "选择卖家 / 点对点聊天对象：",
+        p2pSelectDefault: "-- 选择用户 / 卖家 --",
+        p2pStartBtn: "开始聊天",
+        chatLoading: "正在加载聊天消息...",
+        previewSSLabel: "截图预览：",
+        deleteBtn: "✕ 删除",
+        chatInputPlaceholder: "输入聊天消息或上传付款截图...",
+        chatSendBtn: "发送 🚀",
+        buyersModalTitle: "👥 准买家与审核状态表",
+        buyersModalSub: "管理员/开发者可审核与删除买家记录。",
+        buyerSearchPlaceholder: "搜索买家...",
+        deleteBatchBtn: "🗑 删除所选",
+        thUsername: "用户名",
+        thNotice: "说明",
+        thStatus: "审核状态",
+        thAction: "操作",
+        withdrawalModalTitle: "申请退还保证金",
+        withdrawalModalSub: "提交保证金凭证、用户名与钱包",
+        withdrawUsernameLabel: "Pi Network 用户名：",
+        withdrawWalletLabel: "PiBox 钱包地址：",
+        withdrawWalletPlaceholder: "输入收款钱包地址...",
+        withdrawProofLabel: "上传保证金凭证（截图）：",
+        submitWithdrawBtn: "🚀 提交申请",
+        modalDetailTitle: "资产/商品拍卖详情",
+        modalCreateTitle: "发布新拍卖",
+        quotaDisplayMsg: "每个用户名最多 3 个活跃发布",
+        labelCategory: "选择拍卖分类",
+        labelMainPhoto: "主图 / 截图",
+        labelExtraPhoto: "附加照片 / 规格",
+        labelTitle: "3. 资产/商品/服务名称",
+        titleInputPlaceholder: "输入商品、房产或服务名称...",
+        labelDescription: "简短描述与规格",
+        descPlaceholder: "填写位置（房产）、商品状况或服务详情（最多 500 字）...",
+        labelHash: "参考码 / 哈希",
+        onChainTimeLabel: "链上时间（按资产详情截图）：",
+        creatorAccountLabel: "发布账号（管理员/开发者）：",
+        realSellerLabel: "真实卖家用户名（必填）：",
+        piboxWalletLabel: "真实卖家 PiBox 钱包（必填）：",
+        labelReservePrice: "起拍价（Pi）",
+        pricePlaceholder: "例如：150",
+        labelTxMode: "资产/商品交易模式",
+        txModeP2P: "🤝 直接点对点交易（直接转给卖家）",
+        txModeMarket: "🛒 平台/市场交易",
+        disclaimerTitle: "⚖️ 法律警告与中介免责声明",
+        disclaimerText: "本应用<strong>仅作为中介平台</strong>。有关真实性、合法所有权、假冒伪劣商品、赃物、文物、伪造文件或违约的任何民事或刑事法律责任均由个人卖家自行承担。",
+        disclaimerCheckbox: "我郑重声明该资产/商品为我的合法财产，不侵犯法律或版权，并免除平台的一切法律责任。",
+        payServerFeeBtn: "💳 支付 0.2 Pi（服务器费用）",
+        releaseGalleryBtn: "🚀 发布至画廊（\"待审核\"）",
+        sendEmailBtn: "📧 发送审核邮件给管理员",
+        loginFirstAlert: "请先登录您的 Pi Network 账号。",
+        fillAllAlert: "请完善主图、资产名称和起拍价。",
+        emptyGallery: "暂无可用的拍卖资产或商品。",
+        firstReleaseBtn: "+ 发布首个资产",
+        activeStatus: "活跃",
+        pendingStatus: "待审核",
+        finishedStatus: "已结束",
+        cancelledStatus: "已取消",
+        btnSetPending: "设为待审核",
+        btnSetActive: "设为活跃",
+        btnDeleteAsset: "🗑 删除",
+        sellerLabel: "卖家",
+        bidSuccessMsg: "✅ 您的出价已提交！"
+      },
+      es: {
+        networkModeLabel: "⚡ MODO DE RED:",
+        appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
+        appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
+        scheduleBtn: "Horario",
+        loginBtn: "Entrar",
+        buyerStatusTitle: "Estado de Acceso del Comprador",
+        buyerStatusPending: "Esperando verificación de registro del Admin...",
+        releaseAssetBtn: "+ Listar Activo/Artículo",
+        chatRoomBtn: "Sala de Chat",
+        registerBuyerBtn: "📋 Lista Compradores",
+        withdrawDepositBtn: "📥 Reclamar Reembolso de Garantía",
+        activeSellersLabel: "📦 Vendedores Activos",
+        activeBiddersLabel: "🔨 Postores Activos",
+        searchPlaceholder: "🔍 Buscar activo, artículo, propiedad...",
+        filterAll: "Todos los Estados",
+        filterActive: "Activo",
+        filterPending: "⏳ Pendiente",
+        filterMyListings: "📦 Mis Listados",
+        filterMyBids: "🔨 Mis Pujas",
+        filterEnded: "Finalizado",
+        filterCancelled: "Cancelado",
+        catAll: "🌐 Todas las Categorías",
+        catDigital: "🎨 Activos Digitales y NFT",
+        catLuxury: "💎 Artículos de Lujo (Relojes, Joyas)",
+        catElectronics: "📱 Electrónica y Gadgets",
+        catCollectibles: "🏛️ Coleccionables y Antigüedades",
+        catFashion: "👔 Moda y Artesanía Local",
+        catAutomotive: "🚗 Automotriz y Vehículos",
+        catProperty: "🏠 Propiedad y Bienes Raíces",
+        catServices: "🛠️ Servicios y Alquileres",
+        loadingGallery: "Cargando Galería de Subastas...",
+        guestUser: "Usuario: Invitado (Sin Sesión)",
+        piLoginBtn: "🔑 Login Pi",
+        refreshBtn: "Actualizar",
+        scheduleModalTitle: "Configuración de Horario de Subasta",
+        scheduleModalSub: "Solo Admin y Desarrollador",
+        scheduleModeLabel: "Modo Actual de Sesión de Subasta:",
+        cancelBtn: "Cancelar",
+        saveScheduleBtn: "💾 Guardar Horario",
+        monthlyReportTitle: "Resumen de Reporte Mensual On-Chain",
+        monthlyReportSub: "Descargar y Compartir Datos en Tiempo Real",
+        selectMonthLabel: "Seleccionar Mes del Reporte:",
+        loadingReport: "Cargando datos del reporte...",
+        copyReportBtn: "📋 Copiar Reporte al Portapapeles",
+        downloadReportBtn: "🌐 Descargar Archivo de Reporte (Chrome HTML)",
+        closeBtn: "Cerrar",
+        chatModalTitle: "Centro de Chat en Vivo NFT Global Market",
+        chatModalSub: "Elige Sala de Discusión y Chat P2P Directo",
+        p2pSelectLabel: "Seleccionar Vendedor / Contacto P2P:",
+        p2pSelectDefault: "-- Seleccionar Usuario / Vendedor --",
+        p2pStartBtn: "Iniciar Chat",
+        chatLoading: "Cargando mensajes de chat...",
+        previewSSLabel: "Vista previa SS:",
+        deleteBtn: "✕ Eliminar",
+        chatInputPlaceholder: "Escribe un mensaje o sube captura de pago...",
+        chatSendBtn: "Enviar 🚀",
+        buyersModalTitle: "👥 Tabla de Posibles Compradores y Estado",
+        buyersModalSub: "Admin/Dev puede verificar y eliminar registros.",
+        buyerSearchPlaceholder: "Buscar comprador...",
+        deleteBatchBtn: "🗑 Eliminar Seleccionados",
+        thUsername: "Usuario",
+        thNotice: "Notas",
+        thStatus: "Estado de Verificación",
+        thAction: "Acción",
+        withdrawalModalTitle: "Reclamar Reembolso de Garantía",
+        withdrawalModalSub: "Envía comprobante de depósito, usuario y wallet",
+        withdrawUsernameLabel: "Usuario de Pi Network:",
+        withdrawWalletLabel: "Dirección de PiBox Wallet:",
+        withdrawWalletPlaceholder: "Ingresa la dirección de wallet destino...",
+        withdrawProofLabel: "Subir Comprobante de Depósito (Captura):",
+        submitWithdrawBtn: "🚀 Enviar Reclamo",
+        modalDetailTitle: "Detalles de Subasta de Activo / Artículo",
+        modalCreateTitle: "Publicar Nueva Subasta",
+        quotaDisplayMsg: "Máx. 3 Listados Activos por Usuario",
+        labelCategory: "Seleccionar Categoría de Subasta",
+        labelMainPhoto: "Foto / Captura Principal",
+        labelExtraPhoto: "Foto Adicional / Especificaciones",
+        labelTitle: "3. Identidad / Nombre del Activo / Artículo / Servicio",
+        titleInputPlaceholder: "Ingresa nombre de artículo, propiedad o servicio...",
+        labelDescription: "Descripción y Especificaciones Breves",
+        descPlaceholder: "Indica ubicación (propiedad), estado o detalles del servicio (Máx. 500 caracteres)...",
+        labelHash: "Código Ref / Hash",
+        onChainTimeLabel: "On-chain Time (Según Captura de Detalle):",
+        creatorAccountLabel: "Cuenta Creadora del Listado (Admin/Dev):",
+        realSellerLabel: "Usuario del Vendedor Real (Obligatorio):",
+        piboxWalletLabel: "PiBox Wallet del Vendedor Real (Obligatorio):",
+        labelReservePrice: "Precio de Reserva (en Pi)",
+        pricePlaceholder: "Ejemplo: 150",
+        labelTxMode: "Modo de Transacción del Activo / Artículo",
+        txModeP2P: "🤝 Transacción P2P Directa (Directo al Vendedor)",
+        txModeMarket: "🛒 Transacción en Mercado / Plataforma",
+        disclaimerTitle: "⚖️ ADVERTENCIA LEGAL Y DESCARGO DE INTERMEDIARIO",
+        disclaimerText: "Esta aplicación <strong>actúa únicamente como intermediario</strong>. Cualquier reclamo legal civil o penal sobre autenticidad, propiedad legítima, falsificaciones, artículos robados, patrimonio cultural, documentos falsos o incumplimiento es responsabilidad exclusiva del vendedor individual.",
+        disclaimerCheckbox: "Declaro solemnemente que este activo/artículo es de mi propiedad legítima, no infringe leyes ni derechos de autor y libero a la plataforma de toda reclamación legal.",
+        payServerFeeBtn: "💳 Pagar 0.2 Pi (Tarifa de Servidor)",
+        releaseGalleryBtn: "🚀 Publicar en Galería (\"Pendiente\")",
+        sendEmailBtn: "📧 Enviar Correo de Verificación al Admin",
+        loginFirstAlert: "Inicia sesión en tu cuenta de Pi Network primero.",
+        fillAllAlert: "Completa la foto principal, el nombre del activo y el precio de reserva.",
+        emptyGallery: "Aún no hay activos o artículos de subasta disponibles.",
+        firstReleaseBtn: "+ Publicar Primer Activo",
+        activeStatus: "Activo",
+        pendingStatus: "Pendiente",
+        finishedStatus: "Finalizado",
+        cancelledStatus: "Cancelado",
+        btnSetPending: "Marcar Pendiente",
+        btnSetActive: "Marcar Activo",
+        btnDeleteAsset: "🗑 Eliminar",
+        sellerLabel: "Vendedor",
+        bidSuccessMsg: "✅ ¡Tu puja ha sido enviada!"
+      }
+    };
+
+    function t(key) {
+      const langDict = translations[currentLang] || translations.id;
+      return langDict[key] || translations.id[key] || key;
+    }
+
+    function applyTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const val = t(key);
+        if (key === 'disclaimerText') {
+          el.innerHTML = val;
+        } else {
+          el.innerText = val;
+        }
+      });
+
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        el.setAttribute('placeholder', t(key));
+      });
+
+      if (typeof filterGallery === 'function') {
+        filterGallery();
+      }
+    }
+
+    function changeLanguage(newLang) {
+      if (translations[newLang]) {
+        currentLang = newLang;
+        localStorage.setItem('appLang', newLang);
+        applyTranslations();
+      }
     }
 
     function getBuyerAgreementKey(auctionId, username) {
@@ -5045,316 +5447,26 @@
     }
 
     function isBuyerAlreadyAgreed(auctionId, username) {
-      if (!username) return false;
       return localStorage.getItem(getBuyerAgreementKey(auctionId, username)) === 'true';
     }
 
-    function resetCreateForm() {
-      const formElements = [
-        'imageFileInput', 'extraSSInput', 'assetTitleInput', 
-        'assetDescriptionInput', 'assetHashInput', 'reservePriceInput',
-        'realSellerUsernameInput', 'piboxWalletInput', 'legalDisclaimerCheckbox'
-      ];
-      
-      formElements.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          if (el.type === 'checkbox') el.checked = false;
-          else if (el.type === 'file') el.value = '';
-          else el.value = '';
-        }
-      });
-      hasCompletedServerFee = false;
-      hasReleasedToGallery = false;
+    function openImageZoomModal(imgUrl) {
+      if (!imgUrl) return;
+      let zoomModal = document.getElementById('imageZoomModal');
+      if (!zoomModal) {
+        zoomModal = document.createElement('div');
+        zoomModal.id = 'imageZoomModal';
+        zoomModal.className = 'fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-3 z-[90]';
+        zoomModal.onclick = () => zoomModal.remove();
+        document.body.appendChild(zoomModal);
+      }
+      zoomModal.innerHTML = `
+        <div class="relative max-w-full max-h-full flex flex-col items-center gap-2" onclick="event.stopPropagation()">
+          <button type="button" onclick="document.getElementById('imageZoomModal').remove()" class="self-end bg-gray-900 text-white px-3 py-1 rounded-lg text-xs font-bold border border-gray-700 cursor-pointer">✕ Tutup</button>
+          <img src="${imgUrl}" class="max-h-[82vh] max-w-[92vw] object-contain rounded-xl border border-gray-800 shadow-2xl">
+        </div>
+      `;
     }
   </script>
-  <script src="./i18n.js"></script>
-  <script>
-    (function() {
-      const SUPPORTED_LANGS = ['id', 'en', 'zh', 'es'];
-
-      const BUILTIN_FALLBACK = {
-        id: {
-          appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
-          appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
-          networkModeLabel: "⚡ MODE JARINGAN:",
-          loginBtn: "Login",
-          scheduleBtn: "Jadwal",
-          releaseAssetBtn: "+ List Aset/Barang",
-          chatRoomBtn: "Chat Room",
-          registerBuyerBtn: "📋 Daftar Pembeli",
-          buyerStatusTitle: "Status Akses Pembeli",
-          buyerStatusPending: "Menunggu Verifikasi Pendaftaran Admin...",
-          buyerStatusApproved: "Status Akses: Aktif (Dapat Melihat Galeri & Menawar)",
-          depositBalancePrefix: "Saldo Jaminan:",
-          activeSellersLabel: "📦 Penjual Aktif",
-          activeBiddersLabel: "🔨 Penawar Aktif",
-          searchPlaceholder: "🔍 Cari nama aset, barang, properti...",
-          filterAll: "Semua Status",
-          filterActive: "Aktif",
-          filterPending: "⏳ Pending",
-          filterMyListings: "📦 Aset Saya",
-          filterMyBids: "🔨 Tawaran Saya",
-          filterEnded: "Selesai",
-          filterCancelled: "Dibatalkan",
-          catAll: "🌐 Semua Kategori Lelang",
-          catDigital: "🎨 Aset Digital & NFT",
-          catLuxury: "💎 Barang Mewah (Jam, Perhiasan)",
-          catElectronics: "📱 Elektronik & Gadget",
-          catCollectibles: "🏛️ Koleksi & Barang Antik",
-          catFashion: "👔 Fashion & Kerajinan Lokal",
-          catAutomotive: "🚗 Otomotif & Kendaraan",
-          catProperty: "🏠 Properti & Real Estate (Rumah, Tanah)",
-          catServices: "🛠️ Jasa, Layanan & Sewa",
-          loadingGallery: "Memuat Galeri Lelang...",
-          emptyGallery: "Belum ada aset atau barang yang ditawarkan.",
-          firstReleaseBtn: "+ Rilis Aset Pertama",
-          sellerLabel: "Penjual",
-          guestUser: "User: Tamu (Belum Login)",
-          piLoginBtn: "🔑 Login Pi",
-          refreshBtn: "Segarkan",
-          topupDepositBtn: "💳 Top Up Jaminan 35 Pi",
-          withdrawDepositBtn: "📥 Klaim Penarikan Jaminan",
-          activeStatus: "Aktif",
-          pendingStatus: "⏳ Pending",
-          finishedStatus: "Selesai",
-          cancelledStatus: "Dibatalkan",
-          btnSetPending: "⏳ Set Pending",
-          btnSetActive: "🟢 Set Aktif",
-          btnDeleteAsset: "🗑 Hapus",
-          loginFirstAlert: "Silakan Login akun Pi Network terlebih dahulu!",
-          fillAllAlert: "Lengkapi seluruh bidang input dengan benar.",
-          bidSuccessMsg: "🎉 Penawaran Anda berhasil dikirim!"
-        },
-        en: {
-          appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
-          appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
-          networkModeLabel: "⚡ NETWORK MODE:",
-          loginBtn: "Login",
-          scheduleBtn: "Schedule",
-          releaseAssetBtn: "+ List Asset/Item",
-          chatRoomBtn: "Chat Room",
-          registerBuyerBtn: "📋 Buyer Register",
-          buyerStatusTitle: "Buyer Access Status",
-          buyerStatusPending: "Waiting for Admin Registration Verification...",
-          buyerStatusApproved: "Access Status: Active (Can View Gallery & Bid)",
-          depositBalancePrefix: "Deposit Balance:",
-          activeSellersLabel: "📦 Active Sellers",
-          activeBiddersLabel: "🔨 Active Bidders",
-          searchPlaceholder: "🔍 Search asset name, item, property...",
-          filterAll: "All Status",
-          filterActive: "Active",
-          filterPending: "⏳ Pending",
-          filterMyListings: "📦 My Assets",
-          filterMyBids: "🔨 My Bids",
-          filterEnded: "Ended",
-          filterCancelled: "Cancelled",
-          catAll: "🌐 All Auction Categories",
-          catDigital: "🎨 Digital Assets & NFT",
-          catLuxury: "💎 Luxury Items (Watches, Jewelry)",
-          catElectronics: "📱 Electronics & Gadgets",
-          catCollectibles: "🏛️ Collectibles & Antiques",
-          catFashion: "👔 Fashion & Local Crafts",
-          catAutomotive: "🚗 Automotive & Vehicles",
-          catProperty: "🏠 Property & Real Estate (House, Land)",
-          catServices: "🛠️ Services, Support & Rentals",
-          loadingGallery: "Loading Auction Gallery...",
-          emptyGallery: "No assets or items listed yet.",
-          firstReleaseBtn: "+ List First Asset",
-          sellerLabel: "Seller",
-          guestUser: "User: Guest (Not Logged In)",
-          piLoginBtn: "🔑 Pi Login",
-          refreshBtn: "Refresh",
-          topupDepositBtn: "💳 Top Up 35 Pi Deposit",
-          withdrawDepositBtn: "📥 Claim Deposit Withdrawal",
-          activeStatus: "Active",
-          pendingStatus: "⏳ Pending",
-          finishedStatus: "Finished",
-          cancelledStatus: "Cancelled",
-          btnSetPending: "⏳ Set Pending",
-          btnSetActive: "🟢 Set Active",
-          btnDeleteAsset: "🗑 Delete",
-          loginFirstAlert: "Please log in to your Pi Network account first!",
-          fillAllAlert: "Please complete all input fields properly.",
-          bidSuccessMsg: "🎉 Your bid has been submitted!"
-        },
-        zh: {
-          appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
-          appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
-          networkModeLabel: "⚡ 网络模式：",
-          loginBtn: "登录",
-          scheduleBtn: "日程",
-          releaseAssetBtn: "+ 发布资产/物品",
-          chatRoomBtn: "聊天室",
-          registerBuyerBtn: "📋 买家注册",
-          buyerStatusTitle: "买家访问状态",
-          buyerStatusPending: "等待管理员审核注册...",
-          buyerStatusApproved: "访问状态：已激活（可查看画廊并出价）",
-          depositBalancePrefix: "保证金余额：",
-          activeSellersLabel: "📦 活跃卖家",
-          activeBiddersLabel: "🔨 活跃出价者",
-          searchPlaceholder: "🔍 搜索资产名称、物品、房产...",
-          filterAll: "全部状态",
-          filterActive: "进行中",
-          filterPending: "⏳ 待审核",
-          filterMyListings: "📦 我的资产",
-          filterMyBids: "🔨 我的出价",
-          filterEnded: "已结束",
-          filterCancelled: "已取消",
-          catAll: "🌐 全部分类",
-          catDigital: "🎨 数字资产与 NFT",
-          catLuxury: "💎 奢侈品（手表、珠宝）",
-          catElectronics: "📱 电子产品与数码",
-          catCollectibles: "🏛️ 收藏品与古董",
-          catFashion: "👔 服饰与手工艺",
-          catAutomotive: "🚗 汽车与交通工具",
-          catProperty: "🏠 房产与地产（房屋、土地）",
-          catServices: "🛠️ 服务与租赁",
-          loadingGallery: "正在加载拍卖画廊...",
-          emptyGallery: "暂无上架资产或物品。",
-          firstReleaseBtn: "+ 发布首个资产",
-          sellerLabel: "卖家",
-          guestUser: "用户：访客（未登录）",
-          piLoginBtn: "🔑 Pi 登录",
-          refreshBtn: "刷新",
-          topupDepositBtn: "💳 充值 35 Pi 保证金",
-          withdrawDepositBtn: "📥 申请退还保证金",
-          activeStatus: "进行中",
-          pendingStatus: "⏳ 待审核",
-          finishedStatus: "已结束",
-          cancelledStatus: "已取消",
-          btnSetPending: "⏳ 设为待定",
-          btnSetActive: "🟢 设为激活",
-          btnDeleteAsset: "🗑 删除",
-          loginFirstAlert: "请先登录您的 Pi Network 账户！",
-          fillAllAlert: "请完整填写所有输入字段。",
-          bidSuccessMsg: "🎉 您的出价已成功提交！"
-        },
-        es: {
-          appTitle: "NFT GLOBAL MARKET & AUCTION ENGINE",
-          appSubtitle: "PiBox Multi-Asset Bridge v5.2 + Secure Core",
-          networkModeLabel: "⚡ MODO DE RED:",
-          loginBtn: "Entrar",
-          scheduleBtn: "Horario",
-          releaseAssetBtn: "+ Listar Activo",
-          chatRoomBtn: "Sala de Chat",
-          registerBuyerBtn: "📋 Registro Comprador",
-          buyerStatusTitle: "Estado de Acceso Comprador",
-          buyerStatusPending: "Esperando verificación del administrador...",
-          buyerStatusApproved: "Estado de Acceso: Activo (Ver Galería y Pujar)",
-          depositBalancePrefix: "Saldo de Garantía:",
-          activeSellersLabel: "📦 Vendedores Activos",
-          activeBiddersLabel: "🔨 Postores Activos",
-          searchPlaceholder: "🔍 Buscar activo, artículo, propiedad...",
-          filterAll: "Todos los Estados",
-          filterActive: "Activo",
-          filterPending: "⏳ Pendiente",
-          filterMyListings: "📦 Mis Activos",
-          filterMyBids: "🔨 Mis Pujas",
-          filterEnded: "Finalizado",
-          filterCancelled: "Cancelado",
-          catAll: "🌐 Todas las Categorías",
-          catDigital: "🎨 Activos Digitales y NFT",
-          catLuxury: "💎 Artículos de Lujo (Relojes, Joyas)",
-          catElectronics: "📱 Electrónica y Gadgets",
-          catCollectibles: "🏛️ Coleccionables y Antigüedades",
-          catFashion: "👔 Moda y Artesanía Local",
-          catAutomotive: "🚗 Automotriz y Vehículos",
-          catProperty: "🏠 Propiedad y Bienes Raíces",
-          catServices: "🛠️ Servicios y Alquileres",
-          loadingGallery: "Cargando Galería de Subastas...",
-          emptyGallery: "Aún no hay activos o artículos publicados.",
-          firstReleaseBtn: "+ Publicar Primer Activo",
-          sellerLabel: "Vendedor",
-          guestUser: "Usuario: Invitado (Sin Sesión)",
-          piLoginBtn: "🔑 Login Pi",
-          refreshBtn: "Actualizar",
-          topupDepositBtn: "💳 Recargar Garantía 35 Pi",
-          withdrawDepositBtn: "📥 Reclamar Retiro Garantía",
-          activeStatus: "Activo",
-          pendingStatus: "⏳ Pendiente",
-          finishedStatus: "Finalizado",
-          cancelledStatus: "Cancelado",
-          btnSetPending: "⏳ Poner Pendiente",
-          btnSetActive: "🟢 Poner Activo",
-          btnDeleteAsset: "🗑 Eliminar",
-          loginFirstAlert: "¡Inicia sesión en tu cuenta de Pi Network primero!",
-          fillAllAlert: "Completa todos los campos correctamente.",
-          bidSuccessMsg: "¡🎉 Tu puja se envió con éxito!"
-        }
-      };
-
-      function getActiveDictionary() {
-        const lang = SUPPORTED_LANGS.includes(currentLang) ? currentLang : 'id';
-        const externalDict = (typeof window.translations === 'object' && window.translations && window.translations[lang])
-          ? window.translations[lang]
-          : {};
-        const fallbackDict = BUILTIN_FALLBACK[lang] || BUILTIN_FALLBACK.id;
-        return Object.assign({}, BUILTIN_FALLBACK.id, fallbackDict, externalDict);
-      }
-
-      window.t = function(key) {
-        const dict = getActiveDictionary();
-        return dict[key] !== undefined ? dict[key] : (BUILTIN_FALLBACK.id[key] !== undefined ? BUILTIN_FALLBACK.id[key] : key);
-      };
-
-      window.applyTranslations = function() {
-        const dict = getActiveDictionary();
-
-        document.querySelectorAll('[data-i18n]').forEach(el => {
-          const key = el.getAttribute('data-i18n');
-          if (key && dict[key] !== undefined) {
-            el.innerText = dict[key];
-          }
-        });
-
-        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-          const key = el.getAttribute('data-i18n-placeholder');
-          if (key && dict[key] !== undefined) {
-            el.setAttribute('placeholder', dict[key]);
-          }
-        });
-
-        const selector = document.getElementById('langSelector');
-        if (selector && selector.value !== currentLang) {
-          selector.value = currentLang;
-        }
-
-        if (typeof renderGallery === 'function') {
-          try { renderGallery(); } catch (_) {}
-        }
-      };
-
-      window.changeLanguage = function(newLang) {
-        if (!newLang) return;
-        const normalized = newLang.toLowerCase().split('-')[0];
-        currentLang = SUPPORTED_LANGS.includes(normalized) ? normalized : 'id';
-        try {
-          localStorage.setItem('appLang', currentLang);
-        } catch (_) {}
-        window.applyTranslations();
-      };
-
-      function bindLanguageEvents() {
-        const selector = document.getElementById('langSelector');
-        if (selector) {
-          selector.value = SUPPORTED_LANGS.includes(currentLang) ? currentLang : 'id';
-          const handler = (e) => window.changeLanguage(e.target.value);
-          selector.removeEventListener('change', handler);
-          selector.addEventListener('change', handler);
-          selector.addEventListener('input', handler);
-        }
-        window.applyTranslations();
-      }
-
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', bindLanguageEvents);
-      } else {
-        bindLanguageEvents();
-      }
-      window.addEventListener('load', bindLanguageEvents);
-    })();
-  </script>
-  <script src="./bidders-tracker.js"></script>
 </body>
 </html>
