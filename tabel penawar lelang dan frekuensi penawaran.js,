@@ -558,14 +558,37 @@
 
     openDetailModal: function () {
       this.syncPanelAndTable();
-      const modal = document.getElementById("activeBiddersModal");
-      if (modal) modal.classList.remove("hidden");
+      const modal =
+        document.getElementById("activeBiddersModal") ||
+        document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
+      if (modal) {
+        modal.classList.remove("hidden", "d-none", "invisible", "opacity-0");
+        modal.classList.add("flex", "open", "active", "show");
+        modal.style.display = "flex";
+        modal.style.visibility = "visible";
+        modal.style.opacity = "1";
+        modal.setAttribute("aria-hidden", "false");
+        return;
+      }
+
+      const list = this.getAllBidders();
+      const summary = list.length
+        ? list.map((r) => `@${r.username}: ${r.bidCount || 1}x`).join("\n")
+        : "Belum ada data penawar tercatat.";
+      alert(`Penawar Aktif (${this.getActiveBiddersCount()} User)\n\n${summary}`);
     },
 
     closeDetailModal: function () {
-      const modal = document.getElementById("activeBiddersModal");
-      if (modal) modal.classList.add("hidden");
+      const modal =
+        document.getElementById("activeBiddersModal") ||
+        document.querySelector('[data-modal="active-bidders"], #biddersDetailModal, #penawarAktifModal');
+      if (!modal) return;
+      modal.classList.remove("flex", "open", "active", "show");
+      modal.classList.add("hidden");
+      modal.style.display = "none";
+      modal.setAttribute("aria-hidden", "true");
     },
+
 
     clearRecords: function (selectedUsers = [], options = {}) {
       const normalizedSelected = Array.isArray(selectedUsers)
