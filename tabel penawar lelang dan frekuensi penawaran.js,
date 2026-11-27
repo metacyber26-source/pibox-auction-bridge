@@ -3,17 +3,76 @@
 
   const STORAGE_KEY = "pibox_auction_bidders_frequency_v1";
   const CHANNEL_NAME = "pibox_bidders_frequency_channel";
+  const DEFAULT_AUCTION_KEY = "default";
 
   function cleanUsername(rawUser) {
     if (!rawUser || typeof rawUser !== "string") return "";
-    return rawUser.trim().replace(/^@/, "");
+    return rawUser.trim().replace(/^@/, "").replace(/\s+/g, "");
+  }
+
+  function toSafeInt(val, fallback = 0) {
+    const n = Number(val);
+    return Number.isFinite(n) ? Math.trunc(n) : fallback;
+  }
+
+  function toSafeNumber(val, fallback = 0) {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function toMillis(val, fallback = Date.now()) {
+    if (typeof val === "number" && Number.isFinite(val)) return val;
+    if (typeof val === "string" && val.trim() !== "") {
+      const asNum = Number(val);
+      if (Number.isFinite(asNum)) return asNum;
+      const parsed = Date.parse(val);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return fallback;
+  }
+
+  function normalizeRecord(raw = {}, fallbackNow = Date.now()) {
+    const username = cleanUsername(raw.username || raw.bidder || "");
+    if (!username) return null;
+
+    const firstBidAt = toMillis(raw.firstBidAt ?? raw.first_bid_at, fallbackNow) || fallbackNow;
+    const lastBidAt = toMillis(raw.lastBidAt ?? raw.last_bid_at, firstBidAt) || firstBidAt;
+
+    return {
+      username,
+      bidCount: Math.max(0, toSafeInt(raw.bidCount ?? raw.bid_count, 0)),
+      firstBidAt,
+      lastBidAt,
+      lastBidAmount: toSafeNumber(
+        raw.lastBidAmount ?? raw.last_bid_amount ?? raw.bid_amount ?? raw.amount,
+        0
+      ),
+      lastAuctionId: String(
+        raw.lastAuctionId ?? raw.last_auction_id ?? raw.auction_id ?? raw.auctionId ?? ""
+      ),
+      lastAssetTitle: String(
+        raw.lastAssetTitle ?? raw.last_asset_title ?? raw.asset_title ?? raw.assetTitle ?? ""
+      ),
+      source: String(raw.source || "automatic_bid"),
+      updatedAt: raw.updatedAt || raw.updated_at || new Date(lastBidAt).toISOString(),
+      lastEventId: raw.lastEventId ? String(raw.lastEventId) : ""
+    };
   }
 
   function loadMap() {
     try {
       const raw = global.localStorage.getItem(STORAGE_KEY);
       const obj = raw ? JSON.parse(raw) : {};
-      return obj && typeof obj === "object" ? obj : {};
+      if (!obj || typeof obj !== "object") return {};
+
+      const cleanMap = {};
+      Object.entries(obj).forEach(([k, v]) => {
+        const norm = normalizeRecord(v);
+        if (norm) {
+          cleanMap[cleanUsername(k).toLowerCase() || norm.username.toLowerCase()] = norm;
+        }
+      });
+      return cleanMap;
     } catch (_) {
       return {};
     }
@@ -32,13 +91,165 @@
     }
   } catch (_) {}
 
+  let writeQueue = Promise.resolve();
+  function enqueueWrite(taskFn) {
+    const next = writeQueue.then(taskFn, taskFn);
+    writeQueue = next.catch(() => {});
+    return next;
+  }
+
+  const remoteBridge = {
+    clientId: `client_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    auctionKey: DEFAULT_AUCTION_KEY,
+    supabaseClient: null,
+    realtimeChannel: null,
+    onPublishBid: null,
+    onPublishClear: null,
+    onRequestSync: null
+  };
+
+  const seenEventIds = new Set();
+  function markEventSeen(eventId) {
+    if (!eventId) return false;
+    if (seenEventIds.has(eventId)) return true;
+    seenEventIds.add(eventId);
+    if (seenEventIds.size > 3000) {
+      const first = seenEventIds.values().next().value;
+      seenEventIds.delete(first);
+    }
+    return false;
+  }
+
+  function broadcastLocal(message) {
+    try {
+      if (channel) {
+        channel.postMessage({
+          ...message,
+          originClientId: remoteBridge.clientId,
+          timestamp: Date.now()
+        });
+      }
+    } catch (_) {}
+  }
+
+  function getCheckedUsernames() {
+    const checked = new Set();
+    const boxes = document.querySelectorAll(".bidder-row-checkbox:checked");
+    boxes.forEach((el) => {
+      const u = cleanUsername(el.value).toLowerCase();
+      if (u) checked.add(u);
+    });
+    return checked;
+  }
+
+  function restoreCheckedUsernames(checkedSet) {
+    if (!checkedSet || !checkedSet.size) return;
+    const boxes = document.querySelectorAll(".bidder-row-checkbox");
+    boxes.forEach((el) => {
+      const u = cleanUsername(el.value).toLowerCase();
+      if (u && checkedSet.has(u)) {
+        el.checked = true;
+      }
+    });
+  }
+
+  function mergeBidIntoMap(map, bidData = {}, options = {}) {
+    const username = cleanUsername(bidData.username || bidData.bidder || "");
+    if (!username) return null;
+
+    const eventId = bidData.eventId ? String(bidData.eventId) : "";
+    if (eventId && markEventSeen(eventId)) {
+      return map[username.toLowerCase()] || null;
+    }
+
+    const key = username.toLowerCase();
+    const now = toMillis(bidData.timestamp ?? bidData.bidAt, Date.now()) || Date.now();
+    const rawInc = Number(bidData.incrementBy ?? bidData.increment ?? 1);
+    const increment = Number.isFinite(rawInc) && rawInc > 0 ? Math.trunc(rawInc) : 1;
+
+    const prev = map[key];
+    const firstBidAt = options.isAbsoluteTotal
+      ? toMillis(bidData.firstBidAt ?? bidData.first_bid_at, prev?.firstBidAt || now)
+      : prev
+        ? Math.min(prev.firstBidAt || now, now)
+        : now;
+    const lastBidAt = options.isAbsoluteTotal
+      ? toMillis(bidData.lastBidAt ?? bidData.last_bid_at, now)
+      : prev
+        ? Math.max(prev.lastBidAt || now, now)
+        : now;
+
+    const nextCount = options.isAbsoluteTotal
+      ? Math.max(0, toSafeInt(bidData.bidCount ?? bidData.bid_count ?? bidData.totalBids, 0))
+      : (prev ? toSafeInt(prev.bidCount, 0) : 0) + increment;
+
+    const nextRecord = {
+      username: bidData.username ? cleanUsername(bidData.username) : prev?.username || username,
+      bidCount: nextCount,
+      firstBidAt,
+      lastBidAt,
+      lastBidAmount:
+        bidData.bid_amount !== undefined ||
+        bidData.amount !== undefined ||
+        bidData.lastBidAmount !== undefined ||
+        bidData.last_bid_amount !== undefined
+          ? toSafeNumber(
+              bidData.bid_amount ?? bidData.amount ?? bidData.lastBidAmount ?? bidData.last_bid_amount,
+              0
+            )
+          : prev
+            ? prev.lastBidAmount
+            : 0,
+      lastAuctionId:
+        bidData.auction_id !== undefined ||
+        bidData.auctionId !== undefined ||
+        bidData.lastAuctionId !== undefined ||
+        bidData.last_auction_id !== undefined
+          ? String(
+              bidData.auction_id ??
+                bidData.auctionId ??
+                bidData.lastAuctionId ??
+                bidData.last_auction_id ??
+                ""
+            )
+          : prev
+            ? prev.lastAuctionId
+            : "",
+      lastAssetTitle:
+        bidData.asset_title !== undefined ||
+        bidData.assetTitle !== undefined ||
+        bidData.lastAssetTitle !== undefined ||
+        bidData.last_asset_title !== undefined
+          ? String(
+              bidData.asset_title ??
+                bidData.assetTitle ??
+                bidData.lastAssetTitle ??
+                bidData.last_asset_title ??
+                ""
+            )
+          : prev
+            ? prev.lastAssetTitle
+            : "",
+      source: String(bidData.source || prev?.source || "automatic_bid"),
+      updatedAt: new Date(lastBidAt).toISOString(),
+      lastEventId: eventId || prev?.lastEventId || ""
+    };
+
+    map[key] = nextRecord;
+    return nextRecord;
+  }
+
   const AuctionBiddersFrequencyTable = {
-    version: "1.0.0",
+    version: "2.1.0-supabase",
     storageKey: STORAGE_KEY,
 
     getAllBidders: function () {
       const map = loadMap();
-      return Object.values(map).sort((a, b) => (a.firstBidAt || 0) - (b.firstBidAt || 0));
+      return Object.values(map).sort((a, b) => {
+        const diffFirst = (a.firstBidAt || 0) - (b.firstBidAt || 0);
+        if (diffFirst !== 0) return diffFirst;
+        return a.username.localeCompare(b.username);
+      });
     },
 
     getActiveBiddersCount: function () {
@@ -46,58 +257,244 @@
       const activeSet = new Set();
       bidders.forEach((entry) => {
         const key = cleanUsername(entry.username).toLowerCase();
-        if (key && (parseInt(entry.bidCount, 10) || 0) > 0) {
+        if (key && toSafeInt(entry.bidCount, 0) > 0) {
           activeSet.add(key);
         }
       });
       return activeSet.size;
     },
 
-    recordAutomaticBid: function (bidData = {}) {
+    getTotalBidsCount: function () {
+      return this.getAllBidders().reduce(
+        (sum, item) => sum + Math.max(0, toSafeInt(item.bidCount, 0)),
+        0
+      );
+    },
+
+    recordAutomaticBid: function (bidData = {}, options = {}) {
       const username = cleanUsername(bidData.username || bidData.bidder || "");
       if (!username) return null;
 
-      const key = username.toLowerCase();
-      const map = loadMap();
-      const now = Date.now();
-      const increment = Number.isFinite(Number(bidData.incrementBy)) && Number(bidData.incrementBy) > 0
-        ? Number(bidData.incrementBy)
-        : 1;
+      const eventId =
+        bidData.eventId ||
+        `bid_${remoteBridge.clientId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-      const prev = map[key] || {
+      const payload = {
+        ...bidData,
         username,
-        bidCount: 0,
-        firstBidAt: now,
-        lastBidAt: now,
-        lastBidAmount: 0,
-        lastAuctionId: "",
-        lastAssetTitle: "",
-        source: "automatic_bid"
+        eventId,
+        timestamp: toMillis(bidData.timestamp, Date.now()) || Date.now()
       };
 
-      const nextRecord = {
-        ...prev,
-        username,
-        bidCount: (parseInt(prev.bidCount, 10) || 0) + increment,
-        lastBidAt: now,
-        lastBidAmount: Number(bidData.bid_amount ?? bidData.amount ?? prev.lastBidAmount) || 0,
-        lastAuctionId: String(bidData.auction_id ?? bidData.auctionId ?? prev.lastAuctionId),
-        lastAssetTitle: String(bidData.asset_title ?? bidData.assetTitle ?? prev.lastAssetTitle),
-        source: bidData.source || "automatic_bid",
-        updatedAt: new Date(now).toISOString()
-      };
+      let resultRecord = null;
+      enqueueWrite(() => {
+        const map = loadMap();
+        resultRecord = mergeBidIntoMap(map, payload, options);
+        if (resultRecord) {
+          saveMap(map);
+          broadcastLocal({
+            type: "bid_frequency_updated",
+            record: resultRecord,
+            payload
+          });
+          this.syncPanelAndTable();
 
-      map[key] = nextRecord;
-      saveMap(map);
-
-      try {
-        if (channel) {
-          channel.postMessage({ type: "bid_frequency_updated", record: nextRecord, timestamp: now });
+          if (!options.fromRemote && typeof remoteBridge.onPublishBid === "function") {
+            try {
+              const maybePromise = remoteBridge.onPublishBid(payload);
+              if (maybePromise && typeof maybePromise.catch === "function") {
+                maybePromise.catch((err) => {
+                  console.warn("[AuctionBiddersFrequencyTable] Gagal kirim bid ke Supabase:", err);
+                });
+              }
+            } catch (err) {
+              console.warn("[AuctionBiddersFrequencyTable] Error publish bid:", err);
+            }
+          }
         }
-      } catch (_) {}
+      });
 
-      this.syncPanelAndTable();
-      return nextRecord;
+      return resultRecord;
+    },
+
+    applyRemoteBidEvent: function (remoteBidData = {}) {
+      return this.recordAutomaticBid(remoteBidData, {
+        fromRemote: true,
+        isAbsoluteTotal:
+          remoteBidData.isAbsoluteTotal !== undefined ? Boolean(remoteBidData.isAbsoluteTotal) : true
+      });
+    },
+
+    applyRemoteSnapshot: function (recordsOrMap = [], options = {}) {
+      enqueueWrite(() => {
+        const nextMap = {};
+        const list = Array.isArray(recordsOrMap)
+          ? recordsOrMap
+          : recordsOrMap && typeof recordsOrMap === "object"
+            ? Object.values(recordsOrMap)
+            : [];
+
+        list.forEach((raw) => {
+          const norm = normalizeRecord(raw);
+          if (norm) {
+            nextMap[norm.username.toLowerCase()] = norm;
+          }
+        });
+
+        saveMap(nextMap);
+        if (!options.silentBroadcast) {
+          broadcastLocal({ type: "bid_frequency_snapshot" });
+        }
+        this.syncPanelAndTable();
+      });
+    },
+
+    configureRealtimeTransport: function (handlers = {}) {
+      if (typeof handlers.onPublishBid === "function") {
+        remoteBridge.onPublishBid = handlers.onPublishBid;
+      }
+      if (typeof handlers.onPublishClear === "function") {
+        remoteBridge.onPublishClear = handlers.onPublishClear;
+      }
+      if (typeof handlers.onRequestSync === "function") {
+        remoteBridge.onRequestSync = handlers.onRequestSync;
+        try {
+          remoteBridge.onRequestSync();
+        } catch (_) {}
+      }
+    },
+
+    /**
+     * Menghubungkan langsung ke instance Supabase client (`createClient(...)`)
+     */
+    connectSupabase: function (supabaseClient, config = {}) {
+      if (!supabaseClient) {
+        console.warn("[AuctionBiddersFrequencyTable] supabaseClient tidak valid.");
+        return null;
+      }
+
+      const auctionKey = config.auctionKey || DEFAULT_AUCTION_KEY;
+      remoteBridge.supabaseClient = supabaseClient;
+      remoteBridge.auctionKey = auctionKey;
+
+      // Hentikan channel lama jika connectSupabase dipanggil ulang
+      if (remoteBridge.realtimeChannel && typeof supabaseClient.removeChannel === "function") {
+        try {
+          supabaseClient.removeChannel(remoteBridge.realtimeChannel);
+        } catch (_) {}
+      }
+
+      const fetchSnapshot = async () => {
+        try {
+          const { data, error } = await supabaseClient
+            .from("auction_bidders_frequency")
+            .select("*")
+            .eq("auction_key", auctionKey)
+            .order("first_bid_at", { ascending: true });
+
+          if (error) {
+            console.warn("[AuctionBiddersFrequencyTable] Gagal fetch snapshot:", error.message);
+            return;
+          }
+
+          if (Array.isArray(data)) {
+            this.applyRemoteSnapshot(data);
+          }
+        } catch (err) {
+          console.warn("[AuctionBiddersFrequencyTable] Error fetch snapshot:", err);
+        }
+      };
+
+      this.configureRealtimeTransport({
+        onRequestSync: fetchSnapshot,
+        onPublishBid: async (payload) => {
+          const { data, error } = await supabaseClient.rpc("record_auction_bid", {
+            p_username: payload.username,
+            p_increment_by: payload.incrementBy || 1,
+            p_bid_amount: toSafeNumber(payload.bid_amount ?? payload.amount, 0),
+            p_auction_id: String(payload.auction_id ?? payload.auctionId ?? ""),
+            p_asset_title: String(payload.asset_title ?? payload.assetTitle ?? ""),
+            p_source: String(payload.source || "automatic_bid"),
+            p_auction_key: auctionKey,
+            p_bid_at: new Date(toMillis(payload.timestamp, Date.now())).toISOString()
+          });
+
+          if (error) {
+            throw error;
+          }
+
+          // Sinkronkan dengan nilai total atomik hasil RPC jika tersedia
+          if (data && data.username) {
+            this.applyRemoteBidEvent({
+              username: data.username,
+              bidCount: data.bid_count,
+              firstBidAt: data.first_bid_at,
+              lastBidAt: data.last_bid_at,
+              lastBidAmount: data.last_bid_amount,
+              lastAuctionId: data.last_auction_id,
+              lastAssetTitle: data.last_asset_title,
+              source: data.source,
+              isAbsoluteTotal: true
+            });
+          }
+        },
+        onPublishClear: async ({ selectedUsers }) => {
+          const { error } = await supabaseClient.rpc("clear_auction_bidders", {
+            p_usernames: selectedUsers && selectedUsers.length ? selectedUsers : null,
+            p_auction_key: auctionKey
+          });
+          if (error) {
+            throw error;
+          }
+        }
+      });
+
+      const rtChannel = supabaseClient
+        .channel(`abf_realtime_${auctionKey}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "auction_bidders_frequency",
+            filter: `auction_key=eq.${auctionKey}`
+          },
+          (payload) => {
+            if (payload.eventType === "DELETE") {
+              const oldRow = payload.old;
+              if (oldRow && oldRow.username) {
+                this.clearRecords([oldRow.username], { fromRemote: true });
+              } else {
+                fetchSnapshot();
+              }
+              return;
+            }
+
+            const row = payload.new;
+            if (!row) return;
+
+            this.applyRemoteBidEvent({
+              username: row.username,
+              bidCount: row.bid_count,
+              firstBidAt: row.first_bid_at,
+              lastBidAt: row.last_bid_at,
+              lastBidAmount: row.last_bid_amount,
+              lastAuctionId: row.last_auction_id,
+              lastAssetTitle: row.last_asset_title,
+              source: row.source,
+              timestamp: row.last_bid_at || row.updated_at || Date.now(),
+              isAbsoluteTotal: true
+            });
+          }
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            fetchSnapshot();
+          }
+        });
+
+      remoteBridge.realtimeChannel = rtChannel;
+      return rtChannel;
     },
 
     renderTable: function () {
@@ -110,6 +507,8 @@
       }
 
       if (!tbody) return;
+
+      const previouslyChecked = getCheckedUsernames();
 
       if (!list.length) {
         tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">No recorded bidders yet.</td></tr>`;
@@ -129,7 +528,7 @@
             typeof SecureShield !== "undefined" && SecureShield.sanitizeHTML
               ? SecureShield.sanitizeHTML(row.username)
               : row.username;
-          const count = parseInt(row.bidCount, 10) || 1;
+          const count = Math.max(0, toSafeInt(row.bidCount, 0));
           return `
             <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
               <td class="p-2 text-center">
@@ -145,6 +544,8 @@
           `;
         })
         .join("");
+
+      restoreCheckedUsernames(previouslyChecked);
     },
 
     syncPanelAndTable: function () {
@@ -166,24 +567,63 @@
       if (modal) modal.classList.add("hidden");
     },
 
-    clearRecords: function (selectedUsers = []) {
-      const map = loadMap();
-      if (!Array.isArray(selectedUsers) || selectedUsers.length === 0) {
-        saveMap({});
-      } else {
-        const target = new Set(selectedUsers.map((u) => cleanUsername(u).toLowerCase()));
-        Object.keys(map).forEach((k) => {
-          if (target.has(k.toLowerCase())) delete map[k];
-        });
+    clearRecords: function (selectedUsers = [], options = {}) {
+      const normalizedSelected = Array.isArray(selectedUsers)
+        ? selectedUsers.map((u) => cleanUsername(u).toLowerCase()).filter(Boolean)
+        : [];
+
+      enqueueWrite(() => {
+        const map = loadMap();
+        if (normalizedSelected.length === 0) {
+          Object.keys(map).forEach((k) => delete map[k]);
+        } else {
+          const target = new Set(normalizedSelected);
+          Object.keys(map).forEach((k) => {
+            if (target.has(k.toLowerCase())) delete map[k];
+          });
+        }
         saveMap(map);
-      }
-      this.syncPanelAndTable();
+
+        broadcastLocal({
+          type: "bid_frequency_cleared",
+          selectedUsers: normalizedSelected
+        });
+
+        this.syncPanelAndTable();
+
+        if (!options.fromRemote && typeof remoteBridge.onPublishClear === "function") {
+          try {
+            const maybePromise = remoteBridge.onPublishClear({ selectedUsers: normalizedSelected });
+            if (maybePromise && typeof maybePromise.catch === "function") {
+              maybePromise.catch((err) => {
+                console.warn("[AuctionBiddersFrequencyTable] Gagal clear di Supabase:", err);
+              });
+            }
+          } catch (err) {
+            console.warn("[AuctionBiddersFrequencyTable] Error publish clear:", err);
+          }
+        }
+      });
     }
   };
 
   try {
     if (channel) {
-      channel.onmessage = () => AuctionBiddersFrequencyTable.syncPanelAndTable();
+      channel.onmessage = (event) => {
+        const data = event?.data;
+        if (!data || data.originClientId === remoteBridge.clientId) return;
+        AuctionBiddersFrequencyTable.syncPanelAndTable();
+      };
+    }
+  } catch (_) {}
+
+  try {
+    if (typeof global.addEventListener === "function") {
+      global.addEventListener("storage", (event) => {
+        if (event.key === STORAGE_KEY) {
+          AuctionBiddersFrequencyTable.syncPanelAndTable();
+        }
+      });
     }
   } catch (_) {}
 
