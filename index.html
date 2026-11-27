@@ -2221,13 +2221,16 @@
         if (cleanRole !== 'seller' && cleanRole !== 'buyer') return;
 
         let username = this.resolveActiveUsername();
-        if (!username && typeof authenticatedPiUser !== 'undefined' && authenticatedPiUser && authenticatedPiUser.username) {
-          username = authenticatedPiUser.username.trim().replace(/^@/, '');
+        if (!username && typeof authenticatePiUser === 'function') {
+          try {
+            await authenticatePiUser(true);
+          } catch (_) {}
+          username = this.resolveActiveUsername();
         }
         if (!username) {
-          username = 'Ful21';
-          authenticatedPiUser = { username };
-          window.authenticatedPiUser = authenticatedPiUser;
+          const alertText = (typeof t === 'function') ? t('loginFirstAlert') : 'Please sign in to your Pi Network account first.';
+          alert(alertText);
+          return;
         }
 
 
