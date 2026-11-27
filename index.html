@@ -2327,10 +2327,16 @@
         }
       },
 
+      pruneDuplicateCollateralButtons: function() {
+        const allSellerBtns = Array.from(document.querySelectorAll('#homeSellerCollateralBtn, #homeDuplicateSellerCollateralBtn'));
+        const allBuyerBtns = Array.from(document.querySelectorAll('#homeBuyerCollateralBtn, #homeDuplicateBuyerCollateralBtn'));
+        allSellerBtns.slice(1).forEach((el) => el.remove());
+        allBuyerBtns.slice(1).forEach((el) => el.remove());
+      },
+
       initSync: function() {
         const self = this;
-        const bindCollateralButton = (btnId, roleName) => {
-          const btn = document.getElementById(btnId);
+        const bindCollateralButton = (btn, roleName) => {
           if (!btn) return;
           btn.style.pointerEvents = 'auto';
           const currentUser = self.resolveActiveUsername();
@@ -2349,10 +2355,14 @@
         };
 
         const forceBind = () => {
-          bindCollateralButton('homeDuplicateSellerCollateralBtn', 'seller');
-          bindCollateralButton('homeDuplicateBuyerCollateralBtn', 'buyer');
+          self.pruneDuplicateCollateralButtons();
+          const sBtn = document.querySelector('#homeSellerCollateralBtn, #homeDuplicateSellerCollateralBtn');
+          const bBtn = document.querySelector('#homeBuyerCollateralBtn, #homeDuplicateBuyerCollateralBtn');
+          bindCollateralButton(sBtn, 'seller');
+          bindCollateralButton(bBtn, 'buyer');
           self.syncHomeButtonsUI();
         };
+
 
         forceBind();
         setInterval(forceBind, 1000);
