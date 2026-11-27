@@ -2124,8 +2124,20 @@
         };
 
         this.writeLedgerRecord(cleanUser, updatedRecord);
+        try {
+          localStorage.setItem('pibox_buyers_table_sync_v1', JSON.stringify({
+            username: cleanUser,
+            role: roleLabel,
+            seller_deposit_balance: nextSeller,
+            buyer_deposit_balance: nextBuyer,
+            deposit_balance: nextTotal,
+            status: VerificationStandardCore.APPROVED,
+            updated_at: nowIso
+          }));
+        } catch (_) {}
 
         if (typeof buyersList !== 'undefined' && Array.isArray(buyersList)) {
+
           const idx = buyersList.findIndex(b => (b.username || '').toString().trim().replace(/^@/, '').toLowerCase() === cleanUser.toLowerCase());
           if (idx !== -1) buyersList[idx] = { ...buyersList[idx], ...updatedRecord };
           else buyersList.push(updatedRecord);
