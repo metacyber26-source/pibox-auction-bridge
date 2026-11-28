@@ -515,33 +515,21 @@
         return;
       }
 
-      const isResetEnabled =
-        typeof _LoginAndAdminControlCore !== "undefined" &&
-        typeof _LoginAndAdminControlCore.isResetButtonEnabled === "function"
-          ? _LoginAndAdminControlCore.isResetButtonEnabled()
-          : true;
-      const disabledAttr = !isResetEnabled ? "disabled" : "";
-
-      tbody.innerHTML = list
-        .map((row) => {
-          const safeUser =
-            typeof SecureShield !== "undefined" && SecureShield.sanitizeHTML
-              ? SecureShield.sanitizeHTML(row.username)
-              : row.username;
-          const count = Math.max(0, toSafeInt(row.bidCount, 0));
-          return `
-            <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition">
-              <td class="p-2 text-center">
-                <input type="checkbox" class="bidder-row-checkbox cursor-pointer accent-emerald-500" value="${safeUser}" ${disabledAttr}>
-              </td>
-              <td class="p-2 font-mono text-yellow-400 font-semibold">@${safeUser}</td>
-              <td class="p-2 text-right">
-                <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
-                  ${count}x
-                </span>
-              </td>
-            </tr>
-          `;
+      const index = idx + 1;
+      return `
+        <tr class="border-b border-gray-800/80 hover:bg-gray-900/60 transition" data-username="${safeUser}">
+          <td class="p-2 text-center">
+            <input type="checkbox" class="bidder-row-checkbox cursor-pointer accent-emerald-500" value="${safeUser}">
+          </td>
+          <td class="p-2 text-gray-400 font-mono text-xs">${index}</td>
+          <td class="p-2 font-mono text-yellow-400 font-semibold">@${safeUser}</td>
+          <td class="p-2 text-right">
+            <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
+              ${count}x
+            </span>
+          </td>
+        </tr>
+      `;
         })
         .join("");
 
