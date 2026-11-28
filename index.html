@@ -4975,45 +4975,6 @@
 
               return entry;
             },
-            getSummaryByAsset: function(auctionId) {
-              const records = this.readAllRecords().filter(
-                r => String(r.auction_id) === String(auctionId)
-              );
-              const perUserMap = new Map();
-              records.forEach((rec, idx) => {
-                const key = String(rec.username).trim();
-                const existing = perUserMap.get(key);
-                if (!existing) {
-                  perUserMap.set(key, {
-                    order: perUserMap.size + 1,
-                    username: key,
-                    count: 1,
-                    lastAmount: parseFloat(rec.bid_amount || 0),
-                    lastTime: rec.created_at,
-                    seqIndex: idx
-                  });
-                } else {
-                  existing.count += 1;
-                  existing.lastAmount = parseFloat(rec.bid_amount || 0);
-                  existing.lastTime = rec.created_at;
-                  existing.seqIndex = idx;
-                }
-              });
-              return Array.from(perUserMap.values());
-            },
-            buildReportText: function(auctionObj) {
-              const id = auctionObj ? auctionObj.id : '';
-              const title = auctionObj && auctionObj.title ? auctionObj.title : 'Semua Aset';
-              const rows = id ? this.getSummaryByAsset(id) : [];
-              if (!rows.length) {
-                return `📋 Laporan Penawar (${title}): Belum ada penawaran tercatat.`;
-              }
-              let lines = [`📋 Laporan Penawar — ${title} (Total ${rows.length} Penawar):`];
-              rows.forEach((r, i) => {
-                lines.push(`${i + 1}. @${r.username} — ${r.count}x penawaran`);
-              });
-              return lines.join('\n');
-            },
             pushImmediateDistribution: function(auctionId, newBid, bidder, ledgerEntry) {
               const cleanId = String(auctionId);
               const numericBid = parseFloat(newBid);
@@ -5056,13 +5017,6 @@
                   });
                 } catch (_) {}
               }
-
-              const biddersModal = document.getElementById('activeBiddersModal');
-              if (biddersModal && !biddersModal.classList.contains('hidden')) {
-                if (typeof renderActiveBiddersModalTable === 'function') {
-                  try { renderActiveBiddersModalTable(); } catch (_) {}
-                }
-              }
             }
           };
 
@@ -5072,6 +5026,7 @@
           localStorage.setItem(getBuyerAgreementKey(auctionId, username), 'true');
           incrementUserBidCount(auctionId, username);
 
+          await BidderFrequencySupabaseSync.recordOkClickToSupabase(username, finalBidAmount, auctionId);
           const recordedEntry = await _BidLedgerAndDistributionCore.recordSingleBid(auction, finalBidAmount, username);
           _BidLedgerAndDistributionCore.pushImmediateDistribution(auctionId, finalBidAmount, username, recordedEntry);
 
@@ -5079,8 +5034,40 @@
           updateActiveCounts();
           filterGallery();
           await fetchActiveAuctions();
+          BidderFrequencySupabaseSync.renderSummaryAndModal();
+        } catch (err) {
+          alert("Gagal: " + (err.message || err));
+          await fetchActiveAuctions();
+        } finally {
+          _AutonomousLogicEngine.isProcessingBid = false;
+        }
+      };
 
-          alert(t('bidSuccessMsg') + `\nNominal Tercatat: ${finalBidAmount} Pi (@${username})`);
+      const dispatchConfirmedBid = () => {
+        if (requiredBidFee > 0) {
+          const paymentData = {
+            amount: requiredBidFee,
+            memo: `PIBOX-AUCTION: Bid Fee #${nextBidNumber} - @${username}`,
+            metadata: { type: 'bid_fee', auctionId, username, bidNumber: nextBidNumber }
+          };
+
+          try {
+            const piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
+            if (piInstance && typeof piInstance.createPayment === 'function') {
+              piInstance.createPayment(paymentData, {
+                onReadyForServerApproval: async (pid) => { await fetch('/api/pi/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid }) }).catch(()=>{}); },
+                onReadyForServerCompletion: async (pid, txid) => { await fetch('/api/pi/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: pid, txid }) }).catch(()=>{}); executeBidProcess(); },
+                onCancel: () => { _AutonomousLogicEngine.isProcessingBid = false; },
+                onError: () => { executeBidProcess(); }
+              });
+            } else { executeBidProcess(); }
+          } catch (e) { executeBidProcess(); }
+        } else {
+          executeBidProcess();
+        }
+      };
+
+      openBidConfirmationPopup(auctionId, finalBidAmount, username, dispatchConfirmedBid);
         } catch (err) {
           alert("Gagal: " + (err.message || err));
           await fetchActiveAuctions();
