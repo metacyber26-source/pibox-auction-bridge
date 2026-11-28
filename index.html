@@ -525,37 +525,12 @@ SessionGuard.applySessionState("Dev", false);
       renderSavedAccountsList();
     }
 
-    function finalizeLoginSession(username) {
-      const cleanUser = SystemGuardianCore.enforceRealIdentity(SecureShield.sanitizeStrict(username));
-      authenticatedPiUser = { username: cleanUser };
-      window.authenticatedPiUser = authenticatedPiUser;
-
-      const statusEl = document.getElementById('userStatusDisplay');
-      const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-      const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-      const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-      const maskedName = SecureShield.maskUsername(cleanUser);
-
-      if (statusEl) statusEl.innerText = `User: @${maskedName}`;
-      if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${maskedName}</span>`;
-
-      const isAdmin = typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(cleanUser);
-      if (isAdmin) {
-        if (typeof isBuyerApproved !== 'undefined') isBuyerApproved = true;
-        const approvalEl = document.getElementById('buyerApprovalStatusText');
-        if (approvalEl) approvalEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
-        if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-      } else {
-        if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
-        if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
-      }
-
-      if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(cleanUser);
-      if (typeof fetchAndListenAuctionSchedule === 'function') fetchAndListenAuctionSchedule();
-      if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
-      if (typeof fetchBuyersList === 'function') fetchBuyersList();
-    }
+    const normalizedUser = cleanUser.toString().trim().replace(/^@/, '');
+if (window.SessionGuard && typeof window.SessionGuard.applySessionState === 'function') {
+window.SessionGuard.applySessionState(normalizedUser, true);
+window.SessionGuard.broadcastSession(normalizedUser);
+return;
+}
 
     const CertificateSystemGuardian = {
       verifyAdminCertificateAccess: function(username, adminList) {
