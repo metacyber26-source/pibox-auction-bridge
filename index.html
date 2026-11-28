@@ -2117,50 +2117,15 @@ return;
       }
     }
 
-    async function authenticatePiUser(isAuto = false) {
-      if (isAuthenticating) return;
-      if (authenticatedPiUser && authenticatedPiUser.username && !isAuto) {
-        const currentUsr = authenticatedPiUser.username;
-        const switchToManual = confirm(`Akses Aktif: Logged in sebagai @${SecureShield.maskUsername(currentUsr)}.\n\nKlik OK untuk ganti akun / buka panel login, atau Batal untuk tetap menggunakan akun ini.`);
-        if (!switchToManual) {
-          if (typeof checkBuyerStatusInDatabase === 'function') await checkBuyerStatusInDatabase(currentUsr);
-          return;
-        }
-      }
-
-      isAuthenticating = true;
-      const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-      if (btnHeaderLogin && !isAuto) {
-        btnHeaderLogin.innerHTML = `⏳ <span class="text-yellow-400">Connecting...</span>`;
-      }
-
-      let piInstance = window.Pi || (typeof Pi !== 'undefined' ? Pi : null);
-      if (piInstance && typeof piInstance.authenticate === 'function') {
-        try {
-          piInstance.init({ version: "2.0", sandbox: IS_TESTNET });
-          const authPromise = piInstance.authenticate(['username', 'payments'], () => {});
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Pi SDK Timeout")), 1800));
-          const authResult = await Promise.race([authPromise, timeoutPromise]);
-          if (authResult && authResult.user && authResult.user.username) {
-            finalizeLoginSession(authResult.user.username);
-            isAuthenticating = false;
-            if (!isAuto) alert(`🎉 Berhasil Login sebagai @${SecureShield.maskUsername(authResult.user.username)}`);
-            return;
-          }
-        } catch (_) {}
-      }
-
-      isAuthenticating = false;
-      if (btnHeaderLogin && authenticatedPiUser && authenticatedPiUser.username) {
-        btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">@${SecureShield.maskUsername(authenticatedPiUser.username)}</span>`;
-      } else if (btnHeaderLogin) {
-        btnHeaderLogin.innerHTML = `🔑 <span data-i18n="loginBtn" id="loginBtnText">Login</span>`;
-      }
-
-      if (!isAuto) {
-        openSemiAutoLoginModal();
-      }
-    }
+    if (isAuto && (!window.Pi || typeof window.Pi.authenticate !== 'function')) {
+const cachedUser = window.SessionGuard && typeof window.SessionGuard.readSession === 'function'
+? window.SessionGuard.readSession()
+: null;
+if (cachedUser && window.SessionGuard && typeof window.SessionGuard.applySessionState === 'function') {
+window.SessionGuard.applySessionState(cachedUser, true);
+}
+return;
+}
 
     // --- STANDARDIZED STATUS & ROLE CORE ---
     const VerificationStandardCore = {
