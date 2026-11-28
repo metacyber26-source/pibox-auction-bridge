@@ -241,24 +241,121 @@
       }
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
-      SystemGuardianCore.monitorStream();
-      setTimeout(() => {
-        if (!window.authenticatedPiUser) {
-          window.authenticatedPiUser = { username: "Ful21" };
-          authenticatedPiUser = window.authenticatedPiUser;
-          const statusEl = document.getElementById('userStatusDisplay');
-          const btnHeaderLogin = document.getElementById('btnHeaderLogin');
-          const btnAdminSchedule = document.getElementById('btnAdminSchedule');
-          const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
-          
-          if (statusEl) statusEl.innerText = "User: Ful21 (Dev Full Access)";
-          if (btnHeaderLogin) btnHeaderLogin.innerHTML = `✅ <span class="text-emerald-400">LOGIN</span>`;
-          if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
-          if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
-        }
-      }, 500);
-    });
+    const SessionGuard = {
+storageKey: 'pibox_active_session_v1',
+channelName: 'pibox_auth_session_sync',
+readSession: function() {
+try {
+const raw = localStorage.getItem(this.storageKey) || sessionStorage.getItem(this.storageKey);
+if (!raw) return null;
+const parsed = JSON.parse(raw);
+return parsed && parsed.username ? String(parsed.username).trim().replace(/^@/, '') : null;
+} catch () {
+return null;
+}
+},
+writeSession: function(username) {
+const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+if (!cleanUser) return;
+const payload = JSON.stringify({ username: cleanUser, updatedAt: Date.now() });
+try { localStorage.setItem(this.storageKey, payload); } catch () {}
+try { sessionStorage.setItem(this.storageKey, payload); } catch () {}
+},
+clearSession: function() {
+try { localStorage.removeItem(this.storageKey); } catch () {}
+try { sessionStorage.removeItem(this.storageKey); } catch () {}
+},
+broadcastSession: function(username) {
+const msg = { type: 'auth_session_sync', username: username || '', ts: Date.now() };
+try {
+if (typeof BroadcastChannel !== 'undefined') {
+const bc = new BroadcastChannel(this.channelName);
+bc.postMessage(msg);
+bc.close();
+}
+} catch () {}
+if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+try {
+supabaseClient.channel('public-cluster-auctions').send({
+type: 'broadcast',
+event: 'auth_session_sync',
+payload: msg
+});
+} catch (_) {}
+}
+},
+applySessionState: function(username, shouldRefresh = false) {
+const cleanUser = (username || '').toString().trim().replace(/^@/, '');
+if (!cleanUser) return;
+const validatedUser = SystemGuardianCore.enforceRealIdentity(SecureShield.sanitizeStrict(cleanUser));
+authenticatedPiUser = { username: validatedUser };
+window.authenticatedPiUser = authenticatedPiUser;
+this.writeSession(validatedUser);
+​const statusEl = document.getElementById('userStatusDisplay');
+const btnHeaderLogin = document.getElementById('btnHeaderLogin');
+const btnAdminSchedule = document.getElementById('btnAdminSchedule');
+const adminMonthlyReportPanel = document.getElementById('adminMonthlyReportPanel');
+const maskedName = SecureShield.maskUsername(validatedUser);
+​if (statusEl) statusEl.innerText = User: @${maskedName};
+if (btnHeaderLogin) btnHeaderLogin.innerHTML = ✅ <span class="text-emerald-400">@${maskedName}</span>;
+​const isAdmin = typeof ADMIN_USERNAMES !== 'undefined' && ADMIN_USERNAMES.includes(validatedUser) && !(typeof isTestUserModeActive !== 'undefined' && isTestUserModeActive);
+if (isAdmin) {
+if (typeof isBuyerApproved !== 'undefined') isBuyerApproved = true;
+const approvalEl = document.getElementById('buyerApprovalStatusText');
+if (approvalEl) approvalEl.innerText = "Admin/Dev Terverifikasi (Akses Penuh)";
+if (btnAdminSchedule) btnAdminSchedule.classList.remove('hidden');
+if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.remove('hidden');
+} else {
+if (btnAdminSchedule) btnAdminSchedule.classList.add('hidden');
+if (adminMonthlyReportPanel) adminMonthlyReportPanel.classList.add('hidden');
+}
+​if (typeof _SystemRoleDepositGuardian !== 'undefined' && typeof SystemRoleDepositGuardian.syncAdminOnlyControls === 'function') {
+SystemRoleDepositGuardian.syncAdminOnlyControls();
+}
+if (typeof HomeCollateralBridge !== 'undefined' && typeof HomeCollateralBridge.syncHomeButtonsUI === 'function') {
+HomeCollateralBridge.syncHomeButtonsUI();
+}
+if (shouldRefresh) {
+if (typeof checkBuyerStatusInDatabase === 'function') checkBuyerStatusInDatabase(validatedUser);
+if (typeof fetchAndListenAuctionSchedule === 'function') fetchAndListenAuctionSchedule();
+if (typeof fetchActiveAuctions === 'function') fetchActiveAuctions();
+if (typeof fetchBuyersList === 'function') fetchBuyersList();
+}
+},
+initSyncListeners: function() {
+const self = this;
+try {
+if (typeof BroadcastChannel !== 'undefined') {
+const bc = new BroadcastChannel(this.channelName);
+bc.onmessage = (ev) => {
+const msg = ev && ev.data ? ev.data : {};
+if (msg.type === 'auth_session_sync' && msg.username) {
+self.applySessionState(msg.username, true);
+}
+};
+}
+} catch () {}
+window.addEventListener('storage', (ev) => {
+if (ev.key === self.storageKey && ev.newValue) {
+try {
+const parsed = JSON.parse(ev.newValue);
+if (parsed && parsed.username) self.applySessionState(parsed.username, true);
+} catch () {}
+}
+});
+}
+};
+window.SessionGuard = SessionGuard;
+SessionGuard.initSyncListeners();
+​setTimeout(() => {
+const persistedUser = SessionGuard.readSession();
+if (persistedUser) {
+SessionGuard.applySessionState(persistedUser, true);
+} else if (!window.authenticatedPiUser) {
+SessionGuard.applySessionState("Dev", false);
+}
+}, 300);
+});
 
     window.SecureShield = {
       sanitizeHTML: function(str) {
